@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discord Community
+    url: https://discord.gg/aniraku
+    about: Ask questions, share feedback, and chat with the community.
+  - name: Documentation
+    url: https://github.com/Aniraku/Aniraku#readme
+    about: Check the README for setup instructions and project overview.

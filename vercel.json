@@ -1,0 +1,95 @@
+{
+  "buildCommand": "npm run generate-sitemap && npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/sitemap.xml", "destination": "/sitemap.xml" },
+    { "source": "/sitemaps/(.*)", "destination": "/sitemaps/$1" },
+    { "source": "/robots.txt", "destination": "/robots.txt" },
+    { "source": "/manifest.json", "destination": "/manifest.json" },
+    { "source": "/favicon.svg", "destination": "/favicon.svg" },
+    { "source": "/og-image.png", "destination": "/og-image.png" },
+    { "source": "/google0e4c03928112e656.html", "destination": "/google0e4c03928112e656.html" },
+    { "source": "/icons/(.*)", "destination": "/icons/$1" },
+    { "source": "/sw.js", "destination": "/sw.js" },
+    { "source": "/((?!assets/|favicon\\.svg|manifest\\.json|sitemap\\.xml|sitemaps/|robots\\.txt|og-image\\.png|google0e4c03928112e656\\.html|icons/|sw\\.js).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; media-src 'self' blob: data: https:; connect-src 'self' https://*.supabase.co https://api.aniraku.tech https://graphql.anilist.co https://corsproxy.io https://api.allorigins.win https://api.codetabs.com https://*.akirax.buzz https://*.kotocdn.site https://*.norami.top https://*.uwucdn.top https://*.owocdn.top https://*.fast4speed.rsvp https://*.ibyteimg.com https://*.ipstatp.com https://*.anidb.app https://*.allmanga.to https://*.vivibebe.site https://api.aniskip.com; frame-src 'self' https://bysekoze.com https://*.bysekoze.com https://*.akirax.buzz https://*.kotocdn.site https://*.norami.top https://*.uwucdn.top https://*.owocdn.top https://*.fast4speed.rsvp https://*.allmanga.to https://*.vivibebe.site https://*.anidb.app; worker-src 'self' blob:; frame-ancestors 'none'; form-action 'self'"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap.xml",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=3600, s-maxage=3600" }
+      ]
+    },
+    {
+      "source": "/sitemaps/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=3600, s-maxage=3600" }
+      ]
+    },
+    {
+      "source": "/robots.txt",
+      "headers": [
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=86400, s-maxage=86400" },
+        { "key": "Content-Security-Policy", "value": "none" }
+      ]
+    },
+    {
+      "source": "/manifest.json",
+      "headers": [
+        { "key": "Content-Type", "value": "application/manifest+json; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=86400, s-maxage=86400" }
+      ]
+    },
+    {
+      "source": "/og-image.png",
+      "headers": [
+        { "key": "Content-Type", "value": "image/png" },
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/icons/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/favicon.svg",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    }
+  ],
+  "env": {
+    "VITE_API_URL": "https://api.aniraku.tech",
+    "VITE_PROXY_URL": ""
+  }
+}
