@@ -17,3 +17,4 @@
 - [x] Publish the signed Aniraku Android APK and App Bundle through a GitHub Release with release notes.
 - [x] Finalize FOSS direct-install guidance and release the signed universal APK without Play Store submission.
 - [x] Trace and resolve the persistent Expo Router 6000ms timeout at the live Metro bundle frame reported after the initial correction.
+- [x] Diagnose and resolve the AniList GraphQL HTTP 400 error blocking live discovery data.

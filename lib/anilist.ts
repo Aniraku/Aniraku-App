@@ -8,18 +8,21 @@ const fields = `
 `;
 
 async function request<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
+  const providedVariables = Object.fromEntries(Object.entries(variables).filter(([, value]) => value !== undefined));
   const response = await fetch(APP_CONFIG.anilistGraphqlUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ query, variables }),
+    body: JSON.stringify({ query, variables: providedVariables }),
   });
-  if (!response.ok) throw new Error(`AniList is unavailable (${response.status}).`);
-  const payload = await response.json();
+  const rawPayload = await response.text();
+  let payload: { data?: T; errors?: Array<{ message?: string }> } = {};
+  try { payload = rawPayload ? JSON.parse(rawPayload) : {}; } catch { throw new Error("AniList returned an unreadable response."); }
+  if (!response.ok) throw new Error(payload.errors?.[0]?.message || `AniList is unavailable (${response.status}).`);
   if (payload.errors?.length) throw new Error(payload.errors[0]?.message || "AniList returned an invalid response.");
   return payload.data as T;
 }
 
-const pageQuery = `query MediaPage($page: Int!, $perPage: Int!, $sort: [MediaSort!], $search: String, $status: MediaStatus, $season: MediaSeason, $seasonYear: Int) {
+const pageQuery = `query MediaPage($page: Int!, $perPage: Int!, $sort: [MediaSort], $search: String, $status: MediaStatus, $season: MediaSeason, $seasonYear: Int) {
   Page(page: $page, perPage: $perPage) { pageInfo { currentPage hasNextPage total } media(type: ANIME, isAdult: false, sort: $sort, search: $search, status: $status, season: $season, seasonYear: $seasonYear) { ${fields} } }
 }`;
 
