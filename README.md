@@ -1,172 +1,68 @@
-<p align="center">
-  <img src="./assets/aniraku-readme-hero.svg" alt="Aniraku" width="100%" />
-</p>
+# Aniraku Native Android
 
 <p align="center">
-  <a href="https://www.aniraku.tech/"><strong>Open Aniraku</strong></a>
-  &nbsp;&nbsp;·&nbsp;&nbsp;
-  <a href="https://github.com/Aniraku/Aniraku"><strong>Web source</strong></a>
-  &nbsp;&nbsp;·&nbsp;&nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-Backend"><strong>Backend</strong></a>
+  <img src="./assets/images/icon.png" width="112" height="112" alt="Aniraku launcher icon" />
 </p>
 
-# Aniraku for Android
+> **A native Android anime experience for discovery, verified-source playback coordination, and a synchronized personal library.**
 
-**Aniraku for Android** is the official native Android delivery of the Aniraku experience. It packages the maintained React frontend with Capacitor so that browsing, authentication, playback, history, ratings, comments, bookmarks, catalog filters, schedules, and account settings stay aligned with [Aniraku.tech](https://www.aniraku.tech/).
+Aniraku Native Android is built with **Expo and React Native**, not a browser wrapper. It uses native screens, Android-safe encrypted session storage, native media controls, safe areas, haptics, and a restrained **Nothing OS-inspired** visual system. The application reads discovery metadata from AniList, coordinates verified sources through the Aniraku API, and syncs approved account data with the existing Aniraku Supabase project.
 
-The application uses a restrained **Material 3 × Nothing OS** design layer for Android: monochrome surfaces, rounded adaptive navigation, touch-first feedback, safe-area-aware layouts, offline visibility, native system-back behavior, deep links, and an Android launcher/splash treatment based on the existing Aniraku mark. It is not a reduced web-view product; the frontend bundle is built from the same feature surface maintained for Aniraku.
-
-| Layer | Technology | Purpose |
-|---|---|---|
-| Application interface | React 18, Vite, styled-components | Shared Aniraku features, responsive routes, and web UI |
-| Playback | Artplayer, HLS.js, dash.js | Adaptive streams, native media, HLS, DASH, quality, subtitles, and failover |
-| Native Android bridge | Capacitor 8 | Android app lifecycle, system back, keyboard resize, status bar, splash, connectivity, and deep links |
-| Account and sync | Supabase | Authentication, profiles, history, ratings, bookmarks, comments, and notifications |
-| Metadata and playback services | AniList and Aniraku Backend | Discovery, schedules, title metadata, providers, and playback coordination |
-
-## Feature parity
-
-The Android application retains the public Aniraku user flows rather than creating a parallel product. Native enhancements sit around those flows and do not replace their data models or service contracts.
-
-| Area | Included capability |
+| Area | Native implementation |
 |---|---|
-| Authentication | Sign in, sign up, verified-email protection, password recovery, session cleanup, profile, and account deletion flows |
-| Discovery | Home, catalog search and filters, schedule, title details, recommendations, and minimal random discovery |
-| Playback | SUB/DUB selection, provider choices, adaptive quality, HLS/DASH/native routing, intro/outro behavior, auto-next, subtitles, and playback controls |
-| Personal library | Continue Watching, progress sync, episode history, ratings, bookmarks, rewatch states, and profile settings |
-| Community | Comments, episode ratings, notifications, legal pages, policy pages, and reporting links |
-| Android behavior | Native back navigation, offline state feedback, deep links, edge-to-edge safe areas, keyboard resizing, adaptive launcher icon, and splash screen |
-
-## Android design system
-
-The Android-only design layer is activated by the Capacitor runtime and leaves browser deployments unchanged. It applies a Material 3-inspired surface hierarchy with Nothing OS restraint: high-contrast dark surfaces, clear type, soft 12–28 px shape tokens, monochrome selection states, and compact rounded navigation designed for one-handed use.
-
-> **Design principle:** Android should feel native in posture and feedback, while the content and account experience remain recognizably Aniraku.
-
-The native shell also suppresses Vercel browser analytics components inside the APK. That prevents web-only analytics loading messages from cluttering Android diagnostics without removing analytics from the website.
-
-## Architecture
-
-```text
-Android device
-  │
-  ├── Capacitor Android shell
-  │   ├── Status bar, splash, keyboard, network, app lifecycle
-  │   ├── aniraku:// deep links
-  │   └── Material 3 / Nothing OS Android-only styling
-  │
-  └── Bundled Aniraku React application
-      ├── Supabase authentication and synchronized library data
-      ├── AniList metadata, catalog, schedules, and discovery
-      ├── Artplayer, HLS.js, dash.js, and provider selection
-      └── Aniraku Backend playback and source coordination
-```
-
-## Requirements
-
-A local Android release build requires Node.js 22 or newer, Java 21, Android SDK Platform 36, Android Build Tools 36.0.0, and an Android device running Android 7.0 (API 24) or newer. Capacitor 8 uses API 24 as its minimum Android level. The release APK is a single, signed, ABI-neutral Java/WebView package rather than an ABI-split binary, so it is suitable for supported 32-bit and 64-bit Android environments where the system WebView is available; the matching App Bundle lets Google Play optimize delivery per device.
-
-```bash
-node --version
-java -version
-```
+| Discovery | Home, catalog, full-text search, schedule, random selection, and AniList title detail. |
+| Playback | Aniraku backend provider coordination, direct HLS/DASH/media routing, quality/source selection, manual and auto skip controls, auto-next, 10-second seek, and Android Picture-in-Picture. |
+| Account | Email verification, encrypted Supabase sessions, recovery flow, account deletion, and user data cleanup. |
+| Library | Watch history, resume rules, bookmarks, episode ratings, comments, notifications, and settings synchronization. |
+| Android release | API 24 minimum, `armeabi-v7a` and `arm64-v8a` release ABIs, APK preview profile, and App Bundle production profile. |
 
 ## Local development
 
-Install dependencies and run the same browser application used by the website.
+Use a current Node 22 environment and pnpm 9. Install dependencies, configure the required public runtime values, then start the native project.
 
 ```bash
-git clone https://github.com/Aniraku/Aniraku-App.git
-cd Aniraku-App
-npm install
-npm run dev
+pnpm install
+pnpm check
+pnpm test
+pnpm android
 ```
 
-Build the web bundle and synchronize it into the Android project whenever frontend code changes.
+The app requires these **public client** variables. Do not put service-role keys, database passwords, signing keys, or provider private credentials in the client build.
 
-```bash
-npm run android:sync
-```
-
-The available commands are organized below.
-
-| Command | Purpose |
+| Variable | Purpose |
 |---|---|
-| `npm run dev` | Run Aniraku in Vite development mode. |
-| `npm run lint` | Validate maintained source files. Generated Android assets are intentionally excluded. |
-| `npm run build` | Produce the production web bundle. |
-| `npm run test:bots` | Run existing browser smoke checks. |
-| `npm run test:e2e` | Run the Playwright cross-device regression suite. |
-| `npm run android:sync` | Build the web bundle and copy it into `android/`. |
-| `npm run android:debug` | Build an installable debug APK. |
-| `npm run android:release` | Build a signed release APK when local signing material is configured. |
-| `npm run android:open` | Open the generated Android project in Android Studio. |
+| `EXPO_PUBLIC_API_BASE_URL` | Aniraku API origin, normally `https://api.aniraku.tech`. |
+| `EXPO_PUBLIC_ANILIST_GRAPHQL_URL` | AniList GraphQL endpoint. |
+| `EXPO_PUBLIC_SUPABASE_URL` | Existing Aniraku Supabase project URL. |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Existing Aniraku Supabase publishable/anonymous client key. |
 
-## Signing and release safety
+## Release workflow
 
-Android publishing requires one stable signing key. The key identifies future app updates; losing it prevents updates from being accepted as upgrades to the existing application.
-
-The repository deliberately ignores these private files:
-
-```text
-android/keystore.properties
-android/app/aniraku-release.jks
-android/local.properties
-```
-
-Copy `android/keystore.properties.example` to `android/keystore.properties`, set strong local credentials, and store the matching keystore in a secure password manager or encrypted backup. Never commit either file. A signed release build is generated with:
+The app configuration uses the package identifier `tech.aniraku.app`, the deep-link scheme `aniraku://`, API 24 minimum support, and Android 32/64-bit ARM release architectures. The preview profile produces an installable APK; production emits an Android App Bundle.
 
 ```bash
-npm run android:release
+npx eas-cli build --platform android --profile preview
+npx eas-cli build --platform android --profile production
 ```
 
-The resulting artifact is normally written to:
+Signing is intentionally managed through the release service or a controlled local keystore process. Private signing keys must never be committed to this repository. The CI workflow validates TypeScript, automated tests, and the public Expo configuration on each pull request and main-branch update.
 
-```text
-android/app/build/outputs/apk/release/app-release.apk
-```
+## Playback boundary
 
-For Google Play distribution, build an Android App Bundle after synchronization:
+The Aniraku backend is the authority for provider discovery and stream verification. The native client requests verified servers and then plays **direct** sources that its native media stack supports. It does not scrape providers, manufacture unverified stream URLs, embed unsupported third-party pages, or include dead provider entries as playable choices.
 
-```bash
-cd android
-./gradlew bundleRelease
-```
+## Project documentation
 
-## Validation standard
-
-Before publishing a release, run the following sequence after a clean synchronization:
-
-```bash
-npm run lint
-npm run build
-npm run test:bots
-npm run test:e2e
-npm run android:sync
-cd android && ./gradlew lintRelease assembleRelease
-```
-
-The release process also verifies the APK package name, version, signature, alignment, and archive contents. A physical-device check should cover sign-in, password recovery, catalog search, title navigation, mobile search, watch playback, provider changes, system back, keyboard behavior, deep links, and offline feedback.
-
-## Repository boundaries
-
-This repository contains the Android wrapper and the bundled Aniraku frontend source. The separate repositories remain the source of truth for their respective services:
-
-| Repository | Responsibility |
+| Document | Scope |
 |---|---|
-| [`Aniraku/Aniraku`](https://github.com/Aniraku/Aniraku) | Web frontend and Vercel deployment |
-| [`Aniraku/Aniraku-Backend`](https://github.com/Aniraku/Aniraku-Backend) | Playback resolution and backend API |
-| [`Aniraku/Aniraku-App`](https://github.com/Aniraku/Aniraku-App) | Android native packaging, Android design layer, signed release configuration, and APK artifacts |
-
-## Content, privacy, and legal notices
-
-Aniraku is an open-source discovery and playback client. Anime artwork, metadata, provider pages, streamed media, trademarks, and third-party services remain subject to their respective rights, terms, and policies. See the included [Privacy Policy](PRIVACY_POLICY.md), [Terms](docs/TERMS.md) where applicable, and [DMCA route](https://www.aniraku.tech/dmca) for service-level notices.
+| [Architecture](./docs/NATIVE_ARCHITECTURE.md) | Service boundaries, domain model, session security, and playback responsibilities. |
+| [Privacy](./PRIVACY.md) | Data categories, retention, deletion behavior, and user controls. |
+| [Terms](./TERMS.md) | Acceptable use, source responsibilities, and service limitations. |
+| [DMCA](./DMCA.md) | Copyright notice procedure and repeat-infringer policy. |
+| [Security](./SECURITY.md) | Reporting route and client security expectations. |
+| [Contributing](./CONTRIBUTING.md) | Development and pull-request expectations. |
+| [Changelog](./CHANGELOG.md) | Release notes. |
 
 ## License
 
-This repository is distributed under the included [MIT License](LICENSE). Capacitor and the other dependencies retain their own licenses.
-
-<p align="center">
-  <strong>Find it. Watch it. Keep your place.</strong><br />
-  <sub>Android-ready, feature-complete, and built with care by the Aniraku community.</sub>
-</p>
+This repository is made available under the [MIT License](./LICENSE). Anime metadata, artwork, streams, trademarks, and other third-party materials remain subject to their respective rights holders and provider terms.

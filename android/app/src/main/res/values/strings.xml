@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">Aniraku</string>
-    <string name="title_activity_main">Aniraku</string>
-    <string name="package_name">tech.aniraku.app</string>
-    <string name="custom_url_scheme">aniraku</string>
-</resources>
