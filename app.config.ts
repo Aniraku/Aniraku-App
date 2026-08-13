@@ -36,6 +36,10 @@ const config: ExpoConfig = {
   web: { bundler: "metro", output: "static", favicon: "./assets/images/favicon.png" },
   plugins: [
     "expo-router",
+    "expo-asset",
+    "expo-audio",
+    "expo-font",
+    "expo-web-browser",
     ["expo-secure-store", { configureAndroidBackup: true }],
     ["expo-video", { supportsBackgroundPlayback: true, supportsPictureInPicture: true }],
     ["expo-splash-screen", { image: "./assets/images/splash-icon.png", imageWidth: 200, resizeMode: "contain", backgroundColor: "#090909", dark: { backgroundColor: "#090909" } }],

@@ -11,5 +11,8 @@
 - [x] Add production error boundaries, offline handling, analytics-safe diagnostics, accessibility semantics, and privacy controls.
 - [x] Add unit and integration tests for service clients, auth state, history rules, and navigation-critical flows.
 - [x] Build a signed universal APK and App Bundle, validate package/signature/permissions, and conduct device-oriented checks.
-- [ ] Replace the prior wrapper source in Aniraku/Aniraku-App with the native application, documentation, CI, and release artifacts.
-- [ ] Hand off the native APK, App Bundle, release validation, and private signing-key backup.
+- [x] Replace the prior wrapper source in Aniraku/Aniraku-App with the native application, documentation, CI, and release artifacts.
+- [x] Hand off the native APK, App Bundle, release validation, and private signing-key backup.
+- [x] Diagnose and resolve the Expo Router 6000ms timeout in the running native application.
+- [ ] Publish the signed Aniraku Android APK and App Bundle through a GitHub Release with release notes.
+- [ ] Finalize FOSS direct-install guidance and release the signed universal APK without Play Store submission.

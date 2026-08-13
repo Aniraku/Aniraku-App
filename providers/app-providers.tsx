@@ -12,7 +12,9 @@ export function AppProviders({ children }: PropsWithChildren) {
   }));
   useEffect(() => {
     let mounted = true;
-    void Network.getNetworkStateAsync().then((state) => { if (mounted) onlineManager.setOnline(state.isInternetReachable ?? state.isConnected ?? true); });
+    void Network.getNetworkStateAsync()
+      .then((state) => { if (mounted) onlineManager.setOnline(state.isInternetReachable ?? state.isConnected ?? true); })
+      .catch(() => { if (mounted) onlineManager.setOnline(true); });
     const subscription = Network.addNetworkStateListener((state) => onlineManager.setOnline(state.isInternetReachable ?? state.isConnected ?? true));
     return () => { mounted = false; subscription.remove(); };
   }, []);
