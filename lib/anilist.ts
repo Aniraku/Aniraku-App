@@ -1,5 +1,5 @@
 import { APP_CONFIG } from "@/lib/app-config";
-import type { Anime, AnimePage } from "@/lib/types";
+import type { AiringSchedulePage, Anime, AnimePage } from "@/lib/types";
 
 const fields = `
   id title { romaji english native } coverImage { large extraLarge color } bannerImage
@@ -24,6 +24,10 @@ async function request<T>(query: string, variables: Record<string, unknown> = {}
 
 const pageQuery = `query MediaPage($page: Int!, $perPage: Int!, $sort: [MediaSort], $search: String, $status: MediaStatus, $season: MediaSeason, $seasonYear: Int) {
   Page(page: $page, perPage: $perPage) { pageInfo { currentPage hasNextPage total } media(type: ANIME, isAdult: false, sort: $sort, search: $search, status: $status, season: $season, seasonYear: $seasonYear) { ${fields} } }
+}`;
+
+const airingScheduleQuery = `query AiringSchedule($page: Int!, $perPage: Int!) {
+  Page(page: $page, perPage: $perPage) { pageInfo { currentPage hasNextPage total } airingSchedules(notYetAired: true, sort: [TIME]) { airingAt episode media { ${fields} } } }
 }`;
 
 export async function getAnimePage(options: {
@@ -51,9 +55,9 @@ export async function getHomeAnime() {
   const [trending, popular, upcoming] = await Promise.all([
     getAnimePage({ perPage: 12, sort: ["TRENDING_DESC", "POPULARITY_DESC"] }),
     getAnimePage({ perPage: 12, sort: ["POPULARITY_DESC"] }),
-    getAnimePage({ perPage: 12, sort: ["NEXT_AIRING_EPISODE_ASC"] }),
+    getAiringSchedule(1, 12),
   ]);
-  return { trending: trending.media, popular: popular.media, upcoming: upcoming.media };
+  return { trending: trending.media, popular: popular.media, upcoming: upcoming.airingSchedules.map((item) => item.media) };
 }
 
 export async function getAnimeById(id: number): Promise<Anime> {
@@ -62,6 +66,7 @@ export async function getAnimeById(id: number): Promise<Anime> {
   return data.Media;
 }
 
-export async function getAiringSchedule(page = 1): Promise<AnimePage> {
-  return getAnimePage({ page, perPage: 40, sort: ["NEXT_AIRING_EPISODE_ASC"] });
+export async function getAiringSchedule(page = 1, perPage = 40): Promise<AiringSchedulePage> {
+  const data = await request<{ Page: AiringSchedulePage }>(airingScheduleQuery, { page, perPage });
+  return data.Page;
 }

@@ -28,6 +28,17 @@ export type AnimePage = {
   media: Anime[];
 };
 
+export type AiringScheduleItem = {
+  airingAt: number;
+  episode: number;
+  media: Anime;
+};
+
+export type AiringSchedulePage = {
+  pageInfo: AnimePage["pageInfo"];
+  airingSchedules: AiringScheduleItem[];
+};
+
 export type Episode = {
   number: number;
   title?: string | null;
