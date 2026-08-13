@@ -1,8 +1,8 @@
 import type { PropsWithChildren, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { AppIcon } from "@/components/app-icon";
 import { nothing } from "@/components/nothing-ui";
 
 export function NativeScreen({ children, scroll = true, style }: PropsWithChildren<{ scroll?: boolean; style?: ViewStyle }>) {
@@ -15,7 +15,7 @@ export function NativeHeader({ eyebrow, title, action }: { eyebrow?: string; tit
 }
 
 export function SearchAction() {
-  return <Pressable accessibilityRole="button" accessibilityLabel="Search anime" onPress={() => router.push("/search" as never)} style={({ pressed }) => [styles.searchButton, pressed && styles.pressed]}><MaterialCommunityIcons name="magnify" color={nothing.white} size={22} /></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel="Search anime" onPress={() => router.push("/search" as never)} style={({ pressed }) => [styles.searchButton, pressed && styles.pressed]}><AppIcon name="magnify" color={nothing.white} size={22} /></Pressable>;
 }
 
 const styles = StyleSheet.create({

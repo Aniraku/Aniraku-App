@@ -1,7 +1,7 @@
 import { Tabs } from "expo-router";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AppIcon } from "@/components/app-icon";
 import { nothing } from "@/components/nothing-ui";
 
 const tabIcons = {
@@ -27,7 +27,7 @@ export default function TabLayout() {
           tabBarLabelStyle: { fontFamily: "monospace", fontSize: 9, fontWeight: "800", letterSpacing: 0.4, marginTop: 2 },
           tabBarStyle: { height: 64 + bottom, paddingTop: 8, paddingBottom: bottom, backgroundColor: nothing.black, borderTopColor: nothing.line, borderTopWidth: 1 },
           tabBarItemStyle: { borderRadius: 14, marginHorizontal: 2 },
-          tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => <MaterialCommunityIcons name={icon} size={23} color={color} style={{ opacity: focused ? 1 : 0.86 }} />,
+          tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => <AppIcon name={icon} size={23} color={color} style={{ opacity: focused ? 1 : 0.86 }} />,
         };
       }}
     >

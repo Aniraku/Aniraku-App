@@ -2,10 +2,10 @@ import { useDeferredValue, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { getAnimePage } from "@/lib/anilist";
 import { AnimeCard } from "@/components/anime-card";
 import { ErrorState, LoadingState, EmptyState } from "@/components/async-state";
+import { AppIcon } from "@/components/app-icon";
 import { DotLabel, nothing } from "@/components/nothing-ui";
 import { NativeScreen } from "@/components/screen";
 
@@ -14,8 +14,8 @@ export default function SearchScreen() {
   const query = useDeferredValue(input.trim());
   const results = useQuery({ queryKey: ["search", query], queryFn: () => getAnimePage({ search: query, perPage: 30, sort: ["SEARCH_MATCH"] }), enabled: query.length > 1 });
   return <NativeScreen scroll={false} style={styles.fill}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Close search" onPress={() => router.back()} style={styles.back}><MaterialCommunityIcons name="arrow-left" size={22} color={nothing.white} /></Pressable><View style={styles.titleBlock}><DotLabel>Live title index</DotLabel><Text style={styles.title}>Search</Text></View></View>
-    <View style={styles.inputRow}><MaterialCommunityIcons name="magnify" size={21} color={nothing.muted} /><TextInput autoFocus value={input} onChangeText={setInput} placeholder="Search anime" placeholderTextColor={nothing.dim} style={styles.input} returnKeyType="search" clearButtonMode="while-editing" /></View>
+    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Close search" onPress={() => router.back()} style={styles.back}><AppIcon name="arrow-left" size={22} color={nothing.white} /></Pressable><View style={styles.titleBlock}><DotLabel>Live title index</DotLabel><Text style={styles.title}>Search</Text></View></View>
+    <View style={styles.inputRow}><AppIcon name="magnify" size={21} color={nothing.muted} /><TextInput autoFocus value={input} onChangeText={setInput} placeholder="Search anime" placeholderTextColor={nothing.dim} style={styles.input} returnKeyType="search" clearButtonMode="while-editing" /></View>
     {query.length <= 1 ? <EmptyState label="Type at least two characters to query the live AniList catalog." /> : results.isPending ? <LoadingState label={`Searching for “${query}”`} /> : results.isError || !results.data ? <ErrorState message={results.error?.message ?? "Search is unavailable."} onRetry={() => void results.refetch()} /> : results.data.media.length === 0 ? <EmptyState label={`No titles found for “${query}”.`} /> : <FlatList data={results.data.media} numColumns={2} keyExtractor={(item) => String(item.id)} renderItem={({ item }) => <View style={styles.cell}><AnimeCard anime={item} /></View>} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} />}
   </NativeScreen>;
 }
