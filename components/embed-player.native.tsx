@@ -29,6 +29,9 @@ export function EmbedPlayer({ uri, headers, onError }: { uri: string; headers?: 
       onLoadStart={() => setLoading(true)}
       onLoadEnd={() => setLoading(false)}
       onError={onError}
+      onHttpError={({ nativeEvent }) => {
+        if (nativeEvent.statusCode >= 400) onError();
+      }}
       onRenderProcessGone={onError}
     />
     {loading ? <View pointerEvents="none" style={styles.loading}><ActivityIndicator color="#F6F6F2" /><Text style={styles.loadingText}>OPENING EMBED PLAYER</Text></View> : null}
