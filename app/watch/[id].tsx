@@ -39,7 +39,7 @@ import { NativeScreen } from "@/components/screen";
 const RESUME_MIN_TIME = 30;
 const STREAM_CACHE_TTL_MS = 30_000;
 const SERVER_RETRY_DELAY_MS = 12_000;
-const STARTUP_WATCHDOG_MS = 12_000;
+const STARTUP_WATCHDOG_MS = 6_000;
 const SKIP_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 type CachedStream = { savedAt: number; data: StreamResponse };
@@ -225,8 +225,10 @@ export default function WatchScreen() {
     const current = activeProviders[serverIndex];
     if (!current) return;
     const fallbackEmbed = embedSources(stream ?? { sources: current.sources ?? [] })[0];
-    // The provider's verified embed is a recovery path only. Native playback
-    // always exhausts proxy then direct media before this hand-off.
+    // A provider has already had proxy and direct-native delivery attempts.
+    // For a silent 0:00 startup stall, the verified embed is the fastest
+    // device-compatible escape; the persistent picker still exposes every
+    // language and provider if the user wants another source.
     if ((reason === "player" || reason === "startup") && fallbackEmbed && !embedSource) {
       player.pause();
       sourceStarted.current = false;

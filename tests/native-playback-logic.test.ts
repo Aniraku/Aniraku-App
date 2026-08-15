@@ -67,7 +67,8 @@ describe("Aniraku native playback coordination", () => {
   it("does not mistake a ready-but-unrendered source for successful playback", () => {
     expect(hasConfirmedPlaybackStart({ isPlaying: false, currentTime: 0, firstFrameRendered: false })).toBe(false);
     expect(hasConfirmedPlaybackStart({ isPlaying: false, currentTime: 0, firstFrameRendered: true })).toBe(true);
-    expect(hasConfirmedPlaybackStart({ isPlaying: true, currentTime: 0, firstFrameRendered: false })).toBe(true);
+    expect(hasConfirmedPlaybackStart({ isPlaying: true, currentTime: 0, firstFrameRendered: false })).toBe(false);
+    expect(hasConfirmedPlaybackStart({ isPlaying: false, currentTime: 1, firstFrameRendered: false })).toBe(true);
     expect(shouldRetryUnproxiedDirectSource(true, false)).toBe(true);
     expect(shouldRetryUnproxiedDirectSource(false, false)).toBe(false);
     expect(shouldRetryUnproxiedDirectSource(true, true)).toBe(false);

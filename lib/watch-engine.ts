@@ -22,9 +22,9 @@ export function shouldMountReplacementSource(sourceMounted: boolean, forceRefres
   return !sourceMounted || forceRefresh;
 }
 
-/** `readyToPlay` alone is not proof of a rendered or advancing video frame. */
+/** A play request or ready state alone is not proof of a rendered or advancing video frame. */
 export function hasConfirmedPlaybackStart(input: { isPlaying: boolean; currentTime: number; firstFrameRendered: boolean }) {
-  return input.firstFrameRendered || input.isPlaying || input.currentTime > 0;
+  return input.firstFrameRendered || input.currentTime > 0;
 }
 
 /** A direct source that never renders gets one unproxied retry before provider failover. */
