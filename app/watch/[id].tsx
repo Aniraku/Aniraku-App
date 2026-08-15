@@ -268,6 +268,14 @@ export default function WatchScreen() {
     setError("We don't have a working stream for this episode right now.");
   }, [activeProviders, embedSource, player, serverIndex, stream]);
 
+  // Stream refreshes update `stream` for metadata and embed fallback only. Keep
+  // the source lifecycle callback stable so that update cannot recreate the
+  // current video effect, reset its watchdog, and strand Android at 0:00.
+  const handleProviderBlockedRef = useRef(handleProviderBlocked);
+  useEffect(() => {
+    handleProviderBlockedRef.current = handleProviderBlocked;
+  }, [handleProviderBlocked]);
+
   useEffect(() => {
     let active = true;
     void AsyncStorage.getItem("aniraku.watch.preferences")
@@ -458,7 +466,7 @@ export default function WatchScreen() {
         setSourceRevision((value) => value + 1);
         return;
       }
-      handleProviderBlocked("player");
+      handleProviderBlockedRef.current("player");
     });
     const watchdog = setTimeout(() => {
       if (sourceAttempt.current !== attempt || sourceStarted.current) return;
@@ -467,10 +475,10 @@ export default function WatchScreen() {
         setSourceRevision((value) => value + 1);
         return;
       }
-      handleProviderBlocked("startup");
+      handleProviderBlockedRef.current("startup");
     }, STARTUP_WATCHDOG_MS);
     return () => clearTimeout(watchdog);
-  }, [episode, handleProviderBlocked, image, playbackHeaders, player, source?.url, sourceRevision, title, useSourceProxy]);
+  }, [episode, image, playbackHeaders, player, source?.url, sourceRevision, title, useSourceProxy]);
 
   useEffect(() => { player.playbackRate = speed; }, [player, speed]);
 
