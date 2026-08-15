@@ -54,6 +54,8 @@ export type Server = {
   lang: "sub" | "dub";
   verification?: string;
   type?: string;
+  sources?: StreamSource[];
+  headers?: Record<string, string>;
 };
 
 export type StreamSource = {
@@ -62,6 +64,7 @@ export type StreamSource = {
   type?: string;
   mime?: string;
   verification?: string;
+  Verification?: string;
   subtitles?: Array<{ url: string; label?: string; lang?: string }>;
 };
 
@@ -71,6 +74,18 @@ export type StreamResponse = {
   intro?: { startTime?: number; endTime?: number };
   outro?: { startTime?: number; endTime?: number };
   error?: string;
+};
+
+export type AnirakuProfile = {
+  id: string;
+  username?: string | null;
+  display_name?: string | null;
+  bio?: string | null;
+  avatar_url?: string | null;
+  banner_url?: string | null;
+  location?: string | null;
+  socials?: Record<string, string> | null;
+  created_at?: string | null;
 };
 
 export type WatchHistoryEntry = {

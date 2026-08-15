@@ -1,4 +1,3 @@
-import "react-native-gesture-handler";
 import { useEffect } from "react";
 import { Pressable, Text } from "react-native";
 import { Stack } from "expo-router";
@@ -13,7 +12,7 @@ import { ConnectivitySignal } from "@/components/connectivity-signal";
 export const unstable_settings = { anchor: "(tabs)" };
 
 export default function RootLayout() {
-  useEffect(() => { void SystemUI.setBackgroundColorAsync(nothing.black); }, []);
+  useEffect(() => { void SystemUI.setBackgroundColorAsync(nothing.black).catch(() => {}); }, []);
   return <GestureHandlerRootView style={{ flex: 1, backgroundColor: nothing.black }}><SafeAreaProvider><AppProviders><StatusBar style="light" translucent backgroundColor="transparent" /><Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: nothing.black } }}><Stack.Screen name="(tabs)" /><Stack.Screen name="anime/[id]" /><Stack.Screen name="watch/[id]" /><Stack.Screen name="search" options={{ presentation: "card" }} /><Stack.Screen name="auth" options={{ presentation: "modal" }} /><Stack.Screen name="settings" options={{ presentation: "modal" }} /><Stack.Screen name="library" /><Stack.Screen name="legal" options={{ presentation: "modal" }} /></Stack><ConnectivitySignal /></AppProviders></SafeAreaProvider></GestureHandlerRootView>;
 }
 

@@ -27,27 +27,30 @@ export default function AnimeDetailScreen() {
   const ratings = useEpisodeRatings(id);
   const comments = useComments(id);
   const [comment, setComment] = useState("");
-  const episodeRows = useMemo(() => episodes.data?.slice(0, 24) ?? [], [episodes.data]);
+  // Match the main Aniraku detail page: preserve the whole canonical backend
+  // episode list instead of silently truncating Watch entry points after 24.
+  const episodeRows = useMemo(() => episodes.data ?? [], [episodes.data]);
   const animeHistory = useMemo(() => history.history.data?.filter((entry) => entry.anime_id === id) ?? [], [history.history.data, id]);
   const resumeEpisode = useMemo(() => chooseResumeEpisode(animeHistory), [animeHistory]);
 
-  if (anime.isPending) return <NativeScreen><NativeHeader eyebrow="Title signal" title="Anime" /><LoadingState label="Loading title metadata" /></NativeScreen>;
-  if (anime.isError || !anime.data) return <NativeScreen><NativeHeader eyebrow="Title signal" title="Anime" /><ErrorState message={anime.error?.message ?? "Title unavailable."} onRetry={() => void anime.refetch()} /></NativeScreen>;
+  if (anime.isPending) return <NativeScreen><NativeHeader eyebrow="ANIME" title="Anime" /><LoadingState label="Loading anime details" /></NativeScreen>;
+  if (anime.isError || !anime.data) return <NativeScreen><NativeHeader eyebrow="ANIME" title="Anime" /><ErrorState message={anime.error?.message ?? "We could not load this anime."} onRetry={() => void anime.refetch()} /></NativeScreen>;
   const data = anime.data;
   const title = animeTitle(data);
   const openEpisode = (episode: number) => router.push({ pathname: "/watch/[id]", params: { id: String(id), episode: String(episode), title, image: data.coverImage?.extraLarge || data.coverImage?.large || "" } } as never);
   const sendComment = () => comments.add.mutate({ content: comment }, { onSuccess: () => setComment("") });
-  const displayedResume = Math.min(resumeEpisode, Math.max(data.episodes ?? resumeEpisode, 1));
+  const lastAvailableEpisode = episodeRows.at(-1)?.number ?? Math.max(data.episodes ?? 1, 1);
+  const displayedResume = Math.min(resumeEpisode, lastAvailableEpisode);
 
   return <NativeScreen>
-    <View style={styles.backdrop}><Image source={data.bannerImage || data.coverImage?.extraLarge || data.coverImage?.large || undefined} style={StyleSheet.absoluteFill} contentFit="cover" /><View style={styles.backdropMask} /></View>
-    <NativeHeader eyebrow="Aniraku / title" title="Detail" />
-    <View style={styles.hero}><Image source={data.coverImage?.extraLarge || data.coverImage?.large || undefined} style={styles.poster} contentFit="cover" /><View style={styles.titleBlock}><Signal label={data.status || "ANIME"} /><Text style={styles.title}>{title}</Text><Text style={styles.meta}>{[data.format, data.episodes ? `${data.episodes} EP` : null, data.averageScore ? `${Math.round(data.averageScore)}%` : null].filter(Boolean).join(" · ")}</Text></View></View>
+    <View style={styles.backdrop}><Image source={{ uri: data.bannerImage || data.coverImage?.extraLarge || data.coverImage?.large || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" /><View style={styles.backdropMask} /></View>
+    <NativeHeader eyebrow="ANIME" title="Details" />
+    <View style={styles.hero}><Image source={{ uri: data.coverImage?.extraLarge || data.coverImage?.large || "" }} style={styles.poster} contentFit="cover" transition={0} cachePolicy="memory-disk" /><View style={styles.titleBlock}><Signal label={data.status || "ANIME"} tone="live" /><Text style={styles.title}>{title}</Text><Text style={styles.meta}>{[data.format, data.episodes ? `${data.episodes} EP` : null, data.averageScore ? `${Math.round(data.averageScore)}% MATCH` : null].filter(Boolean).join(" · ")}</Text></View></View>
     <View style={styles.actions}><View style={styles.actionCell}><NothingButton label={animeHistory.length ? `Continue episode ${displayedResume}` : "Watch episode 1"} onPress={() => openEpisode(displayedResume)} /></View><Pressable accessibilityRole="button" onPress={() => auth.user ? bookmarks.toggle.mutate(data) : router.push("/auth" as never)} style={({ pressed }) => [styles.bookmark, bookmarks.isBookmarked(id) && styles.bookmarkActive, pressed && styles.pressed]}><Text style={[styles.bookmarkLabel, bookmarks.isBookmarked(id) && styles.bookmarkActiveLabel]}>{bookmarks.isBookmarked(id) ? "SAVED" : "SAVE"}</Text></Pressable></View>
-    {animeHistory.length ? <NothingCard style={styles.continueCard}><DotLabel tone="live">Continue watching</DotLabel><Text style={styles.continueText}>Your latest completed episode is honored before any earlier partial progress. Resume points always follow the furthest completed episode.</Text></NothingCard> : null}
+    {animeHistory.length ? <NothingCard style={styles.continueCard}><DotLabel tone="live">CONTINUE WATCHING</DotLabel><Text style={styles.continueText}>Pick up from the furthest episode you completed, or carry on from where you paused.</Text></NothingCard> : null}
     <NothingCard style={styles.summary}><DotLabel>Synopsis</DotLabel><Text style={styles.copy}>{(data.description || "No synopsis is currently available.").replace(/<[^>]+>/g, "")}</Text>{data.genres?.length ? <Text style={styles.genre}>{data.genres.join(" · ")}</Text> : null}</NothingCard>
-    <View style={styles.episodeHeading}><View><DotLabel>Episode matrix</DotLabel><Text style={styles.heading}>Available episodes</Text></View><Text style={styles.count}>{episodes.isPending ? "…" : String(episodes.data?.length ?? 0).padStart(2, "0")}</Text></View>
-    {episodes.isPending ? <LoadingState label="Checking real episode availability" /> : episodes.isError ? <ErrorState message="Episode availability is unavailable." onRetry={() => void episodes.refetch()} /> : <View style={styles.episodeList}>{episodeRows.map((episode) => { const score = ratings.scoreFor(episode.number); const seen = animeHistory.find((entry) => entry.episode_number === episode.number); return <Pressable key={episode.number} onPress={() => openEpisode(episode.number)} style={({ pressed }) => pressed && styles.pressed}><NothingCard style={styles.episode}><Text style={styles.episodeNumber}>{String(episode.number).padStart(2, "0")}</Text><View style={styles.episodeBody}><Text style={styles.episodeTitle} numberOfLines={1}>{episode.title || `Episode ${episode.number}`}</Text><Text style={styles.episodeMeta}>{seen ? `PROGRESS ${Math.round((seen.progress / Math.max(seen.duration, 1)) * 100)}%` : episode.isFiller ? "FILLER" : "READY TO WATCH"}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Rate episode ${episode.number}`} onPress={(event) => { event.stopPropagation(); if (!auth.user) { router.push("/auth" as never); return; } ratings.setRating.mutate({ episode: episode.number, score: score ? score % 10 + 1 : 8 }); }} style={styles.rating}><Text style={styles.ratingText}>{score ? `${score}/10` : "RATE"}</Text></Pressable></NothingCard></Pressable>; })}</View>}
+    <View style={styles.episodeHeading}><View><DotLabel>EPISODES</DotLabel><Text style={styles.heading}>Choose an episode</Text></View><Text style={styles.count}>{episodes.isPending ? "…" : String(episodes.data?.length ?? 0).padStart(2, "0")}</Text></View>
+    {episodes.isPending ? <LoadingState label="Finding available episodes" /> : episodes.isError ? <ErrorState message={episodes.error?.message || "We could not load episodes right now."} onRetry={() => void episodes.refetch()} /> : !episodeRows.length ? <NothingCard style={styles.emptyEpisodes}><DotLabel tone="muted">NO EPISODES YET</DotLabel><Text style={styles.copy}>Episodes are not available for this anime yet. Check back soon.</Text><NothingButton label="CHECK AGAIN" variant="outline" onPress={() => void episodes.refetch()} /></NothingCard> : <View style={styles.episodeList}>{episodeRows.map((episode) => { const score = ratings.scoreFor(episode.number); const seen = animeHistory.find((entry) => entry.episode_number === episode.number); const progress = seen ? Math.min(100, Math.round((seen.progress / Math.max(seen.duration, 1)) * 100)) : 0; return <Pressable key={episode.number} accessibilityRole="button" accessibilityLabel={`Watch episode ${episode.number}: ${episode.title || "Untitled"}`} onPress={() => openEpisode(episode.number)} style={({ pressed }) => pressed && styles.pressed}><NothingCard style={styles.episode}><View style={styles.episodeVisual}><Image source={{ uri: episode.thumbnail || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" /><View style={styles.episodeVisualMask} /><Text style={styles.episodeNumber}>{String(episode.number).padStart(2, "0")}</Text></View><View style={styles.episodeBody}><Text style={styles.episodeTitle} numberOfLines={2}>{episode.title || `Episode ${episode.number}`}</Text><View style={styles.episodeStatus}><Text style={[styles.episodeMeta, episode.isFiller && styles.fillerMeta]}>{seen ? `${progress}% WATCHED` : episode.isFiller ? "FILLER" : "READY TO WATCH"}</Text>{seen ? <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View> : null}</View></View><Pressable accessibilityRole="button" accessibilityLabel={`Rate episode ${episode.number}`} onPress={(event) => { event.stopPropagation(); if (!auth.user) { router.push("/auth" as never); return; } ratings.setRating.mutate({ episode: episode.number, score: score ? score % 10 + 1 : 8 }); }} style={styles.rating}><Text style={styles.ratingText}>{score ? `${score}/10` : "RATE"}</Text></Pressable></NothingCard></Pressable>; })}</View>}
     <View style={styles.commentHeading}><DotLabel>Community</DotLabel><Text style={styles.heading}>Comments</Text></View>
     <NothingCard style={styles.commentComposer}>{auth.user ? <><TextInput value={comment} onChangeText={setComment} placeholder="Add a respectful comment" placeholderTextColor={nothing.dim} style={styles.commentInput} multiline maxLength={2000} /><NothingButton label={comments.add.isPending ? "Posting…" : "Post comment"} disabled={!comment.trim() || comments.add.isPending} onPress={sendComment} /></> : <><Text style={styles.copy}>Use a verified Aniraku account to join the discussion.</Text><NothingButton label="Sign in to comment" variant="outline" onPress={() => router.push("/auth" as never)} /></>}</NothingCard>
     {comments.comments.isPending ? <LoadingState label="Loading community comments" /> : comments.comments.data?.map((item) => <NothingCard key={item.id} style={styles.comment}><Text style={styles.commentMeta}>{item.episode_number ? `EP ${item.episode_number}` : "ANIME"} · {new Date(item.created_at).toLocaleDateString()}</Text><Text style={styles.commentText}>{item.content}</Text></NothingCard>)}
@@ -55,10 +58,10 @@ export default function AnimeDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { position: "absolute", left: 0, right: 0, top: 0, height: 330, opacity: 0.28 },
-  backdropMask: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(9,9,9,0.56)" },
+  backdrop: { position: "absolute", left: 0, right: 0, top: 0, height: 354, opacity: 0.35 },
+  backdropMask: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(9,9,9,0.62)" },
   hero: { flexDirection: "row", gap: 15, alignItems: "flex-end" },
-  poster: { width: 122, height: 180, borderRadius: 16, backgroundColor: nothing.raised, borderWidth: 1, borderColor: nothing.line },
+  poster: { width: 122, height: 182, borderRadius: 18, backgroundColor: nothing.raised, borderWidth: 1, borderColor: "rgba(246,246,242,0.25)" },
   titleBlock: { flex: 1, gap: 8, paddingBottom: 5 },
   title: { color: nothing.white, fontSize: 26, fontWeight: "900", lineHeight: 30, letterSpacing: -0.7 },
   meta: { color: nothing.muted, fontFamily: "monospace", fontSize: 10, letterSpacing: 0.5 },
@@ -79,11 +82,18 @@ const styles = StyleSheet.create({
   heading: { color: nothing.white, fontSize: 21, fontWeight: "900", marginTop: 4 },
   count: { color: nothing.dim, fontFamily: "monospace", fontSize: 12 },
   episodeList: { gap: 8 },
-  episode: { minHeight: 66, flexDirection: "row", alignItems: "center", padding: 12, gap: 12 },
-  episodeNumber: { color: nothing.white, fontFamily: "monospace", fontWeight: "900", fontSize: 16 },
-  episodeBody: { flex: 1, gap: 3 },
-  episodeTitle: { color: nothing.white, fontSize: 14, fontWeight: "700" },
-  episodeMeta: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, letterSpacing: 0.7 },
+  emptyEpisodes: { padding: 16, gap: 10 },
+  episode: { minHeight: 76, flexDirection: "row", alignItems: "center", padding: 8, gap: 10 },
+  episodeVisual: { width: 86, height: 58, borderRadius: 10, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: nothing.raised },
+  episodeVisualMask: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.35)" },
+  episodeNumber: { zIndex: 1, color: nothing.white, fontFamily: "monospace", fontWeight: "900", fontSize: 16 },
+  episodeBody: { flex: 1, gap: 5 },
+  episodeTitle: { color: nothing.white, fontSize: 13, fontWeight: "900", lineHeight: 17 },
+  episodeStatus: { flexDirection: "row", alignItems: "center", gap: 7 },
+  episodeMeta: { color: nothing.muted, fontFamily: "monospace", fontWeight: "900", fontSize: 8, letterSpacing: 0.55 },
+  fillerMeta: { color: nothing.red },
+  progressTrack: { flex: 1, maxWidth: 64, height: 3, overflow: "hidden", borderRadius: 2, backgroundColor: nothing.line },
+  progressFill: { height: "100%", backgroundColor: nothing.green },
   rating: { minWidth: 48, height: 34, borderRadius: 8, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line },
   ratingText: { color: nothing.white, fontFamily: "monospace", fontWeight: "800", fontSize: 9 },
   commentComposer: { padding: 14, gap: 12 },

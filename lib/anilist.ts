@@ -66,6 +66,14 @@ export async function getAnimeById(id: number): Promise<Anime> {
   return data.Media;
 }
 
+/** Watch.jsx uses AniList's MAL mapping to fetch AniSkip timestamps. */
+export async function getMalIdByAnimeId(id: number) {
+  const query = `query AnimeMalId($id: Int!) { Media(id: $id, type: ANIME) { idMal } }`;
+  const data = await request<{ Media?: { idMal?: number | null } }>(query, { id });
+  const malId = Number(data.Media?.idMal);
+  return Number.isInteger(malId) && malId > 0 ? malId : null;
+}
+
 export async function getAiringSchedule(page = 1, perPage = 40): Promise<AiringSchedulePage> {
   const data = await request<{ Page: AiringSchedulePage }>(airingScheduleQuery, { page, perPage });
   return data.Page;

@@ -1,15 +1,25 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Image } from "expo-image";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { getAiringSchedule } from "@/lib/anilist";
 import { animeTitle } from "@/lib/types";
+import type { AiringScheduleItem } from "@/lib/types";
 import { ErrorState, LoadingState } from "@/components/async-state";
-import { DotLabel, NothingCard, nothing, Signal } from "@/components/nothing-ui";
+import { nothing } from "@/components/nothing-ui";
 import { NativeHeader, NativeScreen, SearchAction } from "@/components/screen";
 
 export default function ScheduleScreen() {
   const schedule = useQuery({ queryKey: ["schedule"], queryFn: () => getAiringSchedule() });
-  return <NativeScreen><NativeHeader eyebrow="Time-zone aware" title="Schedule" action={<SearchAction />} /><View style={styles.info}><DotLabel>Next signals</DotLabel><Text style={styles.infoText}>Release times are calculated from live AniList airing data in your device time zone.</Text></View>{schedule.isPending ? <LoadingState label="Reading the next release window" /> : schedule.isError || !schedule.data ? <ErrorState message={schedule.error?.message ?? "Schedule unavailable."} onRetry={() => void schedule.refetch()} /> : <View style={styles.list}>{schedule.data.airingSchedules.map((item) => { const date = new Date(item.airingAt * 1000); const anime = item.media; return <Pressable key={`${anime.id}:${item.episode}:${item.airingAt}`} onPress={() => router.push((`/anime/${anime.id}`) as never)}><NothingCard style={styles.item}><View style={styles.itemTop}><Signal label={`EP ${item.episode}`} /><Text style={styles.time}>{date.toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}</Text></View><Text style={styles.title}>{animeTitle(anime)}</Text><Text style={styles.meta}>{anime.format || "ANIME"}{anime.episodes ? ` · ${anime.episodes} episodes` : ""}</Text></NothingCard></Pressable>; })}</View>}</NativeScreen>;
+  const groups = useMemo(() => {
+    const result = new Map<string, AiringScheduleItem[]>();
+    schedule.data?.airingSchedules.forEach((item) => { const key = new Date(item.airingAt * 1000).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }); const current = result.get(key) ?? []; result.set(key, [...current, item]); });
+    return [...result.entries()];
+  }, [schedule.data]);
+  return <NativeScreen><NativeHeader eyebrow="COMING UP" title="Next episodes" action={<SearchAction />} /><View style={styles.legend}><View style={styles.legendLine} /><Text style={styles.legendCopy}>Release times are shown in your time zone.</Text></View>{schedule.isPending ? <LoadingState label="Checking upcoming episodes" /> : schedule.isError || !schedule.data ? <ErrorState message={schedule.error?.message ?? "We could not load upcoming episodes."} onRetry={() => void schedule.refetch()} /> : <View style={styles.groups}>{groups.map(([day, entries]) => <View key={day} style={styles.group}><View style={styles.dayHead}><Text style={styles.dayText}>{day}</Text><View style={styles.dayRule} /></View>{entries.map((item) => { const date = new Date(item.airingAt * 1000); const anime = item.media; return <Pressable accessibilityRole="button" key={`${anime.id}:${item.episode}:${item.airingAt}`} onPress={() => router.push((`/anime/${anime.id}`) as never)} style={({ pressed }) => [styles.item, pressed && styles.pressed]}><Text style={styles.time}>{date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</Text><Image source={{ uri: anime.coverImage?.large || anime.coverImage?.extraLarge || "" }} style={styles.poster} contentFit="cover" transition={0} cachePolicy="memory-disk" /><View style={styles.itemContent}><Text style={styles.title} numberOfLines={2}>{animeTitle(anime)}</Text><Text style={styles.meta}>EPISODE {item.episode} · {anime.format || "ANIME"}</Text></View></Pressable>; })}</View>)}</View>}</NativeScreen>;
 }
 
-const styles = StyleSheet.create({ info: { padding: 16, borderWidth: 1, borderColor: nothing.line, borderRadius: 16, gap: 6, backgroundColor: nothing.surface }, infoText: { color: nothing.muted, fontSize: 13, lineHeight: 19 }, list: { gap: 10 }, item: { padding: 15, gap: 8 }, itemTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, time: { color: nothing.muted, fontFamily: "monospace", fontSize: 10, fontWeight: "700" }, title: { color: nothing.white, fontSize: 16, fontWeight: "800" }, meta: { color: nothing.dim, fontFamily: "monospace", fontSize: 10, letterSpacing: 0.5 }, });
+const styles = StyleSheet.create({
+  legend: { minHeight: 28, flexDirection: "row", alignItems: "center", gap: 8 }, legendLine: { width: 18, height: 2, backgroundColor: nothing.red }, legendCopy: { color: nothing.muted, fontSize: 12 }, groups: { gap: 27 }, group: { gap: 3 }, dayHead: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }, dayText: { color: nothing.white, fontSize: 20, fontWeight: "900", letterSpacing: -0.45 }, dayRule: { flex: 1, height: 1, backgroundColor: nothing.line }, item: { minHeight: 74, flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#202020" }, poster: { width: 39, height: 57, backgroundColor: nothing.raised }, itemContent: { flex: 1, justifyContent: "center", gap: 4 }, time: { width: 48, color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "900" }, title: { color: nothing.white, fontSize: 14, fontWeight: "900", lineHeight: 18 }, meta: { color: nothing.red, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.3 }, pressed: { opacity: 0.68 },
+});

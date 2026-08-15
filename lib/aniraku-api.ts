@@ -1,53 +1,148 @@
 import { APP_CONFIG } from "@/lib/app-config";
-import type { Episode, Server, StreamResponse, StreamSource } from "@/lib/types";
+import type { Anime, Episode, Server, StreamResponse, StreamSource } from "@/lib/types";
 
-async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${APP_CONFIG.apiBaseUrl}${path}`, {
-    ...init,
-    headers: { Accept: "application/json", ...(init?.headers ?? {}) },
-  });
-  if (!response.ok) throw new Error(`Aniraku service is unavailable (${response.status}).`);
-  return response.json() as Promise<T>;
+async function apiRequest<T>(path: string, init?: RequestInit, timeoutMs: number = 15_000): Promise<T> {
+  let response: Response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    response = await fetch(`${APP_CONFIG.apiBaseUrl}${path}`, {
+      ...init,
+      signal: init?.signal ?? controller.signal,
+      headers: { Accept: "application/json", ...(init?.headers ?? {}) },
+    });
+  } catch (cause) {
+    const timedOut = cause instanceof Error && cause.name === "AbortError";
+    throw new Error(timedOut ? "The video service took too long to respond. Please try again." : "We could not reach Aniraku right now. Please check your connection and try again.");
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  const rawPayload = await response.text();
+  let payload: { error?: string; message?: string } & T;
+  try {
+    payload = rawPayload ? JSON.parse(rawPayload) : {} as T;
+  } catch {
+    throw new Error("The video service sent an unexpected response. Please try again.");
+  }
+  if (!response.ok) {
+    throw new Error(payload.error || payload.message || "The video service is unavailable right now. Please try again.");
+  }
+  return payload;
 }
 
 export function getPlaybackType(source: StreamSource): "hls" | "dash" | "native" | "embed" {
   const raw = `${source.type ?? ""} ${source.mime ?? ""}`.toLowerCase();
   const url = source.url.toLowerCase();
-  if (raw.includes("embed") || raw.includes("iframe")) return "embed";
+  if (raw.includes("embed") || raw.includes("iframe") || raw.includes("page")) return "embed";
   if (raw.includes("dash") || /\.mpd(?:$|[?#])/.test(url)) return "dash";
   if (raw.includes("hls") || raw.includes("mpegurl") || /\.m3u8(?:$|[?#])/.test(url)) return "hls";
   return "native";
 }
 
+export function sourceVerification(source: StreamSource) {
+  return String(source.verification ?? source.Verification ?? "").toLowerCase();
+}
+
 export function hasExpiredEmbeddedToken(url: string) {
   const values = [...url.matchAll(/(?:^|[^0-9])(20\d{12})(?!\d)/g)].map((match) => match[1]);
-  return values.some((stamp) => {
+  let newest = 0;
+  for (const stamp of values) {
     const date = Date.UTC(Number(stamp.slice(0, 4)), Number(stamp.slice(4, 6)) - 1, Number(stamp.slice(6, 8)), Number(stamp.slice(8, 10)), Number(stamp.slice(10, 12)), Number(stamp.slice(12, 14)));
-    return Number.isFinite(date) && Date.now() > date + 30_000;
-  });
+    if (Number.isFinite(date)) newest = Math.max(newest, date);
+  }
+  return newest > 0 && Date.now() > newest + 30_000;
 }
 
 export function playableSources(sources: StreamSource[]) {
-  return sources.filter((source) => source.url && source.verification?.toLowerCase() !== "dead" && !hasExpiredEmbeddedToken(source.url));
+  return sources.filter((source) => source.url && sourceVerification(source) !== "dead" && !hasExpiredEmbeddedToken(source.url));
+}
+
+/**
+ * ExoPlayer accepts request headers for direct media, but browser-only or
+ * connection-managed headers can make a CDN treat the Android request as an
+ * invalid client. Preserve useful headers such as Referer and authorization
+ * while allowing the native transport to select its own user agent and
+ * connection behavior.
+ */
+export function nativePlaybackHeaders(headers?: Record<string, string>) {
+  const blocked = /^(user-agent|host|origin|content-length|connection|accept-encoding)$/i;
+  const retained = Object.entries(headers ?? {}).filter(([name]) => !blocked.test(name));
+  return retained.length ? Object.fromEntries(retained) : undefined;
+}
+
+/** Mirrors Watch.jsx's `${PROXY_BASE}/proxy` URL shape for native media. */
+export function anirakuProxyUrl(url: string, headers?: Record<string, string>) {
+  const parameters = new URLSearchParams({ url, rn: `${Date.now()}-${Math.random().toString(36).slice(2)}` });
+  if (headers && Object.keys(headers).length) parameters.set("headers", JSON.stringify(headers));
+  return `${APP_CONFIG.apiBaseUrl}/api/v1/proxy?${parameters.toString()}`;
+}
+
+type BackendSkipSegment = { start?: number; end?: number; startTime?: number; endTime?: number };
+type BackendStreamResponse = Omit<StreamResponse, "intro" | "outro"> & { intro?: BackendSkipSegment; outro?: BackendSkipSegment };
+
+/** Align deployed backend `start`/`end` skip fields with the shared native contract. */
+export function normalizeStreamResponse(payload: BackendStreamResponse): StreamResponse {
+  const normalizeSegment = (segment?: BackendSkipSegment) => segment ? {
+    startTime: segment.startTime ?? segment.start,
+    endTime: segment.endTime ?? segment.end,
+  } : undefined;
+  return { ...payload, intro: normalizeSegment(payload.intro), outro: normalizeSegment(payload.outro) };
+}
+
+/** Main Watch.jsx loads this backend payload before falling back to AniList. */
+export async function getAnimeMetadata(animeId: number): Promise<Anime> {
+  return apiRequest<Anime>(`/api/v1/anime/${animeId}`);
 }
 
 export async function getEpisodes(animeId: number): Promise<Episode[]> {
-  const payload = await apiRequest<Episode[] | { episodes?: Episode[] }>(`/api/v1/anime/${animeId}/episodes`);
-  const episodes = Array.isArray(payload) ? payload : payload.episodes ?? [];
-  return episodes.filter(Boolean).map((episode, index) => ({ ...episode, number: index + 1 }));
+  type BackendEpisode = Omit<Episode, "isFiller"> & { filler?: boolean; isFiller?: boolean };
+  const payload = await apiRequest<BackendEpisode[] | { episodes?: BackendEpisode[] }>(`/api/v1/anime/${animeId}/episodes`);
+  const episodes = Array.isArray(payload) ? payload : payload.episodes;
+  if (!Array.isArray(episodes)) throw new Error("Aniraku returned an invalid episode availability response.");
+
+  // The Aniraku web player and native player share canonical 1-based ordering.
+  // This prevents upstream provider sequences such as 10, 20, 30 from reaching
+  // the episode picker while retaining the backend’s real titles and thumbnails.
+  return episodes.filter(Boolean).map((episode, index) => ({
+    number: index + 1,
+    title: episode.title,
+    thumbnail: episode.thumbnail,
+    description: episode.description,
+    isFiller: Boolean(episode.isFiller ?? episode.filler),
+  }));
 }
 
 export async function getServers(animeId: number, episode: number, lang: "sub" | "dub"): Promise<Server[]> {
-  const payload = await apiRequest<Server[]>(`/api/v1/servers?animeId=${animeId}&episode=${episode}&lang=${lang}`);
-  return (Array.isArray(payload) ? payload : []).filter((server) => server?.verification?.toLowerCase() !== "dead");
+  type BackendServer = Partial<Server> & { name?: string; sources?: StreamSource[] };
+  // Watch.jsx lets the source backend complete before it considers a language
+  // empty. Keep the native request alive for the same current episode instead
+  // of converting a slow resolver into an immediate navigation change.
+  const payload = await apiRequest<BackendServer[]>(`/api/v1/servers?animeId=${animeId}&episode=${episode}&lang=${lang}`, undefined, 45_000);
+  return (Array.isArray(payload) ? payload : []).filter((server) => server?.verification?.toLowerCase() !== "dead").map((server, index) => {
+    const publicName = server.name || server.label || server.id || server.provider || `source-${index + 1}`;
+    return {
+      id: server.id || `${lang}:${publicName}`,
+      // `/api/v1/stream` accepts this public provider/server key (for example
+      // ally, pewe, kiwi), not the shared upstream adapter name such as miruro.
+      provider: server.name || server.provider || publicName,
+      label: server.label || publicName.toUpperCase(),
+      lang: server.lang || lang,
+      verification: server.verification,
+      type: server.type,
+      ...(server.sources ? { sources: server.sources } : {}),
+      ...((server as { headers?: Record<string, string> }).headers ? { headers: (server as { headers?: Record<string, string> }).headers } : {}),
+    };
+  });
 }
 
 export async function getStream(input: { animeId: number; episode: number; provider: string; lang: "sub" | "dub"; refresh?: boolean }): Promise<StreamResponse> {
-  return apiRequest<StreamResponse>("/api/v1/stream", {
+  const payload = await apiRequest<BackendStreamResponse>("/api/v1/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...input, quality: "auto", refresh: Boolean(input.refresh) }),
   });
+  return normalizeStreamResponse(payload);
 }
 
 export async function healthCheck() {

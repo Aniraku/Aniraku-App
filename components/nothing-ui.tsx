@@ -15,8 +15,14 @@ export const nothing = {
 } as const;
 
 export function DotLabel({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "signal" | "live" }) {
-  const color = tone === "signal" ? nothing.red : tone === "live" ? nothing.green : nothing.muted;
+  const color = tone === "signal" || tone === "live" ? nothing.red : nothing.muted;
   return <Text style={[styles.dotLabel, { color }]}>{children}</Text>;
+}
+
+export function AnirakuMark({ size = 34, inverted = false }: { size?: number; inverted?: boolean }) {
+  const face = inverted ? nothing.white : nothing.black;
+  const ink = inverted ? nothing.black : nothing.white;
+  return <View style={[styles.mark, { width: size, height: size, borderRadius: Math.round(size * 0.31), backgroundColor: face, borderColor: inverted ? nothing.white : nothing.line }]}><View style={[styles.markOrbit, { borderColor: ink }]} /><View style={[styles.markDot, { backgroundColor: inverted ? nothing.green : nothing.black }]} /></View>;
 }
 
 export function NothingCard({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
@@ -58,20 +64,23 @@ export function NothingButton({
 }
 
 export function Signal({ label, tone = "live" }: { label: string; tone?: "live" | "signal" | "muted" }) {
-  const color = tone === "signal" ? nothing.red : tone === "live" ? nothing.green : nothing.muted;
+  const color = tone === "signal" || tone === "live" ? nothing.red : nothing.muted;
   return <View style={styles.signalRow}><View style={[styles.signalDot, { backgroundColor: color }]} /><Text style={[styles.signalText, { color }]}>{label}</Text></View>;
 }
 
 const styles = StyleSheet.create({
-  dotLabel: { fontFamily: "monospace", fontSize: 11, fontWeight: "700", letterSpacing: 1.6, textTransform: "uppercase" },
-  card: { backgroundColor: nothing.surface, borderWidth: 1, borderColor: nothing.line, borderRadius: 18, overflow: "hidden" },
-  button: { alignItems: "center", justifyContent: "center", minHeight: 50, borderRadius: 14, paddingHorizontal: 18, borderWidth: 1 },
+  dotLabel: { fontFamily: "monospace", fontSize: 9, fontWeight: "800", letterSpacing: 1.2, textTransform: "uppercase" },
+  mark: { alignItems: "center", justifyContent: "center", borderWidth: 1, overflow: "hidden" },
+  markOrbit: { width: "56%", height: "56%", borderWidth: 2, borderRadius: 99, opacity: 0.9 },
+  markDot: { width: 5, height: 5, borderRadius: 99, position: "absolute", right: "22%", bottom: "22%" },
+  card: { backgroundColor: nothing.surface, borderWidth: 1, borderColor: nothing.line, borderRadius: 8, overflow: "hidden" },
+  button: { alignItems: "center", justifyContent: "center", minHeight: 50, borderRadius: 8, paddingHorizontal: 18, borderWidth: 1 },
   primaryButton: { backgroundColor: nothing.white, borderColor: nothing.white },
   outlineButton: { backgroundColor: "transparent", borderColor: nothing.line },
   dangerButton: { backgroundColor: "rgba(255,77,77,0.12)", borderColor: "rgba(255,77,77,0.55)" },
   disabledButton: { opacity: 0.45 },
   pressedButton: { opacity: 0.8, transform: [{ scale: 0.975 }] },
-  buttonText: { fontSize: 14, fontWeight: "800", letterSpacing: 0.3 },
+  buttonText: { fontSize: 13, fontWeight: "900", letterSpacing: 0.25 },
   primaryButtonText: { color: nothing.black },
   outlineButtonText: { color: nothing.white },
   signalRow: { flexDirection: "row", alignItems: "center", gap: 6 },

@@ -9,20 +9,33 @@ const webFallback = {
 
 export const secureStorage = {
   async getItem(key: string) {
-    return Platform.OS === "web" ? webFallback.getItem(key) : SecureStore.getItemAsync(key);
+    if (Platform.OS === "web") return webFallback.getItem(key);
+    try {
+      return await SecureStore.getItemAsync(key);
+    } catch {
+      return null;
+    }
   },
   async setItem(key: string, value: string) {
     if (Platform.OS === "web") {
       webFallback.setItem(key, value);
       return;
     }
-    await SecureStore.setItemAsync(key, value);
+    try {
+      await SecureStore.setItemAsync(key, value);
+    } catch {
+      // A persistence failure must not prevent playback or guest browsing.
+    }
   },
   async removeItem(key: string) {
     if (Platform.OS === "web") {
       webFallback.removeItem(key);
       return;
     }
-    await SecureStore.deleteItemAsync(key);
+    try {
+      await SecureStore.deleteItemAsync(key);
+    } catch {
+      // The session will be treated as absent on the next initialization.
+    }
   },
 };

@@ -20,12 +20,12 @@ export function SearchAction() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: nothing.black },
-  scroll: { paddingHorizontal: 18, paddingBottom: 112, gap: 24 },
+  scroll: { paddingHorizontal: 18, paddingBottom: 110, gap: 28 },
   fill: { flex: 1 },
-  header: { minHeight: 72, paddingTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  headerText: { gap: 3 },
-  eyebrow: { color: nothing.muted, fontFamily: "monospace", fontSize: 10, fontWeight: "800", letterSpacing: 1.4 },
-  headerTitle: { color: nothing.white, fontSize: 28, fontWeight: "900", letterSpacing: -0.6 },
-  searchButton: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
+  header: { minHeight: 68, paddingTop: 6, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  headerText: { gap: 2 },
+  eyebrow: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 1.05 },
+  headerTitle: { color: nothing.white, fontSize: 28, fontWeight: "900", letterSpacing: -0.9 },
+  searchButton: { width: 42, height: 42, borderRadius: 8, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, backgroundColor: "transparent" },
   pressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
 });

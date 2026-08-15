@@ -6,47 +6,58 @@ import { getHomeAnime } from "@/lib/anilist";
 import { animeTitle } from "@/lib/types";
 import { AnimeRail } from "@/components/anime-rail";
 import { ErrorState, LoadingState } from "@/components/async-state";
-import { DotLabel, NothingButton, nothing, Signal } from "@/components/nothing-ui";
+import { nothing } from "@/components/nothing-ui";
 import { NativeHeader, NativeScreen, SearchAction } from "@/components/screen";
+import { AppIcon } from "@/components/app-icon";
+import { InAppEpisodeAlertMonitor } from "@/hooks/use-in-app-episode-alerts";
+
+function titleFacts(format?: string | null, episodes?: number | null, score?: number | null) {
+  return [format, episodes ? `${episodes} EP` : null, score ? `${Math.round(score)}%` : null].filter(Boolean).join(" · ");
+}
 
 export default function HomeScreen() {
   const home = useQuery({ queryKey: ["home-anime"], queryFn: getHomeAnime });
 
-  if (home.isPending) {
-    return <NativeScreen><NativeHeader eyebrow="Aniraku / native" title="Home" action={<SearchAction />} /><LoadingState label="Loading live AniList releases" /></NativeScreen>;
-  }
-  if (home.isError || !home.data) {
-    return <NativeScreen><NativeHeader eyebrow="Aniraku / native" title="Home" action={<SearchAction />} /><ErrorState message={home.error?.message ?? "Anime discovery is unavailable."} onRetry={() => void home.refetch()} /></NativeScreen>;
-  }
+  if (home.isPending) return <NativeScreen><InAppEpisodeAlertMonitor /><NativeHeader eyebrow="FOR YOU" title="Home" action={<SearchAction />} /><LoadingState label="Finding something to watch" /></NativeScreen>;
+  if (home.isError || !home.data) return <NativeScreen><InAppEpisodeAlertMonitor /><NativeHeader eyebrow="FOR YOU" title="Home" action={<SearchAction />} /><ErrorState message={home.error?.message ?? "We could not load anime right now."} onRetry={() => void home.refetch()} /></NativeScreen>;
+
   const hero = home.data.trending[0];
-  return (
-    <NativeScreen>
-      <NativeHeader eyebrow="Aniraku / native" title="Home" action={<SearchAction />} />
-      {hero ? <Pressable onPress={() => router.push((`/anime/${hero.id}`) as never)} style={({ pressed }) => [styles.hero, pressed && styles.heroPressed]}>
-        <Image source={hero.bannerImage || hero.coverImage?.extraLarge || hero.coverImage?.large || undefined} style={StyleSheet.absoluteFill} contentFit="cover" />
-        <View style={styles.heroMask} />
-        <View style={styles.heroCopy}>
-          <Signal label="TRENDING NOW" />
-          <Text style={styles.heroTitle} numberOfLines={3}>{animeTitle(hero)}</Text>
-          <Text style={styles.heroMeta}>{[hero.format, hero.episodes ? `${hero.episodes} EP` : null, hero.averageScore ? `${Math.round(hero.averageScore)}%` : null].filter(Boolean).join(" · ")}</Text>
-          <NothingButton label="Open title" onPress={() => router.push((`/anime/${hero.id}`) as never)} />
-        </View>
-      </Pressable> : null}
-      <View style={styles.protocol}><DotLabel>Discovery protocol</DotLabel><Text style={styles.protocolText}>Live metadata, real airing context, and a native experience that stays out of the way.</Text></View>
-      <AnimeRail label="01 / MOMENTUM" title="Trending now" items={home.data.trending.slice(1)} />
-      <AnimeRail label="02 / SIGNAL" title="Popular releases" items={home.data.popular} />
-      <AnimeRail label="03 / NEXT" title="Upcoming schedule" items={home.data.upcoming} />
-    </NativeScreen>
-  );
+  const next = home.data.upcoming[0];
+  return <NativeScreen><InAppEpisodeAlertMonitor />
+    <NativeHeader eyebrow="ANIRAKU" title="Home" action={<SearchAction />} />
+    {hero ? <Pressable accessibilityRole="button" accessibilityLabel={`Open ${animeTitle(hero)}`} onPress={() => router.push((`/anime/${hero.id}`) as never)} style={({ pressed }) => [styles.hero, pressed && styles.pressed]}>
+      <View style={styles.heroFallback}><Text style={styles.heroFallbackText}>{animeTitle(hero).charAt(0)}</Text></View>
+      <Image source={{ uri: hero.bannerImage || hero.coverImage?.extraLarge || hero.coverImage?.large || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" />
+      <View style={styles.heroMask} />
+      <View style={styles.heroTop}><Text style={styles.heroKicker}>FEATURED TONIGHT</Text><View style={styles.heroAction}><AppIcon name="arrow-top-right" size={15} color={nothing.black} /></View></View>
+      <View style={styles.heroCopy}><Text style={styles.heroTitle} numberOfLines={3}>{animeTitle(hero)}</Text><Text style={styles.heroMeta}>{titleFacts(hero.format, hero.episodes, hero.averageScore)}</Text></View>
+    </Pressable> : null}
+    <View style={styles.contextRow}><View style={styles.contextMain}><Text style={styles.contextKicker}>KEEP EXPLORING</Text><Text style={styles.contextTitle}>Find your next favorite.</Text></View>{next ? <Pressable accessibilityRole="button" accessibilityLabel={`Open next release ${animeTitle(next)}`} onPress={() => router.push((`/anime/${next.id}`) as never)} style={({ pressed }) => [styles.nextTile, pressed && styles.pressed]}><Image source={{ uri: next.coverImage?.large || next.coverImage?.extraLarge || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" /><View style={styles.nextMask} /><View style={styles.nextCopy}><Text style={styles.nextKicker}>UP NEXT</Text><Text style={styles.nextTitle} numberOfLines={2}>{animeTitle(next)}</Text></View></Pressable> : null}</View>
+    <AnimeRail label="01" title="Trending now" items={home.data.trending.slice(1)} />
+    <AnimeRail label="02" title="Popular releases" items={home.data.popular} />
+    <AnimeRail label="03" title="Coming soon" items={home.data.upcoming} />
+  </NativeScreen>;
 }
 
 const styles = StyleSheet.create({
-  hero: { minHeight: 394, borderRadius: 22, overflow: "hidden", justifyContent: "flex-end", backgroundColor: nothing.raised, borderWidth: 1, borderColor: nothing.line },
-  heroPressed: { opacity: 0.88 },
-  heroMask: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.22)" },
-  heroCopy: { gap: 12, padding: 19, backgroundColor: "rgba(7,7,7,0.76)" },
-  heroTitle: { color: nothing.white, fontWeight: "900", fontSize: 30, letterSpacing: -1, lineHeight: 34 },
-  heroMeta: { color: nothing.muted, fontFamily: "monospace", fontSize: 11, fontWeight: "700", letterSpacing: 0.6 },
-  protocol: { gap: 6, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
-  protocolText: { color: nothing.muted, lineHeight: 20, fontSize: 13 },
+  hero: { minHeight: 430, marginHorizontal: -18, overflow: "hidden", justifyContent: "space-between", backgroundColor: nothing.raised },
+  heroFallback: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "#222220" },
+  heroFallbackText: { color: nothing.dim, fontSize: 96, fontWeight: "900" },
+  heroMask: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.23)" },
+  heroTop: { zIndex: 1, padding: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  heroKicker: { color: nothing.white, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
+  heroAction: { width: 34, height: 34, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: nothing.white },
+  heroCopy: { zIndex: 1, gap: 9, padding: 18, paddingTop: 66, backgroundColor: "rgba(9,9,9,0.7)" },
+  heroTitle: { color: nothing.white, fontWeight: "900", fontSize: 36, letterSpacing: -1.35, lineHeight: 39 },
+  heroMeta: { color: nothing.muted, fontFamily: "monospace", fontSize: 10, fontWeight: "800", letterSpacing: 0.55 },
+  contextRow: { flexDirection: "row", alignItems: "flex-end", gap: 16 },
+  contextMain: { flex: 1, minHeight: 126, justifyContent: "flex-end", gap: 7 },
+  contextKicker: { color: nothing.red, fontFamily: "monospace", fontWeight: "900", fontSize: 8, letterSpacing: 0.8 },
+  contextTitle: { color: nothing.white, fontSize: 25, fontWeight: "900", letterSpacing: -0.75, lineHeight: 29 },
+  nextTile: { width: 112, minHeight: 146, overflow: "hidden", backgroundColor: nothing.raised },
+  nextMask: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.38)" },
+  nextCopy: { flex: 1, justifyContent: "flex-end", padding: 9, gap: 5 },
+  nextKicker: { color: nothing.red, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.5 },
+  nextTitle: { color: nothing.white, fontSize: 13, fontWeight: "900", lineHeight: 17 },
+  pressed: { opacity: 0.82, transform: [{ scale: 0.985 }] },
 });

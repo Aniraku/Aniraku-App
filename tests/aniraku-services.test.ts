@@ -10,11 +10,12 @@ describe("Aniraku production service configuration", () => {
     expect(supabaseUrl).toMatch(/^https:\/\/[^/]+\.supabase\.co$/);
     expect(supabaseAnonKey).toBeTruthy();
 
-    const [healthResponse, authSettingsResponse] = await Promise.all([
+    const [healthResponse, authSettingsResponse, metadataResponse] = await Promise.all([
       fetch(`${apiBase}/api/v1/health`),
       fetch(`${supabaseUrl}/auth/v1/settings`, {
         headers: { apikey: supabaseAnonKey! },
       }),
+      fetch(`${apiBase}/api/v1/anime/16498`),
     ]);
 
     expect(healthResponse.ok).toBe(true);
@@ -22,5 +23,8 @@ describe("Aniraku production service configuration", () => {
 
     expect(authSettingsResponse.ok).toBe(true);
     await expect(authSettingsResponse.json()).resolves.toHaveProperty("external");
+
+    expect(metadataResponse.ok).toBe(true);
+    await expect(metadataResponse.json()).resolves.toMatchObject({ id: 16498, title: expect.any(Object) });
   }, 20_000);
 });

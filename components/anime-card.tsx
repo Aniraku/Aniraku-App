@@ -8,6 +8,7 @@ import { nothing, Signal } from "@/components/nothing-ui";
 
 export function AnimeCard({ anime, compact = false }: { anime: Anime; compact?: boolean }) {
   const title = animeTitle(anime);
+  const artwork = anime.coverImage?.extraLarge || anime.coverImage?.large;
   return (
     <Pressable
       accessibilityRole="button"
@@ -18,27 +19,22 @@ export function AnimeCard({ anime, compact = false }: { anime: Anime; compact?: 
       }}
       style={({ pressed }) => [styles.card, compact && styles.compactCard, pressed && styles.pressed]}
     >
-      <Image source={anime.coverImage?.extraLarge || anime.coverImage?.large || undefined} style={styles.poster} contentFit="cover" transition={180} />
-      <View style={styles.scrim} />
-      <View style={styles.meta}>
-        <Text numberOfLines={2} style={styles.title}>{title}</Text>
-        <View style={styles.footer}>
-          <Text style={styles.detail}>{anime.format || "ANIME"}</Text>
-          {anime.nextAiringEpisode ? <Signal label={`EP ${anime.nextAiringEpisode.episode}`} /> : <Text style={styles.detail}>{anime.averageScore ? `${Math.round(anime.averageScore)}%` : ""}</Text>}
-        </View>
-      </View>
+      <View style={styles.media}><View style={styles.artFallback}><Text style={styles.fallbackInitial}>{title.charAt(0)}</Text></View>{artwork ? <Image source={{ uri: artwork }} style={styles.poster} contentFit="cover" transition={0} cachePolicy="memory-disk" /> : null}{anime.nextAiringEpisode ? <View style={styles.topline}><Signal label={`EP ${anime.nextAiringEpisode.episode}`} /></View> : null}</View>
+      <View style={styles.meta}><Text numberOfLines={2} style={styles.title}>{title}</Text><Text style={styles.detail}>{anime.format || "ANIME"}{anime.averageScore ? ` · ${Math.round(anime.averageScore)}%` : ""}</Text></View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { width: 152, height: 222, borderRadius: 16, overflow: "hidden", backgroundColor: nothing.raised, borderWidth: 1, borderColor: nothing.line },
-  compactCard: { width: 128, height: 188 },
+  card: { width: 144, gap: 8 },
+  compactCard: { width: 124 },
   pressed: { opacity: 0.78, transform: [{ scale: 0.98 }] },
+  media: { height: 204, borderRadius: 6, overflow: "hidden", backgroundColor: nothing.raised },
+  artFallback: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "#242422" },
+  fallbackInitial: { color: nothing.dim, fontSize: 54, fontWeight: "900" },
   poster: { ...StyleSheet.absoluteFillObject },
-  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.20)" },
-  meta: { flex: 1, justifyContent: "flex-end", padding: 11, backgroundColor: "rgba(0,0,0,0.34)" },
-  title: { color: nothing.white, fontSize: 13, fontWeight: "800", lineHeight: 17 },
-  footer: { marginTop: 7, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  detail: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "700", letterSpacing: 0.6 },
+  topline: { position: "absolute", left: 7, top: 7, paddingHorizontal: 6, paddingVertical: 4, borderRadius: 4, backgroundColor: "rgba(9,9,9,0.74)" },
+  meta: { gap: 3 },
+  title: { color: nothing.white, fontSize: 13, fontWeight: "900", lineHeight: 17 },
+  detail: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.35 },
 });

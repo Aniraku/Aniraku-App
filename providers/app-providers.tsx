@@ -15,8 +15,13 @@ export function AppProviders({ children }: PropsWithChildren) {
     void Network.getNetworkStateAsync()
       .then((state) => { if (mounted) onlineManager.setOnline(state.isInternetReachable ?? state.isConnected ?? true); })
       .catch(() => { if (mounted) onlineManager.setOnline(true); });
-    const subscription = Network.addNetworkStateListener((state) => onlineManager.setOnline(state.isInternetReachable ?? state.isConnected ?? true));
-    return () => { mounted = false; subscription.remove(); };
+    let subscription: ReturnType<typeof Network.addNetworkStateListener> | undefined;
+    try {
+      subscription = Network.addNetworkStateListener((state) => onlineManager.setOnline(state.isInternetReachable ?? state.isConnected ?? true));
+    } catch {
+      onlineManager.setOnline(true);
+    }
+    return () => { mounted = false; subscription?.remove(); };
   }, []);
   return <QueryClientProvider client={queryClient}><AuthProvider>{children}</AuthProvider></QueryClientProvider>;
 }

@@ -22,12 +22,12 @@ export default function TabLayout() {
         const icon = tabIcons[name] ?? "circle-outline";
         return {
           headerShown: false,
-          tabBarActiveTintColor: nothing.white,
+          tabBarActiveTintColor: nothing.red,
           tabBarInactiveTintColor: nothing.dim,
-          tabBarLabelStyle: { fontFamily: "monospace", fontSize: 9, fontWeight: "800", letterSpacing: 0.4, marginTop: 2 },
-          tabBarStyle: { height: 64 + bottom, paddingTop: 8, paddingBottom: bottom, backgroundColor: nothing.black, borderTopColor: nothing.line, borderTopWidth: 1 },
-          tabBarItemStyle: { borderRadius: 14, marginHorizontal: 2 },
-          tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => <AppIcon name={icon} size={23} color={color} style={{ opacity: focused ? 1 : 0.86 }} />,
+          tabBarLabelStyle: { fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.2, marginTop: 3 },
+          tabBarStyle: { height: 66 + bottom, paddingTop: 8, paddingBottom: bottom, backgroundColor: "#090909", borderTopColor: "#202020", borderTopWidth: 1 },
+          tabBarItemStyle: { borderRadius: 0, marginHorizontal: 1 },
+          tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => <AppIcon name={icon} size={22} color={color} style={{ opacity: focused ? 1 : 0.62 }} />,
         };
       }}
     >
