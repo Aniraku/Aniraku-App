@@ -1,0 +1,55 @@
+name: Build Aniraku 1.0.Alpha APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-alpha-apk:
+    name: Build universal Android alpha APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Validate native source
+        run: pnpm check && pnpm test
+      - name: Generate Android project
+        run: pnpm exec expo prebuild --platform android --non-interactive --no-install
+      - name: Build universal APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+      - name: Verify packaged JavaScript and ARM libraries
+        working-directory: android
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          test -f "$APK"
+          unzip -t "$APK"
+          unzip -l "$APK" | grep -q 'assets/index.android.bundle'
+          unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
+          unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
+      - name: Upload Aniraku 1.0.Alpha APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aniraku-1.0.Alpha-universal-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 14

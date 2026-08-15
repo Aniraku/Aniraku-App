@@ -6,14 +6,14 @@ const env = {
   logoUrl: "/manus-storage/icon_cc474f8c.png",
   scheme: "aniraku",
   iosBundleId: "tech.aniraku.app",
-  androidPackage: "tech.aniraku.app",
+  androidPackage: "aniraku.anine.app",
   easProjectId: "e96fc02e-d968-4f13-a688-0d553d855df7",
 };
 
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
-  version: "1.0.0",
+  version: "1.0.Alpha",
   orientation: "default",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
