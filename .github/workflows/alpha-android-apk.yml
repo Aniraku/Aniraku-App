@@ -11,6 +11,11 @@ jobs:
     name: Build universal Android alpha APK
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      EXPO_PUBLIC_API_BASE_URL: https://api.aniraku.tech
+      EXPO_PUBLIC_ANILIST_GRAPHQL_URL: https://graphql.anilist.co
+      EXPO_PUBLIC_SUPABASE_URL: https://sbjdrjaovcgvttfnpfsz.supabase.co
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_-Ht3PZpNy_a35hOI8w1G8g_vwOhAPgS
     steps:
       - name: Check out release source
         uses: actions/checkout@v4
