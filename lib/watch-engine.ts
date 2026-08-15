@@ -27,9 +27,9 @@ export function hasConfirmedPlaybackStart(input: { isPlaying: boolean; currentTi
   return input.firstFrameRendered || input.currentTime > 0;
 }
 
-/** A direct source that never renders gets one unproxied retry before provider failover. */
-export function shouldRetryUnproxiedDirectSource(usingProxy: boolean, playbackStarted: boolean) {
-  return usingProxy && !playbackStarted;
+/** A direct source that never renders gets one proxied retry before embed/provider recovery. */
+export function shouldRetryProxiedSourceAfterDirect(usingProxy: boolean, playbackStarted: boolean) {
+  return !usingProxy && !playbackStarted;
 }
 
 export function isVerifiedEmbedSource(source: StreamSource) {

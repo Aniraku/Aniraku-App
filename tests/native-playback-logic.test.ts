@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { anirakuProxyUrl, getPlaybackType, hasExpiredEmbeddedToken, nativePlaybackHeaders, normalizeStreamResponse, playableSources } from "../lib/aniraku-api";
 import { chooseResumeEpisode, progressFraction } from "../lib/watch-progress";
-import { directSources, embedSources, hasConfirmedPlaybackStart, nextProviderIndex, shouldMountReplacementSource, shouldRetryUnproxiedDirectSource } from "../lib/watch-engine";
+import { directSources, embedSources, hasConfirmedPlaybackStart, nextProviderIndex, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect } from "../lib/watch-engine";
 
 describe("Aniraku native playback coordination", () => {
   it("keeps only Android-safe transport headers for direct media", () => {
@@ -69,9 +69,9 @@ describe("Aniraku native playback coordination", () => {
     expect(hasConfirmedPlaybackStart({ isPlaying: false, currentTime: 0, firstFrameRendered: true })).toBe(true);
     expect(hasConfirmedPlaybackStart({ isPlaying: true, currentTime: 0, firstFrameRendered: false })).toBe(false);
     expect(hasConfirmedPlaybackStart({ isPlaying: false, currentTime: 1, firstFrameRendered: false })).toBe(true);
-    expect(shouldRetryUnproxiedDirectSource(true, false)).toBe(true);
-    expect(shouldRetryUnproxiedDirectSource(false, false)).toBe(false);
-    expect(shouldRetryUnproxiedDirectSource(true, true)).toBe(false);
+    expect(shouldRetryProxiedSourceAfterDirect(false, false)).toBe(true);
+    expect(shouldRetryProxiedSourceAfterDirect(true, false)).toBe(false);
+    expect(shouldRetryProxiedSourceAfterDirect(false, true)).toBe(false);
   });
 
   it("fails over to the next provider in the selected language before giving up", () => {

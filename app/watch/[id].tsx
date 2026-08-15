@@ -20,7 +20,7 @@ import {
   mergeSkipSegments,
   nextProviderIndex,
   providerSkipSegments,
-  shouldRetryUnproxiedDirectSource,
+  shouldRetryProxiedSourceAfterDirect,
   shouldMountReplacementSource,
   type Language,
   type SkipKind,
@@ -141,7 +141,7 @@ export default function WatchScreen() {
   const [serverIndex, setServerIndex] = useState(0);
   const [stream, setStream] = useState<StreamResponse | null>(null);
   const [source, setSource] = useState<StreamSource | null>(null);
-  const [useSourceProxy, setUseSourceProxy] = useState(true);
+  const [useSourceProxy, setUseSourceProxy] = useState(false);
   const [embedSource, setEmbedSource] = useState<StreamSource | null>(null);
   const [playbackHeaders, setPlaybackHeaders] = useState<Record<string, string> | undefined>();
   const [loadingServers, setLoadingServers] = useState(true);
@@ -208,7 +208,7 @@ export default function WatchScreen() {
     player.pause();
     setStream(null);
     setSource(null);
-    setUseSourceProxy(true);
+    setUseSourceProxy(false);
     setEmbedSource(null);
     setPlaybackHeaders(undefined);
     setSkipSegments({ intro: null, outro: null });
@@ -364,7 +364,7 @@ export default function WatchScreen() {
         sourceMounted.current = true;
         setEmbedSource(null);
         setSource(initialDirect[0]);
-        setUseSourceProxy(true);
+        setUseSourceProxy(false);
         setSourceRevision((value) => value + 1);
       } else {
         sourceMounted.current = true;
@@ -389,7 +389,7 @@ export default function WatchScreen() {
           sourceMounted.current = true;
           setSource(cachedDirect[0]);
           setEmbedSource(null);
-          setUseSourceProxy(true);
+          setUseSourceProxy(false);
           setSourceRevision((value) => value + 1);
         } else {
           sourceMounted.current = true;
@@ -418,7 +418,7 @@ export default function WatchScreen() {
           setPlaybackHeaders(response.headers ?? activeProvider.headers);
           setSource(refreshedDirect[0]);
           setEmbedSource(null);
-          setUseSourceProxy(true);
+          setUseSourceProxy(false);
           setSourceRevision((value) => value + 1);
         } else if (shouldMountReplacementSource(sourceMounted.current, forceThisRequest) && refreshedEmbeds.length) {
           sourceMounted.current = true;
@@ -453,8 +453,8 @@ export default function WatchScreen() {
       useCaching: playbackType === "native",
     };
     void player.replaceAsync(videoSource).then(() => player.play()).catch(() => {
-      if (useSourceProxy) {
-        setUseSourceProxy(false);
+      if (!useSourceProxy) {
+        setUseSourceProxy(true);
         setSourceRevision((value) => value + 1);
         return;
       }
@@ -462,8 +462,8 @@ export default function WatchScreen() {
     });
     const watchdog = setTimeout(() => {
       if (sourceAttempt.current !== attempt || sourceStarted.current) return;
-      if (shouldRetryUnproxiedDirectSource(useSourceProxy, sourceStarted.current)) {
-        setUseSourceProxy(false);
+      if (shouldRetryProxiedSourceAfterDirect(useSourceProxy, sourceStarted.current)) {
+        setUseSourceProxy(true);
         setSourceRevision((value) => value + 1);
         return;
       }
@@ -485,8 +485,8 @@ export default function WatchScreen() {
 
   useEffect(() => {
     if (status !== "error" || !source?.url || sourceFailureHandled.current === source.url) return;
-    if (useSourceProxy) {
-      setUseSourceProxy(false);
+    if (!useSourceProxy) {
+      setUseSourceProxy(true);
       setSourceRevision((value) => value + 1);
       return;
     }
@@ -598,7 +598,7 @@ export default function WatchScreen() {
     setStream(null);
     setSource(null);
     setEmbedSource(null);
-    setUseSourceProxy(true);
+    setUseSourceProxy(false);
     setPlaybackHeaders(undefined);
     setLoadingStream(true);
     setLanguage(next);
@@ -613,7 +613,7 @@ export default function WatchScreen() {
     player.pause();
     setSource(null);
     setEmbedSource(null);
-    setUseSourceProxy(true);
+    setUseSourceProxy(false);
     setLoadingStream(true);
     setShowSourcePicker(false);
     setShowConsole(false);
@@ -629,7 +629,7 @@ export default function WatchScreen() {
     sourceMounted.current = true;
     setEmbedSource(null);
     setSource(next);
-    setUseSourceProxy(true);
+    setUseSourceProxy(false);
     setPlaybackHeaders(stream?.headers ?? activeProvider?.headers);
     setSourceRevision((value) => value + 1);
   };
