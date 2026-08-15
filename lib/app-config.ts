@@ -1,4 +1,6 @@
 const productionAnirakuApi = process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://api.aniraku.tech";
+const productionSupabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "https://sbjdrjaovcgvttfnpfsz.supabase.co";
+const productionSupabasePublishableKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "sb_publishable_-Ht3PZpNy_a35hOI8w1G8g_vwOhAPgS";
 
 function previewAnirakuProxy() {
   // Native Android has no browser window and always calls api.aniraku.tech
@@ -18,8 +20,8 @@ export const APP_CONFIG = {
   // deliberately restricts its browser CORS allow-list to trusted web origins.
   apiBaseUrl: previewAnirakuProxy() ?? productionAnirakuApi,
   anilistGraphqlUrl: process.env.EXPO_PUBLIC_ANILIST_GRAPHQL_URL ?? "https://graphql.anilist.co",
-  supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
-  supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
+  supabaseUrl: productionSupabaseUrl,
+  supabaseAnonKey: productionSupabasePublishableKey,
   deepLinkScheme: "aniraku",
 } as const;
 
