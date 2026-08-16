@@ -1,4 +1,10 @@
-# Native Architecture — Aniraku Android
+![Aniraku documentation signal](../assets/readme/documentation-signal.svg)
+
+`ANIRAKU / NATIVE PRODUCT MAP`
+
+# Native Architecture
+
+This is the technical map for the Android application behind the visual product surface.
 
 ## Product boundary
 
@@ -45,3 +51,9 @@ The Aniraku backend remains the authority for server discovery and source verifi
 ## Test strategy
 
 Pure functions and service clients are covered through Vitest. Component state is tested with deterministic fixtures and mocked fetch/Supabase responses. Integration smoke tests validate the public production API health, Supabase public client configuration, AniList schema responses, navigation-critical paths, and signed Android package metadata. Physical-device verification remains required for final codec, network, PiP, biometric, and OEM WebView/device behavior.
+
+---
+
+`SIGNAL / NATIVE, NOT A WRAPPER`
+
+[README](../README.md) · [Contributing](../CONTRIBUTING.md) · [Security](../SECURITY.md) · [Documentation system](./DOCUMENTATION_SYSTEM.md)

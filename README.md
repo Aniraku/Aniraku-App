@@ -1,67 +1,92 @@
-# ANIRAKU / NATIVE ANDROID
+![Aniraku Native Android masthead](./assets/readme/aniraku-masthead.svg)
 
-`FOR YOU  ·  ANDROID 9+  ·  DIRECT INSTALL  ·  FOSS`
+<p align="center">
+  <strong>Native Android anime discovery, playback, and library—built for people who want their watchlist close.</strong>
+</p>
 
-![Android 9+](https://img.shields.io/badge/ANDROID-9%2B-090909?style=flat-square&labelColor=090909&color=FF4D4D)
-![Architecture](https://img.shields.io/badge/ARCH-ARM32%20%2B%20ARM64-090909?style=flat-square&labelColor=090909&color=F6F6F2)
-![License](https://img.shields.io/badge/LICENSE-MIT-090909?style=flat-square&labelColor=090909&color=F6F6F2)
+<p align="center">
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/latest">DOWNLOAD v2.0.ALPHA</a>
+  &nbsp;·&nbsp;
+  <a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku">GET IT ON ORION STORE</a>
+  &nbsp;·&nbsp;
+  <a href="https://aniraku.tech">OPEN ANIRAKU</a>
+</p>
 
-[![Get it on Orion Store](https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png)](https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku)
+<p align="center">
+  <a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku"><img src="https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png" alt="Get it on Orion Store" width="280"></a>
+</p>
 
-![Aniraku launcher icon](./assets/images/icon.png)
+`FOR YOU / ANDROID 9+ / ARM32 + ARM64 / FOSS / DIRECT INSTALL`
 
-> **A native Android companion for discovering anime, resuming episodes, and keeping a personal library in sync.**
+---
 
-Aniraku is a real **Expo / React Native** application, not a website container. Its interface is built around the same language used in the app: near-black surfaces, soft white type, graphite dividers, compact mono labels, and one signal-red accent. The result is deliberately quiet when browsing and direct when it is time to watch.
+## ONE LIBRARY. ONE SIGNAL.
 
-`█ SIGNAL / ANIRAKU` `██████████████████████████████████` `ONLINE`
+Aniraku is a real **Expo / React Native Android application**, not a website container. It turns discovery, episode progress, provider choice, and your personal library into one quiet native surface: near-black canvas, soft-white reading order, graphite rules, and one signal-red action state.
 
-## THE INTERFACE
+| `START HERE` | `KEEP GOING` | `TAKE A CHANCE` |
+| :--- | :--- | :--- |
+| Browse the latest releases and resume the episode already in motion. | Search a catalog built around artwork, seasons, status, and title. | Let Aniraku surface one title worth trying now. |
+| [Open the latest release](https://github.com/Aniraku/Aniraku-App/releases/latest) | [Read the architecture](./docs/NATIVE_ARCHITECTURE.md) | [See the real Random screen](#a-real-native-surface) |
 
-Every image below is a **real capture from the implemented Aniraku application**. No generated UI artwork or fabricated product screens are used here.
+> **v2.0.Alpha changes the Android package to `aniraku.anime.app`.** Uninstall any legacy `aniraku.anine.app` alpha before installing this release. Android treats the package migration as a separate app, and uninstalling the legacy app removes its local data.
 
-| `BROWSE / EXPLORE` | `PICK / SURPRISE ME` |
+---
+
+## A REAL NATIVE SURFACE
+
+These are real captures from the implemented application—not generated product art. The artwork carries the emotion; the interface stays quiet enough to make a next action obvious.
+
+| `01 / HOME` | `02 / CATALOG` |
 | :---: | :---: |
-| ![Real Aniraku Catalog screen showing Explore, search, filters, and anime cards](./docs/screenshots/catalog.png) | ![Real Aniraku Random screen showing a Mob Psycho 100 recommendation](./docs/screenshots/random.png) |
-| `Search, trend switches, and poster-led discovery.` | `A minimal one-tap route to something new.` |
+| ![Real Aniraku Home screen with editorial anime artwork and compact navigation](./screenshots/home.jpg) | ![Real Aniraku Catalog screen with poster-led anime discovery](./screenshots/catalog.jpg) |
+| A single continue-or-discover moment, followed by paced release rails. | A deliberate poster gallery with search and discovery controls. |
 
-| `WATCH / REAL DEVICE` | `PROFILE / YOUR SPACE` |
+| `03 / WATCH` | `04 / RANDOM` |
 | :---: | :---: |
-| ![Real Android device capture of Aniraku Watch playback controls and source selection](./docs/screenshots/watch-device.jpg) | ![Real Aniraku Profile screen showing guest account entry](./docs/screenshots/profile.png) |
-| `Native controls, episode context, and source state.` | `A focused entry point for your synced library.` |
+| ![Real Aniraku Watch screen with native playback and source controls](./screenshots/watch.jpg) | ![Real Aniraku Random screen with one focused recommendation](./screenshots/random.jpg) |
+| Direct media first, proxy recovery when required, verified embeds only as a last path. | One title, one fact line, one decisive way to begin. |
 
-## WHAT IS INSIDE
+---
 
-| `SYSTEM` | `ANIRAKU BEHAVIOR` |
+## WHAT MOVES WITH YOU
+
+| `DISCOVER` | `WATCH` |
+| :--- | :--- |
+| Home, Catalog, title search, schedule, detail pages, and a one-tap Random route use AniList discovery data with honest loading and recovery states. | The native Watch route coordinates backend-reported servers, language tracks, quality options, resume progress, auto-next, AniSkip, subtitles, speed, fullscreen, and Picture-in-Picture. |
+| `KEEP` | `CONNECT` |
+| Watch history, bookmarks, ratings, comments, episode progress, and in-app alerts create a library that stays personal instead of becoming a dashboard. | Optional verified-email accounts use Supabase-backed synchronization, encrypted native session storage, recovery, avatar selection, and account deletion. |
+
+`PLAYBACK ORDER / DIRECT SOURCE → ANIRAKU PROXY → VERIFIED EMBED`
+
+The player does not switch the episode simply because a source is still being resolved. It preserves the selected episode while the Aniraku coordinator discovers compatible options, prevents an already-started stream from being unnecessarily remounted, and exposes audio/provider controls inside the media plane.
+
+---
+
+## GET THE SIGNAL
+
+| `01 / DOWNLOAD` | `02 / ALLOW` | `03 / INSTALL` | `04 / OPEN` |
+| :--- | :--- | :--- | :--- |
+| Download the current `.apk` from [GitHub Releases](https://github.com/Aniraku/Aniraku-App/releases/latest) or [Orion Store](https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku). | If Android asks, allow your browser or file manager to install applications from this source. | Open the completed APK. For v2.0.Alpha, remove the legacy `aniraku.anine.app` install first. | Browse as a guest or sign in to keep your library in sync. |
+
+| `COMPATIBILITY` | `CURRENT IDENTITY` | `DISTRIBUTION` |
+| :--- | :--- | :--- |
+| Android 9 / API 28 and later, with `armeabi-v7a` and `arm64-v8a` libraries. | `aniraku.anime.app` · `v2.0.Alpha` | FOSS direct distribution. No Google Play listing. |
+
+The backend runs on a free cloud instance. During peak demand, source discovery may take a little longer; a provider appearing in the app is not a guarantee of uninterrupted third-party availability. If you can support infrastructure costs, start with the [project page](https://github.com/Aniraku/Aniraku-App).
+
+---
+
+## BUILT NATIVE, KEPT OPEN
+
+| `LAYER` | `CHOICE` |
 | --- | --- |
-| `DISCOVER` | Home, Catalog, full-text title search, release schedule, title detail, and a random-pick flow. |
-| `WATCH` | Backend-led provider discovery, direct media and proxy recovery, compatible embedded-provider fallback, language/provider selection, quality choices, resume, auto-next, AniSkip, speed, subtitles, and 10-second seek. |
-| `LIBRARY` | Watch history, bookmarks, per-episode ratings, comments, in-app release alerts, and synchronized settings. |
-| `ACCOUNT` | Email verification, password recovery, encrypted local session storage, avatar selection, and account deletion. |
-| `ANDROID` | A native player using `expo-video`, landscape fullscreen, Picture-in-Picture support, safe areas, haptics, and deep links. |
+| Interface | React Native 0.81, Expo SDK 54, Expo Router 6, TypeScript, and a Nothing OS-inspired design system. |
+| Data | AniList for discovery metadata, `api.aniraku.tech` for playback coordination, Supabase for optional account-scoped synchronization. |
+| Media | `expo-video`, Android-native fullscreen/Picture-in-Picture configuration, Screen Orientation, and WebView only for verified embed fallbacks. |
+| Quality | TypeScript checks, Vitest regression coverage, GitHub Actions, and a universal Android release artifact. |
 
-`PLAYBACK RULE / DIRECT SOURCE → ANIRAKU PROXY → VERIFIED EMBED`
-
-The Watch flow follows the Aniraku source coordinator. It asks the backend for the canonical episode and compatible servers, tries native delivery before a verified embed, keeps the selected episode while discovery continues, and avoids remounting a stream that has already begun playing.
-
-## GET IT
-
-Download the current signed APK from the [GitHub Releases page](https://github.com/Aniraku/Aniraku-App/releases/latest). Aniraku is distributed directly; it is **not** published through Google Play.
-
-| `STEP` | `INSTALL` |
-| --- | --- |
-| `01 / DOWNLOAD` | Open the latest release and download the `.apk` file for **Aniraku**. |
-| `02 / ALLOW` | If Android asks, allow your browser or file manager to install apps from this source. |
-| `03 / INSTALL` | Open the completed APK and confirm installation. **v2.0.Alpha uses `aniraku.anime.app`; uninstall the legacy `aniraku.anine.app` build first, because Android treats it as a separate app.** |
-| `04 / OPEN` | Sign in to sync your library, or browse as a guest. |
-
-> **Compatibility:** the public configuration targets Android 9 / API 28 and later, with both `armeabi-v7a` and `arm64-v8a` native libraries included.
-
-> **Android identity:** Current releases use package `aniraku.anime.app`. The previous `aniraku.anine.app` alpha is a legacy package and cannot update in place; uninstalling it also removes its local app data.
-
-## RUN IT LOCALLY
-
-The project uses Node.js 22 and pnpm 9. Install dependencies, set public runtime values, then run the checks before opening Android.
+### Run it locally
 
 ```bash
 pnpm install
@@ -72,46 +97,21 @@ pnpm android
 
 | `PUBLIC VARIABLE` | `USED FOR` |
 | --- | --- |
-| `EXPO_PUBLIC_API_BASE_URL` | Aniraku API origin, normally `https://api.aniraku.tech`. |
-| `EXPO_PUBLIC_ANILIST_GRAPHQL_URL` | AniList GraphQL endpoint for discovery metadata. |
+| `EXPO_PUBLIC_API_BASE_URL` | The Aniraku API origin, normally `https://api.aniraku.tech`. |
+| `EXPO_PUBLIC_ANILIST_GRAPHQL_URL` | AniList GraphQL metadata requests. |
 | `EXPO_PUBLIC_SUPABASE_URL` | The Aniraku Supabase project URL. |
-| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | The client-safe Supabase anonymous/publishable key. |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | The public, client-safe Supabase anonymous/publishable key. |
 
-`DO NOT COMMIT` service-role keys, provider credentials, database passwords, or signing keys.
+> Never commit service-role keys, signing keys, provider credentials, database passwords, or `.env` files.
 
-## NATIVE STACK
+---
 
-| `LAYER` | `CHOICE` |
-| --- | --- |
-| `UI` | [React Native](https://reactnative.dev/) 0.81, [Expo](https://expo.dev/) SDK 54, [Expo Router](https://docs.expo.dev/router/introduction/) 6, and TypeScript. |
-| `DATA` | [TanStack Query](https://tanstack.com/query/latest), the [AniList GraphQL API](https://anilist.gitbook.io/anilist-apiv2-docs/), and Supabase. |
-| `MEDIA` | [expo-video](https://docs.expo.dev/versions/latest/sdk/video/), `react-native-webview`, Screen Orientation, and native Picture-in-Picture configuration. |
-| `QUALITY` | TypeScript checking, Vitest regression coverage, GitHub Actions, and signed Android release artifacts. |
+## READ THE SYSTEM
 
-## PROJECT MAP
+| `PRODUCT` | `TRUST` | `BUILD` |
+| :--- | :--- | :--- |
+| [Native architecture](./docs/NATIVE_ARCHITECTURE.md) · [Documentation system](./docs/DOCUMENTATION_SYSTEM.md) · [Design direction](./design.md) | [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [DMCA](./DMCA.md) · [Security](./SECURITY.md) | [Contributing](./CONTRIBUTING.md) · [Changelog](./CHANGELOG.md) · [License](./LICENSE) |
 
-| `FILE` | `PURPOSE` |
-| --- | --- |
-| [`app/`](./app) | File-based native screens and navigation. |
-| [`app/watch/[id].tsx`](./app/watch/%5Bid%5D.tsx) | Native Watch experience, player coordination, recovery, and episode actions. |
-| [`lib/`](./lib) | Aniraku API, AniList, Supabase, player, and app configuration clients. |
-| [`tests/`](./tests) | Deterministic behavior and regression coverage. |
-| [`.github/workflows/`](./.github/workflows) | Continuous integration checks. |
-
-## PROJECT DOCUMENTS
-
-| `READ` | `SCOPE` |
-| --- | --- |
-| [Architecture](./docs/NATIVE_ARCHITECTURE.md) | Service boundaries, domain model, session security, and playback responsibilities. |
-| [Privacy](./PRIVACY.md) | Data categories, retention, deletion behavior, and user controls. |
-| [Terms](./TERMS.md) | Acceptable use, source responsibilities, and service limitations. |
-| [DMCA](./DMCA.md) | Copyright notice procedure and repeat-infringer policy. |
-| [Security](./SECURITY.md) | Reporting route and client security expectations. |
-| [Contributing](./CONTRIBUTING.md) | Development and pull-request expectations. |
-| [Changelog](./CHANGELOG.md) | Release notes and version history. |
-
-## RESPECT THE SIGNAL
-
-Use Aniraku only for media you are authorized to access. Anime titles, artwork, provider content, trademarks, and related materials belong to their respective owners and remain subject to their terms. The project is available under the [MIT License](./LICENSE).
+Use Aniraku only for media you are authorized to access. Anime titles, artwork, provider content, trademarks, and related materials belong to their respective owners and remain subject to their terms. The project itself is released under the [MIT License](./LICENSE).
 
 `ANIRAKU / KEEP YOUR ANIME CLOSE.`

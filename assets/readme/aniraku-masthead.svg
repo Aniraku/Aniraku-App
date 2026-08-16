@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="520" viewBox="0 0 1600 520" role="img" aria-labelledby="title desc">
+  <title id="title">Aniraku Native Android</title>
+  <desc id="desc">A black, white, and signal-red Aniraku masthead for the native Android app.</desc>
+  <rect width="1600" height="520" fill="#090909"/>
+  <rect x="58" y="64" width="8" height="392" fill="#FF4D4D"/>
+  <g fill="#343434">
+    <circle cx="114" cy="82" r="3"/><circle cx="130" cy="82" r="3"/><circle cx="146" cy="82" r="3"/><circle cx="162" cy="82" r="3"/><circle cx="178" cy="82" r="3"/><circle cx="194" cy="82" r="3"/><circle cx="210" cy="82" r="3"/>
+    <circle cx="1390" cy="438" r="3"/><circle cx="1406" cy="438" r="3"/><circle cx="1422" cy="438" r="3"/><circle cx="1438" cy="438" r="3"/><circle cx="1454" cy="438" r="3"/><circle cx="1470" cy="438" r="3"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" letter-spacing="3">
+    <text x="104" y="110" fill="#A2A2A0" font-size="22">FOR YOU / NATIVE ANDROID / FOSS</text>
+    <text x="104" y="405" fill="#A2A2A0" font-size="18">DISCOVER · WATCH · KEEP YOUR ANIME CLOSE</text>
+  </g>
+  <text x="98" y="274" fill="#F6F6F2" font-family="Arial, Helvetica, sans-serif" font-size="138" font-weight="800" letter-spacing="-7">ANIRAKU</text>
+  <line x1="105" y1="318" x2="1496" y2="318" stroke="#343434" stroke-width="2"/>
+  <line x1="105" y1="318" x2="478" y2="318" stroke="#FF4D4D" stroke-width="6"/>
+  <g transform="translate(1318 150)">
+    <rect width="178" height="122" rx="8" fill="#141414" stroke="#343434"/>
+    <text x="22" y="40" fill="#A2A2A0" font-family="Arial, Helvetica, sans-serif" font-size="14" letter-spacing="2">CURRENT</text>
+    <text x="22" y="78" fill="#F6F6F2" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700">V2.0</text>
+    <circle cx="148" cy="72" r="10" fill="#FF4D4D"/>
+    <text x="22" y="102" fill="#A2A2A0" font-family="Arial, Helvetica, sans-serif" font-size="12" letter-spacing="1">ALPHA / LIVE</text>
+  </g>
+</svg>

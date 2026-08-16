@@ -1,4 +1,10 @@
-# Nothing OS Research Notes for Aniraku Native Android
+![Aniraku documentation signal](../assets/readme/documentation-signal.svg)
+
+`ANIRAKU / DESIGN REFERENCE`
+
+# Nothing OS Inspiration
+
+This reference captures the restraint behind Aniraku’s design system without claiming affiliation with Nothing.
 
 ## Why Nothing OS feels distinctive
 
@@ -33,3 +39,9 @@ Every native screen uses a matte black base with legible hierarchy. Poster and b
 [2]: https://crewtangle.com/nothings-carefully-crafted-brand/ "Nothing’s carefully crafted brand"
 
 [3]: https://nothingtec.com/en/2025/04/03/filosofia-minimalista-nothing/ "The Nothing aesthetic: passing fad or brand philosophy?"
+
+---
+
+`SIGNAL / QUIET THE NOISE`
+
+[README](../README.md) · [Design direction](../design.md) · [Architecture](./NATIVE_ARCHITECTURE.md) · [Documentation system](./DOCUMENTATION_SYSTEM.md)

@@ -1,13 +1,32 @@
-# Contributing to Aniraku Native Android
+![Aniraku documentation signal](./assets/readme/documentation-signal.svg)
 
-Contributions should preserve the native-first product boundary: do not add WebView wrappers, provider scraping, private credential handling, placeholder content, or unverified media fallbacks. Use the Nothing OS-inspired design tokens, real service contracts, accessible labels, and explicit loading/error states.
+`ANIRAKU / BUILD WITH INTENT`
 
-Before opening a pull request, install dependencies and run the release checks.
+# Contributing
+
+Contributions should make the native product more trustworthy, not merely more complicated. Preserve the native-first boundary, the calm editorial interface, real service contracts, and explicit recovery states.
+
+## Before you open a pull request
 
 ```bash
+pnpm install
 pnpm check
 pnpm test
 npx expo config --type public --json
 ```
 
-Changes that affect authentication, playback, account deletion, database contracts, or Android build settings should include deterministic tests and a concise migration or operational note. Do not commit `.env` files, Android keystores, screenshots containing personal data, or token-bearing source URLs.
+| `KEEP` | `DO NOT ADD` |
+| --- | --- |
+| Native React Native views, accessible labels, real state handling, concise copy, documented migration notes, and deterministic tests where behavior can regress. | WebView wrappers for the app, provider scraping, private credential handling, placeholder content, fake availability states, unverified media fallbacks, or generated product screenshots. |
+
+## A useful pull request
+
+Name the user problem, explain the native behavior you changed, include the checks you ran, and call out any impact on authentication, playback, data contracts, Android package configuration, or account deletion. Keep visual changes aligned with the [Aniraku documentation and product system](./docs/DOCUMENTATION_SYSTEM.md): one focal action, restrained signal red, real artwork, and no repeated decorative cards.
+
+Do not commit `.env` files, Android keystores, access tokens, signing material, personal screenshots, or durable provider URLs.
+
+---
+
+`SIGNAL / CLEAR`
+
+[README](./README.md) · [Architecture](./docs/NATIVE_ARCHITECTURE.md) · [Security](./SECURITY.md) · [MIT License](./LICENSE)

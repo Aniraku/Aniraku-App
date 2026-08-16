@@ -1,21 +1,29 @@
-# Aniraku Native Android Terms of Use
+![Aniraku documentation signal](./assets/readme/documentation-signal.svg)
 
-**Effective date: August 13, 2026**
+`ANIRAKU / USE THE SIGNAL RESPONSIBLY`
 
-By using Aniraku Native Android, the user agrees to use the service lawfully, responsibly, and in accordance with applicable law. The app is an interface for anime discovery, account organization, and playback coordination; it does not grant rights in third-party content, marks, metadata, artwork, or external provider services.
+# Terms of Use
 
-## Accounts and community participation
+**Effective date: August 16, 2026**
 
-Verified email is required for protected account features. Users are responsible for their credentials and must not attempt to bypass authentication, abuse account deletion controls, harvest user data, disrupt service availability, or post unlawful, abusive, infringing, spam, or deceptive comments. Aniraku may restrict community access where necessary to protect users or service integrity.
+By using Aniraku Native Android, you agree to use the service lawfully, responsibly, and in accordance with applicable law. The app is an interface for anime discovery, personal organization, and playback coordination; it does not grant rights in third-party content, marks, metadata, artwork, or external provider services.
+
+## Accounts and community
+
+Verified email is required for protected account features. You are responsible for your credentials and must not bypass authentication, harvest data, disrupt availability, abuse account deletion, or post unlawful, abusive, infringing, spam, or deceptive comments. Aniraku may restrict community access when necessary to protect people or service integrity.
 
 ## Source availability
 
-Provider availability, language tracks, stream quality, subtitle tracks, airing schedules, and metadata are supplied by third parties or the Aniraku backend and can change without notice. The app shows only sources that the backend reports as verified and that the native player can directly open; availability is not guaranteed.
+Language tracks, stream quality, subtitles, schedules, metadata, and provider availability are supplied by third parties or the Aniraku backend and can change without notice. The app displays only sources the backend reports as compatible with the native flow; availability is not guaranteed.
 
-## Disclaimers and limitation
+## Disclaimers
 
-The software is provided on an **“as is”** and **“as available”** basis. To the maximum extent permitted by law, Aniraku disclaims warranties of uninterrupted availability, error-free operation, merchantability, fitness for a particular purpose, and non-infringement. Nothing in these terms limits rights that cannot legally be limited.
+The software is provided **“as is”** and **“as available.”** To the maximum extent permitted by law, Aniraku disclaims warranties of uninterrupted availability, error-free operation, merchantability, fitness for a particular purpose, and non-infringement. Nothing here limits rights that cannot legally be limited.
 
-## Contact
+Questions about these terms may be sent to **legal@aniraku.tech**.
 
-Questions about these terms can be sent to **legal@aniraku.tech**.
+---
+
+`SIGNAL / RESPECT THE SOURCE`
+
+[README](./README.md) · [Privacy](./PRIVACY.md) · [DMCA](./DMCA.md) · [MIT License](./LICENSE)

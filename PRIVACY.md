@@ -1,25 +1,33 @@
-# Aniraku Native Android Privacy Notice
+![Aniraku documentation signal](./assets/readme/documentation-signal.svg)
 
-**Effective date: August 13, 2026**
+`ANIRAKU / YOUR DATA, IN CONTEXT`
 
-Aniraku Native Android provides anime discovery, playback coordination, and optional account synchronization. This notice describes how the application handles information when a person uses the native application.
+# Privacy Notice
 
-| Information category | Purpose | Storage and retention |
-|---|---|---|
-| Account email and verification state | Sign-in, recovery, and verified account enforcement. | Managed by the Aniraku Supabase authentication service until the account is deleted. |
-| Encrypted session token | Keeps a verified session active on the device. | Stored through the platform keychain/keystore; removed on sign-out or Android app uninstall. |
-| Watch progress, bookmarks, ratings, comments, notifications, and preferences | Synchronizes optional library and community features. | Stored in the Aniraku Supabase project under account-scoped access controls until removed by the user or account deletion. |
-| Title and provider metadata | Renders discovery and coordinates playback. | Retrieved from AniList and the Aniraku API; short-lived data is held in app memory and query cache. |
-| Technical error context | Shows actionable in-app errors and supports safe retry behavior. | The current native release does not intentionally transmit advertising identifiers or behavioral analytics. |
+**Effective date: August 16, 2026**
 
-## Controls
+Aniraku provides anime discovery, playback coordination, and optional account synchronization. This notice explains the information used when you use the native Android application.
 
-The user can sign out from Settings, clear watch history, clear bookmarks, remove individual history entries where offered, and delete the account. Account deletion calls a protected server function that clears user-scoped records before removing the authentication record. This action is designed to be irreversible.
+| `INFORMATION` | `WHY IT IS USED` | `WHERE IT LIVES` |
+| --- | --- | --- |
+| Account email and verification state | Sign-in, recovery, and verified-account enforcement. | The Aniraku Supabase authentication service until account deletion. |
+| Encrypted session token | Maintains an authenticated session on your device. | Device keychain/keystore; removed on sign-out or app uninstall. |
+| Progress, bookmarks, ratings, comments, alerts, and preferences | Synchronizes optional library and community features. | Account-scoped Supabase records until you remove them or delete the account. |
+| Title and provider metadata | Renders discovery and coordinates a selected playback route. | AniList and the Aniraku API; short-lived data remains in app memory and query cache. |
+| Technical error context | Shows understandable in-app recovery and retry states. | The native release does not intentionally transmit advertising identifiers or behavioral analytics. |
 
-## Third-party services
+## Your controls
 
-The app uses AniList for public anime metadata, the Aniraku API for source coordination, and Supabase for authentication and account-scoped synchronization. Those services process requests necessary to provide their respective functions. Users should review the applicable service notices for details of their independent processing practices.
+You can sign out from Settings, clear watch history and bookmarks, remove individual history items where the feature is offered, and delete your account. Account deletion invokes a protected server function that removes user-scoped records before removing the authentication record. It is intended to be irreversible.
 
-## Contact
+## Services involved
 
-For privacy questions or account data requests, contact **privacy@aniraku.tech**. This notice may be updated when the app’s data practices materially change; the effective date will be revised with the update.
+Aniraku uses AniList for public anime metadata, the Aniraku API for source coordination, and Supabase for authentication and account-scoped synchronization. Each service processes requests needed for its own function. Review their independent notices for details about their respective practices.
+
+For privacy questions or account-data requests, contact **privacy@aniraku.tech**. This notice will be revised when the application’s data practices materially change.
+
+---
+
+`SIGNAL / YOU DECIDE WHAT STAYS`
+
+[README](./README.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) · [DMCA](./DMCA.md)

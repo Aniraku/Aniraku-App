@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="160" viewBox="0 0 1600 160" role="img" aria-labelledby="title desc">
+  <title id="title">Aniraku Documentation</title>
+  <desc id="desc">A compact black and signal-red header for Aniraku public documents.</desc>
+  <rect width="1600" height="160" fill="#090909"/>
+  <rect x="58" y="42" width="6" height="76" fill="#FF4D4D"/>
+  <text x="94" y="78" fill="#F6F6F2" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="800" letter-spacing="-1">ANIRAKU</text>
+  <text x="96" y="108" fill="#A2A2A0" font-family="Arial, Helvetica, sans-serif" font-size="17" letter-spacing="3">NATIVE ANDROID / DOCUMENTATION</text>
+  <line x1="1020" y1="80" x2="1542" y2="80" stroke="#343434" stroke-width="2"/>
+  <line x1="1020" y1="80" x2="1290" y2="80" stroke="#FF4D4D" stroke-width="5"/>
+  <g fill="#343434"><circle cx="1448" cy="116" r="3"/><circle cx="1464" cy="116" r="3"/><circle cx="1480" cy="116" r="3"/><circle cx="1496" cy="116" r="3"/><circle cx="1512" cy="116" r="3"/></g>
+</svg>

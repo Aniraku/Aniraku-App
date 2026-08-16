@@ -1,4 +1,8 @@
-# Aniraku Native — Handcrafted Editorial Design Direction
+![Aniraku documentation signal](./assets/readme/documentation-signal.svg)
+
+`ANIRAKU / PRODUCT DESIGN DIRECTION`
+
+# Handcrafted Editorial Design Direction
 
 ## The correction
 
@@ -58,3 +62,9 @@ The redesign applies visual hierarchy through controlled scale, spacing, value, 
 
 [1]: https://www.nngroup.com/articles/principles-visual-design/ "Nielsen Norman Group: 5 Principles of Visual Design in UX"
 [2]: https://nothing.community/en/d/39680-lets-make-nothing-os-better-shall-we "Nothing Community: Let’s Make Nothing OS Better"
+
+---
+
+`SIGNAL / ARTWORK FIRST, NOISE LAST`
+
+[README](./README.md) · [Nothing OS inspiration](./docs/NOTHING_OS_RESEARCH.md) · [Architecture](./docs/NATIVE_ARCHITECTURE.md) · [Contributing](./CONTRIBUTING.md)
