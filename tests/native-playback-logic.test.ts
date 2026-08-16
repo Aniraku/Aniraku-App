@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { anirakuProxyUrl, getPlaybackType, hasExpiredEmbeddedToken, nativePlaybackHeaders, normalizeStreamResponse, playableSources } from "../lib/aniraku-api";
 import { chooseResumeEpisode, progressFraction } from "../lib/watch-progress";
-import { directSources, embedSources, hasConfirmedPlaybackStart, nextProviderIndex, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect } from "../lib/watch-engine";
+import { directSources, embedSources, hasConfirmedPlaybackStart, nextProviderIndex, shouldMountReplacementSource, shouldRestoreRebufferPosition, shouldRetryProxiedSourceAfterDirect } from "../lib/watch-engine";
 
 describe("Aniraku native playback coordination", () => {
   it("keeps only Android-safe transport headers for direct media", () => {
@@ -72,6 +72,13 @@ describe("Aniraku native playback coordination", () => {
     expect(shouldRetryProxiedSourceAfterDirect(false, false)).toBe(true);
     expect(shouldRetryProxiedSourceAfterDirect(true, false)).toBe(false);
     expect(shouldRetryProxiedSourceAfterDirect(false, true)).toBe(false);
+  });
+
+  it("restores only small, non-user playback rollbacks that follow rebuffering", () => {
+    expect(shouldRestoreRebufferPosition({ lastStableTime: 125.5, reportedTime: 125.2, wasBuffering: true, playbackStarted: true, intentionalSeek: false })).toBe(true);
+    expect(shouldRestoreRebufferPosition({ lastStableTime: 125.5, reportedTime: 125.2, wasBuffering: true, playbackStarted: true, intentionalSeek: true })).toBe(false);
+    expect(shouldRestoreRebufferPosition({ lastStableTime: 125.5, reportedTime: 110, wasBuffering: true, playbackStarted: true, intentionalSeek: false })).toBe(false);
+    expect(shouldRestoreRebufferPosition({ lastStableTime: 125.5, reportedTime: 125.2, wasBuffering: false, playbackStarted: true, intentionalSeek: false })).toBe(false);
   });
 
   it("fails over to the next provider in the selected language before giving up", () => {

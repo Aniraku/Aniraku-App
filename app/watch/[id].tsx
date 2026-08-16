@@ -22,6 +22,7 @@ import {
   providerSkipSegments,
   shouldRetryProxiedSourceAfterDirect,
   shouldMountReplacementSource,
+  shouldRestoreRebufferPosition,
   type Language,
   type SkipKind,
   type SkipSegments,
@@ -112,7 +113,9 @@ export default function WatchScreen() {
   useKeepAwake("aniraku-watch");
 
   const player = useVideoPlayer(null, (instance) => {
-    instance.timeUpdateEventInterval = 0.5;
+    // React quickly to a native rebuffer position discontinuity before the
+    // replayed keyframe becomes visible for a noticeable duration.
+    instance.timeUpdateEventInterval = 0.1;
     instance.staysActiveInBackground = false;
     instance.preservesPitch = true;
     instance.showNowPlayingNotification = true;
@@ -186,6 +189,9 @@ export default function WatchScreen() {
   const skipSegmentsRef = useRef(skipSegments);
   const pendingResume = useRef<number | null>(null);
   const activeProviderId = useRef<string | null>(null);
+  const lastStablePlaybackTime = useRef(0);
+  const rebufferSeen = useRef(false);
+  const intentionalSeekUntil = useRef(0);
 
   const activeProviders = providers[language] ?? [];
   const activeProvider = activeProviders[serverIndex];
@@ -200,6 +206,39 @@ export default function WatchScreen() {
   const subtitleTracks = subtitleEvent?.availableSubtitleTracks ?? player.availableSubtitleTracks ?? [];
   const skipKind = activeSkipKind(skipSegments, currentTime);
   const buffering = loadingStream || status === "loading";
+
+  // A new source has its own timeline. Never carry the prior episode/provider
+  // position into a deliberate quality, language, or source replacement.
+  useEffect(() => {
+    lastStablePlaybackTime.current = 0;
+    rebufferSeen.current = false;
+    intentionalSeekUntil.current = 0;
+  }, [source?.url, sourceRevision]);
+
+  useEffect(() => {
+    const reportedTime = currentTime;
+    const intentionalSeek = Date.now() < intentionalSeekUntil.current;
+    if (buffering) rebufferSeen.current = true;
+
+    if (shouldRestoreRebufferPosition({
+      lastStableTime: lastStablePlaybackTime.current,
+      reportedTime,
+      wasBuffering: rebufferSeen.current,
+      playbackStarted: sourceStarted.current,
+      intentionalSeek,
+    })) {
+      // This is an active native correction, not merely a timeline display
+      // clamp: Media3 is returned to the position it had reached before the
+      // short post-buffer rollback.
+      player.currentTime = lastStablePlaybackTime.current;
+      return;
+    }
+
+    if (intentionalSeek || reportedTime >= lastStablePlaybackTime.current - 0.05) {
+      lastStablePlaybackTime.current = reportedTime;
+      if (!buffering) rebufferSeen.current = false;
+    }
+  }, [buffering, currentTime, player]);
 
   useEffect(() => { skipSegmentsRef.current = skipSegments; }, [skipSegments]);
 
@@ -222,6 +261,9 @@ export default function WatchScreen() {
     sourceFirstFrame.current = false;
     sourceMounted.current = false;
     sourceFailureHandled.current = null;
+    lastStablePlaybackTime.current = 0;
+    rebufferSeen.current = false;
+    intentionalSeekUntil.current = 0;
   }, [player]);
 
   const handleProviderBlocked = useCallback((reason: "player" | "permanent" | "stream" | "startup" = "player") => {
@@ -644,8 +686,21 @@ export default function WatchScreen() {
     setPlaybackHeaders(stream?.headers ?? activeProvider?.headers);
     setSourceRevision((value) => value + 1);
   };
-  const seek = (seconds: number) => player.seekBy(seconds);
-  const skip = (kind: SkipKind) => { const target = skipSegments[kind]?.endTime; if (target) player.currentTime = target; };
+  const markIntentionalSeek = (target?: number) => {
+    intentionalSeekUntil.current = Date.now() + 1_500;
+    if (typeof target === "number" && Number.isFinite(target)) lastStablePlaybackTime.current = target;
+  };
+  const seek = (seconds: number) => {
+    markIntentionalSeek(Math.max(0, currentTime + seconds));
+    player.seekBy(seconds);
+  };
+  const skip = (kind: SkipKind) => {
+    const target = skipSegments[kind]?.endTime;
+    if (target) {
+      markIntentionalSeek(target);
+      player.currentTime = target;
+    }
+  };
   const retry = () => {
     if (!activeProvider) return;
     blockedProviders.current.delete(activeProvider.id);
@@ -662,7 +717,11 @@ export default function WatchScreen() {
   const previousKnownEpisode = [...canonicalEpisodes].reverse().find((item) => item.number < episode)?.number;
   const nextEpisode = () => { if (nextKnownEpisode) goToEpisode(nextKnownEpisode); };
   const seekFromBar = (event: { nativeEvent: { locationX: number } }) => {
-    if (duration > 0 && progressWidth > 0) player.currentTime = Math.max(0, Math.min(duration, (event.nativeEvent.locationX / progressWidth) * duration));
+    if (duration > 0 && progressWidth > 0) {
+      const target = Math.max(0, Math.min(duration, (event.nativeEvent.locationX / progressWidth) * duration));
+      markIntentionalSeek(target);
+      player.currentTime = target;
+    }
   };
   const selectSubtitle = (track: SubtitleTrack | null) => { player.subtitleTrack = track; };
   const enterFullscreen = () => {

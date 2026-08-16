@@ -32,6 +32,25 @@ export function shouldRetryProxiedSourceAfterDirect(usingProxy: boolean, playbac
   return !usingProxy && !playbackStarted;
 }
 
+/**
+ * Media3 may briefly report a position just behind the rendered frame after a
+ * rebuffer. Restore the previous position only for that small, non-user seek.
+ */
+export function shouldRestoreRebufferPosition(input: {
+  lastStableTime: number;
+  reportedTime: number;
+  wasBuffering: boolean;
+  playbackStarted: boolean;
+  intentionalSeek: boolean;
+}) {
+  const rollback = input.lastStableTime - input.reportedTime;
+  return input.wasBuffering
+    && input.playbackStarted
+    && !input.intentionalSeek
+    && rollback >= 0.05
+    && rollback <= 2;
+}
+
 export function isVerifiedEmbedSource(source: StreamSource) {
   return getPlaybackType(source) === "embed" && sourceVerification(source) === "embed";
 }
