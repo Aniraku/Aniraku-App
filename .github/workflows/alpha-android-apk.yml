@@ -70,6 +70,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           APK=android/app/build/outputs/apk/release/app-release.apk
+          RELEASE_APK=/tmp/Aniraku-v2.1.Alpha.apk
+          cp "$APK" "$RELEASE_APK"
           cat > /tmp/aniraku-v2.1-alpha-notes.md <<'EOF'
           ## Aniraku v2.1.Alpha
 
@@ -87,8 +89,18 @@ jobs:
 
           > If you are upgrading from v1.x under `aniraku.anine.app`, uninstall that legacy package first. Android treats `aniraku.anime.app` as a separate application.
           EOF
-          gh release create v2.1.Alpha "$APK#Aniraku-v2.1.Alpha.apk" \
-            --repo "${{ github.repository }}" \
-            --title "v2.1.Alpha — Guest Alerts, FAQ, and Gallery" \
-            --notes-file /tmp/aniraku-v2.1-alpha-notes.md \
-            --latest
+          if gh release view v2.1.Alpha --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release delete-asset v2.1.Alpha app-release.apk --repo "${{ github.repository }}" --yes || true
+            gh release upload v2.1.Alpha "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
+            gh release edit v2.1.Alpha \
+              --repo "${{ github.repository }}" \
+              --title "v2.1.Alpha — Guest Alerts, FAQ, and Gallery" \
+              --notes-file /tmp/aniraku-v2.1-alpha-notes.md \
+              --latest
+          else
+            gh release create v2.1.Alpha "$RELEASE_APK" \
+              --repo "${{ github.repository }}" \
+              --title "v2.1.Alpha — Guest Alerts, FAQ, and Gallery" \
+              --notes-file /tmp/aniraku-v2.1-alpha-notes.md \
+              --latest
+          fi
