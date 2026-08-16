@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View, type GestureResponderEvent, type StyleProp, type ViewStyle } from "react-native";
 import * as Haptics from "expo-haptics";
+import { AppIcon } from "@/components/app-icon";
 
 export const nothing = {
   black: "#090909",
@@ -16,6 +17,8 @@ export const nothing = {
 
 export function DotLabel({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "signal" | "live" }) {
   const color = tone === "signal" || tone === "live" ? nothing.red : nothing.muted;
+  const isDownloadLabel = children === "OFFLINE";
+  if (isDownloadLabel) return <View style={styles.downloadLabel}><AppIcon name="download" size={12} color={color} /><Text style={[styles.dotLabel, { color }]}>DOWNLOADS</Text></View>;
   return <Text style={[styles.dotLabel, { color }]}>{children}</Text>;
 }
 
@@ -70,6 +73,7 @@ export function Signal({ label, tone = "live" }: { label: string; tone?: "live" 
 
 const styles = StyleSheet.create({
   dotLabel: { fontFamily: "monospace", fontSize: 9, fontWeight: "800", letterSpacing: 1.2, textTransform: "uppercase" },
+  downloadLabel: { flexDirection: "row", alignItems: "center", gap: 5 },
   mark: { alignItems: "center", justifyContent: "center", borderWidth: 1, overflow: "hidden" },
   markOrbit: { width: "56%", height: "56%", borderWidth: 2, borderRadius: 99, opacity: 0.9 },
   markDot: { width: 5, height: 5, borderRadius: 99, position: "absolute", right: "22%", bottom: "22%" },

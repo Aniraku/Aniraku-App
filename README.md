@@ -38,7 +38,7 @@
 
 The current standard release is **v2.5.Alpha**, package `aniraku.anime.app`, with **versionCode 13**. Start with the [v2.5.Alpha release page](https://github.com/Aniraku/Aniraku-App/releases/tag/v2.5.Alpha) for the universal Android 9+ APK, integrity notes, and complete release notes.
 
-v2.5 adds **offline downloads for eligible direct progressive sources**. In Auto mode, the player settings choose the highest available verified direct quality for saving; adaptive HLS/DASH, embedded, DRM-protected, non-HTTPS, and unavailable sources remain streaming-only. Saved copies stay inside the app sandbox and can be played, shared, or removed from the player settings.
+v2.5 adds **downloads for eligible direct progressive sources**. In Auto mode, the player settings choose the highest available verified direct quality for saving; adaptive HLS/DASH, embedded, DRM-protected, non-HTTPS, and unavailable sources remain streaming-only. The player settings now show a **Downloads** label with a download glyph. On the first save, Android asks the user to select their public **Downloads** folder; the resulting file remains visible to the device file manager after Aniraku is closed.
 
 v2.5 also brings the native client into the same protected synchronization flow used by aniraku.tech. The Settings screen shows real AniList and MyAnimeList provider marks in the Nothing OS interface, opens the established browser-based authorization route, exposes explicit status/import/export/disconnect actions, and pushes meaningful playback progress and rating summaries only for connected providers. Provider client secrets and provider tokens are never bundled into the APK.
 

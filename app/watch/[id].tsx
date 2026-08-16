@@ -744,7 +744,7 @@ export default function WatchScreen() {
       setDownloadProgress(0);
       const entry = await startMaximumQualityDownload({ animeId, episode, language, title, source: maximumDownloadSource, headers: stream?.headers ?? activeProvider?.headers, onProgress: setDownloadProgress });
       setOfflineDownload(entry);
-      setDownloadMessage(`${entry.quality.toUpperCase()} SAVED FOR OFFLINE VIEWING.`);
+      setDownloadMessage(`${entry.quality.toUpperCase()} SAVED TO DOWNLOADS.`);
     } catch (cause) {
       setDownloadMessage(cause instanceof Error ? cause.message.toUpperCase() : "THE DOWNLOAD COULD NOT COMPLETE.");
     } finally {

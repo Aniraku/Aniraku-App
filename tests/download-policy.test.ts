@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { downloadLabel, isDownloadableSource, selectMaximumQualityDownload } from "@/lib/download-policy";
+import { publicDownloadFilename } from "@/lib/download-policy";
 
 describe("offline download policy", () => {
   it("chooses the highest eligible direct progressive quality even when Auto playback is also available", () => {
@@ -19,5 +20,9 @@ describe("offline download policy", () => {
     expect(isDownloadableSource({ url: "https://cdn.example/file.mp4", verification: "dead" })).toBe(false);
     expect(isDownloadableSource({ url: "http://cdn.example/file.mp4", type: "mp4" })).toBe(false);
     expect(selectMaximumQualityDownload([{ url: "https://cdn.example/master.m3u8", type: "hls" }])).toBeNull();
+  });
+
+  it("creates a safe public Downloads filename that preserves episode, language, and chosen quality", () => {
+    expect(publicDownloadFilename("My Anime: Part / One", 7, "dub", "1080p")).toBe("My-Anime-Part-One-ep07-dub-1080p.mp4");
   });
 });
