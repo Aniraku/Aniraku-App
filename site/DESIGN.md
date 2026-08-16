@@ -27,3 +27,7 @@ The site uses only committed real app captures and local source-controlled visua
 ## Browser QA
 
 Local browser inspection confirmed the desktop hero renders as an asymmetric app-like command surface with the real native Watch capture, immediate GitHub APK and Orion Store actions, current Android package identity, and the red feature signal. The site contains four real product captures, a mobile dock hook at the `720px` breakpoint, a copyable `aniraku.anime.app` package ID, and the verified v2.0.Alpha APK route.
+
+## Public deployment QA
+
+GitHub Actions deployment `31926184437` completed successfully after GitHub Pages was enabled for the repository. The public URL `https://aniraku.github.io/Aniraku-App/` now serves the static `site/` artifact rather than branch-root README content. Live desktop inspection confirmed the real Watch hero capture, immediate GitHub APK and Orion Store actions, the four-screen product rail, current package identity, and the site’s black, white, graphite, and signal-red product treatment.
