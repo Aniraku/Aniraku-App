@@ -3,7 +3,7 @@ import { anirakuProxyUrl, getPlaybackType, hasExpiredEmbeddedToken, nativePlayba
 import { getKnownMalId } from "../lib/anilist";
 import { shouldAllowEmbedNavigation } from "../lib/embed-navigation";
 import { chooseResumeEpisode, progressFraction } from "../lib/watch-progress";
-import { directSources, embedSources, episodePageCount, episodePageFor, episodePageSlice, hasConfirmedPlaybackStart, nextProviderIndex, normalizeAniSkipSegments, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect } from "../lib/watch-engine";
+import { directSources, embedSources, episodePageCount, episodePageFor, episodePageSlice, hasConfirmedPlaybackStart, isProxySource, nativeSources, nextProviderIndex, normalizeAniSkipSegments, proxySources, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect, usableProvider } from "../lib/watch-engine";
 
 describe("Aniraku native playback coordination", () => {
   it("keeps only Android-safe transport headers for direct media", () => {
@@ -42,9 +42,10 @@ describe("Aniraku native playback coordination", () => {
     expect(hasExpiredEmbeddedToken("https://cdn.example/token?expires=20200101000000")).toBe(true);
   });
 
-  it("matches Watch.jsx source choices: provider Auto first, verified embeds separate, and uppercase verification supported", () => {
+  it("keeps direct, proxy, and verified embeds separately eligible in Direct → Proxy → Embed order", () => {
     const response = {
       sources: [
+        { url: "https://direct.example/720.m3u8", quality: "720p", verification: "verified" },
         { url: "https://cdn.example/720.m3u8", quality: "720p", verification: "proxy" },
         { url: "https://cdn.example/master.m3u8", quality: "Auto", Verification: "proxy" },
         { url: "https://cdn.example/1080.m3u8", quality: "1080p", verification: "proxy" },
@@ -53,11 +54,22 @@ describe("Aniraku native playback coordination", () => {
       ],
     };
     expect(directSources(response).map((source) => source.url)).toEqual([
+      "https://direct.example/720.m3u8",
+    ]);
+    expect(proxySources(response).map((source) => source.url)).toEqual([
+      "https://cdn.example/master.m3u8",
+      "https://cdn.example/1080.m3u8",
+      "https://cdn.example/720.m3u8",
+    ]);
+    expect(nativeSources(response).map((source) => source.url)).toEqual([
+      "https://direct.example/720.m3u8",
       "https://cdn.example/master.m3u8",
       "https://cdn.example/1080.m3u8",
       "https://cdn.example/720.m3u8",
     ]);
     expect(embedSources(response).map((source) => source.url)).toEqual(["https://embed.example/watch", "https://page.example/watch"]);
+    expect(isProxySource(response.sources[1])).toBe(true);
+    expect(usableProvider({ id: "sub:proxy", provider: "proxy", label: "PROXY", lang: "sub", sources: [response.sources[1]] })).toBe(true);
   });
 
   it("retains a website-visible server even when a stale verification snapshot is dead and its source is resolved only by /stream", () => {

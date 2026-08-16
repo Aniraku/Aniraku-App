@@ -1,10 +1,10 @@
-name: Build Aniraku v3.0 APK
+name: Build Aniraku v3.1 APK
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the verified v3.0 APK as the standard GitHub release
+        description: Publish the verified v3.1 APK as the standard GitHub release
         required: true
         default: false
         type: boolean
@@ -57,33 +57,34 @@ jobs:
           unzip -l "$APK" | grep -q 'assets/index.android.bundle'
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
-      - name: Upload Aniraku v3.0 APK
+      - name: Upload Aniraku v3.1 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aniraku-v3.0-universal-apk
+          name: Aniraku-v3.1-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish stable v3.0 release
+      - name: Publish stable v3.1 release
         if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           APK=android/app/build/outputs/apk/release/app-release.apk
-          RELEASE_APK=/tmp/Aniraku-v3.0.apk
+          RELEASE_APK=/tmp/Aniraku-v3.1.apk
           cp "$APK" "$RELEASE_APK"
-          cat > /tmp/aniraku-v3.0-notes.md <<'EOF'
-          ## Aniraku v3.0
+          cat > /tmp/aniraku-v3.1-notes.md <<'EOF'
+          ## Aniraku v3.1
 
-          **Package:** `aniraku.anime.app` · **versionCode:** 15
+          **Package:** `aniraku.anime.app` · **versionCode:** 16
 
-          ### Watch upgrade
-          - Restored exact provider-list parity with aniraku.tech: every backend provider remains visible even when its usable source is resolved only after selection through `/stream`
-          - Repaired AniSkip resolution with metadata-first MAL-ID detection, bounded lookup timing, no-result caching, and real opening/ending interval normalization
-          - Rebuilt high-episode-count Watch navigation with bounded 50-episode pages, direct episode-number jump, search, page controls, and automatic current-episode positioning
-          - Added a dedicated selected-episode information route with available title, thumbnail, description, filler state, adjacent episode navigation, and a direct Watch action
+          ### Provider transport refinement
+          - Made every valid direct, proxy-verified, and verified embedded source explicitly eligible for provider selection instead of collapsing selection to only native or embedded categories
+          - Preserved source order: native direct media first, Aniraku proxy for proxy-verified media second, and verified embeds only when native routes are unavailable
+          - Proxy-verified HLS sources now begin through `/api/v1/proxy`, retain their native quality choices, and never get reclassified as embed-only media
+          - Kiwi remains visible as a verified embedded provider. Its current live 1080p, 720p, and 360p backend URLs are selectable through the embedded quality control without being forced through the native player
 
-          ### Stable playback capabilities retained
+          ### Existing Watch capabilities retained
+          - Complete v3.0 provider parity, AniSkip recovery, responsive high-episode paging/search/jump, and selected-episode information navigation
           - Replay-safe native rebuffer recovery, six-second resume cushioning, 45-second forward target, Android direct-media caching, and direct → proxy → verified embed recovery
           - Maximum-quality downloads for eligible HTTPS direct progressive sources, with an in-player Downloads glyph and clear streaming-only eligibility guard
           - Native AniList and MyAnimeList browser linking, explicit library import/export, disconnect, and progress/rating synchronization through the existing Aniraku service
@@ -96,18 +97,18 @@ jobs:
 
           > If you are upgrading from v1.x under `aniraku.anine.app`, uninstall that legacy package first. Android treats `aniraku.anime.app` as a separate application.
           EOF
-          if gh release view v3.0 --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release delete-asset v3.0 app-release.apk --repo "${{ github.repository }}" --yes || true
-            gh release upload v3.0 "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
-            gh release edit v3.0 \
+          if gh release view v3.1 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release delete-asset v3.1 app-release.apk --repo "${{ github.repository }}" --yes || true
+            gh release upload v3.1 "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
+            gh release edit v3.1 \
               --repo "${{ github.repository }}" \
-              --title "v3.0 — Complete Watch Upgrade" \
-              --notes-file /tmp/aniraku-v3.0-notes.md \
+              --title "v3.1 — Direct, Proxy, and Embed Eligibility" \
+              --notes-file /tmp/aniraku-v3.1-notes.md \
               --latest
           else
-            gh release create v3.0 "$RELEASE_APK" \
+            gh release create v3.1 "$RELEASE_APK" \
               --repo "${{ github.repository }}" \
-              --title "v3.0 — Complete Watch Upgrade" \
-              --notes-file /tmp/aniraku-v3.0-notes.md \
+              --title "v3.1 — Direct, Proxy, and Embed Eligibility" \
+              --notes-file /tmp/aniraku-v3.1-notes.md \
               --latest
           fi

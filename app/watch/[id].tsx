@@ -20,10 +20,14 @@ import {
   episodePageSlice,
   hasConfirmedPlaybackStart,
   isAutoQuality,
+  isProxySource,
+  isVerifiedEmbedSource,
   mergeSkipSegments,
+  nativeSources,
   nextProviderIndex,
   normalizeAniSkipSegments,
   providerSkipSegments,
+  proxySources,
   shouldRetryProxiedSourceAfterDirect,
   shouldMountReplacementSource,
   shouldHoldRebufferWatermark,
@@ -201,7 +205,13 @@ export default function WatchScreen() {
   const totalEpisodePages = episodePageCount(filteredEpisodes.length);
   const safeEpisodePage = Math.min(episodePage, totalEpisodePages - 1);
   const pagedEpisodes = useMemo(() => episodePageSlice(filteredEpisodes, safeEpisodePage), [filteredEpisodes, safeEpisodePage]);
-  const qualityOptions = useMemo(() => directSources(stream ?? { sources: [] }), [stream]);
+  const qualityOptions = useMemo(() => {
+    const response = stream ?? { sources: [] };
+    const native = nativeSources(response);
+    // Kiwi currently returns verified embedded URLs per resolution. When the
+    // provider has no native candidate, keep those real resolutions selectable.
+    return embedSource || native.length === 0 ? embedSources(response) : native;
+  }, [embedSource, stream]);
   const maximumDownloadSource = useMemo(() => selectMaximumQualityDownload(stream?.sources ?? activeProvider?.sources ?? []), [activeProvider?.sources, stream?.sources]);
   const currentRating = ratings.scoreFor(episode) ?? 0;
   const episodeComments = useMemo(() => (comments.comments.data ?? []).filter((item) => item.episode_number === episode), [comments.comments.data, episode]);
@@ -419,11 +429,12 @@ export default function WatchScreen() {
     activeProviderId.current = providerId;
     const initial: StreamResponse = { sources: activeProvider.sources ?? [], headers: activeProvider.headers };
     const initialDirect = directSources(initial);
+    const initialProxies = proxySources(initial);
     const initialEmbeds = embedSources(initial);
     const existingSourceMounted = sourceMounted.current;
     const forceThisRequest = forceRefresh.current;
     forceRefresh.current = false;
-    const hasInitial = initialDirect.length > 0 || initialEmbeds.length > 0;
+    const hasInitial = initialDirect.length > 0 || initialProxies.length > 0 || initialEmbeds.length > 0;
 
     setError(null);
     if (hasInitial && !existingSourceMounted && !forceThisRequest) {
@@ -434,6 +445,12 @@ export default function WatchScreen() {
         setEmbedSource(null);
         setSource(initialDirect[0]);
         setUseSourceProxy(false);
+        setSourceRevision((value) => value + 1);
+      } else if (initialProxies.length) {
+        sourceMounted.current = true;
+        setEmbedSource(null);
+        setSource(initialProxies[0]);
+        setUseSourceProxy(true);
         setSourceRevision((value) => value + 1);
       } else {
         sourceMounted.current = true;
@@ -450,8 +467,9 @@ export default function WatchScreen() {
     const cached = streamCache.current.get(cacheKey);
     if (!forceThisRequest && cached && Date.now() - cached.savedAt < STREAM_CACHE_TTL_MS) {
       const cachedDirect = directSources(cached.data);
+      const cachedProxies = proxySources(cached.data);
       const cachedEmbeds = embedSources(cached.data);
-      if (!sourceMounted.current && (cachedDirect.length || cachedEmbeds.length)) {
+      if (!sourceMounted.current && (cachedDirect.length || cachedProxies.length || cachedEmbeds.length)) {
         setStream(cached.data);
         setPlaybackHeaders(cached.data.headers ?? activeProvider.headers);
         if (cachedDirect.length) {
@@ -459,6 +477,12 @@ export default function WatchScreen() {
           setSource(cachedDirect[0]);
           setEmbedSource(null);
           setUseSourceProxy(false);
+          setSourceRevision((value) => value + 1);
+        } else if (cachedProxies.length) {
+          sourceMounted.current = true;
+          setSource(cachedProxies[0]);
+          setEmbedSource(null);
+          setUseSourceProxy(true);
           setSourceRevision((value) => value + 1);
         } else {
           sourceMounted.current = true;
@@ -474,8 +498,9 @@ export default function WatchScreen() {
       .then((response) => {
         if (cancelled || activeProviderId.current !== providerId) return;
         const refreshedDirect = directSources(response);
+        const refreshedProxies = proxySources(response);
         const refreshedEmbeds = embedSources(response);
-        if (!refreshedDirect.length && !refreshedEmbeds.length) {
+        if (!refreshedDirect.length && !refreshedProxies.length && !refreshedEmbeds.length) {
           if (!hasInitial || forceThisRequest) handleProviderBlockedRef.current("stream");
           return;
         }
@@ -488,6 +513,13 @@ export default function WatchScreen() {
           setSource(refreshedDirect[0]);
           setEmbedSource(null);
           setUseSourceProxy(false);
+          setSourceRevision((value) => value + 1);
+        } else if (shouldMountReplacementSource(sourceMounted.current, forceThisRequest) && refreshedProxies.length) {
+          sourceMounted.current = true;
+          setPlaybackHeaders(response.headers ?? activeProvider.headers);
+          setSource(refreshedProxies[0]);
+          setEmbedSource(null);
+          setUseSourceProxy(true);
           setSourceRevision((value) => value + 1);
         } else if (shouldMountReplacementSource(sourceMounted.current, forceThisRequest) && refreshedEmbeds.length) {
           sourceMounted.current = true;
@@ -717,11 +749,18 @@ export default function WatchScreen() {
   };
   const selectQuality = (next: StreamSource) => {
     sourceMounted.current = true;
-    setEmbedSource(null);
-    setSource(next);
-    setUseSourceProxy(false);
+    if (isVerifiedEmbedSource(next)) {
+      player.pause();
+      setSource(null);
+      setEmbedSource(next);
+      setUseSourceProxy(false);
+    } else {
+      setEmbedSource(null);
+      setSource(next);
+      setUseSourceProxy(isProxySource(next));
+      setSourceRevision((value) => value + 1);
+    }
     setPlaybackHeaders(stream?.headers ?? activeProvider?.headers);
-    setSourceRevision((value) => value + 1);
     setShowQualityPicker(false);
   };
   const markIntentionalSeek = (target?: number) => {
@@ -863,13 +902,13 @@ export default function WatchScreen() {
       {source ? <VideoView style={styles.video} player={player} nativeControls={false} allowsFullscreen allowsPictureInPicture contentFit="contain" surfaceType="textureView" useExoShutter={false} onFirstFrameRender={() => { sourceFirstFrame.current = true; sourceStarted.current = true; }} />
         : embedSource ? <EmbedPlayer uri={embedSource.url} headers={nativePlaybackHeaders(playbackHeaders)} onError={() => handleProviderBlocked("permanent")} />
           : <View style={styles.videoPlaceholder}>{loadingServers || loadingStream ? <><ActivityIndicator color={nothing.white} /><Text style={styles.placeholderText}>{loadingServers ? `WAITING FOR EPISODE ${episode} SOURCE · CHECK ${Math.max(1, serverAttempt)} OF 3` : "STARTING VIDEO"}</Text></> : error ? <Text style={styles.errorText}>{error}</Text> : <Text style={styles.placeholderText}>PREPARING VIDEO</Text>}</View>}
-      {embedSource ? <Pressable accessibilityRole="button" accessibilityLabel="Open audio language and provider selector" accessibilityState={{ expanded: showSourcePicker }} onPress={toggleSourcePicker} style={playerStyles.embedProviderButton}><AppIcon name="headphones" size={20} color={nothing.white} /><Text style={playerStyles.embedProviderButtonText}>AUDIO & PROVIDER</Text></Pressable> : null}
+      {embedSource ? <View style={playerStyles.embedProviderActions}>{qualityOptions.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel="Open embedded quality selector" accessibilityState={{ expanded: showQualityPicker }} onPress={toggleQualityPicker} style={playerStyles.embedQualityButton}><Text style={playerStyles.embedProviderButtonText}>{embedSource.quality || "QUALITY"}</Text></Pressable> : null}<Pressable accessibilityRole="button" accessibilityLabel="Open audio language and provider selector" accessibilityState={{ expanded: showSourcePicker }} onPress={toggleSourcePicker} style={playerStyles.embedProviderButton}><AppIcon name="headphones" size={20} color={nothing.white} /><Text style={playerStyles.embedProviderButtonText}>AUDIO & PROVIDER</Text></Pressable></View> : null}
       {source && controlsVisible ? <View style={styles.playerOverlay} pointerEvents="box-none">
         <View style={styles.overlayTop}><View style={styles.sourcePill}><Signal label={buffering ? "BUFFERING" : `${language.toUpperCase()} · ${activeProvider?.label || "PLAYING"}`} tone={buffering ? "muted" : "live"} /></View><View style={watchPageStyles.overlayActions}>{qualityOptions.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel="Open video quality selector" accessibilityState={{ expanded: showQualityPicker }} onPress={toggleQualityPicker} style={[playerStyles.quickQualityButton, showQualityPicker && styles.overlayMenuActive]}><Text style={playerStyles.quickQualityButtonText}>{isAutoQuality(source) ? "AUTO" : source.quality || "HD"}</Text></Pressable> : null}<Pressable accessibilityRole="button" accessibilityLabel="Open audio language and provider selector" accessibilityState={{ expanded: showSourcePicker }} onPress={toggleSourcePicker} style={[styles.overlayMenu, showSourcePicker && styles.overlayMenuActive]}><AppIcon name="headphones" size={20} color={nothing.white} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel={manualFullscreen ? "Exit fullscreen" : "Enter fullscreen"} onPress={manualFullscreen ? exitFullscreen : enterFullscreen} style={styles.overlayMenu}><AppIcon name={manualFullscreen ? "fullscreen-exit" : "fullscreen"} size={20} color={nothing.white} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Open player settings" accessibilityState={{ expanded: showConsole }} onPress={togglePlayerSettings} style={[styles.overlayMenu, showConsole && styles.overlayMenuActive]}><AppIcon name="tune-variant" size={20} color={nothing.white} /></Pressable></View></View>
         <View style={styles.centerControls}><Pressable accessibilityRole="button" accessibilityLabel="Seek backward ten seconds" onPress={() => seek(-10)} style={styles.seekControl}><AppIcon name="rewind-10" size={30} color={nothing.white} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel={isPlaying ? "Pause" : "Play"} onPress={() => { if (isPlaying) player.pause(); else player.play(); }} style={styles.heroPlay}>{buffering ? <ActivityIndicator color={nothing.black} /> : <AppIcon name={isPlaying ? "pause" : "play"} size={32} color={nothing.black} />}</Pressable><Pressable accessibilityRole="button" accessibilityLabel="Seek forward ten seconds" onPress={() => seek(10)} style={styles.seekControl}><AppIcon name="fast-forward-10" size={30} color={nothing.white} /></Pressable></View>
         <View style={styles.overlayBottom}><View style={playerStyles.overlayContextActions}>{resumePosition ? <Pressable accessibilityRole="button" onPress={() => { pendingResume.current = resumePosition; player.currentTime = resumePosition; setResumePosition(null); }} style={styles.resumeInline}><AppIcon name="play" size={14} color={nothing.white} /><Text style={styles.resumeInlineText}>{`RESUME ${formatTime(resumePosition)}`}</Text></Pressable> : null}{skipKind ? <Pressable accessibilityRole="button" onPress={() => skip(skipKind)} style={styles.skipInline}><Text style={styles.skipInlineText}>{`SKIP ${skipKind.toUpperCase()}`}</Text></Pressable> : null}</View><View style={playerStyles.playerTimelineBlock}><Pressable accessibilityRole="adjustable" accessibilityLabel="Playback position" onLayout={onProgressLayout} onPress={seekFromBar} style={styles.timeline}><View style={[styles.timelineBuffered, { width: `${buffered}%` }]} /><View style={[styles.timelinePlayed, { width: `${progress}%` }]} /></Pressable><View style={styles.timeRow}><Text style={styles.timeText}>{formatTime(currentTime)}</Text><Text style={styles.timeMeta}>{buffering ? "BUFFERING" : isAutoQuality(source) ? "AUTO" : source.quality || "SOURCE"}</Text><Text style={styles.timeText}>{formatTime(duration)}</Text></View></View></View>
       </View> : null}
-      {source && showQualityPicker ? <View style={playerStyles.quickQualityOverlay}><View style={playerStyles.quickQualityHeading}><DotLabel>QUALITY</DotLabel><Pressable accessibilityRole="button" accessibilityLabel="Close video quality selector" onPress={() => setShowQualityPicker(false)}><AppIcon name="close" size={18} color={nothing.muted} /></Pressable></View><Text style={playerStyles.quickQualityHint}>AVAILABLE RESOLUTION</Text><View style={playerStyles.quickQualityChoices}>{qualityOptions.map((item, index) => <Pressable key={`${item.url}:${index}`} accessibilityRole="button" accessibilityState={{ selected: source.url === item.url }} onPress={() => selectQuality(item)} style={[playerStyles.quickQualityChoice, source.url === item.url && playerStyles.quickQualityChoiceActive]}><Text style={[playerStyles.quickQualityChoiceText, source.url === item.url && playerStyles.quickQualityChoiceTextActive]}>{isAutoQuality(item) ? "AUTO · ADAPTIVE" : item.quality || "SOURCE"}</Text><Text style={[playerStyles.quickQualityChoiceState, source.url === item.url && playerStyles.quickQualityChoiceStateActive]}>{source.url === item.url ? "PLAYING" : "SELECT"}</Text></Pressable>)}</View></View> : null}
+      {(source || embedSource) && showQualityPicker ? <View style={playerStyles.quickQualityOverlay}><View style={playerStyles.quickQualityHeading}><DotLabel>QUALITY</DotLabel><Pressable accessibilityRole="button" accessibilityLabel="Close video quality selector" onPress={() => setShowQualityPicker(false)}><AppIcon name="close" size={18} color={nothing.muted} /></Pressable></View><Text style={playerStyles.quickQualityHint}>{embedSource ? "EMBEDDED RESOLUTION" : "AVAILABLE RESOLUTION"}</Text><View style={playerStyles.quickQualityChoices}>{qualityOptions.map((item, index) => { const selected = (source ?? embedSource)?.url === item.url; return <Pressable key={`${item.url}:${index}`} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => selectQuality(item)} style={[playerStyles.quickQualityChoice, selected && playerStyles.quickQualityChoiceActive]}><Text style={[playerStyles.quickQualityChoiceText, selected && playerStyles.quickQualityChoiceTextActive]}>{isAutoQuality(item) ? "AUTO · ADAPTIVE" : item.quality || "SOURCE"}</Text><Text style={[playerStyles.quickQualityChoiceState, selected && playerStyles.quickQualityChoiceStateActive]}>{selected ? "PLAYING" : "SELECT"}</Text></Pressable>; })}</View></View> : null}
       {source && showConsole ? <View style={playerStyles.playerSettingsOverlay}><ScrollView contentContainerStyle={playerStyles.playerSettingsContent} showsVerticalScrollIndicator={false}><View style={watchPageStyles.playerMenuHeading}><DotLabel>PLAYER SETTINGS</DotLabel><Pressable accessibilityRole="button" accessibilityLabel="Close player settings" onPress={() => setShowConsole(false)}><AppIcon name="close" size={18} color={nothing.muted} /></Pressable></View>{qualityOptions.length ? <View style={watchPageStyles.menuSection}><DotLabel>QUALITY</DotLabel><View style={styles.qualityRow}>{qualityOptions.map((item, index) => <Pressable key={`${item.url}:${index}`} accessibilityRole="button" onPress={() => selectQuality(item)} style={[styles.quality, source?.url === item.url && styles.qualityActive]}><Text style={[styles.qualityText, source?.url === item.url && styles.qualityTextActive]}>{isAutoQuality(item) ? "AUTO · ADAPTIVE" : item.quality || "SOURCE"}</Text></Pressable>)}</View></View> : null}<View style={watchPageStyles.menuSection}><DotLabel>PLAYBACK</DotLabel><View style={styles.toggleRow}><Pressable accessibilityRole="switch" accessibilityState={{ checked: autoNext }} onPress={() => setAutoNext((value) => !value)} style={[styles.toggle, autoNext && styles.toggleOn]}><Text style={[styles.toggleText, autoNext && styles.toggleTextOn]}>AUTO NEXT {autoNext ? "ON" : "OFF"}</Text></Pressable><Pressable accessibilityRole="switch" accessibilityState={{ checked: autoSkip }} onPress={() => setAutoSkip((value) => !value)} style={[styles.toggle, autoSkip && styles.toggleOn]}><Text style={[styles.toggleText, autoSkip && styles.toggleTextOn]}>AUTO SKIP {autoSkip ? "ON" : "OFF"}</Text></Pressable></View><View style={styles.speedRow}>{[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((value) => <Pressable key={value} accessibilityRole="button" onPress={() => setSpeed(value)} style={[styles.speed, speed === value && styles.speedActive]}><Text style={[styles.speedText, speed === value && styles.speedTextActive]}>{value}×</Text></Pressable>)}</View></View><View style={watchPageStyles.menuSection}><DotLabel>OFFLINE</DotLabel>{offlineDownload ? <View style={watchPageStyles.offlineBlock}><Text style={watchPageStyles.offlineCopy}>{`${offlineDownload.quality} SAVED · ${Math.max(1, Math.round(offlineDownload.size / 1024 / 1024))} MB`}</Text><View style={watchPageStyles.offlineActions}><Pressable accessibilityRole="button" onPress={playOffline} style={watchPageStyles.offlinePrimary}><AppIcon name="play" size={15} color={nothing.black} /><Text style={watchPageStyles.offlinePrimaryText}>PLAY SAVED</Text></Pressable><Pressable accessibilityRole="button" onPress={() => void shareOfflineDownload(offlineDownload).catch((cause) => setDownloadMessage(cause instanceof Error ? cause.message.toUpperCase() : "SAVED FILE COULD NOT BE SHARED."))} style={watchPageStyles.offlineAction}><Text style={watchPageStyles.offlineActionText}>SHARE</Text></Pressable><Pressable accessibilityRole="button" onPress={() => void removeDownload()} style={watchPageStyles.offlineAction}><Text style={[watchPageStyles.offlineActionText, watchPageStyles.offlineRemove]}>REMOVE</Text></Pressable></View></View> : <Pressable accessibilityRole="button" disabled={downloadProgress !== null || !maximumDownloadSource} onPress={() => void startDownload()} style={[watchPageStyles.downloadAction, (!maximumDownloadSource || downloadProgress !== null) && watchPageStyles.downloadDisabled]}><AppIcon name="download" size={17} color={nothing.black} /><Text style={watchPageStyles.downloadActionText}>{downloadProgress !== null ? `SAVING ${Math.round(downloadProgress * 100)}%` : maximumDownloadSource ? `SAVE ${downloadLabel(maximumDownloadSource)}` : "DIRECT SOURCE REQUIRED"}</Text></Pressable>}{downloadMessage ? <Text style={watchPageStyles.downloadMessage}>{downloadMessage}</Text> : null}</View>{subtitleTracks.length ? <View style={watchPageStyles.menuSection}><DotLabel>SUBTITLES</DotLabel><View style={styles.qualityRow}><Pressable accessibilityRole="button" onPress={() => selectSubtitle(null)} style={[styles.quality, !player.subtitleTrack && styles.qualityActive]}><Text style={[styles.qualityText, !player.subtitleTrack && styles.qualityTextActive]}>OFF</Text></Pressable>{subtitleTracks.map((track) => <Pressable key={track.id} onPress={() => selectSubtitle(track)} style={[styles.quality, player.subtitleTrack?.id === track.id && styles.qualityActive]}><Text style={[styles.qualityText, player.subtitleTrack?.id === track.id && styles.qualityTextActive]}>{track.label || track.language}</Text></Pressable>)}</View></View> : null}</ScrollView></View> : null}
       {(source || embedSource) && showSourcePicker ? <View style={playerStyles.playerSourceOverlay}><View style={watchPageStyles.playerMenuHeading}><DotLabel>AUDIO & PROVIDER</DotLabel><Pressable accessibilityRole="button" accessibilityLabel="Close audio and provider selector" onPress={() => setShowSourcePicker(false)}><AppIcon name="close" size={18} color={nothing.muted} /></Pressable></View><View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} accessibilityRole="button" onPress={() => selectLanguage(item)} disabled={!providers[item].length} style={[styles.language, language === item && styles.languageActive, !providers[item].length && styles.languageDisabled]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${providers.sub.length}` : `DUB · ${providers.dub.length}`}</Text></Pressable>)}</View><View style={playerStyles.inPlayerProviderList}>{activeProviders.map((provider, index) => <Pressable key={provider.id} accessibilityRole="button" onPress={() => selectServer(index)} style={[playerStyles.inPlayerProvider, index === serverIndex && playerStyles.inPlayerProviderActive]}><View style={playerStyles.inPlayerProviderName}><View style={[playerStyles.providerSignal, index === serverIndex && playerStyles.providerSignalActive]} /><Text style={[playerStyles.inPlayerProviderText, index === serverIndex && playerStyles.inPlayerProviderTextActive]}>{provider.label || provider.provider}</Text></View><Text style={[playerStyles.inPlayerProviderState, index === serverIndex && playerStyles.inPlayerProviderTextActive]}>{index === serverIndex ? (embedSource ? "RECONNECT" : "PLAYING") : "SELECT"}</Text></Pressable>)}</View></View> : null}
       {source ? <Pressable accessibilityRole="button" accessibilityLabel="Show or hide player controls" onPress={() => setControlsVisible((value) => { if (value) { setShowConsole(false); setShowSourcePicker(false); setShowQualityPicker(false); } return !value; })} style={styles.revealZone} /> : null}
@@ -998,7 +1037,9 @@ const watchPageStyles = StyleSheet.create({
 
 const playerStyles = StyleSheet.create({
   videoShellFullscreen: { position: "absolute", zIndex: 20, top: 0, right: 0, bottom: 0, left: 0, width: "100%", height: "100%", aspectRatio: undefined },
-  embedProviderButton: { position: "absolute", zIndex: 5, top: 10, right: 10, minHeight: 38, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 10, borderRadius: 4, borderWidth: 1, borderColor: "rgba(246,246,242,0.48)", backgroundColor: "rgba(9,9,9,0.88)" },
+  embedProviderActions: { position: "absolute", zIndex: 5, top: 10, right: 10, flexDirection: "row", alignItems: "center", gap: 7 },
+  embedProviderButton: { minHeight: 38, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 10, borderRadius: 4, borderWidth: 1, borderColor: "rgba(246,246,242,0.48)", backgroundColor: "rgba(9,9,9,0.88)" },
+  embedQualityButton: { minHeight: 38, alignItems: "center", justifyContent: "center", paddingHorizontal: 10, borderRadius: 4, borderWidth: 1, borderColor: "rgba(246,246,242,0.48)", backgroundColor: "rgba(9,9,9,0.88)" },
   embedProviderButtonText: { color: nothing.white, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.35 },
   overlayContextActions: { alignSelf: "flex-end", alignItems: "flex-end", gap: 6 },
   playerTimelineBlock: { gap: 6, paddingTop: 3 },

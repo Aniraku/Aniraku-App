@@ -58,18 +58,46 @@ export function isVerifiedEmbedSource(source: StreamSource) {
   return getPlaybackType(source) === "embed" && sourceVerification(source) === "embed";
 }
 
-export function directSources(response: Pick<StreamResponse, "sources">) {
-  const seen = new Set<string>();
+export function isProxySource(source: StreamSource) {
+  const verification = sourceVerification(source);
+  const type = String(source.type ?? "").toLowerCase();
+  return verification === "proxy" || type === "proxy";
+}
+
+function validNativeSources(response: Pick<StreamResponse, "sources">) {
   return (response.sources ?? [])
     .filter((source) => Boolean(source.url) && sourceVerification(source) !== "dead" && !hasExpiredEmbeddedToken(source.url))
-    .filter((source) => getPlaybackType(source) !== "embed")
+    .filter((source) => getPlaybackType(source) !== "embed");
+}
+
+function uniqueAndRankSources(sources: StreamSource[]) {
+  const seen = new Set<string>();
+  return sources
     .filter((source) => {
       if (seen.has(source.url)) return false;
       seen.add(source.url);
       return true;
     })
-    // Watch.jsx prefers provider Auto/adaptive first, then real provider quality.
     .sort((a, b) => qualityRank(b.quality) - qualityRank(a.quality));
+}
+
+export function directSources(response: Pick<StreamResponse, "sources">) {
+  return uniqueAndRankSources(validNativeSources(response).filter((source) => !isProxySource(source)));
+}
+
+/** Proxy-verified native media is a first-class candidate, not an embedded fallback. */
+export function proxySources(response: Pick<StreamResponse, "sources">) {
+  return uniqueAndRankSources(validNativeSources(response).filter(isProxySource));
+}
+
+/** Use Direct first, then proxy-verified native media; embeds remain browser fallback only. */
+export function nativeSources(response: Pick<StreamResponse, "sources">) {
+  const seen = new Set<string>();
+  return [...directSources(response), ...proxySources(response)].filter((source) => {
+    if (seen.has(source.url)) return false;
+    seen.add(source.url);
+    return true;
+  });
 }
 
 export function embedSources(response: Pick<StreamResponse, "sources">) {
@@ -85,7 +113,7 @@ export function embedSources(response: Pick<StreamResponse, "sources">) {
 
 export function usableProvider(server: Server) {
   const initial = { sources: server.sources ?? [] };
-  return directSources(initial).length > 0 || embedSources(initial).length > 0;
+  return directSources(initial).length > 0 || proxySources(initial).length > 0 || embedSources(initial).length > 0;
 }
 
 export function nextProviderIndex(
