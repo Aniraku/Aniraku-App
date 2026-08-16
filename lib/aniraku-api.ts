@@ -115,10 +115,9 @@ export async function getEpisodes(animeId: number): Promise<Episode[]> {
 
 export async function getServers(animeId: number, episode: number, lang: "sub" | "dub"): Promise<Server[]> {
   type BackendServer = Partial<Server> & { name?: string; sources?: StreamSource[] };
-  // Watch.jsx lets the source backend complete before it considers a language
-  // empty. Keep the native request alive for the same current episode instead
-  // of converting a slow resolver into an immediate navigation change.
-  const payload = await apiRequest<BackendServer[]>(`/api/v1/servers?animeId=${animeId}&episode=${episode}&lang=${lang}`, undefined, 45_000);
+  // Match the web player’s responsive resolver window. The Watch coordinator
+  // retries a slow source shortly instead of holding the player for 45 seconds.
+  const payload = await apiRequest<BackendServer[]>(`/api/v1/servers?animeId=${animeId}&episode=${episode}&lang=${lang}`, undefined, 12_000);
   return (Array.isArray(payload) ? payload : []).filter((server) => server?.verification?.toLowerCase() !== "dead").map((server, index) => {
     const publicName = server.name || server.label || server.id || server.provider || `source-${index + 1}`;
     return {

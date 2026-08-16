@@ -38,7 +38,7 @@ import { NativeScreen } from "@/components/screen";
 
 const RESUME_MIN_TIME = 30;
 const STREAM_CACHE_TTL_MS = 30_000;
-const SERVER_RETRY_DELAY_MS = 12_000;
+const SERVER_RETRY_DELAY_MS = 1_500;
 const STARTUP_WATCHDOG_MS = 6_000;
 const SKIP_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -121,9 +121,9 @@ export default function WatchScreen() {
     instance.bufferOptions = {
       maxBufferBytes: 0,
       minBufferForPlayback: 2,
-      preferredForwardBufferDuration: 8,
+      preferredForwardBufferDuration: 12,
       prioritizeTimeOverSizeThreshold: true,
-      waitsToMinimizeStalling: false,
+      waitsToMinimizeStalling: true,
     };
   });
 
@@ -415,7 +415,7 @@ export default function WatchScreen() {
         const refreshedDirect = directSources(response);
         const refreshedEmbeds = embedSources(response);
         if (!refreshedDirect.length && !refreshedEmbeds.length) {
-          if (!hasInitial || forceThisRequest) handleProviderBlocked("stream");
+          if (!hasInitial || forceThisRequest) handleProviderBlockedRef.current("stream");
           return;
         }
         streamCache.current.set(cacheKey, { savedAt: Date.now(), data: response });
@@ -439,10 +439,10 @@ export default function WatchScreen() {
       .catch(() => {
         if (cancelled || activeProviderId.current !== providerId) return;
         // A background refresh must never interrupt a playable initial source.
-        if (!hasInitial || forceThisRequest) handleProviderBlocked("stream");
+        if (!hasInitial || forceThisRequest) handleProviderBlockedRef.current("stream");
       });
     return () => { cancelled = true; };
-  }, [activeProvider, animeId, applySkipSegments, episode, handleProviderBlocked, language, refreshNonce]);
+  }, [activeProvider, animeId, applySkipSegments, episode, language, refreshNonce]);
 
   useEffect(() => {
     if (!source) return;
@@ -478,7 +478,7 @@ export default function WatchScreen() {
       handleProviderBlockedRef.current("startup");
     }, STARTUP_WATCHDOG_MS);
     return () => clearTimeout(watchdog);
-  }, [episode, image, playbackHeaders, player, source?.url, sourceRevision, title, useSourceProxy]);
+  }, [player, source?.url, sourceRevision, useSourceProxy]);
 
   useEffect(() => { player.playbackRate = speed; }, [player, speed]);
 
@@ -499,8 +499,8 @@ export default function WatchScreen() {
       return;
     }
     sourceFailureHandled.current = source.url;
-    handleProviderBlocked("player");
-  }, [handleProviderBlocked, source?.url, status, useSourceProxy]);
+    handleProviderBlockedRef.current("player");
+  }, [source?.url, status, useSourceProxy]);
 
   // Watch.jsx sources provider timestamps first and enriches missing coverage
   // from AniSkip via the AniList MAL mapping.  A 404 is cached as a normal
