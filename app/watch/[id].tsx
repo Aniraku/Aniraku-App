@@ -31,7 +31,9 @@ import { animeTitle, type Episode, type Server, type StreamResponse, type Stream
 import { useWatchHistory } from "@/hooks/use-watch-history";
 import { useEpisodeRatings } from "@/hooks/use-episode-ratings";
 import { useComments } from "@/hooks/use-comments";
+import { useProviderSync } from "@/hooks/use-provider-sync";
 import { useAnirakuAuth } from "@/providers/auth-provider";
+import { downloadLabel, findOfflineDownload, removeOfflineDownload, selectMaximumQualityDownload, shareOfflineDownload, startMaximumQualityDownload, type OfflineDownload } from "@/lib/downloads";
 import { AppIcon } from "@/components/app-icon";
 import { EmbedPlayer } from "@/components/embed-player";
 import { DotLabel, NothingButton, NothingCard, nothing, Signal } from "@/components/nothing-ui";
@@ -105,6 +107,7 @@ export default function WatchScreen() {
   const history = useWatchHistory();
   const ratings = useEpisodeRatings(animeId);
   const comments = useComments(animeId);
+  const providerSync = useProviderSync();
   const [watchComment, setWatchComment] = useState("");
   const episodeQuery = useQuery({ queryKey: ["watch-episodes", animeId], queryFn: () => getEpisodes(animeId), enabled: Number.isFinite(animeId) && animeId > 0, staleTime: 60_000 });
   const canonicalEpisodes = episodeQuery.data ?? [];
@@ -171,6 +174,9 @@ export default function WatchScreen() {
   const [skipSegments, setSkipSegments] = useState<SkipSegments>({ intro: null, outro: null });
   const [skipLookup, setSkipLookup] = useState<"checking" | "available" | "unavailable">("checking");
   const [resumePosition, setResumePosition] = useState<number | null>(null);
+  const [offlineDownload, setOfflineDownload] = useState<OfflineDownload | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const [downloadMessage, setDownloadMessage] = useState<string | null>(null);
 
   useEffect(() => () => {
     if (Platform.OS !== "web") void ScreenOrientation.unlockAsync().catch(() => {});
@@ -186,6 +192,7 @@ export default function WatchScreen() {
   const sourceAttempt = useRef(0);
   const sourceFailureHandled = useRef<string | null>(null);
   const lastHistorySync = useRef(0);
+  const lastProviderSync = useRef(0);
   const autoSkipped = useRef<Record<SkipKind, boolean>>({ intro: false, outro: false });
   const skipSegmentsRef = useRef(skipSegments);
   const pendingResume = useRef<number | null>(null);
@@ -202,11 +209,18 @@ export default function WatchScreen() {
     return canonicalEpisodes.filter((item) => String(item.number).includes(term) || String(item.title || "").toLowerCase().includes(term));
   }, [canonicalEpisodes, episodeSearch]);
   const qualityOptions = useMemo(() => directSources(stream ?? { sources: [] }), [stream]);
+  const maximumDownloadSource = useMemo(() => selectMaximumQualityDownload(stream?.sources ?? activeProvider?.sources ?? []), [activeProvider?.sources, stream?.sources]);
   const currentRating = ratings.scoreFor(episode) ?? 0;
   const episodeComments = useMemo(() => (comments.comments.data ?? []).filter((item) => item.episode_number === episode), [comments.comments.data, episode]);
   const subtitleTracks = subtitleEvent?.availableSubtitleTracks ?? player.availableSubtitleTracks ?? [];
   const skipKind = activeSkipKind(skipSegments, currentTime);
   const buffering = loadingStream || status === "loading";
+
+  useEffect(() => {
+    let active = true;
+    void findOfflineDownload(animeId, episode, language).then((entry) => { if (active) setOfflineDownload(entry); }).catch(() => { if (active) setOfflineDownload(null); });
+    return () => { active = false; };
+  }, [animeId, episode, language]);
 
   // A new source has its own timeline. Never carry the prior episode/provider
   // position into a deliberate quality, language, or source replacement.
@@ -615,6 +629,12 @@ export default function WatchScreen() {
   }, [animeId, auth.user, currentTime, duration, episode, history.save, image, source, title]);
 
   useEffect(() => {
+    if (!auth.user || !source || currentTime < 1 || duration <= 0 || providerSync.connected.length === 0 || currentTime - lastProviderSync.current < 90) return;
+    lastProviderSync.current = currentTime;
+    providerSync.pushProgress.mutate({ animeId, episode, progress: Math.floor(currentTime), status: "watching" });
+  }, [animeId, auth.user, currentTime, duration, episode, providerSync.connected.length, providerSync.pushProgress, source]);
+
+  useEffect(() => {
     if (!autoSkip || !skipKind) return;
     const interval = skipSegments[skipKind];
     if (!interval || autoSkipped.current[skipKind]) return;
@@ -629,12 +649,15 @@ export default function WatchScreen() {
       // trigger the main Watch.jsx auto-next behavior.
       const reachedEpisodeEnd = duration > 30 && currentTime >= Math.max(1, duration - 2);
       if (!sourceStarted.current || !reachedEpisodeEnd) return;
-      if (auth.user) history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, progress: duration || currentTime, duration: duration || currentTime });
+      if (auth.user) {
+        history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, progress: duration || currentTime, duration: duration || currentTime });
+        if (providerSync.connected.length) providerSync.pushProgress.mutate({ animeId, episode, progress: Math.floor(duration || currentTime), status: "completed" });
+      }
       const followingEpisode = canonicalEpisodes.find((item) => item.number > episode)?.number;
       if (autoNext && followingEpisode) router.replace({ pathname: "/watch/[id]", params: { id: String(animeId), episode: String(followingEpisode), title, image } } as never);
     });
     return () => subscription.remove();
-  }, [animeId, auth.user, autoNext, canonicalEpisodes, currentTime, duration, episode, history.save, image, player, title]);
+  }, [animeId, auth.user, autoNext, canonicalEpisodes, currentTime, duration, episode, history.save, image, player, providerSync.connected.length, providerSync.pushProgress, title]);
 
   const selectLanguage = (next: Language) => {
     if (!providers[next].length || next === language) return;
@@ -710,6 +733,41 @@ export default function WatchScreen() {
     forceRefresh.current = true;
     setError(null);
     setRefreshNonce((value) => value + 1);
+  };
+  const startDownload = async () => {
+    if (!maximumDownloadSource) {
+      setDownloadMessage("THIS PROVIDER ONLY OFFERS ADAPTIVE, EMBEDDED, OR PROTECTED PLAYBACK.");
+      return;
+    }
+    try {
+      setDownloadMessage(null);
+      setDownloadProgress(0);
+      const entry = await startMaximumQualityDownload({ animeId, episode, language, title, source: maximumDownloadSource, headers: stream?.headers ?? activeProvider?.headers, onProgress: setDownloadProgress });
+      setOfflineDownload(entry);
+      setDownloadMessage(`${entry.quality.toUpperCase()} SAVED FOR OFFLINE VIEWING.`);
+    } catch (cause) {
+      setDownloadMessage(cause instanceof Error ? cause.message.toUpperCase() : "THE DOWNLOAD COULD NOT COMPLETE.");
+    } finally {
+      setDownloadProgress(null);
+    }
+  };
+  const playOffline = () => {
+    if (!offlineDownload) return;
+    player.pause();
+    sourceMounted.current = true;
+    setEmbedSource(null);
+    setPlaybackHeaders(undefined);
+    setUseSourceProxy(false);
+    setSource({ url: offlineDownload.uri, quality: `${offlineDownload.quality} · SAVED`, type: "native" });
+    setSourceRevision((value) => value + 1);
+    setShowConsole(false);
+    setDownloadMessage("PLAYING SAVED COPY.");
+  };
+  const removeDownload = async () => {
+    if (!offlineDownload) return;
+    await removeOfflineDownload(offlineDownload);
+    setOfflineDownload(null);
+    setDownloadMessage("SAVED COPY REMOVED.");
   };
   const goToEpisode = (targetEpisode: number) => {
     if (!canonicalEpisodes.some((item) => item.number === targetEpisode)) return;
@@ -788,7 +846,7 @@ export default function WatchScreen() {
         <View style={styles.overlayBottom}><View style={playerStyles.overlayContextActions}>{resumePosition ? <Pressable accessibilityRole="button" onPress={() => { pendingResume.current = resumePosition; player.currentTime = resumePosition; setResumePosition(null); }} style={styles.resumeInline}><AppIcon name="play" size={14} color={nothing.white} /><Text style={styles.resumeInlineText}>{`RESUME ${formatTime(resumePosition)}`}</Text></Pressable> : null}{skipKind ? <Pressable accessibilityRole="button" onPress={() => skip(skipKind)} style={styles.skipInline}><Text style={styles.skipInlineText}>{`SKIP ${skipKind.toUpperCase()}`}</Text></Pressable> : null}</View><View style={playerStyles.playerTimelineBlock}><Pressable accessibilityRole="adjustable" accessibilityLabel="Playback position" onLayout={onProgressLayout} onPress={seekFromBar} style={styles.timeline}><View style={[styles.timelineBuffered, { width: `${buffered}%` }]} /><View style={[styles.timelinePlayed, { width: `${progress}%` }]} /></Pressable><View style={styles.timeRow}><Text style={styles.timeText}>{formatTime(currentTime)}</Text><Text style={styles.timeMeta}>{buffering ? "BUFFERING" : isAutoQuality(source) ? "AUTO" : source.quality || "SOURCE"}</Text><Text style={styles.timeText}>{formatTime(duration)}</Text></View></View></View>
       </View> : null}
       {source && showQualityPicker ? <View style={playerStyles.quickQualityOverlay}><View style={playerStyles.quickQualityHeading}><DotLabel>QUALITY</DotLabel><Pressable accessibilityRole="button" accessibilityLabel="Close video quality selector" onPress={() => setShowQualityPicker(false)}><AppIcon name="close" size={18} color={nothing.muted} /></Pressable></View><Text style={playerStyles.quickQualityHint}>AVAILABLE RESOLUTION</Text><View style={playerStyles.quickQualityChoices}>{qualityOptions.map((item, index) => <Pressable key={`${item.url}:${index}`} accessibilityRole="button" accessibilityState={{ selected: source.url === item.url }} onPress={() => selectQuality(item)} style={[playerStyles.quickQualityChoice, source.url === item.url && playerStyles.quickQualityChoiceActive]}><Text style={[playerStyles.quickQualityChoiceText, source.url === item.url && playerStyles.quickQualityChoiceTextActive]}>{isAutoQuality(item) ? "AUTO · ADAPTIVE" : item.quality || "SOURCE"}</Text><Text style={[playerStyles.quickQualityChoiceState, source.url === item.url && playerStyles.quickQualityChoiceStateActive]}>{source.url === item.url ? "PLAYING" : "SELECT"}</Text></Pressable>)}</View></View> : null}
-      {source && showConsole ? <View style={playerStyles.playerSettingsOverlay}><ScrollView contentContainerStyle={playerStyles.playerSettingsContent} showsVerticalScrollIndicator={false}><View style={watchPageStyles.playerMenuHeading}><DotLabel>PLAYER SETTINGS</DotLabel><Pressable accessibilityRole="button" accessibilityLabel="Close player settings" onPress={() => setShowConsole(false)}><AppIcon name="close" size={18} color={nothing.muted} /></Pressable></View>{qualityOptions.length ? <View style={watchPageStyles.menuSection}><DotLabel>QUALITY</DotLabel><View style={styles.qualityRow}>{qualityOptions.map((item, index) => <Pressable key={`${item.url}:${index}`} accessibilityRole="button" onPress={() => selectQuality(item)} style={[styles.quality, source?.url === item.url && styles.qualityActive]}><Text style={[styles.qualityText, source?.url === item.url && styles.qualityTextActive]}>{isAutoQuality(item) ? "AUTO · ADAPTIVE" : item.quality || "SOURCE"}</Text></Pressable>)}</View></View> : null}<View style={watchPageStyles.menuSection}><DotLabel>PLAYBACK</DotLabel><View style={styles.toggleRow}><Pressable accessibilityRole="switch" accessibilityState={{ checked: autoNext }} onPress={() => setAutoNext((value) => !value)} style={[styles.toggle, autoNext && styles.toggleOn]}><Text style={[styles.toggleText, autoNext && styles.toggleTextOn]}>AUTO NEXT {autoNext ? "ON" : "OFF"}</Text></Pressable><Pressable accessibilityRole="switch" accessibilityState={{ checked: autoSkip }} onPress={() => setAutoSkip((value) => !value)} style={[styles.toggle, autoSkip && styles.toggleOn]}><Text style={[styles.toggleText, autoSkip && styles.toggleTextOn]}>AUTO SKIP {autoSkip ? "ON" : "OFF"}</Text></Pressable></View><View style={styles.speedRow}>{[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((value) => <Pressable key={value} accessibilityRole="button" onPress={() => setSpeed(value)} style={[styles.speed, speed === value && styles.speedActive]}><Text style={[styles.speedText, speed === value && styles.speedTextActive]}>{value}×</Text></Pressable>)}</View></View>{subtitleTracks.length ? <View style={watchPageStyles.menuSection}><DotLabel>SUBTITLES</DotLabel><View style={styles.qualityRow}><Pressable accessibilityRole="button" onPress={() => selectSubtitle(null)} style={[styles.quality, !player.subtitleTrack && styles.qualityActive]}><Text style={[styles.qualityText, !player.subtitleTrack && styles.qualityTextActive]}>OFF</Text></Pressable>{subtitleTracks.map((track) => <Pressable key={track.id} onPress={() => selectSubtitle(track)} style={[styles.quality, player.subtitleTrack?.id === track.id && styles.qualityActive]}><Text style={[styles.qualityText, player.subtitleTrack?.id === track.id && styles.qualityTextActive]}>{track.label || track.language}</Text></Pressable>)}</View></View> : null}</ScrollView></View> : null}
+      {source && showConsole ? <View style={playerStyles.playerSettingsOverlay}><ScrollView contentContainerStyle={playerStyles.playerSettingsContent} showsVerticalScrollIndicator={false}><View style={watchPageStyles.playerMenuHeading}><DotLabel>PLAYER SETTINGS</DotLabel><Pressable accessibilityRole="button" accessibilityLabel="Close player settings" onPress={() => setShowConsole(false)}><AppIcon name="close" size={18} color={nothing.muted} /></Pressable></View>{qualityOptions.length ? <View style={watchPageStyles.menuSection}><DotLabel>QUALITY</DotLabel><View style={styles.qualityRow}>{qualityOptions.map((item, index) => <Pressable key={`${item.url}:${index}`} accessibilityRole="button" onPress={() => selectQuality(item)} style={[styles.quality, source?.url === item.url && styles.qualityActive]}><Text style={[styles.qualityText, source?.url === item.url && styles.qualityTextActive]}>{isAutoQuality(item) ? "AUTO · ADAPTIVE" : item.quality || "SOURCE"}</Text></Pressable>)}</View></View> : null}<View style={watchPageStyles.menuSection}><DotLabel>PLAYBACK</DotLabel><View style={styles.toggleRow}><Pressable accessibilityRole="switch" accessibilityState={{ checked: autoNext }} onPress={() => setAutoNext((value) => !value)} style={[styles.toggle, autoNext && styles.toggleOn]}><Text style={[styles.toggleText, autoNext && styles.toggleTextOn]}>AUTO NEXT {autoNext ? "ON" : "OFF"}</Text></Pressable><Pressable accessibilityRole="switch" accessibilityState={{ checked: autoSkip }} onPress={() => setAutoSkip((value) => !value)} style={[styles.toggle, autoSkip && styles.toggleOn]}><Text style={[styles.toggleText, autoSkip && styles.toggleTextOn]}>AUTO SKIP {autoSkip ? "ON" : "OFF"}</Text></Pressable></View><View style={styles.speedRow}>{[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((value) => <Pressable key={value} accessibilityRole="button" onPress={() => setSpeed(value)} style={[styles.speed, speed === value && styles.speedActive]}><Text style={[styles.speedText, speed === value && styles.speedTextActive]}>{value}×</Text></Pressable>)}</View></View><View style={watchPageStyles.menuSection}><DotLabel>OFFLINE</DotLabel>{offlineDownload ? <View style={watchPageStyles.offlineBlock}><Text style={watchPageStyles.offlineCopy}>{`${offlineDownload.quality} SAVED · ${Math.max(1, Math.round(offlineDownload.size / 1024 / 1024))} MB`}</Text><View style={watchPageStyles.offlineActions}><Pressable accessibilityRole="button" onPress={playOffline} style={watchPageStyles.offlinePrimary}><AppIcon name="play" size={15} color={nothing.black} /><Text style={watchPageStyles.offlinePrimaryText}>PLAY SAVED</Text></Pressable><Pressable accessibilityRole="button" onPress={() => void shareOfflineDownload(offlineDownload).catch((cause) => setDownloadMessage(cause instanceof Error ? cause.message.toUpperCase() : "SAVED FILE COULD NOT BE SHARED."))} style={watchPageStyles.offlineAction}><Text style={watchPageStyles.offlineActionText}>SHARE</Text></Pressable><Pressable accessibilityRole="button" onPress={() => void removeDownload()} style={watchPageStyles.offlineAction}><Text style={[watchPageStyles.offlineActionText, watchPageStyles.offlineRemove]}>REMOVE</Text></Pressable></View></View> : <Pressable accessibilityRole="button" disabled={downloadProgress !== null || !maximumDownloadSource} onPress={() => void startDownload()} style={[watchPageStyles.downloadAction, (!maximumDownloadSource || downloadProgress !== null) && watchPageStyles.downloadDisabled]}><AppIcon name="download" size={17} color={nothing.black} /><Text style={watchPageStyles.downloadActionText}>{downloadProgress !== null ? `SAVING ${Math.round(downloadProgress * 100)}%` : maximumDownloadSource ? `SAVE ${downloadLabel(maximumDownloadSource)}` : "DIRECT SOURCE REQUIRED"}</Text></Pressable>}{downloadMessage ? <Text style={watchPageStyles.downloadMessage}>{downloadMessage}</Text> : null}</View>{subtitleTracks.length ? <View style={watchPageStyles.menuSection}><DotLabel>SUBTITLES</DotLabel><View style={styles.qualityRow}><Pressable accessibilityRole="button" onPress={() => selectSubtitle(null)} style={[styles.quality, !player.subtitleTrack && styles.qualityActive]}><Text style={[styles.qualityText, !player.subtitleTrack && styles.qualityTextActive]}>OFF</Text></Pressable>{subtitleTracks.map((track) => <Pressable key={track.id} onPress={() => selectSubtitle(track)} style={[styles.quality, player.subtitleTrack?.id === track.id && styles.qualityActive]}><Text style={[styles.qualityText, player.subtitleTrack?.id === track.id && styles.qualityTextActive]}>{track.label || track.language}</Text></Pressable>)}</View></View> : null}</ScrollView></View> : null}
       {(source || embedSource) && showSourcePicker ? <View style={playerStyles.playerSourceOverlay}><View style={watchPageStyles.playerMenuHeading}><DotLabel>AUDIO & PROVIDER</DotLabel><Pressable accessibilityRole="button" accessibilityLabel="Close audio and provider selector" onPress={() => setShowSourcePicker(false)}><AppIcon name="close" size={18} color={nothing.muted} /></Pressable></View><View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} accessibilityRole="button" onPress={() => selectLanguage(item)} disabled={!providers[item].length} style={[styles.language, language === item && styles.languageActive, !providers[item].length && styles.languageDisabled]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${providers.sub.length}` : `DUB · ${providers.dub.length}`}</Text></Pressable>)}</View><View style={playerStyles.inPlayerProviderList}>{activeProviders.map((provider, index) => <Pressable key={provider.id} accessibilityRole="button" onPress={() => selectServer(index)} style={[playerStyles.inPlayerProvider, index === serverIndex && playerStyles.inPlayerProviderActive]}><View style={playerStyles.inPlayerProviderName}><View style={[playerStyles.providerSignal, index === serverIndex && playerStyles.providerSignalActive]} /><Text style={[playerStyles.inPlayerProviderText, index === serverIndex && playerStyles.inPlayerProviderTextActive]}>{provider.label || provider.provider}</Text></View><Text style={[playerStyles.inPlayerProviderState, index === serverIndex && playerStyles.inPlayerProviderTextActive]}>{index === serverIndex ? (embedSource ? "RECONNECT" : "PLAYING") : "SELECT"}</Text></Pressable>)}</View></View> : null}
       {source ? <Pressable accessibilityRole="button" accessibilityLabel="Show or hide player controls" onPress={() => setControlsVisible((value) => { if (value) { setShowConsole(false); setShowSourcePicker(false); setShowQualityPicker(false); } return !value; })} style={styles.revealZone} /> : null}
     </View>
@@ -839,6 +897,18 @@ const watchPageStyles = StyleSheet.create({
   playerMenuSheet: { marginHorizontal: 16, marginTop: 10, padding: 14, gap: 14, borderWidth: 1, borderColor: nothing.line, borderRadius: 5, backgroundColor: "rgba(9,9,9,0.94)" },
   playerMenuHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingBottom: 2 },
   menuSection: { gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: nothing.line },
+  downloadAction: { minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 10, borderRadius: 4, backgroundColor: nothing.white },
+  downloadActionText: { color: nothing.black, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.3 },
+  downloadDisabled: { opacity: 0.38 },
+  downloadMessage: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.25, lineHeight: 13 },
+  offlineBlock: { gap: 8 },
+  offlineCopy: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.25 },
+  offlineActions: { flexDirection: "row", gap: 6 },
+  offlinePrimary: { flex: 1.3, minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: 4, backgroundColor: nothing.white },
+  offlinePrimaryText: { color: nothing.black, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.2 },
+  offlineAction: { flex: 1, minHeight: 36, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
+  offlineActionText: { color: nothing.white, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.2 },
+  offlineRemove: { color: nothing.red },
   belowPlayerSources: { marginHorizontal: 16, marginTop: 14, gap: 9, paddingTop: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: nothing.line, paddingBottom: 14 },
   overlayActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   visibleSourceControls: { gap: 9, paddingTop: 4, borderTopWidth: 1, borderTopColor: nothing.line },
