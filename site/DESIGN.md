@@ -8,7 +8,7 @@ The Pages site is the public, browser-native counterpart to the Android app. It 
 
 | Surface | Purpose | Primary action |
 | --- | --- | --- |
-| Release banner + hero / signal panel | Introduces the v2.5.Alpha standard release, app, package name, device compatibility, offline direct-source saving, and protected provider sync. | Download the current APK or read release notes. |
+| Release banner + hero / signal panel | Introduces the stable v2.5 release, app, package name, device compatibility, Downloads-folder saving, and protected provider sync. | Download the current APK or read release notes. |
 | Install sheet | Explains direct installation and the required legacy-package removal. | Open GitHub Release or Orion Store. |
 | Native product rail | Shows real Home, Catalog, Watch, Random, signed-in Profile, and guest Alerts-preview captures. | Inspect a selected capture. |
 | Playback control panel | Explains direct-first recovery, audio/provider control, quality, auto actions, fullscreen, and the in-player Offline settings section. | Read the technical policy. |
@@ -27,7 +27,7 @@ The site uses only committed real app captures and local source-controlled visua
 
 ## Browser QA
 
-The v2.5 release candidate retains the verified asymmetric command surface with the real native Watch capture, named GitHub APK route, Orion Store action, current package identity, signal-red ticker, six real product captures, a concise FAQ, and a five-link mobile dock at the `720px` breakpoint. The v2.5 public verification must confirm the exact `Aniraku-v2.5.Alpha.apk` asset route, the eligible-source download and provider-sync release copy, and the existing FAQ single-open behavior.
+The stable v2.5 release retains the verified asymmetric command surface with the real native Watch capture, named GitHub APK route, Orion Store action, current package identity, signal-red ticker, six real product captures, a concise FAQ, and a five-link mobile dock at the `720px` breakpoint. Public verification must confirm the exact `Aniraku-v2.5.apk` asset route, the eligible-source download and provider-sync release copy, and the existing FAQ single-open behavior.
 
 ## Public deployment QA
 

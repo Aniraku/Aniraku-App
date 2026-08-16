@@ -1,10 +1,10 @@
-name: Build Aniraku v2.5.Alpha APK
+name: Build Aniraku v2.5 APK
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the verified v2.5.Alpha APK as the standard GitHub release
+        description: Publish the verified v2.5 APK as the standard GitHub release
         required: true
         default: false
         type: boolean
@@ -13,8 +13,8 @@ permissions:
   contents: write
 
 jobs:
-  build-alpha-apk:
-    name: Build universal Android alpha APK
+  build-stable-apk:
+    name: Build universal Android stable APK
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -57,28 +57,29 @@ jobs:
           unzip -l "$APK" | grep -q 'assets/index.android.bundle'
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
-      - name: Upload Aniraku v2.5.Alpha APK
+      - name: Upload Aniraku v2.5 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aniraku-v2.5.Alpha-universal-apk
+          name: Aniraku-v2.5-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish standard v2.5.Alpha release
+      - name: Publish stable v2.5 release
         if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           APK=android/app/build/outputs/apk/release/app-release.apk
-          RELEASE_APK=/tmp/Aniraku-v2.5.Alpha.apk
+          RELEASE_APK=/tmp/Aniraku-v2.5.apk
           cp "$APK" "$RELEASE_APK"
-          cat > /tmp/aniraku-v2.5-alpha-notes.md <<'EOF'
-          ## Aniraku v2.5.Alpha
+          cat > /tmp/aniraku-v2.5-notes.md <<'EOF'
+          ## Aniraku v2.5
 
           **Package:** `aniraku.anime.app` · **versionCode:** 13
 
           ### What’s new
-          - Maximum-quality offline saves for eligible HTTPS direct progressive sources, including while Auto playback is active
+          - Maximum-quality downloads for eligible HTTPS direct progressive sources, including while Auto playback is active
+          - A Download glyph inside player settings and a first-save Android picker for a user-approved public Downloads folder
           - Clear streaming-only guard for HLS/DASH, embedded, protected, unavailable, and non-HTTPS sources
           - Native AniList and MyAnimeList Settings cards with real provider marks, protected browser linking, status refresh, import, export, and disconnect actions
           - Connected providers receive meaningful playback-progress and rating-summary updates through the established Aniraku sync service
@@ -94,18 +95,18 @@ jobs:
 
           > If you are upgrading from v1.x under `aniraku.anine.app`, uninstall that legacy package first. Android treats `aniraku.anime.app` as a separate application.
           EOF
-          if gh release view v2.5.Alpha --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release delete-asset v2.5.Alpha app-release.apk --repo "${{ github.repository }}" --yes || true
-            gh release upload v2.5.Alpha "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
-            gh release edit v2.5.Alpha \
+          if gh release view v2.5 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release delete-asset v2.5 app-release.apk --repo "${{ github.repository }}" --yes || true
+            gh release upload v2.5 "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
+            gh release edit v2.5 \
               --repo "${{ github.repository }}" \
-              --title "v2.5.Alpha — Offline Max Quality and List Sync" \
-              --notes-file /tmp/aniraku-v2.5-alpha-notes.md \
+              --title "v2.5 — Offline Downloads and List Sync" \
+              --notes-file /tmp/aniraku-v2.5-notes.md \
               --latest
           else
-            gh release create v2.5.Alpha "$RELEASE_APK" \
+            gh release create v2.5 "$RELEASE_APK" \
               --repo "${{ github.repository }}" \
-              --title "v2.5.Alpha — Offline Max Quality and List Sync" \
-              --notes-file /tmp/aniraku-v2.5-alpha-notes.md \
+              --title "v2.5 — Offline Downloads and List Sync" \
+              --notes-file /tmp/aniraku-v2.5-notes.md \
               --latest
           fi

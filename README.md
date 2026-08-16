@@ -32,17 +32,17 @@
 
 | `APP SITE` | `CURRENT DOWNLOAD` | `PROJECT` |
 | --- | --- | --- |
-| [aniraku.github.io/Aniraku-App](https://aniraku.github.io/Aniraku-App/) | [v2.5.Alpha standard release](https://github.com/Aniraku/Aniraku-App/releases/tag/v2.5.Alpha) · [Latest GitHub Release](https://github.com/Aniraku/Aniraku-App/releases/latest) · [Orion Store](https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku) | [Architecture](./docs/NATIVE_ARCHITECTURE.md) · [Sync research](./docs/V25_OAUTH_SYNC_RESEARCH.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) |
+| [aniraku.github.io/Aniraku-App](https://aniraku.github.io/Aniraku-App/) | [v2.5 stable release](https://github.com/Aniraku/Aniraku-App/releases/tag/v2.5) · [Latest GitHub Release](https://github.com/Aniraku/Aniraku-App/releases/latest) · [Orion Store](https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku) | [Architecture](./docs/NATIVE_ARCHITECTURE.md) · [Sync research](./docs/V25_OAUTH_SYNC_RESEARCH.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) |
 
 ## Current Android identity
 
-The current standard release is **v2.5.Alpha**, package `aniraku.anime.app`, with **versionCode 13**. Start with the [v2.5.Alpha release page](https://github.com/Aniraku/Aniraku-App/releases/tag/v2.5.Alpha) for the universal Android 9+ APK, integrity notes, and complete release notes.
+The current standard release is **v2.5**, package `aniraku.anime.app`, with **versionCode 13**. Start with the [v2.5 release page](https://github.com/Aniraku/Aniraku-App/releases/tag/v2.5) for the universal Android 9+ APK, integrity notes, and complete release notes.
 
 v2.5 adds **downloads for eligible direct progressive sources**. In Auto mode, the player settings choose the highest available verified direct quality for saving; adaptive HLS/DASH, embedded, DRM-protected, non-HTTPS, and unavailable sources remain streaming-only. The player settings now show a **Downloads** label with a download glyph. On the first save, Android asks the user to select their public **Downloads** folder; the resulting file remains visible to the device file manager after Aniraku is closed.
 
 v2.5 also brings the native client into the same protected synchronization flow used by aniraku.tech. The Settings screen shows real AniList and MyAnimeList provider marks in the Nothing OS interface, opens the established browser-based authorization route, exposes explicit status/import/export/disconnect actions, and pushes meaningful playback progress and rating summaries only for connected providers. Provider client secrets and provider tokens are never bundled into the APK.
 
-If you have a legacy alpha installed under `aniraku.anine.app`, uninstall it before installing v2.5.Alpha because Android treats the package migration as a separate app.
+If you have a legacy alpha installed under `aniraku.anine.app`, uninstall it before installing v2.5 because Android treats the package migration as a separate app.
 
 The backend runs on a free cloud instance, so source discovery can take longer during peak demand and third-party provider availability can vary. Use Aniraku only for media you are authorized to access.
 
