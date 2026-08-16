@@ -32,21 +32,21 @@
 
 | `APP SITE` | `CURRENT DOWNLOAD` | `PROJECT` |
 | --- | --- | --- |
-| [aniraku.github.io/Aniraku-App](https://aniraku.github.io/Aniraku-App/) | [v2.1.Alpha standard release](https://github.com/Aniraku/Aniraku-App/releases/tag/v2.1.Alpha) · [Latest GitHub Release](https://github.com/Aniraku/Aniraku-App/releases/latest) · [Orion Store](https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku) | [Architecture](./docs/NATIVE_ARCHITECTURE.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) |
+| [aniraku.github.io/Aniraku-App](https://aniraku.github.io/Aniraku-App/) | [v2.2.Alpha standard release](https://github.com/Aniraku/Aniraku-App/releases/tag/v2.2.Alpha) · [Latest GitHub Release](https://github.com/Aniraku/Aniraku-App/releases/latest) · [Orion Store](https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku) | [Architecture](./docs/NATIVE_ARCHITECTURE.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) |
 
 ## Current Android identity
 
-The current standard release is **v2.1.Alpha**, package `aniraku.anime.app`, with **versionCode 11**. Start with the [v2.1.Alpha release page](https://github.com/Aniraku/Aniraku-App/releases/tag/v2.1.Alpha) for the universal Android 9+ APK, integrity notes, and complete release notes.
+The current standard release is **v2.2.Alpha**, package `aniraku.anime.app`, with **versionCode 12**. Start with the [v2.2.Alpha release page](https://github.com/Aniraku/Aniraku-App/releases/tag/v2.2.Alpha) for the universal Android 9+ APK, integrity notes, and complete release notes.
 
-v2.1 introduces a guest-accessible Alerts preview that makes the sign-in and synchronized-library value clear without inventing notification records. The app’s expanded product site gallery now includes a verified signed-in Profile capture and that guest Alerts preview, alongside the existing real native captures.
+v2.2 hardens native search against avoidable AniList throttling. Search terms now settle briefly before sending a request; identical in-flight requests are coalesced; recent results use a short-lived local cache; and an upstream HTTP 429 shows a truthful retry countdown rather than triggering further automatic requests. The expanded product site gallery retains verified Profile and guest Alerts captures alongside the existing real native screens.
 
-If you have a legacy alpha installed under `aniraku.anine.app`, uninstall it before installing v2.1.Alpha because Android treats the package migration as a separate app.
+If you have a legacy alpha installed under `aniraku.anine.app`, uninstall it before installing v2.2.Alpha because Android treats the package migration as a separate app.
 
 The backend runs on a free cloud instance, so source discovery can take longer during peak demand and third-party provider availability can vary. Use Aniraku only for media you are authorized to access.
 
 ## Real native screens
 
-Every capture below comes from the implemented Aniraku application. The Profile image is a verified signed-in device capture. The Alerts image is the actual v2.1 guest preview, which explains the sign-in path without presenting made-up notification records.
+Every capture below comes from the implemented Aniraku application. The Profile image is a verified signed-in device capture. The Alerts image is the real guest preview, which explains the sign-in path without presenting made-up notification records.
 
 <p align="center">
   <img src="./site/assets/screens/home.jpg" width="31%" alt="Aniraku native Home screen" />

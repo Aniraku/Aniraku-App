@@ -1,6 +1,38 @@
 import { APP_CONFIG } from "@/lib/app-config";
 import type { AiringSchedulePage, Anime, AnimePage } from "@/lib/types";
 
+const REQUEST_CACHE_TTL_MS = 2 * 60_000;
+const responseCache = new Map<string, { expiresAt: number; value: unknown }>();
+const inFlightRequests = new Map<string, Promise<unknown>>();
+
+export class AniListRateLimitError extends Error {
+  readonly retryAfterMs: number | null;
+
+  constructor(retryAfterMs: number | null) {
+    const retrySeconds = retryAfterMs === null ? null : Math.max(1, Math.ceil(retryAfterMs / 1000));
+    super(retrySeconds ? `AniList is busy. Try again in ${retrySeconds} seconds.` : "AniList is busy. Try again in a moment.");
+    this.name = "AniListRateLimitError";
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+export function isAniListRateLimitError(error: unknown): error is AniListRateLimitError {
+  return error instanceof AniListRateLimitError;
+}
+
+function getRetryAfterMs(headers: Headers): number | null {
+  const retryAfter = headers.get("retry-after");
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1000);
+    const dateMs = Date.parse(retryAfter);
+    if (Number.isFinite(dateMs)) return Math.max(0, dateMs - Date.now());
+  }
+  const rateLimitReset = Number(headers.get("x-ratelimit-reset"));
+  if (Number.isFinite(rateLimitReset) && rateLimitReset > 0) return Math.max(0, rateLimitReset * 1000 - Date.now());
+  return null;
+}
+
 const fields = `
   id title { romaji english native } coverImage { large extraLarge color } bannerImage
   description(asHtml: false) genres format status episodes duration averageScore popularity
@@ -9,17 +41,43 @@ const fields = `
 
 async function request<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
   const providedVariables = Object.fromEntries(Object.entries(variables).filter(([, value]) => value !== undefined));
-  const response = await fetch(APP_CONFIG.anilistGraphqlUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ query, variables: providedVariables }),
-  });
-  const rawPayload = await response.text();
-  let payload: { data?: T; errors?: Array<{ message?: string }> } = {};
-  try { payload = rawPayload ? JSON.parse(rawPayload) : {}; } catch { throw new Error("AniList returned an unreadable response."); }
-  if (!response.ok) throw new Error(payload.errors?.[0]?.message || `AniList is unavailable (${response.status}).`);
-  if (payload.errors?.length) throw new Error(payload.errors[0]?.message || "AniList returned an invalid response.");
-  return payload.data as T;
+  const requestBody = JSON.stringify({ query, variables: providedVariables });
+  const cacheKey = requestBody;
+  const cached = responseCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.value as T;
+  if (cached) responseCache.delete(cacheKey);
+
+  const existingRequest = inFlightRequests.get(cacheKey);
+  if (existingRequest) return existingRequest as Promise<T>;
+
+  const requestPromise = (async () => {
+    const response = await fetch(APP_CONFIG.anilistGraphqlUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: requestBody,
+    });
+    const rawPayload = await response.text();
+    let payload: { data?: T; errors?: Array<{ message?: string }> } = {};
+    try { payload = rawPayload ? JSON.parse(rawPayload) : {}; } catch { throw new Error("AniList returned an unreadable response."); }
+    if (response.status === 429) throw new AniListRateLimitError(getRetryAfterMs(response.headers));
+    if (!response.ok) throw new Error(payload.errors?.[0]?.message || `AniList is unavailable (${response.status}).`);
+    if (payload.errors?.length) throw new Error(payload.errors[0]?.message || "AniList returned an invalid response.");
+    const data = payload.data as T;
+    responseCache.set(cacheKey, { expiresAt: Date.now() + REQUEST_CACHE_TTL_MS, value: data });
+    return data;
+  })();
+
+  inFlightRequests.set(cacheKey, requestPromise);
+  try {
+    return await requestPromise;
+  } finally {
+    inFlightRequests.delete(cacheKey);
+  }
+}
+
+export function resetAniListRequestStateForTests() {
+  responseCache.clear();
+  inFlightRequests.clear();
 }
 
 const pageQuery = `query MediaPage($page: Int!, $perPage: Int!, $sort: [MediaSort], $search: String, $status: MediaStatus, $season: MediaSeason, $seasonYear: Int) {

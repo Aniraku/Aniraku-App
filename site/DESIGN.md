@@ -8,7 +8,7 @@ The Pages site is the public, browser-native counterpart to the Android app. It 
 
 | Surface | Purpose | Primary action |
 | --- | --- | --- |
-| Release banner + hero / signal panel | Introduces the v2.1.Alpha standard release, app, package name, and device compatibility. | Download the current APK or read release notes. |
+| Release banner + hero / signal panel | Introduces the v2.2.Alpha standard release, app, package name, device compatibility, and calmer native search recovery. | Download the current APK or read release notes. |
 | Install sheet | Explains direct installation and the required legacy-package removal. | Open GitHub Release or Orion Store. |
 | Native product rail | Shows real Home, Catalog, Watch, Random, signed-in Profile, and guest Alerts-preview captures. | Inspect a selected capture. |
 | Playback control panel | Explains direct-first recovery, audio/provider control, quality, auto actions, and fullscreen. | Read the technical policy. |
@@ -23,11 +23,11 @@ The palette is fixed to `#090909` black, `#141414` surface, `#1C1C1C` raised, `#
 
 ## Content integrity
 
-The site uses only committed real app captures and local source-controlled visual assets. The v2.1 release actions use the named GitHub release and explicit universal-APK asset route, while the installation content also preserves the Orion Store route. The direct release action, package-migration warning, and Android compatibility information are visible before the visitor scrolls. The Alerts asset is expressly a guest preview, not a fabricated authenticated feed.
+The site uses only committed real app captures and local source-controlled visual assets. The v2.2 release actions use the named GitHub release and explicit universal-APK asset route, while the installation content also preserves the Orion Store route. The direct release action, package-migration warning, and Android compatibility information are visible before the visitor scrolls. The banner describes the native search improvement precisely: input settling, duplicate-request coalescing, short-lived response reuse, and a controlled HTTP 429 retry window. The Alerts asset is expressly a guest preview, not a fabricated authenticated feed.
 
 ## Browser QA
 
-Local desktop preview inspection on 2026-08-16 confirmed the asymmetric command surface renders with the real native Watch capture, v2.1 release banner, named GitHub APK route, Orion Store action, current package identity, and signal-red ticker. The rendered content contains six real product captures, a concise FAQ, a five-link mobile dock at the `720px` breakpoint, a copyable `aniraku.anime.app` package ID, and the v2.1.Alpha standard-release APK route. The FAQ interaction was also verified: opening the migration answer closes the installation answer and updates both control indicators. Mobile visual QA remains part of the pre-publication check.
+The v2.2 release candidate retains the verified asymmetric command surface with the real native Watch capture, named GitHub APK route, Orion Store action, current package identity, signal-red ticker, six real product captures, a concise FAQ, and a five-link mobile dock at the `720px` breakpoint. The v2.2 public verification must confirm the exact `Aniraku-v2.2.Alpha.apk` asset route, the updated rate-limit-resilience release copy, and the existing FAQ single-open behavior.
 
 ## Public deployment QA
 

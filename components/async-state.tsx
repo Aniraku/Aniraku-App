@@ -5,9 +5,9 @@ export function LoadingState({ label = "Loading real anime data" }: { label?: st
   return <View style={styles.container}><View style={styles.loadingLine}><View style={styles.loadingFill} /><ActivityIndicator color={nothing.red} size="small" /></View><DotLabel tone="signal">LOADING</DotLabel><Text style={styles.text}>{label}</Text></View>;
 }
 
-export function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
-  const friendlyMessage = /api\.aniraku|backend|graphql|network request|failed to fetch|could not reach/i.test(message) ? "Check your connection and try again." : message;
-  return <View style={styles.container}><View style={styles.errorLine} /><DotLabel tone="signal">COULDN’T LOAD THIS</DotLabel><Text style={styles.text}>{friendlyMessage}</Text><NothingButton label="TRY AGAIN" onPress={onRetry} variant="outline" /></View>;
+export function ErrorState({ message, onRetry, retryLabel = "TRY AGAIN", retryDisabled = false }: { message: string; onRetry: () => void; retryLabel?: string; retryDisabled?: boolean }) {
+  const friendlyMessage = /api\.aniraku|backend|graphql|network request|failed to fetch/i.test(message) ? "Check your connection and try again." : message;
+  return <View style={styles.container}><View style={styles.errorLine} /><DotLabel tone="signal">COULDN’T LOAD THIS</DotLabel><Text style={styles.text}>{friendlyMessage}</Text><NothingButton label={retryLabel} onPress={onRetry} variant="outline" disabled={retryDisabled} /></View>;
 }
 
 export function EmptyState({ label }: { label: string }) {

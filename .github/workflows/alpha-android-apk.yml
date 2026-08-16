@@ -1,10 +1,10 @@
-name: Build Aniraku v2.1.Alpha APK
+name: Build Aniraku v2.2.Alpha APK
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the verified v2.1.Alpha APK as the standard GitHub release
+        description: Publish the verified v2.2.Alpha APK as the standard GitHub release
         required: true
         default: false
         type: boolean
@@ -57,50 +57,50 @@ jobs:
           unzip -l "$APK" | grep -q 'assets/index.android.bundle'
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
-      - name: Upload Aniraku v2.1.Alpha APK
+      - name: Upload Aniraku v2.2.Alpha APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aniraku-v2.1.Alpha-universal-apk
+          name: Aniraku-v2.2.Alpha-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish standard v2.1.Alpha release
+      - name: Publish standard v2.2.Alpha release
         if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           APK=android/app/build/outputs/apk/release/app-release.apk
-          RELEASE_APK=/tmp/Aniraku-v2.1.Alpha.apk
+          RELEASE_APK=/tmp/Aniraku-v2.2.Alpha.apk
           cp "$APK" "$RELEASE_APK"
-          cat > /tmp/aniraku-v2.1-alpha-notes.md <<'EOF'
-          ## Aniraku v2.1.Alpha
+          cat > /tmp/aniraku-v2.2-alpha-notes.md <<'EOF'
+          ## Aniraku v2.2.Alpha
 
-          **Package:** `aniraku.anime.app` · **versionCode:** 11
+          **Package:** `aniraku.anime.app` · **versionCode:** 12
 
           ### What’s new
-          - Guest-accessible Alerts preview in Library with a clear sign-in path for synchronized account activity
-          - Product site release banner, concise FAQ, and expanded gallery with verified Profile and guest Alerts captures
-          - Current direct Android distribution guidance across the README and organization profile
+          - Search input now waits briefly for typing to settle before requesting AniList metadata
+          - Identical in-flight AniList requests are coalesced and recent search responses are reused from a short-lived local cache
+          - HTTP 429 responses honor Retry-After timing, stop automatic retry amplification, and show a disabled retry countdown instead of repeatedly sending requests
 
-          ### Playback and compatibility
+          ### Included product capabilities
           - Native direct-first recovery: direct source → Aniraku proxy → verified embed fallback
           - In-player quality selector, language/provider controls, manual skip overlays, Auto Next, Auto Skip, speed, fullscreen, and 45-second forward preload
           - Android 9+ (API 28+) · ARM32 + ARM64 · FOSS direct install, without Google Play
 
           > If you are upgrading from v1.x under `aniraku.anine.app`, uninstall that legacy package first. Android treats `aniraku.anime.app` as a separate application.
           EOF
-          if gh release view v2.1.Alpha --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release delete-asset v2.1.Alpha app-release.apk --repo "${{ github.repository }}" --yes || true
-            gh release upload v2.1.Alpha "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
-            gh release edit v2.1.Alpha \
-              --repo "${{ github.repository }}" \
-              --title "v2.1.Alpha — Guest Alerts, FAQ, and Gallery" \
-              --notes-file /tmp/aniraku-v2.1-alpha-notes.md \
-              --latest
+          if gh release view v2.2.Alpha --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release delete-asset v2.2.Alpha app-release.apk --repo "${{ github.repository }}" --yes || true
+            gh release upload v2.2.Alpha "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
+            gh release edit v2.2.Alpha \
+            --repo "${{ github.repository }}" \
+            --title "v2.2.Alpha — Search Backoff and Rate-Limit Resilience" \
+            --notes-file /tmp/aniraku-v2.2-alpha-notes.md \
+            --latest
           else
-            gh release create v2.1.Alpha "$RELEASE_APK" \
-              --repo "${{ github.repository }}" \
-              --title "v2.1.Alpha — Guest Alerts, FAQ, and Gallery" \
-              --notes-file /tmp/aniraku-v2.1-alpha-notes.md \
-              --latest
+            gh release create v2.2.Alpha "$RELEASE_APK" \
+            --repo "${{ github.repository }}" \
+            --title "v2.2.Alpha — Search Backoff and Rate-Limit Resilience" \
+            --notes-file /tmp/aniraku-v2.2-alpha-notes.md \
+            --latest
           fi
