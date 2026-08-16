@@ -120,8 +120,11 @@ export default function WatchScreen() {
     instance.audioMixingMode = "doNotMix";
     instance.bufferOptions = {
       maxBufferBytes: 0,
+      // Start promptly, then keep roughly twenty seconds ahead of playback in
+      // the native media buffer so short network slowdowns do not interrupt a
+      // scene. `maxBufferBytes: 0` lets Media3 size that buffer safely per device.
       minBufferForPlayback: 2,
-      preferredForwardBufferDuration: 12,
+      preferredForwardBufferDuration: 20,
       prioritizeTimeOverSizeThreshold: true,
       waitsToMinimizeStalling: true,
     };
