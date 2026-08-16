@@ -6,14 +6,14 @@ const env = {
   logoUrl: "/manus-storage/icon_cc474f8c.png",
   scheme: "aniraku",
   iosBundleId: "tech.aniraku.app",
-  androidPackage: "aniraku.anine.app",
+  androidPackage: "aniraku.anime.app",
   easProjectId: "e96fc02e-d968-4f13-a688-0d553d855df7",
 };
 
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
-  version: "1.8.Alpha",
+  version: "2.0.Alpha",
   orientation: "default",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
@@ -28,7 +28,7 @@ const config: ExpoConfig = {
     infoPlist: { ITSAppUsesNonExemptEncryption: false },
   },
   android: {
-    versionCode: 9,
+    versionCode: 10,
     adaptiveIcon: { backgroundColor: "#090909", foregroundImage: "./assets/images/android-icon-foreground.png" },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,

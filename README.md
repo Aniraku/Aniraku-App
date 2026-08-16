@@ -6,6 +6,8 @@
 ![Architecture](https://img.shields.io/badge/ARCH-ARM32%20%2B%20ARM64-090909?style=flat-square&labelColor=090909&color=F6F6F2)
 ![License](https://img.shields.io/badge/LICENSE-MIT-090909?style=flat-square&labelColor=090909&color=F6F6F2)
 
+[![Get it on Orion Store](https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png)](https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku)
+
 ![Aniraku launcher icon](./assets/images/icon.png)
 
 > **A native Android companion for discovering anime, resuming episodes, and keeping a personal library in sync.**
@@ -50,10 +52,12 @@ Download the current signed APK from the [GitHub Releases page](https://github.c
 | --- | --- |
 | `01 / DOWNLOAD` | Open the latest release and download the `.apk` file for **Aniraku**. |
 | `02 / ALLOW` | If Android asks, allow your browser or file manager to install apps from this source. |
-| `03 / INSTALL` | Open the completed APK and confirm installation. Existing compatible Aniraku installs can update in place when signed with the same release key. |
+| `03 / INSTALL` | Open the completed APK and confirm installation. **v2.0.Alpha uses `aniraku.anime.app`; uninstall the legacy `aniraku.anine.app` build first, because Android treats it as a separate app.** |
 | `04 / OPEN` | Sign in to sync your library, or browse as a guest. |
 
 > **Compatibility:** the public configuration targets Android 9 / API 28 and later, with both `armeabi-v7a` and `arm64-v8a` native libraries included.
+
+> **Android identity:** Current releases use package `aniraku.anime.app`. The previous `aniraku.anine.app` alpha is a legacy package and cannot update in place; uninstalling it also removes its local app data.
 
 ## RUN IT LOCALLY
 
