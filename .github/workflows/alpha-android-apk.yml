@@ -2,9 +2,15 @@ name: Build Aniraku v2.1.Alpha APK
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish the verified v2.1.Alpha APK as the standard GitHub release
+        required: true
+        default: false
+        type: boolean
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-alpha-apk:
@@ -58,3 +64,31 @@ jobs:
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
+      - name: Publish standard v2.1.Alpha release
+        if: ${{ inputs.publish_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          cat > /tmp/aniraku-v2.1-alpha-notes.md <<'EOF'
+          ## Aniraku v2.1.Alpha
+
+          **Package:** `aniraku.anime.app` · **versionCode:** 11
+
+          ### What’s new
+          - Guest-accessible Alerts preview in Library with a clear sign-in path for synchronized account activity
+          - Product site release banner, concise FAQ, and expanded gallery with verified Profile and guest Alerts captures
+          - Current direct Android distribution guidance across the README and organization profile
+
+          ### Playback and compatibility
+          - Native direct-first recovery: direct source → Aniraku proxy → verified embed fallback
+          - In-player quality selector, language/provider controls, manual skip overlays, Auto Next, Auto Skip, speed, fullscreen, and 45-second forward preload
+          - Android 9+ (API 28+) · ARM32 + ARM64 · FOSS direct install, without Google Play
+
+          > If you are upgrading from v1.x under `aniraku.anine.app`, uninstall that legacy package first. Android treats `aniraku.anime.app` as a separate application.
+          EOF
+          gh release create v2.1.Alpha "$APK#Aniraku-v2.1.Alpha.apk" \
+            --repo "${{ github.repository }}" \
+            --title "v2.1.Alpha — Guest Alerts, FAQ, and Gallery" \
+            --notes-file /tmp/aniraku-v2.1-alpha-notes.md \
+            --latest
