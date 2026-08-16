@@ -1,4 +1,8 @@
-![Aniraku Native Android](./assets/readme/aniraku-masthead.svg)
+<p align="center">
+  <img src="./assets/images/icon.png" width="136" alt="Aniraku application icon" />
+</p>
+
+<h1 align="center">ANIRAKU / NATIVE ANDROID</h1>
 
 <p align="center">
   <strong>THE APP-STYLE DOWNLOAD EXPERIENCE LIVES HERE</strong>
@@ -39,5 +43,21 @@ v2.1 introduces a guest-accessible Alerts preview that makes the sign-in and syn
 If you have a legacy alpha installed under `aniraku.anine.app`, uninstall it before installing v2.1.Alpha because Android treats the package migration as a separate app.
 
 The backend runs on a free cloud instance, so source discovery can take longer during peak demand and third-party provider availability can vary. Use Aniraku only for media you are authorized to access.
+
+## Real native screens
+
+Every capture below comes from the implemented Aniraku application. The Profile image is a verified signed-in device capture. The Alerts image is the actual v2.1 guest preview, which explains the sign-in path without presenting made-up notification records.
+
+<p align="center">
+  <img src="./site/assets/screens/home.jpg" width="31%" alt="Aniraku native Home screen" />
+  <img src="./site/assets/screens/catalog.jpg" width="31%" alt="Aniraku native Catalog screen" />
+  <img src="./site/assets/screens/watch.jpg" width="31%" alt="Aniraku native Watch screen" />
+</p>
+
+<p align="center">
+  <img src="./site/assets/screens/random.jpg" width="31%" alt="Aniraku native Random screen" />
+  <img src="./site/assets/screens/profile.jpg" width="31%" alt="Aniraku native signed-in Profile screen" />
+  <img src="./site/assets/screens/alerts-preview.png" width="31%" alt="Aniraku native guest Alerts preview" />
+</p>
 
 `ANIRAKU / KEEP YOUR ANIME CLOSE.`
