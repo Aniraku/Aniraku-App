@@ -28,11 +28,15 @@
 
 | `APP SITE` | `CURRENT DOWNLOAD` | `PROJECT` |
 | --- | --- | --- |
-| [aniraku.github.io/Aniraku-App](https://aniraku.github.io/Aniraku-App/) | [Latest GitHub Release](https://github.com/Aniraku/Aniraku-App/releases/latest) · [Orion Store](https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku) | [Architecture](./docs/NATIVE_ARCHITECTURE.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) |
+| [aniraku.github.io/Aniraku-App](https://aniraku.github.io/Aniraku-App/) | [v2.1.Alpha standard release](https://github.com/Aniraku/Aniraku-App/releases/tag/v2.1.Alpha) · [Latest GitHub Release](https://github.com/Aniraku/Aniraku-App/releases/latest) · [Orion Store](https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku) | [Architecture](./docs/NATIVE_ARCHITECTURE.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) |
 
 ## Current Android identity
 
-The current standard release is **v2.0.Alpha**, package `aniraku.anime.app`. If you have a legacy alpha installed under `aniraku.anine.app`, uninstall it before installing v2.0.Alpha because Android treats the package migration as a separate app.
+The current standard release is **v2.1.Alpha**, package `aniraku.anime.app`, with **versionCode 11**. Start with the [v2.1.Alpha release page](https://github.com/Aniraku/Aniraku-App/releases/tag/v2.1.Alpha) for the universal Android 9+ APK, integrity notes, and complete release notes.
+
+v2.1 introduces a guest-accessible Alerts preview that makes the sign-in and synchronized-library value clear without inventing notification records. The app’s expanded product site gallery now includes a verified signed-in Profile capture and that guest Alerts preview, alongside the existing real native captures.
+
+If you have a legacy alpha installed under `aniraku.anine.app`, uninstall it before installing v2.1.Alpha because Android treats the package migration as a separate app.
 
 The backend runs on a free cloud instance, so source discovery can take longer during peak demand and third-party provider availability can vary. Use Aniraku only for media you are authorized to access.
 

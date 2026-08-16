@@ -31,3 +31,18 @@ if ('IntersectionObserver' in window && sections.length && dockLinks.length) {
 
   sections.forEach((section) => observer.observe(section));
 }
+
+const faqItems = [...document.querySelectorAll('.faq-item')];
+
+faqItems.forEach((item) => {
+  item.addEventListener('toggle', () => {
+    const control = item.querySelector('.faq-toggle');
+    if (control) control.textContent = item.open ? '−' : '+';
+
+    if (item.open) {
+      faqItems.forEach((other) => {
+        if (other !== item) other.removeAttribute('open');
+      });
+    }
+  });
+});
