@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { anirakuProxyUrl, getPlaybackType, hasExpiredEmbeddedToken, nativePlaybackHeaders, normalizeStreamResponse, playableSources } from "../lib/aniraku-api";
+import { anirakuProxyUrl, getPlaybackType, hasExpiredEmbeddedToken, nativePlaybackHeaders, normalizeServers, normalizeStreamResponse, playableSources } from "../lib/aniraku-api";
+import { shouldAllowEmbedNavigation } from "../lib/embed-navigation";
 import { chooseResumeEpisode, progressFraction } from "../lib/watch-progress";
-import { directSources, embedSources, hasConfirmedPlaybackStart, nextProviderIndex, shouldMountReplacementSource, shouldRestoreRebufferPosition, shouldRetryProxiedSourceAfterDirect } from "../lib/watch-engine";
+import { directSources, embedSources, hasConfirmedPlaybackStart, nextProviderIndex, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect } from "../lib/watch-engine";
 
 describe("Aniraku native playback coordination", () => {
   it("keeps only Android-safe transport headers for direct media", () => {
@@ -58,6 +59,12 @@ describe("Aniraku native playback coordination", () => {
     expect(embedSources(response).map((source) => source.url)).toEqual(["https://embed.example/watch", "https://page.example/watch"]);
   });
 
+  it("retains a website-visible server even if an old server-level verification snapshot says dead", () => {
+    const servers = normalizeServers([{ name: "kiwi", provider: "miruro", verification: "dead", sources: [{ url: "https://cdn.example/episode.m3u8", type: "hls", verification: "proxy" }] }], "sub");
+    expect(servers).toHaveLength(1);
+    expect(servers[0]).toMatchObject({ id: "sub:kiwi", provider: "kiwi", lang: "sub" });
+  });
+
   it("preserves an already-mounted initial source during background metadata refresh", () => {
     expect(shouldMountReplacementSource(false, false)).toBe(true);
     expect(shouldMountReplacementSource(true, false)).toBe(false);
@@ -74,11 +81,18 @@ describe("Aniraku native playback coordination", () => {
     expect(shouldRetryProxiedSourceAfterDirect(false, true)).toBe(false);
   });
 
-  it("restores only small, non-user playback rollbacks that follow rebuffering", () => {
-    expect(shouldRestoreRebufferPosition({ lastStableTime: 125.5, reportedTime: 125.2, wasBuffering: true, playbackStarted: true, intentionalSeek: false })).toBe(true);
-    expect(shouldRestoreRebufferPosition({ lastStableTime: 125.5, reportedTime: 125.2, wasBuffering: true, playbackStarted: true, intentionalSeek: true })).toBe(false);
-    expect(shouldRestoreRebufferPosition({ lastStableTime: 125.5, reportedTime: 110, wasBuffering: true, playbackStarted: true, intentionalSeek: false })).toBe(false);
-    expect(shouldRestoreRebufferPosition({ lastStableTime: 125.5, reportedTime: 125.2, wasBuffering: false, playbackStarted: true, intentionalSeek: false })).toBe(false);
+  it("holds only the UI/history watermark for small non-user rebuffer rollbacks without requesting a native seek", () => {
+    expect(shouldHoldRebufferWatermark({ lastStableTime: 125.5, reportedTime: 125.2, wasBuffering: true, playbackStarted: true, intentionalSeek: false })).toBe(true);
+    expect(shouldHoldRebufferWatermark({ lastStableTime: 125.5, reportedTime: 125.2, wasBuffering: true, playbackStarted: true, intentionalSeek: true })).toBe(false);
+    expect(shouldHoldRebufferWatermark({ lastStableTime: 125.5, reportedTime: 110, wasBuffering: true, playbackStarted: true, intentionalSeek: false })).toBe(false);
+    expect(shouldHoldRebufferWatermark({ lastStableTime: 125.5, reportedTime: 125.2, wasBuffering: false, playbackStarted: true, intentionalSeek: false })).toBe(false);
+  });
+
+  it("allows provider navigation while refusing known advertising and popup targets", () => {
+    expect(shouldAllowEmbedNavigation("https://ok.ru/videoembed/123")).toBe(true);
+    expect(shouldAllowEmbedNavigation("https://cdn.provider.example/stream")).toBe(true);
+    expect(shouldAllowEmbedNavigation("https://ad.doubleclick.net/redirect")).toBe(false);
+    expect(shouldAllowEmbedNavigation("intent://untrusted")).toBe(false);
   });
 
   it("fails over to the next provider in the selected language before giving up", () => {

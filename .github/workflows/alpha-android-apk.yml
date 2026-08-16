@@ -1,10 +1,10 @@
-name: Build Aniraku v2.5 APK
+name: Build Aniraku v2.6 APK
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the verified v2.5 APK as the standard GitHub release
+        description: Publish the verified v2.6 APK as the standard GitHub release
         required: true
         default: false
         type: boolean
@@ -57,35 +57,36 @@ jobs:
           unzip -l "$APK" | grep -q 'assets/index.android.bundle'
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
-      - name: Upload Aniraku v2.5 APK
+      - name: Upload Aniraku v2.6 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aniraku-v2.5-universal-apk
+          name: Aniraku-v2.6-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish stable v2.5 release
+      - name: Publish stable v2.6 release
         if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           APK=android/app/build/outputs/apk/release/app-release.apk
-          RELEASE_APK=/tmp/Aniraku-v2.5.apk
+          RELEASE_APK=/tmp/Aniraku-v2.6.apk
           cp "$APK" "$RELEASE_APK"
-          cat > /tmp/aniraku-v2.5-notes.md <<'EOF'
-          ## Aniraku v2.5
+          cat > /tmp/aniraku-v2.6-notes.md <<'EOF'
+          ## Aniraku v2.6
 
-          **Package:** `aniraku.anime.app` · **versionCode:** 13
+          **Package:** `aniraku.anime.app` · **versionCode:** 14
 
-          ### What’s new
-          - Maximum-quality downloads for eligible HTTPS direct progressive sources, including while Auto playback is active
-          - A Download glyph inside player settings and a first-save Android picker for a user-approved public Downloads folder
-          - Clear streaming-only guard for HLS/DASH, embedded, protected, unavailable, and non-HTTPS sources
-          - Native AniList and MyAnimeList Settings cards with real provider marks, protected browser linking, status refresh, import, export, and disconnect actions
-          - Connected providers receive meaningful playback-progress and rating-summary updates through the established Aniraku sync service
-          - Provider credentials and OAuth tokens remain server-side; none are bundled into the APK
+          ### Stabilization fixes
+          - Restored native provider parity with the Aniraku website: a stale server-level verdict can no longer hide a provider that still has a current playable source
+          - Removed v2.5’s corrective rebuffer seek, which could re-present a decoded frame; playback now holds only a UI/history watermark during small native time rollbacks
+          - Raised the native resume buffer from two to six seconds while retaining the forty-five-second forward target and Android media caching for direct HLS, DASH, and progressive playback
+          - Reworked eligible public Downloads saves to stream directly into the Android system-picker folder, retry one revoked persisted folder grant, and preserve supported direct-media extensions
+          - Added a conservative embedded-player popup and known ad/tracker navigation guard without blocking provider/player routes or bypassing access controls
 
-          ### Search reliability retained from v2.2
+          ### Existing v2.5 capabilities retained
+          - Maximum-quality downloads for eligible HTTPS direct progressive sources, with an in-player Downloads glyph and clear streaming-only eligibility guard
+          - Native AniList and MyAnimeList browser linking, explicit library import/export, disconnect, and progress/rating synchronization through the existing Aniraku service
           - Debounced search input, request coalescing, short-lived local cache, and Retry-After-aware 429 recovery
 
           ### Included product capabilities
@@ -95,18 +96,18 @@ jobs:
 
           > If you are upgrading from v1.x under `aniraku.anine.app`, uninstall that legacy package first. Android treats `aniraku.anime.app` as a separate application.
           EOF
-          if gh release view v2.5 --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release delete-asset v2.5 app-release.apk --repo "${{ github.repository }}" --yes || true
-            gh release upload v2.5 "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
-            gh release edit v2.5 \
+          if gh release view v2.6 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release delete-asset v2.6 app-release.apk --repo "${{ github.repository }}" --yes || true
+            gh release upload v2.6 "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
+            gh release edit v2.6 \
               --repo "${{ github.repository }}" \
-              --title "v2.5 — Offline Downloads and List Sync" \
-              --notes-file /tmp/aniraku-v2.5-notes.md \
+              --title "v2.6 — Playback Stability and Provider Parity" \
+              --notes-file /tmp/aniraku-v2.6-notes.md \
               --latest
           else
-            gh release create v2.5 "$RELEASE_APK" \
+            gh release create v2.6 "$RELEASE_APK" \
               --repo "${{ github.repository }}" \
-              --title "v2.5 — Offline Downloads and List Sync" \
-              --notes-file /tmp/aniraku-v2.5-notes.md \
+              --title "v2.6 — Playback Stability and Provider Parity" \
+              --notes-file /tmp/aniraku-v2.6-notes.md \
               --latest
           fi

@@ -34,9 +34,10 @@ export function shouldRetryProxiedSourceAfterDirect(usingProxy: boolean, playbac
 
 /**
  * Media3 may briefly report a position just behind the rendered frame after a
- * rebuffer. Restore the previous position only for that small, non-user seek.
+ * rebuffer. Hold the UI/history watermark during that small non-user rollback;
+ * never turn it into a corrective native seek.
  */
-export function shouldRestoreRebufferPosition(input: {
+export function shouldHoldRebufferWatermark(input: {
   lastStableTime: number;
   reportedTime: number;
   wasBuffering: boolean;

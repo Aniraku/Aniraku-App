@@ -1,6 +1,7 @@
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useState } from "react";
 import { WebView } from "react-native-webview";
+import { embeddedPopupGuardScript, shouldAllowEmbedNavigation } from "@/lib/embed-navigation";
 
 export function EmbedPlayer({ uri, headers, onError }: { uri: string; headers?: Record<string, string>; onError: () => void }) {
   const [loading, setLoading] = useState(true);
@@ -24,14 +25,11 @@ export function EmbedPlayer({ uri, headers, onError }: { uri: string; headers?: 
       allowsProtectedMedia
       androidLayerType="hardware"
       userAgent="Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
-      injectedJavaScriptBeforeContentLoaded="window.open = function(url) { window.location.assign(url); }; true;"
-      onShouldStartLoadWithRequest={() => true}
+      injectedJavaScriptBeforeContentLoaded={embeddedPopupGuardScript}
+      onShouldStartLoadWithRequest={(request) => shouldAllowEmbedNavigation(request.url)}
       onLoadStart={() => setLoading(true)}
       onLoadEnd={() => setLoading(false)}
       onError={onError}
-      onHttpError={({ nativeEvent }) => {
-        if (nativeEvent.statusCode >= 400) onError();
-      }}
       onRenderProcessGone={onError}
     />
     {loading ? <View pointerEvents="none" style={styles.loading}><ActivityIndicator color="#F6F6F2" /><Text style={styles.loadingText}>OPENING EMBED PLAYER</Text></View> : null}

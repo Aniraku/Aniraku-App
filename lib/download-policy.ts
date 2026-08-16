@@ -6,8 +6,18 @@ function fileStem(value: string) {
   return value.normalize("NFKD").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 72) || "aniraku-episode";
 }
 
-export function publicDownloadFilename(title: string, episode: number, language: "sub" | "dub", quality: string) {
-  return `${fileStem(title)}-ep${String(episode).padStart(2, "0")}-${language}-${fileStem(quality)}.mp4`;
+function publicMediaExtension(source?: StreamSource) {
+  const mime = String(source?.mime || source?.type || "").toLowerCase();
+  const fromUrl = String(source?.url || "").match(/\.(mp4|m4v|webm|ogv|ogg|mpeg|mpg)(?:$|[?#])/i)?.[1];
+  if (fromUrl) return fromUrl.toLowerCase();
+  if (mime.includes("webm")) return "webm";
+  if (mime.includes("ogg")) return "ogv";
+  if (mime.includes("mpeg")) return "mpeg";
+  return "mp4";
+}
+
+export function publicDownloadFilename(title: string, episode: number, language: "sub" | "dub", quality: string, source?: StreamSource) {
+  return `${fileStem(title)}-ep${String(episode).padStart(2, "0")}-${language}-${fileStem(quality)}.${publicMediaExtension(source)}`;
 }
 
 export function isDownloadableSource(source: StreamSource) {

@@ -24,5 +24,6 @@ describe("offline download policy", () => {
 
   it("creates a safe public Downloads filename that preserves episode, language, and chosen quality", () => {
     expect(publicDownloadFilename("My Anime: Part / One", 7, "dub", "1080p")).toBe("My-Anime-Part-One-ep07-dub-1080p.mp4");
+    expect(publicDownloadFilename("My Anime", 7, "sub", "SOURCE", { url: "https://cdn.example/episode.webm", type: "webm" })).toBe("My-Anime-ep07-sub-SOURCE.webm");
   });
 });

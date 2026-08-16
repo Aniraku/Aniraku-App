@@ -1,5 +1,4 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as FileSystem from "expo-file-system/legacy";
 import { Directory, File } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
@@ -34,20 +33,23 @@ async function writeIndex(entries: OfflineDownload[]) {
   await AsyncStorage.setItem(INDEX_KEY, JSON.stringify(entries));
 }
 
-async function publicDownloadsDirectory() {
+async function publicDownloadsDirectory(forcePicker = false) {
   if (Platform.OS !== "android") throw new Error("Public Downloads saving is available on Android devices.");
   const storedUri = await AsyncStorage.getItem(PUBLIC_DOWNLOADS_DIRECTORY_KEY).catch(() => null);
-  if (storedUri) {
-    const stored = new Directory(storedUri);
-    if (stored.exists) return stored;
-  }
+  if (storedUri && !forcePicker) return { directory: new Directory(storedUri), reused: true };
   try {
-    const chosen = await Directory.pickDirectoryAsync();
+    const picked = await Directory.pickDirectoryAsync();
+    const chosen = new Directory(picked.uri);
     await AsyncStorage.setItem(PUBLIC_DOWNLOADS_DIRECTORY_KEY, chosen.uri);
-    return chosen;
+    return { directory: chosen, reused: false };
   } catch {
     throw new Error("Choose your Android Downloads folder to save this video.");
   }
+}
+
+function storedDirectoryAccessError(cause: unknown) {
+  const message = cause instanceof Error ? cause.message.toLowerCase() : String(cause).toLowerCase();
+  return /permission|access|content uri|security|not found|does not exist/.test(message);
 }
 
 export async function findOfflineDownload(animeId: number, episode: number, language: "sub" | "dub") {
@@ -60,34 +62,35 @@ export async function startMaximumQualityDownload(input: { animeId: number; epis
   if (!isDownloadableSource(input.source)) throw new Error("This provider only offers adaptive, embedded, or protected playback. A direct progressive source is required for downloading.");
   const id = downloadId(input.animeId, input.episode, input.language);
   const quality = isAutoQuality(input.source) ? "ORIGINAL DIRECT" : input.source.quality || "DIRECT";
-  const directory = await publicDownloadsDirectory();
-  const cacheRoot = FileSystem.cacheDirectory;
-  if (!cacheRoot) throw new Error("Temporary download storage is unavailable on this device.");
-  const filename = publicDownloadFilename(input.title, input.episode, input.language, quality);
-  const temporaryUri = `${cacheRoot}${filename}.${Date.now()}.partial`;
-  const task = FileSystem.createDownloadResumable(input.source.url, temporaryUri, { headers: nativePlaybackHeaders(input.headers) }, (progress) => {
-    if (progress.totalBytesExpectedToWrite > 0) input.onProgress?.(Math.min(1, progress.totalBytesWritten / progress.totalBytesExpectedToWrite));
-  });
-  try {
-    const result = await task.downloadAsync();
-    if (!result?.uri) throw new Error("The download did not produce a playable file.");
-    const temporary = new File(result.uri);
-    if (!temporary.exists || !temporary.size) throw new Error("The downloaded file is empty.");
-    const destination = new File(directory.uri, filename);
+  const filename = publicDownloadFilename(input.title, input.episode, input.language, quality, input.source);
+  const saveInto = async (directory: Directory) => {
+    const destination = new File(directory, filename);
     if (destination.exists) destination.delete();
-    temporary.copy(destination);
+    await File.downloadFileAsync(input.source.url, destination, { headers: nativePlaybackHeaders(input.headers), idempotent: true });
     if (!destination.exists || !destination.size) throw new Error("Android could not save the file to Downloads.");
-    const entry: OfflineDownload = { id, animeId: input.animeId, episode: input.episode, title: input.title, quality, language: input.language, uri: destination.uri, savedAt: Date.now(), size: destination.size };
-    const index = await readIndex();
-    await writeIndex([entry, ...index.filter((item) => item.id !== id)]);
-    return entry;
-  } finally {
-    await FileSystem.deleteAsync(temporaryUri, { idempotent: true }).catch(() => {});
+    input.onProgress?.(1);
+    return destination;
+  };
+  let selection = await publicDownloadsDirectory();
+  let saved: File;
+  try {
+    saved = await saveInto(selection.directory);
+  } catch (cause) {
+    // A persisted Android Storage Access Framework grant can be revoked by the
+    // operating system or file manager. Re-prompt once only for that case.
+    if (!selection.reused || !storedDirectoryAccessError(cause)) throw cause;
+    await AsyncStorage.removeItem(PUBLIC_DOWNLOADS_DIRECTORY_KEY).catch(() => {});
+    selection = await publicDownloadsDirectory(true);
+    saved = await saveInto(selection.directory);
   }
+  const entry: OfflineDownload = { id, animeId: input.animeId, episode: input.episode, title: input.title, quality, language: input.language, uri: saved.uri, savedAt: Date.now(), size: saved.size };
+  const index = await readIndex();
+  await writeIndex([entry, ...index.filter((item) => item.id !== id)]);
+  return entry;
 }
 
 export async function removeOfflineDownload(entry: OfflineDownload) {
-  try { new File(entry.uri).delete(); } catch { await FileSystem.deleteAsync(entry.uri, { idempotent: true }).catch(() => {}); }
+  try { new File(entry.uri).delete(); } catch {}
   await writeIndex((await readIndex()).filter((item) => item.id !== entry.id));
 }
 

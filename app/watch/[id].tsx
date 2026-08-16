@@ -22,7 +22,7 @@ import {
   providerSkipSegments,
   shouldRetryProxiedSourceAfterDirect,
   shouldMountReplacementSource,
-  shouldRestoreRebufferPosition,
+  shouldHoldRebufferWatermark,
   type Language,
   type SkipKind,
   type SkipSegments,
@@ -41,7 +41,9 @@ import { NativeScreen } from "@/components/screen";
 
 const RESUME_MIN_TIME = 30;
 const STREAM_CACHE_TTL_MS = 30_000;
-const SERVER_RETRY_DELAY_MS = 1_500;
+// Keep source-list retries aligned with Watch.jsx. A fast retry can repeatedly
+// re-query a still-warming provider and leave it absent from the native picker.
+const SERVER_RETRY_DELAY_MS = 12_000;
 const STARTUP_WATCHDOG_MS = 6_000;
 const SKIP_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -126,10 +128,10 @@ export default function WatchScreen() {
     instance.audioMixingMode = "doNotMix";
     instance.bufferOptions = {
       maxBufferBytes: 0,
-      // Start promptly, then keep roughly forty-five seconds ahead of playback in
-      // the native media buffer so short network slowdowns do not interrupt a
-      // scene. `maxBufferBytes: 0` lets Media3 size that buffer safely per device.
-      minBufferForPlayback: 2,
+      // Resume only after a short, meaningful media cushion. The previous
+      // two-second threshold was too small for slow provider CDNs and produced
+      // repeated start/stop cycles on Snapdragon 680 devices.
+      minBufferForPlayback: 6,
       preferredForwardBufferDuration: 45,
       prioritizeTimeOverSizeThreshold: true,
       waitsToMinimizeStalling: true,
@@ -235,17 +237,17 @@ export default function WatchScreen() {
     const intentionalSeek = Date.now() < intentionalSeekUntil.current;
     if (buffering) rebufferSeen.current = true;
 
-    if (shouldRestoreRebufferPosition({
+    if (shouldHoldRebufferWatermark({
       lastStableTime: lastStablePlaybackTime.current,
       reportedTime,
       wasBuffering: rebufferSeen.current,
       playbackStarted: sourceStarted.current,
       intentionalSeek,
     })) {
-      // This is an active native correction, not merely a timeline display
-      // clamp: Media3 is returned to the position it had reached before the
-      // short post-buffer rollback.
-      player.currentTime = lastStablePlaybackTime.current;
+      // Never force a corrective seek here. That v2.5 behavior could make
+      // Media3 decode and re-present a keyframe, causing the very one-frame
+      // replay it tried to hide. Preserve the stable watermark until native
+      // time catches up, without mutating the decoder position.
       return;
     }
 
@@ -518,7 +520,10 @@ export default function WatchScreen() {
       headers: useSourceProxy ? undefined : directHeaders,
       contentType,
       metadata: { title: `${title} · Episode ${episode}`, artwork: image || undefined },
-      useCaching: playbackType === "native",
+      // Android caching also supports HLS segments; allowing it for every
+      // non-embedded direct stream reduces repeated network fetches after a
+      // short stall without changing provider order or player UI.
+      useCaching: Platform.OS === "android",
     };
     void player.replaceAsync(videoSource).then(() => player.play()).catch(() => {
       if (!useSourceProxy) {
