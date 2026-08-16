@@ -10,15 +10,19 @@ import { useKeepAwake } from "expo-keep-awake";
 import { StatusBar } from "expo-status-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { anirakuProxyUrl, getAnimeMetadata, getEpisodes, getServers, getStream, getPlaybackType, nativePlaybackHeaders } from "@/lib/aniraku-api";
-import { getAnimeById, getMalIdByAnimeId } from "@/lib/anilist";
+import { getAnimeById, getKnownMalId, getMalIdByAnimeId } from "@/lib/anilist";
 import {
   activeSkipKind,
   directSources,
   embedSources,
+  episodePageCount,
+  episodePageFor,
+  episodePageSlice,
   hasConfirmedPlaybackStart,
   isAutoQuality,
   mergeSkipSegments,
   nextProviderIndex,
+  normalizeAniSkipSegments,
   providerSkipSegments,
   shouldRetryProxiedSourceAfterDirect,
   shouldMountReplacementSource,
@@ -46,6 +50,7 @@ const STREAM_CACHE_TTL_MS = 30_000;
 const SERVER_RETRY_DELAY_MS = 12_000;
 const STARTUP_WATCHDOG_MS = 6_000;
 const SKIP_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const ANISKIP_TIMEOUT_MS = 8_000;
 
 type CachedStream = { savedAt: number; data: StreamResponse };
 type WatchPreferences = { autoNext?: boolean; autoSkip?: boolean; speed?: number };
@@ -62,25 +67,6 @@ function streamCacheKey(provider: Server, episode: number) {
 
 function skipCacheKey(malId: number, episode: number) {
   return `aniraku-skip-v2:${malId}:${episode}`;
-}
-
-function normalizeAniSkip(payload: unknown): SkipSegments {
-  const results = Array.isArray((payload as { results?: unknown[] })?.results)
-    ? (payload as { results: Array<Record<string, unknown>> }).results
-    : [];
-  const segments: SkipSegments = { intro: null, outro: null };
-  for (const item of results) {
-    const rawType = String(item.skipType || "").toLowerCase();
-    const kind: SkipKind | null = rawType === "op" || rawType === "mixed_op"
-      ? "intro"
-      : rawType === "ed" || rawType === "mixed_ed" ? "outro" : null;
-    const interval = item.interval as Record<string, unknown> | undefined;
-    const startTime = Number(interval?.startTime ?? item.startTime ?? item.start);
-    const endTime = Number(interval?.endTime ?? item.endTime ?? item.end);
-    if (!kind || segments[kind] || !Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime + 1) continue;
-    segments[kind] = { startTime, endTime, source: "aniskip" };
-  }
-  return segments;
 }
 
 export default function WatchScreen() {
@@ -171,6 +157,8 @@ export default function WatchScreen() {
   const [manualFullscreen, setManualFullscreen] = useState(false);
   const [showEpisodeSidebar, setShowEpisodeSidebar] = useState(true);
   const [episodeSearch, setEpisodeSearch] = useState("");
+  const [episodePage, setEpisodePage] = useState(0);
+  const [episodeJump, setEpisodeJump] = useState("");
   const [controlsVisible, setControlsVisible] = useState(false);
   const [progressWidth, setProgressWidth] = useState(0);
   const [skipSegments, setSkipSegments] = useState<SkipSegments>({ intro: null, outro: null });
@@ -210,6 +198,9 @@ export default function WatchScreen() {
     if (!term) return canonicalEpisodes;
     return canonicalEpisodes.filter((item) => String(item.number).includes(term) || String(item.title || "").toLowerCase().includes(term));
   }, [canonicalEpisodes, episodeSearch]);
+  const totalEpisodePages = episodePageCount(filteredEpisodes.length);
+  const safeEpisodePage = Math.min(episodePage, totalEpisodePages - 1);
+  const pagedEpisodes = useMemo(() => episodePageSlice(filteredEpisodes, safeEpisodePage), [filteredEpisodes, safeEpisodePage]);
   const qualityOptions = useMemo(() => directSources(stream ?? { sources: [] }), [stream]);
   const maximumDownloadSource = useMemo(() => selectMaximumQualityDownload(stream?.sources ?? activeProvider?.sources ?? []), [activeProvider?.sources, stream?.sources]);
   const currentRating = ratings.scoreFor(episode) ?? 0;
@@ -223,6 +214,14 @@ export default function WatchScreen() {
     void findOfflineDownload(animeId, episode, language).then((entry) => { if (active) setOfflineDownload(entry); }).catch(() => { if (active) setOfflineDownload(null); });
     return () => { active = false; };
   }, [animeId, episode, language]);
+
+  useEffect(() => {
+    if (episodeSearch.trim()) {
+      setEpisodePage(0);
+      return;
+    }
+    setEpisodePage(episodePageFor(episode));
+  }, [episode, episodeSearch]);
 
   // A new source has its own timeline. Never carry the prior episode/provider
   // position into a deliberate quality, language, or source replacement.
@@ -386,22 +385,22 @@ export default function WatchScreen() {
       const dubTask = getServers(animeId, episode, "dub").catch(() => [] as Server[]);
       const subs = await subTask;
       if (cancelled) return;
-      const usableSub = subs.filter((provider) => directSources({ sources: provider.sources ?? [] }).length || embedSources({ sources: provider.sources ?? [] }).length);
-      setProviders({ sub: usableSub, dub: [] });
-      if (usableSub.length) setLoadingServers(false);
+      // Match Watch.jsx: show every provider returned for this episode. A
+      // source may be resolved only when /stream is requested after selection.
+      setProviders({ sub: subs, dub: [] });
+      if (subs.length) setLoadingServers(false);
 
       const dubs = await dubTask;
       if (cancelled) return;
-      const usableDub = dubs.filter((provider) => directSources({ sources: provider.sources ?? [] }).length || embedSources({ sources: provider.sources ?? [] }).length);
-      setProviders({ sub: usableSub, dub: usableDub });
-      if (usableSub.length || usableDub.length) {
+      setProviders({ sub: subs, dub: dubs });
+      if (subs.length || dubs.length) {
         setLoadingServers(false);
-        if (!usableSub.length && usableDub.length) setLanguage("dub");
+        if (!subs.length && dubs.length) setLanguage("dub");
       } else if (retries >= 2) {
         setLoadingServers(false);
         setError("We don't have streaming for this episode.");
       }
-      if ((usableSub.length === 0 || usableDub.length === 0) && retries < 2) {
+      if ((subs.length === 0 || dubs.length === 0) && retries < 2) {
         retries += 1;
         retryTimer = setTimeout(() => { void fetchServers(); }, SERVER_RETRY_DELAY_MS);
       }
@@ -575,6 +574,8 @@ export default function WatchScreen() {
     const controller = new AbortController();
     setSkipLookup(skipSegments.intro || skipSegments.outro ? "available" : "checking");
     const resolveMalId = async () => {
+      const metadataMalId = getKnownMalId(animeQuery.data);
+      if (metadataMalId) return metadataMalId;
       const cacheKey = `aniraku-watch-mal:${animeId}`;
       const stored = await AsyncStorage.getItem(cacheKey).catch(() => null);
       const cached = Number(stored);
@@ -599,23 +600,30 @@ export default function WatchScreen() {
         const key = skipCacheKey(malId, episode);
         const stored = await AsyncStorage.getItem(key).catch(() => null);
         if (stored) {
-          const cached = JSON.parse(stored) as { savedAt?: number; segments?: SkipSegments };
-          if (cached.savedAt && Date.now() - cached.savedAt < SKIP_CACHE_TTL_MS && cached.segments) {
-            if (!cancelled) { applySkipSegments(cached.segments); setSkipLookup(cached.segments.intro || cached.segments.outro ? "available" : "unavailable"); }
+          const cached = JSON.parse(stored) as { savedAt?: number; segments?: SkipSegments | null; notFound?: boolean };
+          if (cached.savedAt && Date.now() - cached.savedAt < SKIP_CACHE_TTL_MS) {
+            if (!cancelled && cached.segments) applySkipSegments(cached.segments);
+            if (!cancelled) setSkipLookup(cached.segments?.intro || cached.segments?.outro ? "available" : "unavailable");
             return;
           }
         }
-        const response = await fetch(`https://api.aniskip.com/v2/skip-times/${malId}/${episode}?types%5B%5D=op&types%5B%5D=ed&episodeLength=0`, { headers: { Accept: "application/json" }, signal: controller.signal });
-        if (!response.ok) { if (!cancelled) setSkipLookup(skipSegmentsRef.current.intro || skipSegmentsRef.current.outro ? "available" : "unavailable"); return; }
-        const segments = normalizeAniSkip(await response.json());
+        const timeout = setTimeout(() => controller.abort(), ANISKIP_TIMEOUT_MS);
+        const response = await fetch(`https://api.aniskip.com/v2/skip-times/${malId}/${episode}?types%5B%5D=op&types%5B%5D=ed&episodeLength=0`, { headers: { Accept: "application/json" }, signal: controller.signal, cache: "no-store" });
+        clearTimeout(timeout);
+        if (!response.ok) {
+          void AsyncStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), segments: null, notFound: response.status === 404 })).catch(() => {});
+          if (!cancelled) setSkipLookup(skipSegmentsRef.current.intro || skipSegmentsRef.current.outro ? "available" : "unavailable");
+          return;
+        }
+        const segments = normalizeAniSkipSegments(await response.json());
         if (cancelled) return;
         applySkipSegments(segments);
         setSkipLookup(segments.intro || segments.outro || skipSegmentsRef.current.intro || skipSegmentsRef.current.outro ? "available" : "unavailable");
-        void AsyncStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), segments })).catch(() => {});
+        void AsyncStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), segments: segments.intro || segments.outro ? segments : null, notFound: !segments.intro && !segments.outro })).catch(() => {});
       })
       .catch(() => { if (!cancelled) setSkipLookup(skipSegmentsRef.current.intro || skipSegmentsRef.current.outro ? "available" : "unavailable"); });
     return () => { cancelled = true; controller.abort(); };
-  }, [animeId, applySkipSegments, episode]);
+  }, [animeId, animeQuery.data, applySkipSegments, episode]);
 
   useEffect(() => {
     setResumePosition(null);
@@ -778,6 +786,17 @@ export default function WatchScreen() {
     if (!canonicalEpisodes.some((item) => item.number === targetEpisode)) return;
     router.replace({ pathname: "/watch/[id]", params: { id: String(animeId), episode: String(targetEpisode), title, image } } as never);
   };
+  const openEpisodeInfo = (targetEpisode = episode) => {
+    const selected = canonicalEpisodes.find((item) => item.number === targetEpisode);
+    router.push({ pathname: "/episode/[id]", params: { id: String(animeId), episode: String(targetEpisode), title, image, episodeTitle: selected?.title || "" } } as never);
+  };
+  const jumpToEpisodePage = () => {
+    const target = Number.parseInt(episodeJump, 10);
+    if (!Number.isFinite(target) || target < 1 || target > canonicalEpisodes.length) return;
+    setEpisodeSearch("");
+    setEpisodePage(episodePageFor(target));
+    setEpisodeJump("");
+  };
   const nextKnownEpisode = canonicalEpisodes.find((item) => item.number > episode)?.number;
   const previousKnownEpisode = [...canonicalEpisodes].reverse().find((item) => item.number < episode)?.number;
   const nextEpisode = () => { if (nextKnownEpisode) goToEpisode(nextKnownEpisode); };
@@ -864,7 +883,7 @@ export default function WatchScreen() {
         </View>
         <View style={styles.watchNav}>
           <Pressable accessibilityRole="button" disabled={!previousKnownEpisode} onPress={() => previousKnownEpisode && goToEpisode(previousKnownEpisode)} style={[styles.watchNavButton, !previousKnownEpisode && styles.watchNavDisabled]}><AppIcon name="skip-previous" size={17} color={nothing.white} /><Text style={styles.watchNavText}>PREVIOUS</Text></Pressable>
-          <Pressable accessibilityRole="button" onPress={() => router.push((`/anime/${animeId}`) as never)} style={[styles.watchNavButton, styles.watchNavDetail]}><AppIcon name="movie-open-outline" size={17} color={nothing.black} /><Text style={[styles.watchNavText, styles.watchNavTextDetail]}>ANIME PAGE</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => openEpisodeInfo()} style={[styles.watchNavButton, styles.watchNavDetail]}><AppIcon name="information-outline" size={17} color={nothing.black} /><Text style={[styles.watchNavText, styles.watchNavTextDetail]}>EP INFO</Text></Pressable>
           <Pressable accessibilityRole="button" disabled={!nextKnownEpisode} onPress={nextEpisode} style={[styles.watchNavButton, !nextKnownEpisode && styles.watchNavDisabled]}><Text style={styles.watchNavText}>NEXT</Text><AppIcon name="skip-next" size={17} color={nothing.white} /></Pressable>
         </View>
       </View>
@@ -874,7 +893,8 @@ export default function WatchScreen() {
       </Pressable>
       {showEpisodeSidebar ? <View style={styles.episodeSidebar}>
         <View style={styles.episodeSearchRow}><AppIcon name="magnify" size={18} color={nothing.muted} /><TextInput value={episodeSearch} onChangeText={setEpisodeSearch} placeholder="Search episodes or number" placeholderTextColor={nothing.dim} style={styles.episodeSearch} returnKeyType="done" /></View>
-        {episodeQuery.isPending ? <View style={styles.episodeLoading}><ActivityIndicator color={nothing.white} /><Text style={styles.episodeLoadingText}>LOADING EPISODES</Text></View> : filteredEpisodes.length ? <View style={styles.episodeGrid}>{filteredEpisodes.slice(0, 50).map((item) => <Pressable key={item.number} accessibilityRole="button" accessibilityState={{ selected: item.number === episode }} onPress={() => goToEpisode(item.number)} style={[styles.episodeChoice, item.number === episode && styles.episodeChoiceActive]}><Text style={[styles.episodeChoiceNumber, item.number === episode && styles.episodeChoiceTextActive]}>{String(item.number).padStart(2, "0")}</Text><Text style={[styles.episodeChoiceTitle, item.number === episode && styles.episodeChoiceTextActive]} numberOfLines={1}>{item.title || `Episode ${item.number}`}</Text><Text style={[styles.episodeChoiceState, item.number === episode && styles.episodeChoiceTextActive]}>{item.number === episode ? "WATCHING" : item.isFiller ? "FILLER" : "EPISODE"}</Text></Pressable>)}</View> : <Text style={styles.emptyEpisodeText}>{episodeSearch ? "No episodes match your search." : "No episodes are listed for this title."}</Text>}
+        {canonicalEpisodes.length > 50 ? <View style={styles.episodeJumpRow}><TextInput value={episodeJump} onChangeText={setEpisodeJump} placeholder="Jump to episode #" placeholderTextColor={nothing.dim} keyboardType="number-pad" returnKeyType="done" onSubmitEditing={jumpToEpisodePage} style={styles.episodeJumpInput} /><Pressable accessibilityRole="button" accessibilityLabel="Jump to episode number" onPress={jumpToEpisodePage} style={[styles.episodeJumpButton, (!episodeJump.trim() || Number(episodeJump) < 1 || Number(episodeJump) > canonicalEpisodes.length) && styles.episodeJumpDisabled]}><Text style={styles.episodeJumpButtonText}>JUMP</Text></Pressable></View> : null}
+        {episodeQuery.isPending ? <View style={styles.episodeLoading}><ActivityIndicator color={nothing.white} /><Text style={styles.episodeLoadingText}>LOADING EPISODES</Text></View> : filteredEpisodes.length ? <><View style={styles.episodeInfoBar}><Text style={styles.episodePageMeta}>{`PAGE ${safeEpisodePage + 1} / ${totalEpisodePages} · ${filteredEpisodes.length} EPISODES`}</Text><Pressable accessibilityRole="button" onPress={() => openEpisodeInfo()} style={styles.episodeInfoButton}><Text style={styles.episodeInfoButtonText}>CURRENT INFO</Text></Pressable></View>{totalEpisodePages > 1 ? <View style={styles.episodePager}><Pressable accessibilityRole="button" disabled={safeEpisodePage === 0} onPress={() => setEpisodePage((value) => Math.max(0, value - 1))} style={[styles.episodePagerButton, safeEpisodePage === 0 && styles.episodePagerDisabled]}><AppIcon name="chevron-left" size={17} color={nothing.white} /><Text style={styles.episodePagerText}>PREV</Text></Pressable><Pressable accessibilityRole="button" disabled={safeEpisodePage >= totalEpisodePages - 1} onPress={() => setEpisodePage((value) => Math.min(totalEpisodePages - 1, value + 1))} style={[styles.episodePagerButton, safeEpisodePage >= totalEpisodePages - 1 && styles.episodePagerDisabled]}><Text style={styles.episodePagerText}>NEXT</Text><AppIcon name="chevron-right" size={17} color={nothing.white} /></Pressable></View> : null}<View style={styles.episodeGrid}>{pagedEpisodes.map((item) => <Pressable key={item.number} accessibilityRole="button" accessibilityState={{ selected: item.number === episode }} onPress={() => goToEpisode(item.number)} onLongPress={() => openEpisodeInfo(item.number)} style={[styles.episodeChoice, item.number === episode && styles.episodeChoiceActive]}><Text style={[styles.episodeChoiceNumber, item.number === episode && styles.episodeChoiceTextActive]}>{String(item.number).padStart(2, "0")}</Text><Text style={[styles.episodeChoiceTitle, item.number === episode && styles.episodeChoiceTextActive]} numberOfLines={1}>{item.title || `Episode ${item.number}`}</Text><Text style={[styles.episodeChoiceState, item.number === episode && styles.episodeChoiceTextActive]}>{item.number === episode ? "WATCHING" : item.isFiller ? "FILLER" : "EPISODE"}</Text></Pressable>)}</View></> : <Text style={styles.emptyEpisodeText}>{episodeSearch ? "No episodes match your search." : "No episodes are listed for this title."}</Text>}
       </View> : null}
       <View style={styles.watchCommunitySection}>
         <DotLabel>EPISODE ACTIVITY</DotLabel>
@@ -937,9 +957,22 @@ const watchPageStyles = StyleSheet.create({
   episodeSidebar: { gap: 10 },
   episodeSearchRow: { height: 42, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 11, borderWidth: 1, borderColor: nothing.line, borderRadius: 4, backgroundColor: nothing.surface },
   episodeSearch: { flex: 1, color: nothing.white, fontSize: 13, paddingVertical: 0 },
+  episodeJumpRow: { minHeight: 38, flexDirection: "row", gap: 7 },
+  episodeJumpInput: { flex: 1, color: nothing.white, fontSize: 12, paddingHorizontal: 11, paddingVertical: 0, borderWidth: 1, borderColor: nothing.line, borderRadius: 4, backgroundColor: nothing.surface },
+  episodeJumpButton: { minWidth: 64, alignItems: "center", justifyContent: "center", paddingHorizontal: 9, borderRadius: 4, backgroundColor: nothing.white },
+  episodeJumpDisabled: { opacity: 0.38 },
+  episodeJumpButtonText: { color: nothing.black, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.25 },
   episodeLoading: { minHeight: 86, alignItems: "center", justifyContent: "center", gap: 9, borderTopWidth: 1, borderTopColor: nothing.line },
   episodeLoadingText: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.7 },
   episodeGrid: { gap: 0, borderTopWidth: 1, borderTopColor: nothing.line },
+  episodeInfoBar: { minHeight: 38, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  episodePageMeta: { flex: 1, color: nothing.dim, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.3 },
+  episodeInfoButton: { minHeight: 31, alignItems: "center", justifyContent: "center", paddingHorizontal: 9, borderWidth: 1, borderColor: nothing.white, borderRadius: 4 },
+  episodeInfoButtonText: { color: nothing.white, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.2 },
+  episodePager: { flexDirection: "row", gap: 7 },
+  episodePagerButton: { flex: 1, minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
+  episodePagerDisabled: { opacity: 0.3 },
+  episodePagerText: { color: nothing.white, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.3 },
   episodeChoice: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 2, borderBottomWidth: 1, borderBottomColor: nothing.line },
   episodeChoiceActive: { borderBottomColor: nothing.red, backgroundColor: "rgba(255,77,77,0.05)" },
   episodeChoiceNumber: { width: 30, color: nothing.dim, fontFamily: "monospace", fontSize: 12, fontWeight: "900" },

@@ -36,7 +36,7 @@ function getRetryAfterMs(headers: Headers): number | null {
 const fields = `
   id title { romaji english native } coverImage { large extraLarge color } bannerImage
   description(asHtml: false) genres format status episodes duration averageScore popularity
-  season seasonYear isAdult nextAiringEpisode { episode airingAt }
+  season seasonYear isAdult idMal nextAiringEpisode { episode airingAt }
 `;
 
 async function request<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
@@ -129,6 +129,13 @@ export async function getMalIdByAnimeId(id: number) {
   const query = `query AnimeMalId($id: Int!) { Media(id: $id, type: ANIME) { idMal } }`;
   const data = await request<{ Media?: { idMal?: number | null } }>(query, { id });
   const malId = Number(data.Media?.idMal);
+  return Number.isInteger(malId) && malId > 0 ? malId : null;
+}
+
+/** Prefer metadata already returned by Aniraku before using the AniList fallback lookup. */
+export function getKnownMalId(anime: Pick<Anime, "idMal" | "malId" | "mal_id" | "myAnimeListId"> | null | undefined) {
+  const value = anime?.idMal ?? anime?.malId ?? anime?.mal_id ?? anime?.myAnimeListId;
+  const malId = Number(value);
   return Number.isInteger(malId) && malId > 0 ? malId : null;
 }
 

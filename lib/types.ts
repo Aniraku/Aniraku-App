@@ -21,6 +21,10 @@ export type Anime = {
   seasonYear?: number | null;
   nextAiringEpisode?: { episode: number; airingAt: number } | null;
   isAdult?: boolean | null;
+  idMal?: number | null;
+  malId?: number | null;
+  mal_id?: number | null;
+  myAnimeListId?: number | null;
 };
 
 export type AnimePage = {

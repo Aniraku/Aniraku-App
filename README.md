@@ -32,19 +32,19 @@
 
 | `APP SITE` | `CURRENT DOWNLOAD` | `PROJECT` |
 | --- | --- | --- |
-| [aniraku.github.io/Aniraku-App](https://aniraku.github.io/Aniraku-App/) | [v2.6 stable release](https://github.com/Aniraku/Aniraku-App/releases/tag/v2.6) · [Latest GitHub Release](https://github.com/Aniraku/Aniraku-App/releases/latest) · [Orion Store](https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku) | [Architecture](./docs/NATIVE_ARCHITECTURE.md) · [Sync research](./docs/V25_OAUTH_SYNC_RESEARCH.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) |
+| [aniraku.github.io/Aniraku-App](https://aniraku.github.io/Aniraku-App/) | [v3.0 stable release](https://github.com/Aniraku/Aniraku-App/releases/tag/v3.0) · [Latest GitHub Release](https://github.com/Aniraku/Aniraku-App/releases/latest) · [Orion Store](https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku) | [Architecture](./docs/NATIVE_ARCHITECTURE.md) · [Sync research](./docs/V25_OAUTH_SYNC_RESEARCH.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) |
 
 ## Current Android identity
 
-The current standard release is **v2.6**, package `aniraku.anime.app`, with **versionCode 14**. Start with the [v2.6 release page](https://github.com/Aniraku/Aniraku-App/releases/tag/v2.6) for the universal Android 9+ APK, integrity notes, and complete release notes.
+The current standard release is **v3.0**, package `aniraku.anime.app`, with **versionCode 15**. Start with the [v3.0 release page](https://github.com/Aniraku/Aniraku-App/releases/tag/v3.0) for the universal Android 9+ APK, integrity notes, and complete release notes.
 
-v2.6 stabilizes the direct **Downloads** flow for eligible progressive sources by writing straight into the Android system-picker folder, retrying one revoked saved-folder permission, and retaining the real direct-media extension. Adaptive HLS/DASH, embedded, DRM-protected, non-HTTPS, and unavailable sources remain streaming-only. The player settings keep the same **Downloads** glyph and public-folder choice.
+v3.0 retains the direct **Downloads** flow for eligible progressive sources by writing straight into the Android system-picker folder, retrying one revoked saved-folder permission, and retaining the real direct-media extension. Adaptive HLS/DASH, embedded, DRM-protected, non-HTTPS, and unavailable sources remain streaming-only. The player settings keep the same **Downloads** glyph and public-folder choice.
 
-v2.6 restores native provider parity with the Aniraku website by retaining a current provider despite a stale server-level verdict, while preserving source-level safety checks and the direct → proxy → verified embed recovery sequence. It also removes the rebuffer correction seek that could re-present a frame, raises the native resume cushion to six seconds, keeps the 45-second forward target, and guards embedded-player popup or known advertising/tracker navigation without blocking provider/player routes.
+v3.0 completes native provider parity with aniraku.tech: every server returned for the current episode stays selectable, even when its playable stream resolves only after selection. It repairs AniSkip with metadata-first MAL-ID resolution, bounded lookup timing, verified opening/ending interval normalization, and no-result caching. High-episode-count titles now use bounded pages, search, direct episode-number jump, and current-episode positioning rather than rendering a truncated first-50 list. A dedicated episode-information route exposes available title, thumbnail, description, filler state, adjacent navigation, and a Watch action without moving player controls.
 
 AniList and MyAnimeList linking retain the protected browser-based flow used by aniraku.tech, with real provider marks, explicit status/import/export/disconnect actions, and connected progress/rating summaries. Provider client secrets and tokens are never bundled into the APK.
 
-If you have a legacy alpha installed under `aniraku.anine.app`, uninstall it before installing v2.6 because Android treats the package migration as a separate app.
+If you have a legacy alpha installed under `aniraku.anine.app`, uninstall it before installing v3.0 because Android treats the package migration as a separate app.
 
 The backend runs on a free cloud instance, so source discovery can take longer during peak demand and third-party provider availability can vary. Use Aniraku only for media you are authorized to access.
 

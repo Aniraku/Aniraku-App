@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { anirakuProxyUrl, getPlaybackType, hasExpiredEmbeddedToken, nativePlaybackHeaders, normalizeServers, normalizeStreamResponse, playableSources } from "../lib/aniraku-api";
+import { getKnownMalId } from "../lib/anilist";
 import { shouldAllowEmbedNavigation } from "../lib/embed-navigation";
 import { chooseResumeEpisode, progressFraction } from "../lib/watch-progress";
-import { directSources, embedSources, hasConfirmedPlaybackStart, nextProviderIndex, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect } from "../lib/watch-engine";
+import { directSources, embedSources, episodePageCount, episodePageFor, episodePageSlice, hasConfirmedPlaybackStart, nextProviderIndex, normalizeAniSkipSegments, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect } from "../lib/watch-engine";
 
 describe("Aniraku native playback coordination", () => {
   it("keeps only Android-safe transport headers for direct media", () => {
@@ -59,10 +60,37 @@ describe("Aniraku native playback coordination", () => {
     expect(embedSources(response).map((source) => source.url)).toEqual(["https://embed.example/watch", "https://page.example/watch"]);
   });
 
-  it("retains a website-visible server even if an old server-level verification snapshot says dead", () => {
-    const servers = normalizeServers([{ name: "kiwi", provider: "miruro", verification: "dead", sources: [{ url: "https://cdn.example/episode.m3u8", type: "hls", verification: "proxy" }] }], "sub");
+  it("retains a website-visible server even when a stale verification snapshot is dead and its source is resolved only by /stream", () => {
+    const servers = normalizeServers([{ name: "kiwi", provider: "miruro", verification: "dead" }], "sub");
     expect(servers).toHaveLength(1);
     expect(servers[0]).toMatchObject({ id: "sub:kiwi", provider: "kiwi", lang: "sub" });
+  });
+
+  it("uses known backend or AniList metadata IDs before a separate AniSkip fallback lookup", () => {
+    expect(getKnownMalId({ idMal: 21 })).toBe(21);
+    expect(getKnownMalId({ malId: 22 })).toBe(22);
+    expect(getKnownMalId({ mal_id: 23 })).toBe(23);
+    expect(getKnownMalId({ myAnimeListId: 24 })).toBe(24);
+    expect(getKnownMalId({ idMal: 0 })).toBeNull();
+  });
+
+  it("normalizes AniSkip v2 opening and ending payloads with nested intervals", () => {
+    const segments = normalizeAniSkipSegments({ results: [
+      { skipType: "op", interval: { startTime: 28.783, endTime: 118.783 } },
+      { skipType: "ed", interval: { startTime: 1387.996, endTime: 1500 } },
+    ] });
+    expect(segments).toEqual({
+      intro: { startTime: 28.783, endTime: 118.783, source: "aniskip" },
+      outro: { startTime: 1387.996, endTime: 1500, source: "aniskip" },
+    });
+  });
+
+  it("paginates high-episode-count titles without rendering more than one bounded page", () => {
+    const episodes = Array.from({ length: 1173 }, (_, index) => index + 1);
+    expect(episodePageCount(episodes.length)).toBe(24);
+    expect(episodePageFor(1173)).toBe(23);
+    expect(episodePageSlice(episodes, 0)).toHaveLength(50);
+    expect(episodePageSlice(episodes, 23)).toEqual(episodes.slice(1150));
   });
 
   it("preserves an already-mounted initial source during background metadata refresh", () => {

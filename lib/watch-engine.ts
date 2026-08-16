@@ -6,6 +6,8 @@ export type SkipKind = "intro" | "outro";
 export type SkipSegment = { startTime: number; endTime: number; source: "provider" | "aniskip" };
 export type SkipSegments = Record<SkipKind, SkipSegment | null>;
 
+export const EPISODE_PAGE_SIZE = 50;
+
 export function qualityRank(quality?: string) {
   const value = String(quality || "").toLowerCase();
   if (/auto|adaptive|master|original|default/.test(value) || !value) return 10_000;
@@ -130,4 +132,37 @@ export function activeSkipKind(segments: SkipSegments, currentTime: number): Ski
   if (segments.intro && currentTime >= segments.intro.startTime && currentTime < segments.intro.endTime) return "intro";
   if (segments.outro && currentTime >= segments.outro.startTime && currentTime < segments.outro.endTime) return "outro";
   return null;
+}
+
+/** Normalize AniSkip’s v2 result payload without coupling the player to network I/O. */
+export function normalizeAniSkipSegments(payload: unknown): SkipSegments {
+  const results = Array.isArray((payload as { results?: unknown[] })?.results)
+    ? (payload as { results: Array<Record<string, unknown>> }).results
+    : [];
+  const segments: SkipSegments = { intro: null, outro: null };
+  for (const item of results) {
+    const rawType = String(item.skipType || "").toLowerCase();
+    const kind: SkipKind | null = rawType === "op" || rawType === "mixed_op"
+      ? "intro"
+      : rawType === "ed" || rawType === "mixed_ed" ? "outro" : null;
+    if (!kind || segments[kind]) continue;
+    const segment = normalizeSegment(item, "aniskip");
+    if (segment) segments[kind] = segment;
+  }
+  return segments;
+}
+
+/** Keep large episode lists responsive by rendering only one bounded page at a time. */
+export function episodePageCount(totalEpisodes: number, pageSize = EPISODE_PAGE_SIZE) {
+  return Math.max(1, Math.ceil(Math.max(0, totalEpisodes) / Math.max(1, pageSize)));
+}
+
+export function episodePageFor(episodeNumber: number, pageSize = EPISODE_PAGE_SIZE) {
+  return Math.max(0, Math.floor((Math.max(1, episodeNumber) - 1) / Math.max(1, pageSize)));
+}
+
+export function episodePageSlice<T>(episodes: readonly T[], page: number, pageSize = EPISODE_PAGE_SIZE) {
+  const safePage = Math.max(0, Math.min(episodePageCount(episodes.length, pageSize) - 1, page));
+  const start = safePage * Math.max(1, pageSize);
+  return episodes.slice(start, start + Math.max(1, pageSize));
 }
