@@ -1,10 +1,10 @@
-name: Build Aniraku v3.5 APK
+name: Build Aniraku v4.0 APK
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the verified v3.5 APK as the standard GitHub release
+        description: Publish the verified v4.0 APK as the standard GitHub release
         required: true
         default: false
         type: boolean
@@ -57,31 +57,31 @@ jobs:
           unzip -l "$APK" | grep -q 'assets/index.android.bundle'
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
-      - name: Upload Aniraku v3.5 APK
+      - name: Upload Aniraku v4.0 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aniraku-v3.5-universal-apk
+          name: Aniraku-v4.0-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish stable v3.5 release
+      - name: Publish stable v4.0 release
         if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           APK=android/app/build/outputs/apk/release/app-release.apk
-          RELEASE_APK=/tmp/Aniraku-v3.5.apk
+          RELEASE_APK=/tmp/Aniraku-v4.0.apk
           cp "$APK" "$RELEASE_APK"
-          cat > /tmp/aniraku-v3.5-notes.md <<'EOF'
-          ## Aniraku v3.5
+          cat > /tmp/aniraku-v4.0-notes.md <<'EOF'
+          ## Aniraku v4.0
 
-          **Package:** `aniraku.anime.app` · **versionCode:** 17
+          **Package:** `aniraku.anime.app` · **versionCode:** 18
 
-          ### Watch compatibility upgrade
-          - Anime Detail now renders a bounded 50-episode page at a time, with explicit Previous and Next navigation for large catalogs.
-          - The native Watch screen retains a compact AUDIO & PROVIDER rail after player controls minimize, so SUB and DUB remain reachable without reopening the controls.
-          - Dense provider lists remain inside a bounded source sheet rather than obscuring language selection.
-          - The main Aniraku website’s mobile Watch page now keeps episode ratings, navigation, and related outside-player actions within an overflow-safe page flow.
+          ### Bounded sources and smoother large-title playback
+          - The compact AUDIO & PROVIDER control now opens a bounded sheet below the player instead of covering the player and Watch content.
+          - SUB and DUB controls remain fixed at the top of the sheet, while only dense provider choices scroll.
+          - One Piece and other high-episode titles avoid repeated episode-list work on player clock updates; episode rows are memoized and off-screen Android content is clipped.
+          - Native playback now targets a 50-second forward buffer and resumes after an 8-second media cushion, while retaining the no-corrective-seek rebuffer continuity policy.
 
           ### Existing capabilities retained
           - Direct → Aniraku proxy → verified embed playback recovery, in-player quality selection, AniSkip, fullscreen, downloads, AniList and MyAnimeList synchronization, and Android 9+ ARM32 + ARM64 support.
@@ -89,17 +89,17 @@ jobs:
 
           > If you are upgrading from v1.x under `aniraku.anine.app`, uninstall that legacy package first. Android treats `aniraku.anime.app` as a separate application.
           EOF
-          if gh release view v3.5 --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release upload v3.5 "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
-            gh release edit v3.5 \
+          if gh release view v4.0 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload v4.0 "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
+            gh release edit v4.0 \
               --repo "${{ github.repository }}" \
-              --title "v3.5 — Watch Compatibility Upgrade" \
-              --notes-file /tmp/aniraku-v3.5-notes.md \
+              --title "v4.0 — Bounded Sources and Smoother Watch" \
+              --notes-file /tmp/aniraku-v4.0-notes.md \
               --latest
           else
-            gh release create v3.5 "$RELEASE_APK" \
+            gh release create v4.0 "$RELEASE_APK" \
               --repo "${{ github.repository }}" \
-              --title "v3.5 — Watch Compatibility Upgrade" \
-              --notes-file /tmp/aniraku-v3.5-notes.md \
+              --title "v4.0 — Bounded Sources and Smoother Watch" \
+              --notes-file /tmp/aniraku-v4.0-notes.md \
               --latest
           fi

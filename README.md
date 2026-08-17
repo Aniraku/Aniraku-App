@@ -32,19 +32,19 @@
 
 | `APP SITE` | `CURRENT DOWNLOAD` | `PROJECT` |
 | --- | --- | --- |
-| [aniraku.github.io/Aniraku-App](https://aniraku.github.io/Aniraku-App/) | [v3.5 stable release](https://github.com/Aniraku/Aniraku-App/releases/tag/v3.5) · [Latest GitHub Release](https://github.com/Aniraku/Aniraku-App/releases/latest) · [Orion Store](https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku) | [Architecture](./docs/NATIVE_ARCHITECTURE.md) · [Sync research](./docs/V25_OAUTH_SYNC_RESEARCH.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) |
+| [aniraku.github.io/Aniraku-App](https://aniraku.github.io/Aniraku-App/) | [v4.0 stable release](https://github.com/Aniraku/Aniraku-App/releases/tag/v4.0) · [Latest GitHub Release](https://github.com/Aniraku/Aniraku-App/releases/latest) · [Orion Store](https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku) | [Architecture](./docs/NATIVE_ARCHITECTURE.md) · [Sync research](./docs/V25_OAUTH_SYNC_RESEARCH.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) |
 
 ## Current Android identity
 
-The current standard release is **v3.5**, package `aniraku.anime.app`, with **versionCode 17**. Start with the [v3.5 release page](https://github.com/Aniraku/Aniraku-App/releases/tag/v3.5) for the universal Android 9+ APK, integrity notes, and complete release notes.
+The current standard release is **v4.0**, package `aniraku.anime.app`, with **versionCode 18**. Start with the [v4.0 release page](https://github.com/Aniraku/Aniraku-App/releases/tag/v4.0) for the universal Android 9+ APK, integrity notes, and complete release notes.
 
-v3.5 keeps the direct **Downloads** flow for eligible progressive sources by writing straight into the Android system-picker folder, retrying one revoked saved-folder permission, and retaining the real direct-media extension. Adaptive HLS/DASH, embedded, DRM-protected, non-HTTPS, and unavailable sources remain streaming-only. The player settings keep the same **Downloads** glyph and public-folder choice.
+v4.0 keeps the direct **Downloads** flow for eligible progressive sources by writing straight into the Android system-picker folder, retrying one revoked saved-folder permission, and retaining the real direct-media extension. Adaptive HLS/DASH, embedded, DRM-protected, non-HTTPS, and unavailable sources remain streaming-only. The player settings keep the same **Downloads** glyph and public-folder choice.
 
-v3.5 adds bounded, memory-safe 50-episode pages to Anime Detail, with explicit Previous and Next navigation for long catalogs. The minimized Watch player now keeps a compact **Audio & Provider** rail visible, while dense provider lists remain scrollable underneath stable SUB/DUB language controls. The direct → proxy → verified embed recovery, provider parity, AniSkip, downloads, and list synchronization are retained.
+v4.0 turns compact **Audio & Provider** into a bounded sheet below the player, so it no longer covers Watch content. SUB/DUB controls stay fixed at the top while dense provider choices scroll independently. High-episode titles such as One Piece now avoid repeated grid work on player-clock updates, and the native player uses a 50-second forward target with an 8-second resume cushion. The direct → proxy → verified embed recovery, provider parity, AniSkip, downloads, and list synchronization are retained.
 
 AniList and MyAnimeList linking retain the protected browser-based flow used by aniraku.tech, with real provider marks, explicit status/import/export/disconnect actions, and connected progress/rating summaries. Provider client secrets and tokens are never bundled into the APK.
 
-If you have a legacy alpha installed under `aniraku.anine.app`, uninstall it before installing v3.5 because Android treats the package migration as a separate app.
+If you have a legacy alpha installed under `aniraku.anine.app`, uninstall it before installing v4.0 because Android treats the package migration as a separate app.
 
 The backend runs on a free cloud instance, so source discovery can take longer during peak demand and third-party provider availability can vary. Use Aniraku only for media you are authorized to access.
 
