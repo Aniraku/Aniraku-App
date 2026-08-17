@@ -17,32 +17,27 @@ if (packageButton && copyFeedback) {
   });
 }
 
-const sections = [...document.querySelectorAll('main section[id]')];
 const dockLinks = [...document.querySelectorAll('.mobile-dock a')];
+const sections = dockLinks
+  .map((link) => document.querySelector(link.getAttribute('href')))
+  .filter(Boolean);
 
 if ('IntersectionObserver' in window && sections.length && dockLinks.length) {
   const observer = new IntersectionObserver((entries) => {
-    const visible = entries.find((entry) => entry.isIntersecting);
+    const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
     if (!visible) return;
     dockLinks.forEach((link) => {
       link.classList.toggle('is-active', link.getAttribute('href') === `#${visible.target.id}`);
     });
-  }, { rootMargin: '-35% 0px -55% 0px' });
-
+  }, { rootMargin: '-34% 0px -54% 0px', threshold: [0.1, 0.35] });
   sections.forEach((section) => observer.observe(section));
 }
 
 const faqItems = [...document.querySelectorAll('.faq-item')];
-
 faqItems.forEach((item) => {
   item.addEventListener('toggle', () => {
-    const control = item.querySelector('.faq-toggle');
+    const control = item.querySelector('summary i');
     if (control) control.textContent = item.open ? '−' : '+';
-
-    if (item.open) {
-      faqItems.forEach((other) => {
-        if (other !== item) other.removeAttribute('open');
-      });
-    }
+    if (item.open) faqItems.forEach((other) => { if (other !== item) other.removeAttribute('open'); });
   });
 });
