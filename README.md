@@ -32,19 +32,19 @@
 
 | `APP SITE` | `CURRENT DOWNLOAD` | `PROJECT` |
 | --- | --- | --- |
-| [aniraku.github.io/Aniraku-App](https://aniraku.github.io/Aniraku-App/) | [v4.1 stable release](https://github.com/Aniraku/Aniraku-App/releases/tag/v4.1) · [Latest GitHub Release](https://github.com/Aniraku/Aniraku-App/releases/latest) · [Orion Store](https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku) | [Architecture](./docs/NATIVE_ARCHITECTURE.md) · [Sync research](./docs/V25_OAUTH_SYNC_RESEARCH.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) |
+| [aniraku.github.io/Aniraku-App](https://aniraku.github.io/Aniraku-App/) | [v4.1.1 stable hotfix](https://github.com/Aniraku/Aniraku-App/releases/tag/v4.1.1) · [Latest GitHub Release](https://github.com/Aniraku/Aniraku-App/releases/latest) · [Orion Store](https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku) | [Architecture](./docs/NATIVE_ARCHITECTURE.md) · [Sync research](./docs/V25_OAUTH_SYNC_RESEARCH.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) |
 
 ## Current Android identity
 
-The current standard release is **v4.1**, package `aniraku.anime.app`, with **versionCode 19**. Start with the [v4.1 release page](https://github.com/Aniraku/Aniraku-App/releases/tag/v4.1) for the universal Android 9+ APK, integrity notes, and complete release notes.
+The current standard release is **v4.1.1**, package `aniraku.anime.app`, with **versionCode 20**. Start with the [v4.1.1 release page](https://github.com/Aniraku/Aniraku-App/releases/tag/v4.1.1) for the universal Android 9+ APK, integrity notes, and complete release notes.
 
-v4.1 adds a native **Relationships** section to Anime Detail. It turns AniList relationship edges into clear Prequel, Sequel, Special, OVA, ONA, Movie, Side story, Spin-off, Parent story, Adaptation, and Related cards. Each eligible anime card opens its connected native detail route; non-anime, adult, and duplicate entries stay out of the list.
+v4.1.1 fixes the v4.1 Anime Detail crash that occurred while a title moved from loading to a loaded state. The Relationships memo now initializes before every loading and error render branch, so the Relationship cards remain available without changing their labels or connected-detail navigation.
 
-v4.1 retains the direct **Downloads** flow for eligible progressive sources, bounded **Audio & Provider** controls, provider parity, direct → proxy → verified embed recovery, AniSkip, fullscreen, and list synchronization. Adaptive HLS/DASH, embedded, DRM-protected, non-HTTPS, and unavailable sources remain streaming-only for Downloads.
+v4.1.1 retains the native **Relationships** section, direct **Downloads** flow for eligible progressive sources, bounded **Audio & Provider** controls, provider parity, direct → proxy → verified embed recovery, AniSkip, fullscreen, and list synchronization. Adaptive HLS/DASH, embedded, DRM-protected, non-HTTPS, and unavailable sources remain streaming-only for Downloads.
 
 AniList and MyAnimeList linking retain the protected browser-based flow used by aniraku.tech, with real provider marks, explicit status/import/export/disconnect actions, and connected progress/rating summaries. Provider client secrets and tokens are never bundled into the APK.
 
-If you have a legacy alpha installed under `aniraku.anine.app`, uninstall it before installing v4.1 because Android treats the package migration as a separate app.
+If you have a legacy alpha installed under `aniraku.anine.app`, uninstall it before installing v4.1.1 because Android treats the package migration as a separate app.
 
 The backend runs on a free cloud instance, so source discovery can take longer during peak demand and third-party provider availability can vary. Use Aniraku only for media you are authorized to access.
 

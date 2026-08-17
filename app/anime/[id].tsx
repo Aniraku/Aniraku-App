@@ -40,6 +40,9 @@ export default function AnimeDetailScreen() {
   const episodePageEnd = Math.min(episodeRows.length, (safeEpisodePage + 1) * 50);
   const animeHistory = useMemo(() => history.history.data?.filter((entry) => entry.anime_id === id) ?? [], [history.history.data, id]);
   const resumeEpisode = useMemo(() => chooseResumeEpisode(animeHistory), [animeHistory]);
+  // This hook must run on loading, error, and success renders alike. Reading from
+  // query data keeps the relationship list empty until the detail payload exists.
+  const relations = useMemo(() => displayAnimeRelations(anime.data?.relations?.edges), [anime.data?.relations?.edges]);
 
   useEffect(() => {
     setEpisodePage((current) => Math.min(current, totalEpisodePages - 1));
@@ -53,7 +56,6 @@ export default function AnimeDetailScreen() {
   const sendComment = () => comments.add.mutate({ content: comment }, { onSuccess: () => setComment("") });
   const lastAvailableEpisode = episodeRows.at(-1)?.number ?? Math.max(data.episodes ?? 1, 1);
   const displayedResume = Math.min(resumeEpisode, lastAvailableEpisode);
-  const relations = useMemo(() => displayAnimeRelations(data.relations?.edges), [data.relations?.edges]);
 
   return <NativeScreen>
     <View style={styles.backdrop}><Image source={{ uri: data.bannerImage || data.coverImage?.extraLarge || data.coverImage?.large || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" /><View style={styles.backdropMask} /></View>
