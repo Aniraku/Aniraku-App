@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AniListRateLimitError, getAiringSchedule, getAnimePage, resetAniListRequestStateForTests } from "../lib/anilist";
+import { AniListRateLimitError, getAiringSchedule, getAnimeById, getAnimePage, resetAniListRequestStateForTests } from "../lib/anilist";
 
 const originalFetch = global.fetch;
 
@@ -35,6 +35,19 @@ describe("AniList query construction", () => {
     expect(body.query).toContain("airingSchedules(notYetAired: true, sort: [TIME])");
     expect(body.query).not.toContain("NEXT_AIRING_EPISODE_ASC");
     expect(body.variables).toEqual({ page: 1, perPage: 12 });
+  });
+
+  it("requests AniList relationship edges only for a single Anime Detail query", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ data: { Media: { id: 21, title: { english: "One Piece" }, relations: { edges: [] } } } }) });
+    global.fetch = fetchMock as typeof fetch;
+
+    await getAnimeById(21);
+
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const body = JSON.parse(String(request.body)) as { query: string };
+    expect(body.query).toContain("relations {");
+    expect(body.query).toContain("relationType");
+    expect(body.query).toContain("node {");
   });
 
   it("coalesces concurrent identical searches and reuses their short-lived response cache", async () => {

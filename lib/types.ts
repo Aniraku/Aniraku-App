@@ -4,8 +4,16 @@ export type AnimeTitle = {
   native?: string | null;
 };
 
+export type AnimeRelationType = "ADAPTATION" | "ALTERNATIVE" | "CHARACTER" | "COMPILATION" | "CONTAINS" | "OTHER" | "PARENT" | "PREQUEL" | "SEQUEL" | "SIDE_STORY" | "SOURCE" | "SPIN_OFF" | "SUMMARY" | "VERSION";
+
+export type AnimeRelationEdge = {
+  relationType?: AnimeRelationType | null;
+  node?: Anime | null;
+};
+
 export type Anime = {
   id: number;
+  type?: string | null;
   title: AnimeTitle;
   coverImage?: { large?: string | null; extraLarge?: string | null; color?: string | null } | null;
   bannerImage?: string | null;
@@ -25,6 +33,7 @@ export type Anime = {
   malId?: number | null;
   mal_id?: number | null;
   myAnimeListId?: number | null;
+  relations?: { edges?: AnimeRelationEdge[] | null } | null;
 };
 
 export type AnimePage = {

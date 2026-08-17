@@ -34,9 +34,18 @@ function getRetryAfterMs(headers: Headers): number | null {
 }
 
 const fields = `
-  id title { romaji english native } coverImage { large extraLarge color } bannerImage
+  id type title { romaji english native } coverImage { large extraLarge color } bannerImage
   description(asHtml: false) genres format status episodes duration averageScore popularity
   season seasonYear isAdult idMal nextAiringEpisode { episode airingAt }
+`;
+
+const detailFields = `${fields}
+  relations {
+    edges {
+      relationType
+      node { ${fields} }
+    }
+  }
 `;
 
 async function request<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
@@ -119,7 +128,7 @@ export async function getHomeAnime() {
 }
 
 export async function getAnimeById(id: number): Promise<Anime> {
-  const query = `query Anime($id: Int!) { Media(id: $id, type: ANIME) { ${fields} } }`;
+  const query = `query Anime($id: Int!) { Media(id: $id, type: ANIME) { ${detailFields} } }`;
   const data = await request<{ Media: Anime }>(query, { id });
   return data.Media;
 }

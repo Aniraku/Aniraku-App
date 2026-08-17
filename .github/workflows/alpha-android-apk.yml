@@ -1,10 +1,10 @@
-name: Build Aniraku v4.0 APK
+name: Build Aniraku v4.1 APK
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the verified v4.0 APK as the standard GitHub release
+        description: Publish the verified v4.1 APK as the standard GitHub release
         required: true
         default: false
         type: boolean
@@ -57,49 +57,47 @@ jobs:
           unzip -l "$APK" | grep -q 'assets/index.android.bundle'
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
-      - name: Upload Aniraku v4.0 APK
+      - name: Upload Aniraku v4.1 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aniraku-v4.0-universal-apk
+          name: Aniraku-v4.1-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish stable v4.0 release
+      - name: Publish stable v4.1 release
         if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           APK=android/app/build/outputs/apk/release/app-release.apk
-          RELEASE_APK=/tmp/Aniraku-v4.0.apk
+          RELEASE_APK=/tmp/Aniraku-v4.1.apk
           cp "$APK" "$RELEASE_APK"
-          cat > /tmp/aniraku-v4.0-notes.md <<'EOF'
-          ## Aniraku v4.0
+          cat > /tmp/aniraku-v4.1-notes.md <<'EOF'
+          ## Aniraku v4.1
 
-          **Package:** `aniraku.anime.app` · **versionCode:** 18
+          **Package:** `aniraku.anime.app` · **versionCode:** 19
 
-          ### Bounded sources and smoother large-title playback
-          - The compact AUDIO & PROVIDER control now opens a bounded sheet below the player instead of covering the player and Watch content.
-          - SUB and DUB controls remain fixed at the top of the sheet, while only dense provider choices scroll.
-          - One Piece and other high-episode titles avoid repeated episode-list work on player clock updates; episode rows are memoized and off-screen Android content is clipped.
-          - Native playback now targets a 50-second forward buffer and resumes after an 8-second media cushion, while retaining the no-corrective-seek rebuffer continuity policy.
+          ### Anime Detail relationships
+          - Anime Detail now shows a native Relationships section whenever AniList provides connected anime entries.
+          - Prequels, sequels, specials, OVAs, ONAs, movies, side stories, spin-offs, parent stories, adaptations, and other related anime use readable labels.
+          - Every related anime card opens the connected native Anime Detail route. Non-anime, adult, and duplicate relationship nodes are excluded.
 
           ### Existing capabilities retained
-          - Direct → Aniraku proxy → verified embed playback recovery, in-player quality selection, AniSkip, fullscreen, downloads, AniList and MyAnimeList synchronization, and Android 9+ ARM32 + ARM64 support.
-          - Kiwi browser HLS recovery with Auto, 1080p, 720p, and 480p selection remains available on the main Aniraku website.
+          - Bounded Audio & Provider controls, provider parity, direct → proxy → verified embed recovery, AniSkip, fullscreen, downloads, list synchronization, and Android 9+ ARM32 + ARM64 support are retained.
 
           > If you are upgrading from v1.x under `aniraku.anine.app`, uninstall that legacy package first. Android treats `aniraku.anime.app` as a separate application.
           EOF
-          if gh release view v4.0 --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release upload v4.0 "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
-            gh release edit v4.0 \
+          if gh release view v4.1 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload v4.1 "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
+            gh release edit v4.1 \
               --repo "${{ github.repository }}" \
-              --title "v4.0 — Bounded Sources and Smoother Watch" \
-              --notes-file /tmp/aniraku-v4.0-notes.md \
+              --title "v4.1 — Anime Detail Relationships" \
+              --notes-file /tmp/aniraku-v4.1-notes.md \
               --latest
           else
-            gh release create v4.0 "$RELEASE_APK" \
+            gh release create v4.1 "$RELEASE_APK" \
               --repo "${{ github.repository }}" \
-              --title "v4.0 — Bounded Sources and Smoother Watch" \
-              --notes-file /tmp/aniraku-v4.0-notes.md \
+              --title "v4.1 — Anime Detail Relationships" \
+              --notes-file /tmp/aniraku-v4.1-notes.md \
               --latest
           fi
