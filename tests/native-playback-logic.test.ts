@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { anirakuProxyUrl, getPlaybackType, hasExpiredEmbeddedToken, nativePlaybackHeaders, normalizeServers, normalizeStreamResponse, playableSources } from "../lib/aniraku-api";
 import { getKnownMalId } from "../lib/anilist";
 import { shouldAllowEmbedNavigation } from "../lib/embed-navigation";
+import { adaptiveVideoCacheBytes, NATIVE_STREAM_BUFFER_OPTIONS } from "../lib/playback-buffer-policy";
 import { chooseResumeEpisode, progressFraction } from "../lib/watch-progress";
 import { directSources, embedSources, episodePageCount, episodePageFor, episodePageSlice, hasConfirmedPlaybackStart, isProxySource, nativeSources, nextProviderIndex, normalizeAniSkipSegments, proxySources, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect, usableProvider } from "../lib/watch-engine";
 
@@ -126,6 +127,23 @@ describe("Aniraku native playback coordination", () => {
     expect(shouldHoldRebufferWatermark({ lastStableTime: 125.5, reportedTime: 125.2, wasBuffering: true, playbackStarted: true, intentionalSeek: true })).toBe(false);
     expect(shouldHoldRebufferWatermark({ lastStableTime: 125.5, reportedTime: 110, wasBuffering: true, playbackStarted: true, intentionalSeek: false })).toBe(false);
     expect(shouldHoldRebufferWatermark({ lastStableTime: 125.5, reportedTime: 125.2, wasBuffering: false, playbackStarted: true, intentionalSeek: false })).toBe(false);
+  });
+
+  it("uses a long time-priority reserve and a larger resume cushion without a fixed byte allocator limit", () => {
+    expect(NATIVE_STREAM_BUFFER_OPTIONS).toEqual({
+      maxBufferBytes: 0,
+      minBufferForPlayback: 20,
+      preferredForwardBufferDuration: 120,
+      prioritizeTimeOverSizeThreshold: true,
+      waitsToMinimizeStalling: true,
+    });
+  });
+
+  it("sizes the persistent stream cache from available device storage while retaining Android free space", () => {
+    expect(adaptiveVideoCacheBytes(undefined)).toBe(1024 * 1024 * 1024);
+    expect(adaptiveVideoCacheBytes(3 * 1024 * 1024 * 1024)).toBe(256 * 1024 * 1024);
+    expect(adaptiveVideoCacheBytes(10 * 1024 * 1024 * 1024)).toBe(2 * 1024 * 1024 * 1024);
+    expect(adaptiveVideoCacheBytes(40 * 1024 * 1024 * 1024)).toBe(4 * 1024 * 1024 * 1024);
   });
 
   it("allows provider navigation while refusing known advertising and popup targets", () => {

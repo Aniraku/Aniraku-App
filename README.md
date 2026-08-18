@@ -28,19 +28,19 @@
 
 | `APP SITE` | `CURRENT DOWNLOAD` | `PROJECT` |
 | --- | --- | --- |
-| [aniraku.github.io/Aniraku-App](https://aniraku.github.io/Aniraku-App/) | [v4.1.1 stable hotfix](https://github.com/Aniraku/Aniraku-App/releases/tag/v4.1.1) · [Latest GitHub Release](https://github.com/Aniraku/Aniraku-App/releases/latest) · [Orion Store](https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku) | [Architecture](./docs/NATIVE_ARCHITECTURE.md) · [Sync research](./docs/V25_OAUTH_SYNC_RESEARCH.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) |
+| [aniraku.github.io/Aniraku-App](https://aniraku.github.io/Aniraku-App/) | [v4.1.2 stable](https://github.com/Aniraku/Aniraku-App/releases/tag/v4.1.2) · [Latest GitHub Release](https://github.com/Aniraku/Aniraku-App/releases/latest) · [Orion Store](https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku) | [Architecture](./docs/NATIVE_ARCHITECTURE.md) · [Sync research](./docs/V25_OAUTH_SYNC_RESEARCH.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) |
 
 ## Current Android identity
 
-The current standard release is **v4.1.1**, package `aniraku.anime.app`, with **versionCode 20**. Start with the [v4.1.1 release page](https://github.com/Aniraku/Aniraku-App/releases/tag/v4.1.1) for the universal Android 9+ APK, integrity notes, and complete release notes.
+The current standard release is **v4.1.2**, package `aniraku.anime.app`, with **versionCode 21**. Start with the [v4.1.2 release page](https://github.com/Aniraku/Aniraku-App/releases/tag/v4.1.2) for the universal Android 9+ APK, integrity notes, and complete release notes.
 
-v4.1.1 fixes the v4.1 Anime Detail crash that occurred while a title moved from loading to a loaded state. The Relationships memo now initializes before every loading and error render branch, so the Relationship cards remain available without changing their labels or connected-detail navigation.
+v4.1.2 strengthens native playback continuity by increasing the time-priority media reserve to 120 seconds and waiting for a 20-second cushion before rebuffer recovery resumes. It retains Media3’s automatic byte allocator and adds an Android persistent cache sized to the device’s available storage while reserving 2 GiB of free space.
 
-v4.1.1 retains the native **Relationships** section, direct **Downloads** flow for eligible progressive sources, bounded **Audio & Provider** controls, provider parity, direct → proxy → verified embed recovery, AniSkip, fullscreen, and list synchronization. Adaptive HLS/DASH, embedded, DRM-protected, non-HTTPS, and unavailable sources remain streaming-only for Downloads.
+v4.1.2 retains the native **Relationships** section, direct **Downloads** flow for eligible progressive sources, bounded **Audio & Provider** controls, provider parity, direct → proxy → verified embed recovery, AniSkip, fullscreen, and list synchronization. Adaptive HLS/DASH, embedded, DRM-protected, non-HTTPS, and unavailable sources remain streaming-only for Downloads.
 
 AniList and MyAnimeList linking retain the protected browser-based flow used by aniraku.tech, with real provider marks, explicit status/import/export/disconnect actions, and connected progress/rating summaries. Provider client secrets and tokens are never bundled into the APK.
 
-If you have a legacy alpha installed under `aniraku.anine.app`, uninstall it before installing v4.1.1 because Android treats the package migration as a separate app.
+If you have a legacy alpha installed under `aniraku.anine.app`, uninstall it before installing v4.1.2 because Android treats the package migration as a separate app.
 
 The backend runs on a free cloud instance, so source discovery can take longer during peak demand and third-party provider availability can vary. Use Aniraku only for media you are authorized to access.
 

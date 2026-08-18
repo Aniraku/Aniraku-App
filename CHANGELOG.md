@@ -6,6 +6,15 @@
 
 This is the public record of meaningful native Android releases. For the currently installable build, open [GitHub Releases](https://github.com/Aniraku/Aniraku-App/releases/latest).
 
+## v4.1.2 — Playback continuity
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM32 + ARM64`
+
+- Extends the native Media3 time-priority reserve to 120 seconds and raises the recovery cushion to 20 seconds before playback resumes after buffering.
+- Retains automatic byte allocation rather than forcing a small application-level byte ceiling.
+- Sizes Android persistent video caching from 256 MiB to 4 GiB based on available device storage while retaining 2 GiB free for Android.
+- Preserves the no-corrective-seek rebuffer path, provider parity, source recovery, Downloads eligibility, fullscreen, AniSkip, and Relations.
+
 ## v2.0.Alpha — New package identity
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM32 + ARM64`

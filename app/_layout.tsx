@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { Pressable, Text } from "react-native";
+import { useEffect, useState } from "react";
+import { Platform, Pressable, Text, View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
@@ -8,11 +8,23 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppProviders } from "@/providers/app-providers";
 import { nothing } from "@/components/nothing-ui";
 import { ConnectivitySignal } from "@/components/connectivity-signal";
+import { configureAdaptiveVideoCache } from "@/lib/video-cache";
 
 export const unstable_settings = { anchor: "(tabs)" };
 
 export default function RootLayout() {
-  useEffect(() => { void SystemUI.setBackgroundColorAsync(nothing.black).catch(() => {}); }, []);
+  const [videoCacheReady, setVideoCacheReady] = useState(Platform.OS !== "android");
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync(nothing.black).catch(() => {});
+    let active = true;
+    void configureAdaptiveVideoCache().catch(() => {}).finally(() => {
+      if (active) setVideoCacheReady(true);
+    });
+    return () => { active = false; };
+  }, []);
+  if (!videoCacheReady) {
+    return <GestureHandlerRootView style={{ flex: 1, backgroundColor: nothing.black }}><StatusBar style="light" translucent backgroundColor="transparent" /><View style={{ flex: 1, backgroundColor: nothing.black }} /></GestureHandlerRootView>;
+  }
   return <GestureHandlerRootView style={{ flex: 1, backgroundColor: nothing.black }}><SafeAreaProvider><AppProviders><StatusBar style="light" translucent backgroundColor="transparent" /><Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: nothing.black } }}><Stack.Screen name="(tabs)" /><Stack.Screen name="anime/[id]" /><Stack.Screen name="watch/[id]" /><Stack.Screen name="search" options={{ presentation: "card" }} /><Stack.Screen name="auth" options={{ presentation: "modal" }} /><Stack.Screen name="settings" options={{ presentation: "modal" }} /><Stack.Screen name="library" /><Stack.Screen name="legal" options={{ presentation: "modal" }} /></Stack><ConnectivitySignal /></AppProviders></SafeAreaProvider></GestureHandlerRootView>;
 }
 

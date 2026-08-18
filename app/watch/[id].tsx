@@ -42,6 +42,7 @@ import { useComments } from "@/hooks/use-comments";
 import { useProviderSync } from "@/hooks/use-provider-sync";
 import { useAnirakuAuth } from "@/providers/auth-provider";
 import { downloadLabel, findOfflineDownload, removeOfflineDownload, selectMaximumQualityDownload, shareOfflineDownload, startMaximumQualityDownload, type OfflineDownload } from "@/lib/downloads";
+import { NATIVE_STREAM_BUFFER_OPTIONS } from "@/lib/playback-buffer-policy";
 import { AppIcon } from "@/components/app-icon";
 import { EmbedPlayer } from "@/components/embed-player";
 import { DotLabel, NothingButton, NothingCard, nothing, Signal } from "@/components/nothing-ui";
@@ -121,16 +122,7 @@ export default function WatchScreen() {
     instance.showNowPlayingNotification = true;
     instance.volume = 1;
     instance.audioMixingMode = "doNotMix";
-    instance.bufferOptions = {
-      maxBufferBytes: 0,
-      // Hold a meaningful cushion before playback resumes. Together with the
-      // 50-second forward target, this reduces repeated start/stop cycles on
-      // slower provider CDNs without issuing any corrective seek on rebuffer.
-      minBufferForPlayback: 8,
-      preferredForwardBufferDuration: 50,
-      prioritizeTimeOverSizeThreshold: true,
-      waitsToMinimizeStalling: true,
-    };
+    instance.bufferOptions = NATIVE_STREAM_BUFFER_OPTIONS;
   });
 
   const statusEvent = useEvent(player, "statusChange", { status: player.status });
