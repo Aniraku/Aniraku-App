@@ -17,11 +17,7 @@
   &nbsp;·&nbsp;
   <a href="https://github.com/Aniraku/Aniraku-App/releases/latest">DOWNLOAD APK</a>
   &nbsp;·&nbsp;
-  <a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku">ORION STORE</a>
-</p>
-
-<p align="center">
-<a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku-app"><img src="https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png"></a>
+<a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku"><img src="https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png"></a>
 </p>
 
 > **Native Android · Android 9+ · ARM32 + ARM64 · FOSS direct distribution**
