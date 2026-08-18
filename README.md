@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku"><img src="https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png" alt="Get it on Orion Store" width="260"></a>
+<a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku-app"><img src="https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png"></a>
 </p>
 
 > **Native Android · Android 9+ · ARM32 + ARM64 · FOSS direct distribution**
