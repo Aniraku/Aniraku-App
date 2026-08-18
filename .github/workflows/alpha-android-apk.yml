@@ -1,4 +1,4 @@
-name: Build Aniraku v4.1.1 APK
+name: Build Aniraku v4.1.2 APK
 
 on:
   workflow_dispatch:
