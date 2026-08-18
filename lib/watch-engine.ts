@@ -29,6 +29,25 @@ export function hasConfirmedPlaybackStart(input: { isPlaying: boolean; currentTi
   return input.firstFrameRendered || input.currentTime > 0;
 }
 
+/**
+ * A persisted position belongs only to a new media item. Re-applying it after
+ * Media3 emits readyToPlay during a rebuffer performs an explicit backwards
+ * seek, abandons the current forward buffer, and can re-present a decoded
+ * frame. Keep the history resume transaction single-use and near time zero.
+ */
+export function shouldApplyInitialHistoryResume(input: {
+  currentTime: number;
+  hasPendingResume: boolean;
+  isPlaying: boolean;
+  resumeAppliedForSource: boolean;
+  status?: string;
+}) {
+  return !input.resumeAppliedForSource
+    && input.hasPendingResume
+    && input.currentTime <= 1
+    && (input.isPlaying || input.status === "readyToPlay");
+}
+
 /** A direct source that never renders gets one proxied retry before embed/provider recovery. */
 export function shouldRetryProxiedSourceAfterDirect(usingProxy: boolean, playbackStarted: boolean) {
   return !usingProxy && !playbackStarted;

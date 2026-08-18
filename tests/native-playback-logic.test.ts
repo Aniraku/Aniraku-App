@@ -4,7 +4,7 @@ import { getKnownMalId } from "../lib/anilist";
 import { shouldAllowEmbedNavigation } from "../lib/embed-navigation";
 import { adaptiveVideoCacheBytes, NATIVE_STREAM_BUFFER_OPTIONS } from "../lib/playback-buffer-policy";
 import { chooseResumeEpisode, progressFraction } from "../lib/watch-progress";
-import { directSources, embedSources, episodePageCount, episodePageFor, episodePageSlice, hasConfirmedPlaybackStart, isProxySource, nativeSources, nextProviderIndex, normalizeAniSkipSegments, proxySources, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect, usableProvider } from "../lib/watch-engine";
+import { directSources, embedSources, episodePageCount, episodePageFor, episodePageSlice, hasConfirmedPlaybackStart, isProxySource, nativeSources, nextProviderIndex, normalizeAniSkipSegments, proxySources, shouldApplyInitialHistoryResume, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect, usableProvider } from "../lib/watch-engine";
 
 describe("Aniraku native playback coordination", () => {
   it("keeps only Android-safe transport headers for direct media", () => {
@@ -127,6 +127,13 @@ describe("Aniraku native playback coordination", () => {
     expect(shouldHoldRebufferWatermark({ lastStableTime: 125.5, reportedTime: 125.2, wasBuffering: true, playbackStarted: true, intentionalSeek: true })).toBe(false);
     expect(shouldHoldRebufferWatermark({ lastStableTime: 125.5, reportedTime: 110, wasBuffering: true, playbackStarted: true, intentionalSeek: false })).toBe(false);
     expect(shouldHoldRebufferWatermark({ lastStableTime: 125.5, reportedTime: 125.2, wasBuffering: false, playbackStarted: true, intentionalSeek: false })).toBe(false);
+  });
+
+  it("allows a saved history position only during a fresh source start, never after a rebuffer ready event", () => {
+    expect(shouldApplyInitialHistoryResume({ currentTime: 0, hasPendingResume: true, isPlaying: false, resumeAppliedForSource: false, status: "readyToPlay" })).toBe(true);
+    expect(shouldApplyInitialHistoryResume({ currentTime: 0.5, hasPendingResume: true, isPlaying: true, resumeAppliedForSource: false, status: "readyToPlay" })).toBe(true);
+    expect(shouldApplyInitialHistoryResume({ currentTime: 58, hasPendingResume: true, isPlaying: false, resumeAppliedForSource: false, status: "readyToPlay" })).toBe(false);
+    expect(shouldApplyInitialHistoryResume({ currentTime: 0, hasPendingResume: true, isPlaying: true, resumeAppliedForSource: true, status: "readyToPlay" })).toBe(false);
   });
 
   it("uses a long time-priority reserve and a larger resume cushion without a fixed byte allocator limit", () => {

@@ -28,6 +28,7 @@ import {
   normalizeAniSkipSegments,
   providerSkipSegments,
   proxySources,
+  shouldApplyInitialHistoryResume,
   shouldRetryProxiedSourceAfterDirect,
   shouldMountReplacementSource,
   shouldHoldRebufferWatermark,
@@ -187,6 +188,8 @@ export default function WatchScreen() {
   const autoSkipped = useRef<Record<SkipKind, boolean>>({ intro: false, outro: false });
   const skipSegmentsRef = useRef(skipSegments);
   const pendingResume = useRef<number | null>(null);
+  const historyResumeRequestedFor = useRef<string | null>(null);
+  const initialHistoryResumeApplied = useRef(false);
   const activeProviderId = useRef<string | null>(null);
   const lastStablePlaybackTime = useRef(0);
   const rebufferSeen = useRef(false);
@@ -242,6 +245,7 @@ export default function WatchScreen() {
     lastStablePlaybackTime.current = 0;
     rebufferSeen.current = false;
     intentionalSeekUntil.current = 0;
+    initialHistoryResumeApplied.current = false;
   }, [source?.url, sourceRevision]);
 
   useEffect(() => {
@@ -293,6 +297,8 @@ export default function WatchScreen() {
     lastStablePlaybackTime.current = 0;
     rebufferSeen.current = false;
     intentionalSeekUntil.current = 0;
+    pendingResume.current = null;
+    setResumePosition(null);
   }, [player]);
 
   const handleProviderBlocked = useCallback((reason: "player" | "permanent" | "stream" | "startup" = "player") => {
@@ -583,8 +589,16 @@ export default function WatchScreen() {
 
   useEffect(() => {
     if (hasConfirmedPlaybackStart({ isPlaying, currentTime, firstFrameRendered: sourceFirstFrame.current })) sourceStarted.current = true;
-    if ((isPlaying || status === "readyToPlay") && pendingResume.current && pendingResume.current > RESUME_MIN_TIME) {
-      player.currentTime = pendingResume.current;
+    const pendingPosition = pendingResume.current;
+    if (shouldApplyInitialHistoryResume({
+      currentTime,
+      hasPendingResume: Boolean(pendingPosition && pendingPosition > RESUME_MIN_TIME),
+      isPlaying,
+      resumeAppliedForSource: initialHistoryResumeApplied.current,
+      status,
+    })) {
+      initialHistoryResumeApplied.current = true;
+      player.currentTime = pendingPosition!;
       pendingResume.current = null;
       setResumePosition(null);
     }
@@ -661,6 +675,10 @@ export default function WatchScreen() {
   }, [animeId, animeQuery.data, applySkipSegments, episode]);
 
   useEffect(() => {
+    if (!history.history.isSuccess) return;
+    const historyKey = `${animeId}:${episode}`;
+    if (historyResumeRequestedFor.current === historyKey) return;
+    historyResumeRequestedFor.current = historyKey;
     setResumePosition(null);
     pendingResume.current = null;
     const entry = history.history.data?.find((item) => item.anime_id === animeId && item.episode_number === episode);
@@ -668,7 +686,7 @@ export default function WatchScreen() {
       pendingResume.current = entry.progress;
       setResumePosition(entry.progress);
     }
-  }, [animeId, episode, history.history.data]);
+  }, [animeId, episode, history.history.data, history.history.isSuccess]);
 
   useEffect(() => {
     if (!auth.user || !source || currentTime < 1 || duration <= 0 || currentTime - lastHistorySync.current < 10) return;
@@ -909,7 +927,7 @@ export default function WatchScreen() {
       <View style={styles.topCopy}><Text style={styles.title} numberOfLines={1}>{title}</Text><Text style={styles.episodeLabel}>EPISODE {String(episode).padStart(2, "0")}</Text></View>
     </View> : null}
     <View style={[styles.videoShell, manualFullscreen && playerStyles.videoShellFullscreen]}>
-      {source ? <VideoView style={styles.video} player={player} nativeControls={false} allowsFullscreen allowsPictureInPicture contentFit="contain" surfaceType="textureView" useExoShutter={false} onFirstFrameRender={() => { sourceFirstFrame.current = true; sourceStarted.current = true; }} />
+      {source ? <VideoView style={styles.video} player={player} nativeControls={false} allowsFullscreen allowsPictureInPicture contentFit="contain" surfaceType="surfaceView" useExoShutter={false} onFirstFrameRender={() => { sourceFirstFrame.current = true; sourceStarted.current = true; }} />
         : embedSource ? <EmbedPlayer uri={embedSource.url} headers={nativePlaybackHeaders(playbackHeaders)} onError={() => handleProviderBlocked("permanent")} />
           : <View style={styles.videoPlaceholder}>{loadingServers || loadingStream ? <><ActivityIndicator color={nothing.white} /><Text style={styles.placeholderText}>{loadingServers ? `WAITING FOR EPISODE ${episode} SOURCE · CHECK ${Math.max(1, serverAttempt)} OF 3` : "STARTING VIDEO"}</Text></> : error ? <Text style={styles.errorText}>{error}</Text> : <Text style={styles.placeholderText}>PREPARING VIDEO</Text>}</View>}
       {embedSource ? <View style={playerStyles.embedProviderActions}>{qualityOptions.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel="Open embedded quality selector" accessibilityState={{ expanded: showQualityPicker }} onPress={toggleQualityPicker} style={playerStyles.embedQualityButton}><Text style={playerStyles.embedProviderButtonText}>{embedSource.quality || "QUALITY"}</Text></Pressable> : null}<Pressable accessibilityRole="button" accessibilityLabel="Open audio language and provider selector" accessibilityState={{ expanded: showSourcePicker }} onPress={toggleSourcePicker} style={playerStyles.embedProviderButton}><AppIcon name="headphones" size={20} color={nothing.white} /><Text style={playerStyles.embedProviderButtonText}>AUDIO & PROVIDER</Text></Pressable></View> : null}

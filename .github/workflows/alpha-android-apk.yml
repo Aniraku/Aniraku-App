@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the verified v4.1.2 APK as the standard GitHub release
+        description: Publish the verified v4.2 APK as the standard GitHub release
         required: true
         default: false
         type: boolean
@@ -57,48 +57,48 @@ jobs:
           unzip -l "$APK" | grep -q 'assets/index.android.bundle'
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
-      - name: Upload Aniraku v4.1.2 APK
+      - name: Upload Aniraku v4.2 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aniraku-v4.1.2-universal-apk
+          name: Aniraku-v4.2-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish stable v4.1.2 release
+      - name: Publish stable v4.2 release
         if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           APK=android/app/build/outputs/apk/release/app-release.apk
-          RELEASE_APK=/tmp/Aniraku-v4.1.2.apk
+          RELEASE_APK=/tmp/Aniraku-v4.2.apk
           cp "$APK" "$RELEASE_APK"
-          cat > /tmp/aniraku-v4.1.2-notes.md <<'EOF'
-          ## Aniraku v4.1.2
+          cat > /tmp/aniraku-v4.2-notes.md <<'EOF'
+          ## Aniraku v4.2
 
-          **Package:** `aniraku.anime.app` · **versionCode:** 21
+          **Package:** `aniraku.anime.app` · **versionCode:** 22
 
-          ### Playback continuity and adaptive caching
-          - Increased the native Media3 time-priority reserve from 50 to 120 seconds and the rebuffer resume cushion from 8 to 20 seconds.
-          - Retained automatic Media3 byte allocation without a hard application byte cap, avoiding an artificial low-memory cache ceiling.
-          - Added an Android pre-player persistent-cache policy that reserves 2 GiB of device free storage and sizes the cache from 256 MiB to 4 GiB according to available capacity.
-          - Preserved the no-corrective-seek rebuffer path so a recovery never deliberately seeks back to a previously decoded frame.
+          ### Rebuffer continuity correction
+          - Fixes a Watch-history resume path that could treat a routine synchronization refresh as a new startup resume request.
+          - A saved position can now apply only once at fresh source startup; a later Media3 ready-to-play event after buffering cannot move the playhead backward.
+          - Preserves the current forward buffer instead of fetching and decoding earlier media again, addressing the reported repeated-frame and unnecessary rebuffer sequence.
+          - Uses Android's efficient single-player `surfaceView` while retaining the 120-second time-priority reserve, 20-second recovery cushion, automatic byte allocator, and adaptive persistent cache.
 
           ### Existing capabilities retained
           - Anime Detail relationship labels and navigation, bounded Audio & Provider controls, provider parity, direct → proxy → verified embed recovery, AniSkip, fullscreen, downloads, list synchronization, and Android 9+ ARM32 + ARM64 support are retained.
 
           > If you are upgrading from v1.x under `aniraku.anine.app`, uninstall that legacy package first. Android treats `aniraku.anime.app` as a separate application.
           EOF
-          if gh release view v4.1.2 --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release upload v4.1.2 "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
-            gh release edit v4.1.2 \
+          if gh release view v4.2 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload v4.2 "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
+            gh release edit v4.2 \
               --repo "${{ github.repository }}" \
-              --title "v4.1.2 — Playback Continuity" \
-              --notes-file /tmp/aniraku-v4.1.2-notes.md \
+              --title "v4.2 — Rebuffer Continuity" \
+              --notes-file /tmp/aniraku-v4.2-notes.md \
               --latest
           else
-            gh release create v4.1.2 "$RELEASE_APK" \
+            gh release create v4.2 "$RELEASE_APK" \
               --repo "${{ github.repository }}" \
-              --title "v4.1.2 — Playback Continuity" \
-              --notes-file /tmp/aniraku-v4.1.2-notes.md \
+              --title "v4.2 — Rebuffer Continuity" \
+              --notes-file /tmp/aniraku-v4.2-notes.md \
               --latest
           fi

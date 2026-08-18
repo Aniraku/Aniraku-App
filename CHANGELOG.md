@@ -6,6 +6,15 @@
 
 This is the public record of meaningful native Android releases. For the currently installable build, open [GitHub Releases](https://github.com/Aniraku/Aniraku-App/releases/latest).
 
+## v4.2 — Rebuffer continuity
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM32 + ARM64`
+
+- Fixes the periodic Watch-history refresh that could be treated as a new initial resume request after playback had already started.
+- Prevents rebuffer recovery from explicitly seeking backward to an older synchronized position, preserving the active forward buffer and avoiding the associated repeated decoded frame.
+- Applies persisted history only once during fresh source startup and uses Android's efficient single-player surface.
+- Retains the 120-second time-priority reserve, 20-second recovery cushion, automatic byte allocator, adaptive persistent cache, provider parity, source recovery, Downloads eligibility, fullscreen, AniSkip, and Relations.
+
 ## v4.1.2 — Playback continuity
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM32 + ARM64`
