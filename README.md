@@ -1,84 +1,141 @@
 <div align="center">
+  <img src="./assets/images/icon.png" width="110" alt="Aniraku icon" style="border-radius: 28px; box-shadow: 0 8px 32px rgba(139, 92, 246, 0.25);" />
 
-<img src="./assets/images/icon.png" width="96" alt="Aniraku Android app icon" />
+  <br><br>
 
-# Aniraku Android
+  # ✨ Aniraku Android ✨
 
-Native Android client for Aniraku.
+  <p>
+    <i>soft little anime companion for your phone</i>
+  </p>
 
-<a href="https://aniraku.github.io/Aniraku-App/">Open the app site</a>
-&nbsp; · &nbsp;
-<a href="https://github.com/Aniraku/Aniraku-App/releases/latest">Download the latest APK</a>
-&nbsp; · &nbsp;
-<a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v4.2">v4.2 release notes</a>
-&nbsp; · &nbsp;
-<a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku">Orion Store</a>
+  <p>
+    <a href="https://github.com/Aniraku/Aniraku-App/releases/latest">
+      <img src="https://img.shields.io/github/downloads/Aniraku/Aniraku-App/total?style=for-the-badge&logo=github&label=Downloads&color=c4b5fd&labelColor=1e1b4b" />
+    </a>
+    <a href="https://github.com/Aniraku/Aniraku-App/releases/latest">
+      <img src="https://img.shields.io/github/v/release/Aniraku/Aniraku-App?style=for-the-badge&color=a78bfa&labelColor=1e1b4b" />
+    </a>
+    <img src="https://img.shields.io/badge/Android-9%2B-a5b4fc?style=for-the-badge&logo=android&logoColor=white&labelColor=1e1b4b" />
+    <img src="https://img.shields.io/badge/Open%20Source-c4b5fd?style=for-the-badge&labelColor=1e1b4b" />
+  </p>
 
+  <br>
+
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/latest">🌸 Download APK</a>
+  &nbsp;‧&nbsp;
+  <a href="https://aniraku.github.io/Aniraku-App/">🌙 App Site</a>
+  &nbsp;‧&nbsp;
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v4.2">☁️ v4.2 Notes</a>
+  &nbsp;‧&nbsp;
+  <a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku">🫧 Orion</a>
+</div>
+
+<br>
+
+---
+
+<div align="center">
+  <h2>˚₊‧ soft little world ‧₊˚</h2>
+  <p>
+    Aniraku is a gentle native Android client made for discovering, watching,<br>
+    and collecting anime — with a calm player, cozy library, and quiet care.
+  </p>
 </div>
 
 ---
 
-## What this repository contains
-
-This is the native Android client for Aniraku: anime discovery, playback, library, watch history, relationships, provider controls, and downloads where the source supports it.
-
-The current standard release is **v4.2**, package `aniraku.anime.app`, version code `22`, and Android 9+ is supported. The universal APK and its integrity information are available on the [v4.2 release page](https://github.com/Aniraku/Aniraku-App/releases/tag/v4.2).
-
-## Screens from the app
-
-These images are stored in this repository under `site/assets/screens/`.
+### ⋆ ˚｡⋆ screens ⋆ ˚｡⋆
 
 <p align="center">
-  <img src="./site/assets/screens/home.jpg" width="31%" alt="Aniraku Android Home screen" />
-  <img src="./site/assets/screens/catalog.jpg" width="31%" alt="Aniraku Android Catalog screen" />
-  <img src="./site/assets/screens/watch.jpg" width="31%" alt="Aniraku Android Watch screen" />
+  <img src="./site/assets/screens/home.jpg" width="29%" style="border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" />
+  &nbsp;
+  <img src="./site/assets/screens/catalog.jpg" width="29%" style="border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" />
+  &nbsp;
+  <img src="./site/assets/screens/watch.jpg" width="29%" style="border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" />
 </p>
 
 <p align="center">
-  <img src="./site/assets/screens/random.jpg" width="31%" alt="Aniraku Android Random screen" />
-  <img src="./site/assets/screens/profile.jpg" width="31%" alt="Aniraku Android Profile screen" />
-  <img src="./site/assets/screens/alerts-preview.png" width="31%" alt="Aniraku Android guest Alerts preview" />
+  <img src="./site/assets/screens/random.jpg" width="29%" style="border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" />
+  &nbsp;
+  <img src="./site/assets/screens/profile.jpg" width="29%" style="border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" />
+  &nbsp;
+  <img src="./site/assets/screens/alerts-preview.png" width="29%" style="border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" />
 </p>
 
-More screens are available in [`site/assets/screens/`](site/assets/screens/), including Schedule, Details, Relationships, and the Watch player.
+<p align="center">
+  <sub>more soft screens live in <code>site/assets/screens/</code></sub>
+</p>
 
-## Player and library
+---
 
-The native player includes:
+### ⋆ ˚｡⋆ little features ⋆ ˚｡⋆
 
-- watch-history recovery after rebuffering;
-- a persistent cache with a time-priority reserve and recovery cushion;
-- direct Downloads for eligible progressive sources;
-- provider and audio controls;
-- direct, proxy, and verified-embed recovery paths;
-- AniSkip, fullscreen playback, and list synchronization; and
-- AniList and MyAnimeList linking through the protected browser flow used by `aniraku.tech`.
+**Player**
+- gentle watch-history recovery after rebuffering  
+- soft persistent cache with time-priority reserve  
+- direct downloads when the source allows  
+- provider & audio controls  
+- direct / proxy / verified-embed recovery  
+- AniSkip support  
+- fullscreen + list sync  
+- AniList & MyAnimeList linking (protected flow)
 
-Adaptive HLS/DASH, embedded, DRM-protected, non-HTTPS, and unavailable sources remain streaming-only for Downloads.
+**Library & Discovery**
+- calm anime discovery  
+- relationships between shows  
+- watch history that remembers you  
+- random & schedule views  
+- provider controls
 
-Provider client secrets and tokens are not bundled into the APK.
+**Quiet Privacy**
+- provider secrets never live inside the APK  
+- open source so you can see everything  
 
-## Install
+> Adaptive / DRM / non-HTTPS sources stay streaming-only ♡
 
-1. Open the [latest GitHub release](https://github.com/Aniraku/Aniraku-App/releases/latest), or use the [v4.2 release page](https://github.com/Aniraku/Aniraku-App/releases/tag/v4.2).
-2. Download the universal Android 9+ APK.
-3. If an older alpha installed under `aniraku.anine.app` is present, uninstall it first because Android treats the package migration as a separate application.
+---
 
-The app site also contains compatibility, privacy, terms, integrity, and trust information: [aniraku.github.io/Aniraku-App](https://aniraku.github.io/Aniraku-App/).
+### ⋆ ˚｡⋆ how to install ⋆ ˚｡⋆
 
-## Development
+1. Open the [latest release](https://github.com/Aniraku/Aniraku-App/releases/latest)  
+2. Download the universal Android 9+ APK  
+3. Install softly  
 
-This is an Expo/React Native project with a native playback and storage layer.
+**tiny note:**  
+If you had an older alpha under `aniraku.anine.app`, please uninstall it first. Android sees them as different apps.
+
+Full soft info lives here → [App Website](https://aniraku.github.io/Aniraku-App/)
+
+---
+
+### ⋆ ˚｡⋆ for the builders ⋆ ˚｡⋆
+
+Expo + React Native with a native playback layer.
 
 ```bash
 pnpm install
 pnpm start
 ```
 
-Before submitting a change, check the relevant tests and read [CONTRIBUTING.md](CONTRIBUTING.md). Architecture notes are in [`docs/`](docs/), and the project design decisions are recorded in [`design.md`](design.md).
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.  
+Architecture notes → [`docs/`](docs/)  
+Design thoughts → [`design.md`](design.md)
 
-## Important notes
+---
 
-The backend runs on a free cloud instance, so source discovery can take longer during busy periods. Provider availability can change. Use Aniraku only for media you are authorized to access, and read [TERMS.md](TERMS.md), [PRIVACY.md](PRIVACY.md), and [SECURITY.md](SECURITY.md) before using or contributing to the project.
+### ⋆ ˚｡⋆ gentle notes ⋆ ˚｡⋆
 
-<div align="center"><sub>Aniraku Android · Android 9+ · open source</sub></div>
+- Backend lives on a free cloud instance, so discovery can be a little slower during busy hours  
+- Providers can come and go  
+- Only use media you are allowed to watch  
+- Please read [TERMS.md](TERMS.md) · [PRIVACY.md](PRIVACY.md) · [SECURITY.md](SECURITY.md)
+
+<br>
+
+<div align="center">
+  <sub>
+    made with soft care · Android 9+ · open source<br>
+    <i>Aniraku · a quiet place for anime</i>
+  </sub>
+</div>
