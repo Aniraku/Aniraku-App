@@ -1,10 +1,10 @@
-name: Build Aniraku v4.2 APK
+name: Build Aniraku v4.2.1 APK
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the verified v4.2 APK as the standard GitHub release
+        description: Publish the verified v4.2.1 APK as the standard GitHub release
         required: true
         default: false
         type: boolean
@@ -57,48 +57,51 @@ jobs:
           unzip -l "$APK" | grep -q 'assets/index.android.bundle'
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
-      - name: Upload Aniraku v4.2 APK
+      - name: Upload Aniraku v4.2.1 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aniraku-v4.2-universal-apk
+          name: Aniraku-v4.2.1-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish stable v4.2 release
+      - name: Publish stable v4.2.1 release
         if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           APK=android/app/build/outputs/apk/release/app-release.apk
-          RELEASE_APK=/tmp/Aniraku-v4.2.apk
+          RELEASE_APK=/tmp/Aniraku-v4.2.1.apk
           cp "$APK" "$RELEASE_APK"
-          cat > /tmp/aniraku-v4.2-notes.md <<'EOF'
-          ## Aniraku v4.2
+          cat > /tmp/aniraku-v4.2.1-notes.md <<'EOF'
+          ## Aniraku v4.2.1
 
-          **Package:** `aniraku.anime.app` · **versionCode:** 22
+          **Package:** `aniraku.anime.app` · **versionCode:** 23
 
-          ### Rebuffer continuity correction
-          - Fixes a Watch-history resume path that could treat a routine synchronization refresh as a new startup resume request.
-          - A saved position can now apply only once at fresh source startup; a later Media3 ready-to-play event after buffering cannot move the playhead backward.
-          - Preserves the current forward buffer instead of fetching and decoding earlier media again, addressing the reported repeated-frame and unnecessary rebuffer sequence.
-          - Uses Android's efficient single-player `surfaceView` while retaining the 120-second time-priority reserve, 20-second recovery cushion, automatic byte allocator, and adaptive persistent cache.
+          ### Safer, clearer playback
+          - Adds a patient late-provider discovery window so slower servers can appear without discarding providers already found.
+          - Treats Ally as a fallback: it stays available only when it is the only source-bearing provider, while existing playback is never interrupted.
+          - Adds source-backed quality choices for Auto providers, preserving Auto by default and never inventing unsupported resolutions.
+          - Adds an expandable Playback Status panel with provider, delivery path, selected quality, and playable-buffer visibility.
+          - Tightens embedded-player popup and redirect controls while preserving supported fullscreen playback. Provider-served video advertising cannot be guaranteed removable.
 
-          ### Existing capabilities retained
-          - Anime Detail relationship labels and navigation, bounded Audio & Provider controls, provider parity, direct → proxy → verified embed recovery, AniSkip, fullscreen, downloads, list synchronization, and Android 9+ ARM32 + ARM64 support are retained.
+          ### Updates and everyday improvements
+          - Adds an optional direct-distribution update prompt and a manual update check in Settings.
+          - Adds unread filtering and Mark All Read for Library alerts, recent local search continuity, and clearer offline-download eligibility messages.
+          - Retains the 120-second time-priority stream reserve, direct → proxy → verified embed routing, AniSkip, fullscreen, downloads, synchronization, and Android 9+ ARM32 + ARM64 support.
 
           > If you are upgrading from v1.x under `aniraku.anine.app`, uninstall that legacy package first. Android treats `aniraku.anime.app` as a separate application.
           EOF
-          if gh release view v4.2 --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release upload v4.2 "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
-            gh release edit v4.2 \
+          if gh release view v4.2.1 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload v4.2.1 "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
+            gh release edit v4.2.1 \
               --repo "${{ github.repository }}" \
-              --title "v4.2 — Rebuffer Continuity" \
-              --notes-file /tmp/aniraku-v4.2-notes.md \
+              --title "v4.2.1 — Safer Playback Control" \
+              --notes-file /tmp/aniraku-v4.2.1-notes.md \
               --latest
           else
-            gh release create v4.2 "$RELEASE_APK" \
+            gh release create v4.2.1 "$RELEASE_APK" \
               --repo "${{ github.repository }}" \
-              --title "v4.2 — Rebuffer Continuity" \
-              --notes-file /tmp/aniraku-v4.2-notes.md \
+              --title "v4.2.1 — Safer Playback Control" \
+              --notes-file /tmp/aniraku-v4.2.1-notes.md \
               --latest
           fi
