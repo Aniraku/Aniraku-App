@@ -50,8 +50,8 @@ jobs:
       - name: Verify v4.2.1 release identity
         run: |
           pnpm exec expo config --json > /tmp/aniraku-expo-config.json
-          grep -q "\"version\": \"$RELEASE_VERSION\"" /tmp/aniraku-expo-config.json
-          grep -q "\"versionCode\": $RELEASE_VERSION_CODE" /tmp/aniraku-expo-config.json
+          grep -Eq "\"version\"[[:space:]]*:[[:space:]]*\"$RELEASE_VERSION\"" /tmp/aniraku-expo-config.json
+          grep -Eq "\"versionCode\"[[:space:]]*:[[:space:]]*$RELEASE_VERSION_CODE([,}])" /tmp/aniraku-expo-config.json
       - name: Generate Android project
         run: pnpm exec expo prebuild --platform android --non-interactive --no-install
       - name: Build universal APK
