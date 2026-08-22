@@ -1,7 +1,3 @@
-![Aniraku documentation signal](./assets/readme/documentation-signal.svg)
-
-`ANIRAKU / PRODUCT DESIGN DIRECTION`
-
 # Handcrafted Editorial Design Direction
 
 ## The correction
@@ -56,13 +52,7 @@ Live preview validation confirmed the new Home surface renders real AniList artw
 
 ## Reference rationale
 
-The redesign applies visual hierarchy through controlled scale, spacing, value, and asymmetric balance rather than through repeated card decoration. It uses the Nothing-inspired principle of purposeful, clear controls without treating typographic utility cues as the product identity. [1] [2]
-
-## References
-
-[1]: https://www.nngroup.com/articles/principles-visual-design/ "Nielsen Norman Group: 5 Principles of Visual Design in UX"
-[2]: https://nothing.community/en/d/39680-lets-make-nothing-os-better-shall-we "Nothing Community: Let’s Make Nothing OS Better"
-
+The redesign applies visual hierarchy through controlled scale, spacing, value, and asymmetric balance rather than through repeated card decoration. It uses the Nothing-inspired principle of purposeful, clear controls without treating typographic utility cues as the product identity.
 ---
 
 `SIGNAL / ARTWORK FIRST, NOISE LAST`
