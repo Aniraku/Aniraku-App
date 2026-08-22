@@ -18,6 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
+      RELEASE_TAG: v4.2.1
+      RELEASE_VERSION: 4.2.1
+      RELEASE_VERSION_CODE: "23"
+      RELEASE_ASSET_NAME: Aniraku-v4.2.1.apk
       EXPO_PUBLIC_API_BASE_URL: https://api.aniraku.tech
       EXPO_PUBLIC_ANILIST_GRAPHQL_URL: https://graphql.anilist.co
       EXPO_PUBLIC_SUPABASE_URL: https://sbjdrjaovcgvttfnpfsz.supabase.co
@@ -43,6 +47,11 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Validate native source
         run: pnpm check && pnpm test
+      - name: Verify v4.2.1 release identity
+        run: |
+          pnpm exec expo config --json > /tmp/aniraku-expo-config.json
+          grep -q "\"version\": \"$RELEASE_VERSION\"" /tmp/aniraku-expo-config.json
+          grep -q "\"versionCode\": $RELEASE_VERSION_CODE" /tmp/aniraku-expo-config.json
       - name: Generate Android project
         run: pnpm exec expo prebuild --platform android --non-interactive --no-install
       - name: Build universal APK
@@ -60,7 +69,7 @@ jobs:
       - name: Upload Aniraku v4.2.1 APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aniraku-v4.2.1-universal-apk
+          name: Aniraku-${{ env.RELEASE_TAG }}-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
@@ -70,7 +79,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           APK=android/app/build/outputs/apk/release/app-release.apk
-          RELEASE_APK=/tmp/Aniraku-v4.2.1.apk
+          RELEASE_APK=/tmp/$RELEASE_ASSET_NAME
           cp "$APK" "$RELEASE_APK"
           cat > /tmp/aniraku-v4.2.1-notes.md <<'EOF'
           ## Aniraku v4.2.1
@@ -91,15 +100,15 @@ jobs:
 
           > If you are upgrading from v1.x under `aniraku.anine.app`, uninstall that legacy package first. Android treats `aniraku.anime.app` as a separate application.
           EOF
-          if gh release view v4.2.1 --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release upload v4.2.1 "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
-            gh release edit v4.2.1 \
+          if gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
+            gh release edit "$RELEASE_TAG" \
               --repo "${{ github.repository }}" \
               --title "v4.2.1 — Safer Playback Control" \
               --notes-file /tmp/aniraku-v4.2.1-notes.md \
               --latest
           else
-            gh release create v4.2.1 "$RELEASE_APK" \
+            gh release create "$RELEASE_TAG" "$RELEASE_APK" \
               --repo "${{ github.repository }}" \
               --title "v4.2.1 — Safer Playback Control" \
               --notes-file /tmp/aniraku-v4.2.1-notes.md \
