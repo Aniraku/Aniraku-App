@@ -37,6 +37,26 @@
 
 ---
 
+### Support Aniraku
+
+Aniraku is open source. Voluntary support helps fund **hosting, releases, and open-source development** and never changes access to app features.
+
+<a href="https://patreon.com/ShoIslam">Support on Patreon</a>
+
+| Optional crypto support | Value |
+|:--|:--|
+| Asset | USDT |
+| Network | **BNB Smart Chain (BEP20) only** |
+| Address | `0x0dc085fc880f2f67b4e200f125bc0de352da904e` |
+
+> **Send USDT on BNB Smart Chain (BEP20) only.** Do not use Ethereum, Polygon, Arbitrum, or another network. Verify both the asset and network before sending because crypto transfers cannot be reversed.
+
+<img src="./site/assets/usdt-bep20-support-qr.png" width="180" alt="USDT on BNB Smart Chain BEP20 support QR code" />
+
+Read the full [Support Guide](./SUPPORT.md).
+
+---
+
 <div align="center">
   <h2>˚₊‧ soft little world ‧₊˚</h2>
   <p>
