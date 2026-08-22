@@ -8,6 +8,9 @@ export type AppRelease = {
   version: string;
   name: string;
   releaseUrl: string;
+  downloadUrl: string;
+  assetName: string;
+  assetSize: number;
   publishedAt?: string;
 };
 
@@ -29,15 +32,39 @@ export function compareVersions(left?: string | null, right?: string | null) {
   return 0;
 }
 
+export function trustedAnirakuApkAsset(value: unknown) {
+  const asset = value as { name?: unknown; size?: unknown; browser_download_url?: unknown; content_type?: unknown } | null;
+  const name = typeof asset?.name === "string" ? asset.name.trim() : "";
+  const size = Number(asset?.size);
+  const downloadUrl = typeof asset?.browser_download_url === "string" ? asset.browser_download_url.trim() : "";
+  try {
+    const parsed = new URL(downloadUrl);
+    const isReleaseAsset = parsed.origin === "https://github.com"
+      && parsed.pathname.startsWith("/Aniraku/Aniraku-App/releases/download/");
+    const isApk = name.toLowerCase().endsWith(".apk");
+    const isAndroidPackage = !asset?.content_type || asset.content_type === "application/vnd.android.package-archive" || asset.content_type === "application/octet-stream";
+    return isReleaseAsset && isApk && isAndroidPackage && Number.isSafeInteger(size) && size > 0
+      ? { name, size, downloadUrl }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function parseGitHubRelease(payload: unknown): AppRelease | null {
-  const record = payload as { tag_name?: unknown; name?: unknown; html_url?: unknown; published_at?: unknown } | null;
+  const record = payload as { tag_name?: unknown; name?: unknown; html_url?: unknown; published_at?: unknown; assets?: unknown } | null;
   const version = normalizeVersion(typeof record?.tag_name === "string" ? record.tag_name : "");
   const releaseUrl = typeof record?.html_url === "string" ? record.html_url : "";
-  if (version === "0.0.0" || !releaseUrl) return null;
+  const assets = Array.isArray(record?.assets) ? record.assets.map(trustedAnirakuApkAsset).filter((asset): asset is NonNullable<typeof asset> => Boolean(asset)) : [];
+  const preferredAsset = assets.find((asset) => /universal/i.test(asset.name)) ?? assets[0];
+  if (version === "0.0.0" || !releaseUrl || !preferredAsset) return null;
   return {
     version,
     name: typeof record?.name === "string" && record.name.trim() ? record.name : `Aniraku v${version}`,
     releaseUrl,
+    downloadUrl: preferredAsset.downloadUrl,
+    assetName: preferredAsset.name,
+    assetSize: preferredAsset.size,
     publishedAt: typeof record?.published_at === "string" ? record.published_at : undefined,
   };
 }

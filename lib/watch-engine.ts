@@ -9,6 +9,15 @@ export type SkipSegments = Record<SkipKind, SkipSegment | null>;
 export const EPISODE_PAGE_SIZE = 50;
 export const PROVIDER_DISCOVERY_RETRY_DELAYS_MS = [0, 4_000, 8_000, 12_000] as const;
 
+/** Human-readable progress for the bounded provider-discovery window. */
+export function providerDiscoveryCopy(input: { attempt: number; providersDiscovered: number }) {
+  const attempt = Math.max(1, Math.min(PROVIDER_DISCOVERY_RETRY_DELAYS_MS.length, Math.trunc(input.attempt) || 1));
+  if (input.providersDiscovered > 0) {
+    return { title: "PROVIDERS FOUND", detail: `${input.providersDiscovered} READY · CHECKING FOR MORE` };
+  }
+  return { title: "FINDING PROVIDERS", detail: `CHECK ${attempt} OF ${PROVIDER_DISCOVERY_RETRY_DELAYS_MS.length}` };
+}
+
 function providerName(server: Server) {
   return String(server.provider || server.label || "").trim().toLowerCase();
 }

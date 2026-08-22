@@ -1,25 +1,31 @@
-import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
+
 import { useAnirakuAuth } from "@/providers/auth-provider";
 import { useBookmarks } from "@/hooks/use-bookmarks";
 import { useWatchHistory } from "@/hooks/use-watch-history";
 import { useProviderSync } from "@/hooks/use-provider-sync";
 import { tokenHealth } from "@/lib/provider-sync-contract";
 import { deleteCurrentAccount } from "@/lib/account";
+import { checkForAnirakuUpdate, type AppRelease } from "@/lib/app-update";
+import { downloadAndInstallAnirakuUpdate } from "@/lib/android-app-installer";
 import { AppIcon } from "@/components/app-icon";
 import { PROVIDER_LABELS, ProviderMark, type SyncProvider } from "@/components/provider-mark";
 import { DotLabel, NothingButton, NothingCard, nothing, Signal } from "@/components/nothing-ui";
 import { NativeScreen } from "@/components/screen";
-import { checkForAnirakuUpdate, type AppRelease } from "@/lib/app-update";
 
 function SettingRow({ label, detail, icon, onPress, danger = false }: { label: string; detail: string; icon: "history" | "bookmark-remove-outline" | "file-document-outline" | "delete-forever-outline"; onPress: () => void; danger?: boolean }) {
-  return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.settingRow, danger && styles.settingDanger, pressed && styles.pressed]}><View style={[styles.settingIcon, danger && styles.settingIconDanger]}><AppIcon name={icon} size={20} color={danger ? nothing.red : nothing.white} /></View><View style={styles.settingCopy}><Text style={[styles.settingLabel, danger && styles.dangerLabel]}>{label}</Text><Text style={styles.settingDetail}>{detail}</Text></View><AppIcon name="chevron-right" size={20} color={danger ? nothing.red : nothing.muted} /></Pressable>;
+  return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.settingRow, danger && styles.settingDanger, pressed && styles.pressed]}>
+    <View style={[styles.settingIcon, danger && styles.settingIconDanger]}><AppIcon name={icon} size={20} color={danger ? nothing.red : nothing.white} /></View>
+    <View style={styles.settingCopy}><Text style={[styles.settingLabel, danger && styles.dangerLabel]}>{label}</Text><Text style={styles.settingDetail}>{detail}</Text></View>
+    <AppIcon name="chevron-right" size={20} color={danger ? nothing.red : nothing.muted} />
+  </Pressable>;
 }
 
-function resultSummary(result: { imported?: number; already?: number; exported?: number; skipped?: number; failed?: number; limited?: boolean }, mode: "import" | "export") {
+function resultSummary(result: { imported?: number; already?: number; exported?: number; skipped?: number; limited?: boolean }, mode: "import" | "export") {
   if (mode === "import") return `${result.imported || 0} IMPORTED · ${result.already || 0} ALREADY IN LIBRARY`;
   return `${result.exported || 0} EXPORTED · ${result.skipped || 0} ALREADY SYNCED${result.limited ? " · MORE REMAIN" : ""}`;
 }
@@ -33,26 +39,41 @@ export default function SettingsScreen() {
   const [updateMessage, setUpdateMessage] = useState<string | null>(null);
   const [availableRelease, setAvailableRelease] = useState<AppRelease | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [installingUpdate, setInstallingUpdate] = useState(false);
   const installedVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || "0.0.0";
-  const close = () => router.back();
+
   useEffect(() => {
     if (!auth.loading && !auth.user) router.replace("/auth" as never);
   }, [auth.loading, auth.user]);
-  if (auth.loading || !auth.user) return <NativeScreen><View style={styles.redirectState}><DotLabel>ACCOUNT REQUIRED</DotLabel><Text style={styles.redirectTitle}>Opening account controls</Text><Text style={styles.redirectCopy}>Settings are available after your verified Aniraku session has been restored.</Text></View></NativeScreen>;
-  const clearHistory = () => Alert.alert("Clear watch history?", "This removes every synchronized history entry from your Aniraku account.", [{ text: "Cancel", style: "cancel" }, { text: "Clear", style: "destructive", onPress: () => void history.clear.mutateAsync().catch((error) => Alert.alert("Could not clear history", error.message)) }]);
-  const clearBookmarks = () => Alert.alert("Clear saved titles?", "This removes every synchronized bookmark from your Aniraku account.", [{ text: "Cancel", style: "cancel" }, { text: "Clear", style: "destructive", onPress: () => void bookmarks.clear.mutateAsync().catch((error) => Alert.alert("Could not clear bookmarks", error.message)) }]);
-  const deleteAccount = () => Alert.alert("Delete Aniraku account?", "This permanently removes your profile, watch history, ratings, bookmarks, comments, notifications, preferences, and account. This cannot be undone.", [{ text: "Cancel", style: "cancel" }, { text: "Delete account", style: "destructive", onPress: () => void deleteCurrentAccount().then(() => router.replace("/(tabs)" as never)).catch((error) => Alert.alert("Account not deleted", error.message)) }]);
+
+  if (auth.loading || !auth.user) {
+    return <NativeScreen><View style={styles.redirectState}><DotLabel>ACCOUNT REQUIRED</DotLabel><Text style={styles.redirectTitle}>Opening account controls</Text><Text style={styles.redirectCopy}>Settings are available after your verified Aniraku session has been restored.</Text></View></NativeScreen>;
+  }
+
   const checkForUpdate = async () => {
     setCheckingUpdate(true);
     setUpdateMessage(null);
     try {
       const result = await checkForAnirakuUpdate(installedVersion, { force: true });
       setAvailableRelease(result.available ? result.release : null);
-      setUpdateMessage(result.available && result.release ? `V${result.release.version} IS READY TO DOWNLOAD.` : "YOU ARE USING THE LATEST PUBLISHED BUILD.");
+      setUpdateMessage(result.available && result.release ? `V${result.release.version} IS READY TO INSTALL.` : "YOU ARE USING THE LATEST PUBLISHED BUILD.");
     } catch (error) {
       setUpdateMessage(error instanceof Error ? error.message.toUpperCase() : "UPDATE STATUS IS UNAVAILABLE.");
     } finally { setCheckingUpdate(false); }
   };
+
+  const installAvailableRelease = async () => {
+    if (!availableRelease) return;
+    setInstallingUpdate(true);
+    setUpdateMessage("DOWNLOADING VERIFIED APK.");
+    try {
+      await downloadAndInstallAnirakuUpdate(availableRelease);
+      setUpdateMessage("OPENING ANDROID INSTALLER.");
+    } catch (error) {
+      setUpdateMessage(error instanceof Error ? error.message.toUpperCase() : "THE UPDATE COULD NOT START.");
+    } finally { setInstallingUpdate(false); }
+  };
+
   const connectProvider = async (provider: SyncProvider) => {
     try {
       setSyncMessage(null);
@@ -63,6 +84,7 @@ export default function SettingsScreen() {
       setSyncMessage(error instanceof Error ? error.message.toUpperCase() : "PROVIDER CONNECTION COULD NOT START.");
     }
   };
+
   const runTransfer = async (provider: SyncProvider, mode: "import" | "export") => {
     try {
       setSyncMessage(null);
@@ -72,13 +94,30 @@ export default function SettingsScreen() {
       setSyncMessage(error instanceof Error ? error.message.toUpperCase() : "LIBRARY TRANSFER COULD NOT COMPLETE.");
     }
   };
+
+  const clearHistory = () => Alert.alert("Clear watch history?", "This removes every synchronized history entry from your Aniraku account.", [{ text: "Cancel", style: "cancel" }, { text: "Clear", style: "destructive", onPress: () => void history.clear.mutateAsync().catch((error) => Alert.alert("Could not clear history", error.message)) }]);
+  const clearBookmarks = () => Alert.alert("Clear saved titles?", "This removes every synchronized bookmark from your Aniraku account.", [{ text: "Cancel", style: "cancel" }, { text: "Clear", style: "destructive", onPress: () => void bookmarks.clear.mutateAsync().catch((error) => Alert.alert("Could not clear bookmarks", error.message)) }]);
+  const deleteAccount = () => Alert.alert("Delete Aniraku account?", "This permanently removes your profile, watch history, ratings, bookmarks, comments, notifications, preferences, and account. This cannot be undone.", [{ text: "Cancel", style: "cancel" }, { text: "Delete account", style: "destructive", onPress: () => void deleteCurrentAccount().then(() => router.replace("/(tabs)" as never)).catch((error) => Alert.alert("Account not deleted", error.message)) }]);
+
   const syncRows = (["mal", "anilist"] as SyncProvider[]).map((provider) => {
     const item = sync.status.data?.[provider];
     const busy = sync.authorize.isPending || sync.disconnect.isPending || sync.importLibrary.isPending || sync.exportLibrary.isPending;
     const connected = Boolean(item?.configured && item?.connected);
-    return <NothingCard key={provider} style={styles.providerCard}><View style={styles.providerTop}><View style={styles.providerIdentity}><View style={styles.providerIcon}><ProviderMark provider={provider} size={19} muted={!connected} /></View><View><Text style={styles.providerName}>{PROVIDER_LABELS[provider]}</Text><Text style={styles.providerMeta}>{connected ? item?.username ? `SYNCING AS ${item.username}` : tokenHealth(item?.expires_at) : item?.configured ? "NOT CONNECTED" : "NOT CONFIGURED ON SERVER"}</Text></View></View><Signal label={connected ? "CONNECTED" : "OFF"} tone={connected ? "live" : "muted"} /></View>{connected ? <><View style={styles.providerActions}><Pressable disabled={busy} accessibilityRole="button" onPress={() => void runTransfer(provider, "import")} style={[styles.providerButton, busy && styles.buttonDisabled]}><Text style={styles.providerButtonText}>IMPORT</Text></Pressable><Pressable disabled={busy} accessibilityRole="button" onPress={() => void runTransfer(provider, "export")} style={[styles.providerButton, busy && styles.buttonDisabled]}><Text style={styles.providerButtonText}>EXPORT</Text></Pressable><Pressable disabled={busy} accessibilityRole="button" onPress={() => void sync.disconnect.mutateAsync(provider).then(() => setSyncMessage(`${PROVIDER_LABELS[provider].toUpperCase()} DISCONNECTED.`)).catch((error) => setSyncMessage(error.message.toUpperCase()))} style={[styles.providerButton, styles.disconnectButton, busy && styles.buttonDisabled]}><Text style={[styles.providerButtonText, styles.disconnectText]}>DISCONNECT</Text></Pressable></View><Text style={styles.providerHint}>Progress and episode-rating summaries are pushed only after real playback or a deliberate rating.</Text></> : <Pressable disabled={!item?.configured || busy} accessibilityRole="button" onPress={() => void connectProvider(provider)} style={[styles.connectButton, (!item?.configured || busy) && styles.buttonDisabled]}><AppIcon name="link-variant" size={16} color={nothing.black} /><Text style={styles.connectText}>{busy ? "OPENING SECURE LINK" : `CONNECT ${PROVIDER_LABELS[provider].toUpperCase()}`}</Text></Pressable>}</NothingCard>;
+    return <NothingCard key={provider} style={styles.providerCard}>
+      <View style={styles.providerTop}><View style={styles.providerIdentity}><View style={styles.providerIcon}><ProviderMark provider={provider} size={19} muted={!connected} /></View><View><Text style={styles.providerName}>{PROVIDER_LABELS[provider]}</Text><Text style={styles.providerMeta}>{connected ? item?.username ? `SYNCING AS ${item.username}` : tokenHealth(item?.expires_at) : item?.configured ? "NOT CONNECTED" : "NOT CONFIGURED ON SERVER"}</Text></View></View><Signal label={connected ? "CONNECTED" : "OFF"} tone={connected ? "live" : "muted"} /></View>
+      {connected ? <><View style={styles.providerActions}><Pressable disabled={busy} accessibilityRole="button" onPress={() => void runTransfer(provider, "import")} style={[styles.providerButton, busy && styles.buttonDisabled]}><Text style={styles.providerButtonText}>IMPORT</Text></Pressable><Pressable disabled={busy} accessibilityRole="button" onPress={() => void runTransfer(provider, "export")} style={[styles.providerButton, busy && styles.buttonDisabled]}><Text style={styles.providerButtonText}>EXPORT</Text></Pressable><Pressable disabled={busy} accessibilityRole="button" onPress={() => void sync.disconnect.mutateAsync(provider).then(() => setSyncMessage(`${PROVIDER_LABELS[provider].toUpperCase()} DISCONNECTED.`)).catch((error) => setSyncMessage(error.message.toUpperCase()))} style={[styles.providerButton, styles.disconnectButton, busy && styles.buttonDisabled]}><Text style={[styles.providerButtonText, styles.disconnectText]}>DISCONNECT</Text></Pressable></View><Text style={styles.providerHint}>Progress and episode-rating summaries are pushed only after real playback or a deliberate rating.</Text></> : <Pressable disabled={!item?.configured || busy} accessibilityRole="button" onPress={() => void connectProvider(provider)} style={[styles.connectButton, (!item?.configured || busy) && styles.buttonDisabled]}><AppIcon name="link-variant" size={16} color={nothing.black} /><Text style={styles.connectText}>{busy ? "OPENING SECURE LINK" : `CONNECT ${PROVIDER_LABELS[provider].toUpperCase()}`}</Text></Pressable>}
+    </NothingCard>;
   });
-  return <NativeScreen><View style={styles.top}><Pressable accessibilityRole="button" accessibilityLabel="Close settings" onPress={close} style={styles.close}><AppIcon name="arrow-left" size={21} color={nothing.white} /></Pressable><View style={styles.titleBlock}><DotLabel>ACCOUNT / CONTROL ROOM</DotLabel><Text style={styles.title}>Settings</Text></View></View><NothingCard style={styles.session}><Signal label="VERIFIED SESSION" tone="live" /><Text style={styles.email}>{auth.user.email}</Text><NothingButton label="SIGN OUT" variant="outline" onPress={() => void auth.signOut().then(close)} /></NothingCard><View style={styles.group}><DotLabel>APPLICATION</DotLabel><NothingCard style={styles.updateCard}><View><Text style={styles.updateVersion}>ANIRAKU V{installedVersion}</Text><Text style={styles.updateCopy}>{updateMessage || "CHECK FOR THE LATEST DIRECT-DISTRIBUTION BUILD."}</Text></View><Pressable accessibilityRole="button" disabled={checkingUpdate} onPress={() => void checkForUpdate()} style={[styles.updateButton, checkingUpdate && styles.buttonDisabled]}><Text style={styles.updateButtonText}>{checkingUpdate ? "CHECKING" : "CHECK"}</Text></Pressable></NothingCard>{availableRelease ? <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(availableRelease.releaseUrl)} style={styles.releaseButton}><Text style={styles.releaseButtonText}>DOWNLOAD V{availableRelease.version}</Text></Pressable> : null}</View><View style={styles.group}><View style={styles.syncHeading}><View><DotLabel>LIBRARY SYNC</DotLabel><Text style={styles.groupTitle}>Your connected lists</Text></View><Pressable accessibilityRole="button" onPress={() => { setSyncMessage(null); void sync.status.refetch(); }} style={styles.refresh}><AppIcon name="refresh" size={16} color={nothing.white} /><Text style={styles.refreshText}>REFRESH</Text></Pressable></View><Text style={styles.syncLead}>The same protected Aniraku service connects your MyAnimeList and AniList libraries. Provider passwords and tokens never enter the Android app.</Text>{sync.status.isPending ? <Text style={styles.syncStatus}>CHECKING PROVIDER STATUS</Text> : sync.status.isError ? <Text style={styles.syncError}>{sync.status.error instanceof Error ? sync.status.error.message.toUpperCase() : "SYNC STATUS UNAVAILABLE"}</Text> : syncRows}{syncMessage ? <Text style={styles.syncStatus}>{syncMessage}</Text> : null}<Text style={styles.syncFootnote}>Connect in the browser while signed in to the same Aniraku account, approve the provider, then return here and refresh. Import and export are always deliberate actions.</Text></View><View style={styles.group}><DotLabel>SYNCED LIBRARY</DotLabel><SettingRow label="Clear watch history" detail="Remove synced progress across your account" icon="history" onPress={clearHistory} /><SettingRow label="Clear saved titles" detail="Remove all synced bookmarks" icon="bookmark-remove-outline" onPress={clearBookmarks} /></View><View style={styles.group}><DotLabel>SUPPORT AND LEGAL</DotLabel><SettingRow label="Legal information" detail="Privacy, terms, copyright, and security" icon="file-document-outline" onPress={() => router.push("/legal" as never)} /></View><View style={styles.group}><DotLabel tone="signal">IRREVERSIBLE</DotLabel><Text style={styles.warning}>Deletion is completed through the protected account service. It clears your synchronized data before removing your authentication record.</Text><SettingRow label="Delete account" detail="Permanently erase your Aniraku account" icon="delete-forever-outline" onPress={deleteAccount} danger /></View></NativeScreen>;
+
+  return <NativeScreen>
+    <View style={styles.top}><Pressable accessibilityRole="button" accessibilityLabel="Close settings" onPress={() => router.back()} style={styles.close}><AppIcon name="arrow-left" size={21} color={nothing.white} /></Pressable><View style={styles.titleBlock}><DotLabel>ACCOUNT / CONTROL ROOM</DotLabel><Text style={styles.title}>Settings</Text></View></View>
+    <NothingCard style={styles.session}><Signal label="VERIFIED SESSION" tone="live" /><Text style={styles.email}>{auth.user.email}</Text><NothingButton label="SIGN OUT" variant="outline" onPress={() => void auth.signOut().then(() => router.back())} /></NothingCard>
+    <View style={styles.group}><DotLabel>APPLICATION</DotLabel><NothingCard style={styles.updateCard}><View><Text style={styles.updateVersion}>ANIRAKU V{installedVersion}</Text><Text style={styles.updateCopy}>{updateMessage || "CHECK FOR THE LATEST DIRECT-DISTRIBUTION BUILD."}</Text></View><Pressable accessibilityRole="button" disabled={checkingUpdate} onPress={() => void checkForUpdate()} style={[styles.updateButton, checkingUpdate && styles.buttonDisabled]}><Text style={styles.updateButtonText}>{checkingUpdate ? "CHECKING" : "CHECK"}</Text></Pressable></NothingCard>{availableRelease ? <Pressable accessibilityRole="button" disabled={installingUpdate} onPress={() => void installAvailableRelease()} style={[styles.releaseButton, installingUpdate && styles.buttonDisabled]}><Text style={styles.releaseButtonText}>{installingUpdate ? "PREPARING INSTALL" : `INSTALL V${availableRelease.version}`}</Text></Pressable> : null}</View>
+    <View style={styles.group}><View style={styles.syncHeading}><View><DotLabel>LIBRARY SYNC</DotLabel><Text style={styles.groupTitle}>Your connected lists</Text></View><Pressable accessibilityRole="button" onPress={() => { setSyncMessage(null); void sync.status.refetch(); }} style={styles.refresh}><AppIcon name="refresh" size={16} color={nothing.white} /><Text style={styles.refreshText}>REFRESH</Text></Pressable></View><Text style={styles.syncLead}>The same protected Aniraku service connects your MyAnimeList and AniList libraries. Provider passwords and tokens never enter the Android app.</Text>{sync.status.isPending ? <Text style={styles.syncStatus}>CHECKING PROVIDER STATUS</Text> : sync.status.isError ? <Text style={styles.syncError}>{sync.status.error instanceof Error ? sync.status.error.message.toUpperCase() : "SYNC STATUS UNAVAILABLE"}</Text> : syncRows}{syncMessage ? <Text style={styles.syncStatus}>{syncMessage}</Text> : null}<Text style={styles.syncFootnote}>Connect in the browser while signed in to the same Aniraku account, approve the provider, then return here and refresh. Import and export are always deliberate actions.</Text></View>
+    <View style={styles.group}><DotLabel>SYNCED LIBRARY</DotLabel><SettingRow label="Clear watch history" detail="Remove synced progress across your account" icon="history" onPress={clearHistory} /><SettingRow label="Clear saved titles" detail="Remove all synced bookmarks" icon="bookmark-remove-outline" onPress={clearBookmarks} /></View>
+    <View style={styles.group}><DotLabel>SUPPORT AND LEGAL</DotLabel><SettingRow label="Legal information" detail="Privacy, terms, copyright, and security" icon="file-document-outline" onPress={() => router.push("/legal" as never)} /></View>
+    <View style={styles.group}><DotLabel tone="signal">IRREVERSIBLE</DotLabel><Text style={styles.warning}>Deletion is completed through the protected account service. It clears your synchronized data before removing your authentication record.</Text><SettingRow label="Delete account" detail="Permanently erase your Aniraku account" icon="delete-forever-outline" onPress={deleteAccount} danger /></View>
+  </NativeScreen>;
 }
 
 const styles = StyleSheet.create({

@@ -4,7 +4,7 @@ import { getKnownMalId } from "../lib/anilist";
 import { shouldAllowEmbedNavigation } from "../lib/embed-navigation";
 import { adaptiveVideoCacheBytes, NATIVE_STREAM_BUFFER_OPTIONS } from "../lib/playback-buffer-policy";
 import { chooseResumeEpisode, progressFraction } from "../lib/watch-progress";
-import { directSources, embedSources, episodePageCount, episodePageFor, episodePageSlice, filterConditionalAllyProviders, hasConfirmedPlaybackStart, isProxySource, mergeProviderServers, nativeSources, nextProviderIndex, normalizeAniSkipSegments, PROVIDER_DISCOVERY_RETRY_DELAYS_MS, proxySources, shouldApplyInitialHistoryResume, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect, usableProvider } from "../lib/watch-engine";
+import { directSources, embedSources, episodePageCount, episodePageFor, episodePageSlice, filterConditionalAllyProviders, hasConfirmedPlaybackStart, isProxySource, mergeProviderServers, nativeSources, nextProviderIndex, normalizeAniSkipSegments, providerDiscoveryCopy, PROVIDER_DISCOVERY_RETRY_DELAYS_MS, proxySources, shouldApplyInitialHistoryResume, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect, usableProvider } from "../lib/watch-engine";
 
 describe("Aniraku native playback coordination", () => {
   it("keeps only Android-safe transport headers for direct media", () => {
@@ -89,6 +89,12 @@ describe("Aniraku native playback coordination", () => {
     expect(mergeProviderServers([ally], [{ ...ally, sources: [{ url: "https://cdn.example/fresh-ally.m3u8", verification: "proxy" }] }, bonk])[0].sources?.[0].url).toContain("fresh-ally");
   });
 
+  it("reports bounded provider-discovery progress without pretending a provider is ready", () => {
+    expect(providerDiscoveryCopy({ attempt: 0, providersDiscovered: 0 })).toEqual({ title: "FINDING PROVIDERS", detail: "CHECK 1 OF 4" });
+    expect(providerDiscoveryCopy({ attempt: 9, providersDiscovered: 0 })).toEqual({ title: "FINDING PROVIDERS", detail: "CHECK 4 OF 4" });
+    expect(providerDiscoveryCopy({ attempt: 2, providersDiscovered: 3 })).toEqual({ title: "PROVIDERS FOUND", detail: "3 READY · CHECKING FOR MORE" });
+  });
+
   it("uses known backend or AniList metadata IDs before a separate AniSkip fallback lookup", () => {
     expect(getKnownMalId({ idMal: 21 })).toBe(21);
     expect(getKnownMalId({ malId: 22 })).toBe(22);
@@ -167,6 +173,8 @@ describe("Aniraku native playback coordination", () => {
     expect(shouldAllowEmbedNavigation("https://ok.ru/videoembed/123")).toBe(true);
     expect(shouldAllowEmbedNavigation("https://cdn.provider.example/stream")).toBe(true);
     expect(shouldAllowEmbedNavigation("https://ad.doubleclick.net/redirect")).toBe(false);
+    expect(shouldAllowEmbedNavigation("https://cdn.juicyads.com/interstitial")).toBe(false);
+    expect(shouldAllowEmbedNavigation("https://push.house/landing")).toBe(false);
     expect(shouldAllowEmbedNavigation("intent://untrusted")).toBe(false);
   });
 

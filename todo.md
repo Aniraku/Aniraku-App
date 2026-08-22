@@ -183,7 +183,20 @@
 - [x] Add a safe native embedded-player navigation and nuisance-content mitigation layer that blocks untrusted popup/redirect attempts without claiming to remove provider-served media advertising or bypassing access controls.
 - [x] Add truthful manual video-track quality selection for adaptive native streams when the device player exposes actual tracks; preserve existing resolution-source selection and never invent unavailable qualities.
 - [x] Add a global in-app v4.2.1 update prompt that compares the installed build with the published GitHub release, provides an explicit download action, and fails silently offline.
-- [ ] Update the main Aniraku website Android download prompt to identify and route to the verified v4.2.1 release only after that release is published.
+- [x] Update the main Aniraku website Android download prompt to identify and route to the verified v4.2.1 release only after that release is published.
+- [x] Update the Aniraku-App GitHub Pages download site, release banner, direct APK route, and v4.2.1 release notes once the verified GitHub release asset is available.
+- [x] Reconcile every public Android v4.2.1 workflow value with app configuration—version, versionCode, artifact name, release tag, title, notes, and APK path—then revalidate the dispatched workflow uses the corrected commit.
+- [x] Diagnose the failure in GitHub Actions run 32545124994 and apply the smallest v4.2.1 build correction before revalidating the release workflow.
+- [x] Add a smooth, non-blocking native Watch provider-discovery loading animation that communicates progress without changing provider resolution or active playback behavior.
+- [ ] Verify authorized access and deploy the tested backend redirect-safety and source-quality metadata commit to the Azure VM; restart the service and confirm health afterward.
+- [ ] Reconfirm and document the final v4.2.1 boundaries for embedded-navigation blocking and manual quality switching on Auto-quality providers.
+- [x] Add a v4.2.2 in-app update flow that downloads the official release APK directly, validates its release identity and byte size, and launches Android’s package installer instead of opening a GitHub release page.
+- [x] Audit and extend backend and embedded-player nuisance-content protection without intercepting or altering protected video media requests or breaking Direct → Proxy → Embed playback.
+- [ ] Prepare the Android app configuration, release workflow, GitHub Pages content, and main-site fallback for v4.2.2 after all fixes are validated.
+- [ ] Deploy the verified backend commit to the Azure VM and restart the production service using an authorized connection, then confirm live health and stream behavior.
+- [ ] Apply production-grade v4.2.2 acceptance criteria: trusted release-asset validation, explicit download/install/error states, no insecure fallback, focused regression coverage, and preserved active-playback behavior.
+- [ ] Verify end-to-end embedded-player nuisance-content protection and document the exact enforced ad/popup/redirect blocks versus provider-frame content that cannot be intercepted safely.
+- [ ] Update the main Aniraku website Android download fallback, browser regressions, and release wording for the verified v4.2.2 APK only after publication.
 - [x] Complete a whole-app v4.2.1 audit across discovery, catalog, detail, library, profile, settings, notifications, downloads, synchronization, and Watch; obtain separate approval before implementing any newly identified non-core improvements.
 - [x] Implement the approved core and P1 v4.2.1 scope: embed safety, actual native adaptive-track choice, global and manual update checks, episode-scoped quality preference, and focused regression tests.
 - [x] Add the approved P0 regression tests and non-sensitive local diagnostics for embed navigation blocks and unavailable quality tracks.

@@ -1,10 +1,10 @@
-name: Build Aniraku v4.2.1 APK
+name: Build Aniraku v4.2.2 APK
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the verified v4.2.1 APK as the standard GitHub release
+        description: Publish the verified v4.2.2 APK as the standard GitHub release
         required: true
         default: false
         type: boolean
@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      RELEASE_TAG: v4.2.1
-      RELEASE_VERSION: 4.2.1
-      RELEASE_VERSION_CODE: "23"
-      RELEASE_ASSET_NAME: Aniraku-v4.2.1.apk
+      RELEASE_TAG: v4.2.2
+      RELEASE_VERSION: 4.2.2
+      RELEASE_VERSION_CODE: "24"
+      RELEASE_ASSET_NAME: Aniraku-v4.2.2.apk
       EXPO_PUBLIC_API_BASE_URL: https://api.aniraku.tech
       EXPO_PUBLIC_ANILIST_GRAPHQL_URL: https://graphql.anilist.co
       EXPO_PUBLIC_SUPABASE_URL: https://sbjdrjaovcgvttfnpfsz.supabase.co
@@ -47,7 +47,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Validate native source
         run: pnpm check && pnpm test
-      - name: Verify v4.2.1 release identity
+      - name: Verify v4.2.2 release identity
         run: |
           pnpm exec expo config --json > /tmp/aniraku-expo-config.json
           grep -Eq "\"version\"[[:space:]]*:[[:space:]]*\"$RELEASE_VERSION\"" /tmp/aniraku-expo-config.json
@@ -57,7 +57,7 @@ jobs:
       - name: Build universal APK
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon
-      - name: Verify packaged JavaScript and ARM libraries
+      - name: Verify packaged JavaScript, ARM libraries, and checksum
         working-directory: android
         run: |
           APK=app/build/outputs/apk/release/app-release.apk
@@ -66,51 +66,47 @@ jobs:
           unzip -l "$APK" | grep -q 'assets/index.android.bundle'
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
-      - name: Upload Aniraku v4.2.1 APK
+          sha256sum "$APK" | tee /tmp/aniraku-release.apk.sha256
+      - name: Upload Aniraku v4.2.2 APK
         uses: actions/upload-artifact@v4
         with:
           name: Aniraku-${{ env.RELEASE_TAG }}-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish stable v4.2.1 release
+      - name: Publish stable v4.2.2 release
         if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           APK=android/app/build/outputs/apk/release/app-release.apk
           RELEASE_APK=/tmp/$RELEASE_ASSET_NAME
+          RELEASE_DIGEST=/tmp/$RELEASE_ASSET_NAME.sha256
           cp "$APK" "$RELEASE_APK"
-          cat > /tmp/aniraku-v4.2.1-notes.md <<'EOF'
-          ## Aniraku v4.2.1
+          cp /tmp/aniraku-release.apk.sha256 "$RELEASE_DIGEST"
+          cat > /tmp/aniraku-v4.2.2-notes.md <<'EOF'
+          ## Aniraku v4.2.2
 
-          **Package:** `aniraku.anime.app` · **versionCode:** 23
+          **Package:** `aniraku.anime.app` · **versionCode:** 24
 
-          ### Safer, clearer playback
-          - Adds a patient late-provider discovery window so slower servers can appear without discarding providers already found.
-          - Treats Ally as a fallback: it stays available only when it is the only source-bearing provider, while existing playback is never interrupted.
-          - Adds source-backed quality choices for Auto providers, preserving Auto by default and never inventing unsupported resolutions.
-          - Adds an expandable Playback Status panel with provider, delivery path, selected quality, and playable-buffer visibility.
-          - Tightens embedded-player popup and redirect controls while preserving supported fullscreen playback. Provider-served video advertising cannot be guaranteed removable.
+          ### Direct, verified updates
+          - Updates can download the verified APK in Aniraku and open Android’s installer directly; the app validates the official Aniraku release asset and expected byte size before installer handoff.
+          - Android verifies the APK signature before installation. `Aniraku-v4.2.2.apk.sha256` is included for independent download verification.
 
-          ### Updates and everyday improvements
-          - Adds an optional direct-distribution update prompt and a manual update check in Settings.
-          - Adds unread filtering and Mark All Read for Library alerts, recent local search continuity, and clearer offline-download eligibility messages.
-          - Retains the 120-second time-priority stream reserve, direct → proxy → verified embed routing, AniSkip, fullscreen, downloads, synchronization, and Android 9+ ARM32 + ARM64 support.
+          ### Safer embedded playback and provider discovery
+          - Adds a smooth, bounded provider-discovery status while slower providers are checked; active Direct → Proxy → Embed playback routing is unchanged.
+          - Retains Ally only as the source-bearing fallback when no alternative has a source.
+          - Blocks WebView popups, `_blank` navigation, non-web schemes, and a narrow reviewable list of known advertising and tracking hosts. The backend media proxy also rejects those hosts and all navigation-style redirects.
+          - Provider-frame visual advertising cannot be guaranteed removable without altering or breaking the provider’s own player, so no false ad-free claim is made.
+
+          ### Quality selection
+          - Offers only backend-confirmed fixed resolutions for adaptive Auto sources, preserving Auto when no provider-backed rendition exists. Expo Video does not expose a writable Android HLS level selector, so unavailable qualities are never invented.
 
           > If you are upgrading from v1.x under `aniraku.anine.app`, uninstall that legacy package first. Android treats `aniraku.anime.app` as a separate application.
           EOF
           if gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" "$RELEASE_APK" --repo "${{ github.repository }}" --clobber
-            gh release edit "$RELEASE_TAG" \
-              --repo "${{ github.repository }}" \
-              --title "v4.2.1 — Safer Playback Control" \
-              --notes-file /tmp/aniraku-v4.2.1-notes.md \
-              --latest
+            gh release upload "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --clobber
+            gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.2.2 — Direct Updates & Safer Embeds" --notes-file /tmp/aniraku-v4.2.2-notes.md --latest
           else
-            gh release create "$RELEASE_TAG" "$RELEASE_APK" \
-              --repo "${{ github.repository }}" \
-              --title "v4.2.1 — Safer Playback Control" \
-              --notes-file /tmp/aniraku-v4.2.1-notes.md \
-              --latest
+            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --title "v4.2.2 — Direct Updates & Safer Embeds" --notes-file /tmp/aniraku-v4.2.2-notes.md --latest
           fi

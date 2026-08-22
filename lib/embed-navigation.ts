@@ -14,6 +14,11 @@ const NUISANCE_HOST_SUFFIXES = [
   "onclicka.com",
   "clickadu.com",
   "monetag.com",
+  "ad-maven.com",
+  "juicyads.com",
+  "push.house",
+  "richpush.com",
+  "tsyndicate.com",
 ];
 
 function hasBlockedHost(hostname: string) {
