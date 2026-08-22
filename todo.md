@@ -19,3 +19,275 @@
 - [x] Trace and resolve the persistent Expo Router 6000ms timeout at the live Metro bundle frame reported after the initial correction.
 - [x] Diagnose and resolve the AniList GraphQL HTTP 400 error blocking live discovery data.
 - [x] Replace the invalid AniList next-airing sort enum across Home and Schedule, then validate the live catalog response.
+- [x] Restore episode availability through the live Aniraku backend and validate native anime-detail episode loading.
+- [ ] Redesign the native watch interface and player controls for a polished Nothing OS playback experience.
+- [ ] Match the Aniraku website Artplayer watch flow in native controls, provider choices, quality, subtitles, skipping, and episode actions.
+- [ ] Complete public-release acceptance checks for live backend behavior, recovery states, native playback controls, type safety, and regression coverage before publishing.
+- [ ] Rebuild the full native interface as one coherent Nothing OS-inspired public product rather than incrementally patching individual screens.
+- [ ] Replace the generic dark-card visual language with a handcrafted editorial interface using stronger artwork, typography, asymmetric composition, and quieter controls.
+- [ ] Fix the blocking real Aniraku stream startup defect in the native Android player before any public release.
+- [x] Simplify the watch page around proven working video and essential playback controls.
+- [x] Align native playback behavior and controls with the authoritative Aniraku/Aniraku Watch.jsx flow.
+- [x] Use the Aniraku main frontend codebase as the authoritative behavioral reference for native feature parity without wrapping the site.
+- [ ] Diagnose and fix the signed APK launch failure on Snapdragon 680 arm64-v8a devices, then rebuild and real-device verify a compatible universal APK.
+- [ ] Treat the current device-test APK as failed and remove its Android release eligibility until launch verification succeeds on Snapdragon 680.
+- [ ] Eliminate the screenshot-confirmed immediate native-process crash on Snapdragon 680 with a conservative Android startup configuration before rebuilding.
+- [x] Remove the unused NativeWind, Reanimated, and Worklets startup path so the legacy compatibility build can install without a New Architecture requirement.
+- [x] Forensically inspect the failed signed APK and generated Android project without requiring a device logcat capture or user PC access.
+- [x] Provide a visual Nothing OS-inspired mobile UI reference for the Aniraku interface.
+- [x] Create a consistent Home, Anime Detail, and Watch screen mockup set for user design review.
+- [ ] Upload verified visible Home, Anime Detail, and Watch mockup image files after the prior chat links rendered as empty placeholders.
+- [ ] Package the verified mobile UI mockup generation and attachment-delivery workflow as a reusable skill.
+- [x] Render and deliver actual screenshots from the implemented Aniraku app code rather than AI-generated UI concepts.
+- [x] Provide an individually verified direct-download URL for each real code-rendered UI screenshot.
+- [x] Identify whether the reported unsupported Android file is the APK or a PNG UI screenshot, then provide the correct delivery route.
+- [x] Re-upload the real UI screenshots with explicit Android-friendly filenames and verified image extensions.
+- [x] Capture, verify, and provide an individually downloadable PNG of the real implemented Watch screen.
+- [x] Improve the real Watch screen presentation and provider-loading states without disrupting the validated source failover behavior.
+- [x] Audit and document native support for direct stream formats versus HTML/embed providers, then implement only feasible playback paths.
+- [ ] Capture and provide real code-rendered Profile and Notifications screen screenshots as individually verified PNG files.
+- [x] Fix the Library unauthenticated redirect that attempts navigation before the root layout mounts and blocks the Notifications screen.
+- [x] Capture and provide individually verified real-code screenshots for Random and every implemented Aniraku route that can render without fabricating authenticated data.
+- [x] Replace developer-facing labels, raw provider states, and dense technical controls with a simple consumer anime experience across the core interface.
+- [ ] Recompose the Home, Catalog, Detail, Watch, Profile, and Notifications experiences around artwork, clear actions, readable everyday language, and progressive disclosure of advanced playback options.
+- [x] Re-audit `api.aniraku.tech` stream responses against the Aniraku main Watch page and preserve its proven initial-source, provider failover, quality, subtitle, skip, and resume behavior in native code.
+- [x] Build a new APK only after the real-API playback changes and the Snapdragon startup-crash investigation are both validated.
+- [ ] Validate every major discovery, detail, account, library, settings, and playback route against real AniList, Supabase, and `api.aniraku.tech` service responses with honest recovery states.
+- [x] Research trustworthy anime-streaming app interaction patterns and apply only the relevant user-facing lessons to Aniraku’s native flows.
+- [x] Compare the Aniraku main Watch/Artplayer configuration with native capabilities and port each feasible source, language, quality, subtitle, skip, speed, resume, failover, fullscreen, and PiP behavior.
+- [x] Audit the Aniraku main frontend proxy configuration and preserve its production API, provider-header, and fallback strategy in the Android-safe playback flow.
+- [x] Harden native SecureStore and initial Supabase session restoration so unavailable or corrupted persisted session data cannot cause an unhandled startup failure.
+- [ ] Block all source publishing and GitHub release activity until a new APK is verified to launch on the Snapdragon 680.
+- [x] Deliver the next real-device-test APK through an Android-compatible direct link that preserves an explicit `.apk` filename.
+- [x] Replace the attachment-mediated APK delivery with a plain direct route that preserves `Aniraku-Snapdragon-Test.apk` on Android.
+- [x] Capture a phone-only Android 15 One UI 7 bug report for the recurring immediate Aniraku process crash on Snapdragon 680.
+- [x] Block every further speculative APK build until the Android 15 fatal exception is identified and matched to a targeted source or native configuration change.
+- [x] Extract the Aniraku fatal exception and stack trace from the supplied Samsung Android 15 One UI 7 bug report.
+- [x] Fix `lib/app-config.ts` so React Native's defined `window` object without `window.location` cannot crash Expo Router during Android startup.
+- [x] Guard root System UI, network-listener, and session event initialization so a native module rejection cannot become an unhandled Android release crash.
+- [x] Deliver the verified Android 15 root-cause-fix APK through the explicit-filename direct download route for One UI 7 launch testing.
+- [x] Repair only the native Watch page against the authoritative Aniraku `Watch.jsx` real-provider playback flow, without unrelated UI changes.
+- [x] Port the linked Aniraku repository `Watch.jsx` as the native Watch playback engine, retaining only Android-native Aniraku presentation changes.
+- [x] Implement the main Aniraku avatar selection and display system across native authentication and profile flows.
+- [x] Build, integrity-check, and relay the focused Watch.jsx-engine and main-avatar Android APK for One UI 7 verification.
+- [x] Fix the screenshot-confirmed native Watch route stall at “Finding a place to watch” using the real Aniraku main server-discovery flow.
+- [x] Port the linked Aniraku main Watch page composition and connected episode interactions into the native Watch route rather than a simplified standalone player.
+- [x] Verify Anime Detail, library history, episode selection, and auto-next all open the repaired Watch route with correct title, image, anime ID, and episode context.
+- [ ] Validate real Aniraku API SUB and DUB provider availability across canonical episode lists before declaring Watch playback coverage.
+- [ ] Compare main Watch.jsx playable-source classification against native direct and embed routing, then support every compatible Aniraku source shape.
+- [ ] Unify all native Watch playback, proxy/header handling, source recovery, metadata, and user controls under the linked main Aniraku Watch.jsx contract.
+- [x] Build, integrity-check, and relay the current signed Android APK containing native Watch.jsx proxy-first direct-media recovery.
+- [x] Replace rate-limited Watch metadata loading with backend-first metadata and graceful AniList fallback.
+- [x] Make SUB/DUB, provider, quality, and playback controls visible from the native Watch page rather than hidden behind a generic settings icon.
+- [x] Restore visible AniSkip manual and automatic skip behavior, Aniraku Watch context background, and verified embed/page playback routing.
+- [x] Keep the current Watch episode selected while Aniraku backend source discovery retries with Watch.jsx-equivalent patience; do not transition playback or episode context prematurely.
+- [x] Build, integrity-check, and relay the signed Android APK containing the latest Watch metadata, controls, AniSkip, embed, background, and patient source-resolution fixes.
+- [x] Move language and provider selection directly below the Watch player; remove them from the player settings menu.
+- [x] Restrict the player settings menu to quality, Auto Next, Auto Skip, and playback speed; retain manual skip actions only as contextual player-overlay controls.
+- [x] Render Manual Skip Intro or Skip Outro only while active, as a transparent lower-right player-overlay action matching the website.
+- [x] Add an explicit fullscreen action to the native direct-video player overlay while retaining PiP and embedded-player fullscreen support.
+- [x] Diagnose and repair broken native Aniraku embed/page provider playback, including WebView navigation, headers, media permissions, and fullscreen handling.
+- [x] Enforce final Watch layout: server controls below the player; Quality, Auto Next, Auto Skip, and playback speed inside the player settings icon; active manual skip only in the transparent lower-right overlay.
+- [ ] Evaluate an Expo-independent signed universal APK build route that preserves the no-publication-before-device-verification constraint.
+- [ ] Create a private staging-branch Android test-build workflow that does not modify the public main branch or release page.
+- [x] Diagnose and fix the screenshot-confirmed splash-screen hang in the private `tech.aniraku.app.watchtest` Android staging build before another device test.
+- [ ] Extract the fatal exception from the supplied Samsung One UI 7 bug report and use it to validate the targeted staging startup correction.
+- [x] Move timeline, elapsed/remaining time, and playback settings into the native direct-video player surface while retaining server/language controls below it.
+- [x] Fix native direct-video fullscreen behavior on Samsung One UI 7 and remove the external-looking player settings presentation.
+- [x] Build the next private staging APK with real public Supabase client configuration so authentication can be verified alongside playback.
+- [x] Retain Android 9+ (API 28+) compatibility across 32-bit and 64-bit ARM devices; do not optimize the player fix only for Samsung hardware.
+- [x] Reduce Watch source-startup latency without changing the direct-to-proxy-to-embed recovery order.
+- [x] Prevent the native Watch timeline from visibly moving 1–4 seconds backward when Media3 buffers and resumes playback.
+- [x] Build, integrity-check, and publish v1.5.Alpha with the Watch latency and buffering correction.
+- [x] Preload a bounded forward media buffer in the native Watch player to reduce future rebuffering without delaying initial playback.
+- [x] Build and verify the next Android alpha APK containing the forward-buffer preload adjustment.
+- [x] Implement and verify the actual native rebuffer-resume continuity correction; do not represent a forward-buffer-only build as fixing the one-frame replay.
+- [x] Build, inspect, and publish a device-test APK that includes the actual native rebuffer-resume continuity correction.
+- [x] Obtain real-device confirmation that v1.7.Alpha resumes from a deliberate mid-scene rebuffer without a visible repeated frame.
+- [x] Make manual 1080p/720p/480p quality selection immediately visible and easy to reach inside the native Watch player.
+- [x] Increase the bounded native Watch forward preload target from 20 seconds to 45 seconds without increasing initial-playback delay.
+- [x] Build and verify the next Android alpha APK containing the direct quality picker and 45-second preload policy.
+- [ ] Obtain real-device confirmation that the v1.8.Alpha direct quality picker selects available resolution variants and the 45-second preload remains stable.
+- [x] Promote the verified v1.8.Alpha quality-control and preload update to a standard public GitHub release.
+- [x] Add accurate GitHub repository topics for native Android, Expo, anime discovery, React Native, and FOSS direct distribution.
+- [x] Rename the v1.8.Alpha production APK asset to `Aniraku V1.8.Alpha.apk` and verify its direct download.
+- [x] Migrate the Android application identity from `aniraku.anine.app` to `aniraku.anime.app` and document the legacy-package reinstall requirement.
+- [x] Build, integrity-check, and publish `v2.0.Alpha` as the latest standard GitHub release for the new Android package identity.
+- [x] Add and verify the exact Orion Store badge Markdown at the top of the public README on `main`.
+- [x] Add the verified v2.0.Alpha GitHub APK direct-download relay to the development server.
+- [x] Rebuild the public README as a Nothing OS-inspired product surface using real Aniraku UI assets and clear visual hierarchy.
+- [x] Refresh the public contribution, changelog, security, policy, and distribution documentation to match the README’s Aniraku visual and editorial system.
+- [x] Verify rendered Markdown, internal links, external distribution links, and public repository presentation before publishing the documentation refresh.
+- [x] Build an Aniraku GitHub Pages download site that reproduces the native app’s Nothing OS visual language, not a Markdown document layout.
+- [x] Add a responsive direct-download, Orion Store, real-screenshot, playback-feature, compatibility, and trust-information experience to the public Pages site.
+- [x] Add GitHub Pages deployment automation, verify the public site on desktop and mobile, and reduce the README to a concise visual gateway to the app site.
+- [x] Switch GitHub Pages from branch/README publishing to the `site/` artifact deployed by the Aniraku Pages workflow, then verify the live URL.
+- [x] Update the public repository description and homepage URL to the live Aniraku Pages product site.
+- [x] Refresh the README copy so the app-style Pages website is the unmistakable primary destination for visitors.
+- [ ] Add a respectful Android-compatible app fallback on the main Aniraku website with open-app, current APK, Orion Store, and continue-web choices.
+- [ ] Persist fallback dismissal and verify that the prompt does not show for unsupported browsers, desktop visitors, or users who choose to continue on the web.
+- [ ] Trace the frontend browser CSP frame blocks, iframe/embed routing, and source-selection logic for embedded-only Aniraku video providers.
+- [ ] Replace the restrictive Vercel CSP frame allowlist with the user-approved all-HTTPS-provider frame policy without changing the backend proxy, then verify playable embed handling.
+- [ ] Audit `vercel.json` response headers and static-host configuration for the embedded-player CSP block before applying the smallest verified configuration repair.
+- [ ] Document that all HTTPS provider frames are allowed by the CSP at the user’s direction; provider-supplied ads and interstitials remain outside CSP control.
+- [ ] Verify the prompt appears only for Android 9+ / API 28+ compatible mobile environments and preserves the native Aniraku visual system in the web fallback sheet.
+- [x] Add a concise public FAQ section to the Aniraku Pages product site covering Android installation, package migration, streaming behavior, and support routes.
+- [x] Capture and publish a verified signed-in Profile screen and a truthful guest-accessible Alerts preview in the public Aniraku Pages screenshot gallery.
+- [x] Add a guest Alerts preview that directs users to sign in for synchronized account notifications without fabricating notification records.
+- [x] Add a current-release banner to the Pages product site with the verified v2.1.Alpha build, direct APK, Orion Store, and release-notes routes.
+- [x] Prepare, build, integrity-check, and publish v2.1.Alpha as the latest standard GitHub release for `aniraku.anime.app`.
+- [x] Update the public Aniraku-App README with v2.1.Alpha release identity, Pages gateway, standard-release download path, and package-migration guidance.
+- [x] Update the Aniraku organization profile repository with the v2.1.Alpha release, Pages, direct-download, and Orion Store paths.
+- [x] Replace the stale README SVG masthead with the real Aniraku application icon and add more verified native screenshots for v2.1.Alpha.
+- [x] Correct and verify the v2.1.Alpha GitHub Pages direct APK URL against the final release asset filename.
+- [x] Diagnose the native Search screen HTTP 429 failure, including upstream origin, duplicate requests, and retry behavior.
+- [x] Add bounded native search request deduplication, caching, retry-after backoff, and an honest rate-limit recovery state without changing the Nothing OS search UI.
+- [x] Prepare v2.2.Alpha with the native AniList rate-limit resilience fix, incremented Android version code, and the unchanged `aniraku.anime.app` package identity.
+- [x] Update the v2.2.Alpha release workflow, GitHub Pages site, README, release notes, and organization profile with the new APK download path and accurate rate-limit improvements.
+- [x] Build, integrity-check, and publish v2.2.Alpha as the latest standard Android GitHub release, then deploy and verify all public links.
+- [x] Audit eligible direct playback sources and implement a user-controlled maximum-quality offline download flow that never claims unsupported DRM, embedded, or protected provider media can be saved.
+- [x] Add secure AniList and MyAnimeList account-linking foundations, protected token storage, and explicit library-sync controls with no client-secret exposure.
+- [ ] Configure the provider OAuth credentials and callback settings through secure environment configuration only, rotate credentials exposed in chat, and validate the official OAuth contracts.
+- [x] Prepare, validate, and publish stable v2.5 with matching application metadata, release workflow, App Pages, README, release notes, and organization profile.
+- [x] Audit and mirror the main Aniraku site’s explicit provider-link and library-sync behavior for native AniList and MyAnimeList integration, using real provider marks as restrained Nothing OS badges.
+- [x] Validate v2.5 against the existing `api.aniraku.tech` provider-sync endpoints and ship Android-client integration only; do not modify live backend OAuth configuration.
+- [x] Replace the text-led Offline action with a download icon and save eligible maximum-quality media to a user-approved Android public Downloads folder through the system directory picker.
+- [x] Promote v2.5 from Alpha naming to the stable `v2.5` release identity across the app, APK asset, workflow, App Pages, README, release notes, and organization profile.
+- [x] Diagnose and eliminate the Snapdragon 680-reported single-frame replay regression during native playback rebuffer recovery without changing the established player layout.
+- [x] Compare native provider filtering and ordering with the authoritative Aniraku website contract, then restore every eligible playable provider while retaining safety exclusions for invalid or non-playable sources.
+- [x] Diagnose and repair the v2.5 public Downloads-folder flow on Android, including directory permission, temporary-file transfer, filename, and truthful eligibility recovery states.
+- [x] Reassess native buffering behavior and apply a source-safe playback continuity improvement that does not delay start-up or reintroduce replay artifacts.
+- [x] Evaluate and implement a narrowly scoped embedded-player nuisance-content mitigation strategy that preserves WebView playback, avoids bypassing access controls, and reports when a provider cannot be safely filtered.
+- [x] Prepare, validate, and publish the completed stabilization work as stable v2.6 with matching Android metadata, universal APK asset, GitHub release, Pages site, README, release notes, and organization profile.
+- [ ] Run the v2.6 Downloads, provider parity, rebuffer, buffering, and embedded-navigation acceptance script on the Snapdragon 680 before treating the release as device-verified.
+- [x] Reproduce and eliminate remaining native-only provider disappearance for the same anime, episode, language, and resolver response shown on aniraku.tech.
+- [x] Diagnose and repair AniSkip intro/outro lookup, timing normalization, and manual/automatic skip triggers for real Watch episodes.
+- [x] Profile and improve Watch-route responsiveness for high-episode-count titles such as One Piece without sacrificing episode or provider completeness.
+- [x] Add a clear Watch-page route for viewing the selected episode’s complete available metadata and navigation context without changing the player layout.
+- [x] Prepare, validate, and publish the completed Watch upgrade as stable v3.0 with matching Android metadata, universal APK asset, GitHub release, App Pages, README, release notes, and organization profile.
+- [ ] Run the v3.0 provider parity, AniSkip, heavy-title episode navigation, episode-information, and playback-continuity acceptance script on the Snapdragon 680 before treating the upgrade as device-verified.
+- [x] Make direct, Aniraku-proxy, and verified embedded sources equally eligible for provider selection while preserving Direct → Proxy → verified Embed playback priority and excluding only invalid or expired sources.
+- [x] Prepare, validate, and publish the completed direct, proxy, and verified-embed provider eligibility refinement as stable v3.1 with matching Android metadata, universal APK asset, GitHub release, App Pages, README, release notes, and organization profile.
+- [x] Verify live Kiwi source classification and quality selection against `api.aniraku.tech`: the current response is verified embedded 1080p/720p/360p, while Ally and Pewe are proxy-native HLS sources.
+- [ ] Run the v3.1 Snapdragon 680 acceptance check for Ally/Pewe proxy HLS first-frame playback and Kiwi embedded 1080p/720p/360p quality switching before treating source transport as device-verified.
+- [x] Diagnose and repair the main Aniraku website’s Kiwi verified-embed playback failure while preserving the working Android embedded-player behavior and provider safety controls.
+- [x] Reproduce and validate the website Kiwi correction using Attack on Titan Season 1 episode 1 as the canonical provider test case.
+- [x] Push the Kiwi website correction, wait for Vercel’s production deployment, and re-test Attack on Titan Season 1 episode 1 with Kiwi on the live main-site URL.
+
+- [x] Diagnose and repair the Kiwi main-site HLS failure in Brave on Android, where Attack on Titan episode 1 remains at 00:00 and reports reconnection attempts or Video Load Failed.
+- [x] Repair the main-site frontend regression where Kiwi can play after a refresh but fails after switching SUB or DUB, while retaining Kiwi native HLS quality variants and avoiding backend-dependent behavior.
+- [x] Validate the frontend-only Kiwi switching repair against the Azure VM production API with live mobile-compatible console and network evidence; do not rely on Render deployment state.
+- [x] Verify and repair any main-site CSP, protected-HLS request, or Kiwi embed-frame restriction that contributes to the mobile Kiwi playback or post-switch failure.
+
+- [x] Audit the native application for focused v4.2.1 reliability, usability, performance, and parity improvements; obtain explicit approval before broad app changes.
+- [x] Add a safe native embedded-player navigation and nuisance-content mitigation layer that blocks untrusted popup/redirect attempts without claiming to remove provider-served media advertising or bypassing access controls.
+- [x] Add truthful manual video-track quality selection for adaptive native streams when the device player exposes actual tracks; preserve existing resolution-source selection and never invent unavailable qualities.
+- [x] Add a global in-app v4.2.1 update prompt that compares the installed build with the published GitHub release, provides an explicit download action, and fails silently offline.
+- [ ] Update the main Aniraku website Android download prompt to identify and route to the verified v4.2.1 release only after that release is published.
+- [x] Complete a whole-app v4.2.1 audit across discovery, catalog, detail, library, profile, settings, notifications, downloads, synchronization, and Watch; obtain separate approval before implementing any newly identified non-core improvements.
+- [x] Implement the approved core and P1 v4.2.1 scope: embed safety, actual native adaptive-track choice, global and manual update checks, episode-scoped quality preference, and focused regression tests.
+- [x] Add the approved P0 regression tests and non-sensitive local diagnostics for embed navigation blocks and unavailable quality tracks.
+- [x] Add the approved P2 expandable Watch diagnostics row for player state, selected quality track, and buffer availability.
+- [x] Add a bounded native Watch provider-discovery grace window that waits for late provider results and merges them before declaring availability incomplete.
+- [x] Make Ally conditional in both native and browser provider controls: hide it when at least one alternative has a source, but retain it when it is the only source-bearing provider; add regressions for both cases.
+- [x] Remove unsupported Kiwi web transport from the Azure-hosted website when `owocdn` rejects the VM IP, avoid all CORS/Referer/embed-policy bypasses, and provide a reliable web-provider fallback with an Android native-app handoff for Kiwi capability.
+- [x] Remove the selected Kiwi browser playback path that produces reconnect and Video Load Failed states, while preserving native-app Kiwi quality playback that uses Android header-aware media transport.
+- [x] Compare the Android app’s Kiwi embedded-player context with browser iframe constraints and implement only the website behavior that the provider’s frame and media policies permit.
+- [x] Audit every main Aniraku website commit from 9 August 2026 onward for Kiwi, ArtPlayer, source switching, proxy, and CSP changes; reproduce the previously working browser flow and restore browser-only Kiwi playback plus quality selection.
+- [x] Add 50-item episode pages with explicit next/previous navigation to the native Anime Detail route, matching the memory-safe Watch-page episode behavior.
+- [x] Repair native Watch-page compatibility so minimized-player and dense four-provider layouts keep SUB/DUB switching visibly accessible without altering the established player controls.
+- [x] Confirm main-site Watch SUB/DUB and dense provider controls are already mobile-compatible; preserve the existing ArtPlayer and provider layout unchanged.
+- [x] Restore mobile visibility and reachability of main-site Watch rating, episode, and other below-player actions that are currently hidden or clipped on narrow screens.
+- [x] Preserve the main-site Watch SUB/DUB controls unchanged because they are already mobile-compatible; limit website layout changes to rating and other outside-player actions.
+- [x] Push the completed main-site Watch mobile action visibility fix, wait for Vercel, and test the live Android-sized route before closing the website work.
+- [x] Prepare and publish the next stable Android release as v3.5 after compatibility validation, with an incremented Android version code and aligned workflow, README, Pages, and release notes.
+- [x] Prepare and publish the next stable Android release as v3.5 after compatibility validation, with incremented Android version code and aligned workflow, README, Pages, and release notes.
+- [x] Repair main-site Watch mobile clipping so episode titles, episode rows, rating, comments, and outside-player action controls fit the viewport and remain reachable without changing the existing SUB/DUB controls or player design.
+- [x] Repair the native compact Audio & Provider sheet so it stays bounded on a phone, keeps SUB/DUB tabs visible, and scrolls only dense provider choices instead of covering the Watch content.
+- [x] Diagnose and fix One Piece native Watch lag across heavy episode lists, provider resolution, and media buffering without degrading source parity or playback continuity.
+- [x] Prepare and publish stable Android v4.0 after the compact-sheet and One Piece performance fixes, with updated Android metadata, universal APK workflow, README, Pages, and release notes.
+- [x] Refresh the Aniraku-App GitHub Pages documentation site with the supplied real native UI captures, clearer UI identification, and a refined Nothing OS-inspired product presentation.
+- [x] Add a native Anime Detail Relations section with categorized prequel, sequel, special, side-story, adaptation, and other AniList relationship entries that open the connected title’s detail route.
+- [x] Prepare the validated Anime Detail Relations feature as stable Android v4.1, then wait for the user’s updated Anime Detail capture before publishing the paused Pages refresh.
+- [x] Publish the user-requested stable v4.1 Anime Detail Relations release and verify the public universal `Aniraku-v4.1.apk` distribution route.
+- [x] Fix the v4.1 Anime Detail “Rendered more hooks than during the previous render” crash without removing or redesigning Relations, then validate and publish a v4.1.1 hotfix.
+- [x] Replace the Aniraku-App Pages Anime Detail image with the supplied v4.1.1 capture, identify the visible UI elements for every real screen image, and rebuild the download site with substantially improved mobile-first visual polish before requesting publishing approval.
+- [x] Slice, inspect, and record the visible UI elements from every previously supplied real native UI screen capture before finalizing the Pages screen-identification system.
+- [x] Add a concise Security FAQ to the v4.1.1 Aniraku-App Pages site and publish the approved Pages refresh with only site source and real native UI assets.
+- [x] Eliminate visually empty Pages sections with real-screen-led composition and add tasteful motion that honors reduced-motion preferences before publishing the approved site refresh.
+- [x] Replace the main website’s redundant mobile Search bottom-navigation item with the existing Catalog-backed Random Anime Pick mechanism, preserve the current visual system, and validate the live Vercel deployment.
+- [x] Verify the approved Orion Store submission’s catalogue publication state and identify any remaining maintainer or metadata action required for Aniraku to appear in the store.
+- [x] Eliminate the recurring native single-frame replay during rebuffer recovery and replace the short fixed stream buffer target with the highest safe adaptive continuity policy for Android devices.
+- [ ] Confirm on a real Android device that a deliberately induced rebuffer resumes without a visible repeated frame and that the adaptive persistent cache remains storage-safe.
+- [x] Investigate the v4.1.2 report of repeated decoded frames and rebuffering despite apparent forward cache availability; isolate and correct the history-resume seek that discarded the current forward buffer after rebuffer.
+- [ ] Build and test the history-resume rebuffer correction on a real Android device before selecting the next public release version.
+- [x] Prepare, validate, and publish stable v4.2 with the history-resume rebuffer correction, then align the APK workflow, GitHub release, Pages site, README, and release notes.
+- [x] Prepare, validate, and publish stable v4.1.2 with the native rebuffer-continuity update, aligned APK workflow, GitHub release, Pages site, README, and release notes.
+- [x] Redesign the Aniraku GitHub organization Profile README with a warm, aesthetic, and cute visual voice while preserving accurate project, release, and community links.
+- [x] Replace the prior Profile README styling with a sourced open-source design using only verified public project patterns, GitHub-supported Markdown, and existing real Aniraku assets; exclude AI-generated or invented visual assets.
+- [x] Replace the prior Profile README styling with a sourced open-source design using only verified public project patterns, GitHub-supported Markdown, and existing real Aniraku assets; exclude AI-generated or invented visual assets.
+- [ ] Enable Aniraku organization Discussions, pin only the two public repositories—Aniraku web and Aniraku-App—on the public Overview page, and add the live Discussions link to the Profile README.
+- [ ] Plan a unified Aniraku Discord community for web and Android users, identify a secure least-privilege access method, and configure approved server structure and moderation settings.
+- [x] Add a browser-safe buffering and cache strategy to the Aniraku/Aniraku Watch player without changing its existing provider or player-control mechanism.
+- [x] Obtain explicit approval for the locally validated main-site Watch buffering enhancement before pushing it to production.
+- [x] Hide the website Skip Intro and Skip Outro overlay when the corresponding auto-skip setting completes successfully; retain it only for manual skipping or a failed automatic jump.
+- [x] Publish the approved website auto-skip overlay correction and verify Death Note Episode 17 on the live Vercel Watch page.
+- [x] Diagnose and locally correct main-website Watch-player reconnections that interrupt full-episode playback and prevent the adaptive forward buffer reserve from being retained.
+- [x] Obtain approval to publish the locally validated website playback-continuity correction, then verify it on a live full-episode provider route.
+- [x] Push the approved website playback-continuity correction and verify uninterrupted live VOD playback with a retained forward buffer.
+- [x] Preserve current playback position when a native-media provider refreshes or fails over after a mid-episode error, instead of restarting the episode at zero.
+- [x] Restore website Kiwi and Pewe playback after the reported 403 media response and Kwik frame refusal, without weakening CSP or browser security constraints.
+- [x] Locally correct Kiwi and Pewe recovery so signed 401/403 streams refresh once and Kwik frame-blocked embeds are never used as browser fallbacks.
+- [x] Obtain approval to publish the locally validated Kiwi and Pewe playback correction, then verify both providers on the live Watch page.
+- [x] Verify the approved provider correction preserves the preceding buffer/recovery and position-handoff mechanisms, then publish and test it live.
+- [x] Diagnose Kiwi visibility in the main Watch provider controls; Kiwi was confirmed present, so the reported issue is network/media behavior rather than provider filtering.
+- [x] Locally correct Kiwi network/media recovery while keeping Kiwi visible in the provider controls.
+- [x] Prevent ordinary mid-episode network stalls from rebuilding the source; reserve a source refresh for confirmed expired signed URLs only.
+- [x] Improve main Watch Auto-skip Intro/Outro behavior so successful jumps remain silent and fallback prompts are clear and reliable.
+- [x] Keep the selected playback quality visibly active in the ArtPlayer Quality menu after a quality switch.
+- [x] Obtain approval to publish the locally validated non-disruptive recovery, Auto-skip, and selected-quality Watch-player correction.
+- [x] Push the approved non-disruptive Watch recovery correction and run a timed live test confirming a healthy source is not refreshed mid-episode.
+- [x] Diagnose active-playback dead-source classification: direct media remains eligible regardless of advisory verification; only embeds with a definitive backend `dead` verdict are excluded, and the timed live direct source remained unchanged with no error events.
+- [x] Correct the ArtPlayer Quality parent label and submenu title so a selected 720p/1080p/360p level does not continue displaying Auto. Validated with all five focused Watch suites, zero ESLint errors, a successful Vite build, and an ArtPlayer 5.4 DOM-level update check showing `Quality · 720p`.
+- [x] Remove the browser Watch player’s same-provider source-refresh path so an already playing source is not rebuilt mid-episode; retain only non-disruptive HLS recovery and safe eligible-server fallback. All five focused Watch suites pass, ESLint reports zero errors, and the Vite production build succeeds.
+- [ ] Commit, push, and production-verify the approved Watch Quality-label and no-same-provider-refresh corrections.
+- [ ] Repair the live-confirmed ArtPlayer Quality regression: after selecting 720p, playback resumes but the parent row still resets to `Quality · Auto`.
+- [x] Stop ordinary stream or quality-load errors from falsely showing a blocked-server state or automatically switching the currently selected Watch provider. The selected provider now remains in place; user-facing recovery directs manual server choice.
+- [x] Audit every browser Watch playback fallback, verify it against real browser behavior, and remove fallback paths that are redundant, unworking, or misleading. Retained proxy/direct/native-HLS/HLS/DASH/eligible-embed paths; removed automatic next-quality, backend retry, Kiwi resolver loops, and provider failover.
+- [ ] Commit, push, and production-verify the approved Quality persistence, manual-only provider recovery, and browser fallback audit correction. Commit `695b31e`, GitHub CI `32452210240`, and Vercel deployment `wtrFaEYaMKRJvsz6Qb3bZ5Y7c4MQ` all succeeded. The custom domain now plays *The Eminence in Shadow* episode 3 on Bonk for at least 66 seconds (23:51 duration) and exposes Bonk, Pewe, Ally, and Kiwi controls without an automatic provider change. Bundle inspection confirms the manual recovery text and persistent selection helper while omitting the removed automatic fallback strings. An in-player 720p menu interaction and a forced-interruption test remain pending.
+- [x] Repair the live-confirmed quiet manual-switch regression: selecting unavailable Kiwi preserves Bonk playback but incorrectly leaves the displayed active provider on Kiwi instead of restoring Bonk. The local rollback preserves the actual prior provider and suppresses its redundant reload.
+- [x] Contain the active live regression before any further publication: a failed manual provider switch must restore the previous provider label and must not trigger a second source load or interrupt the existing player. Covered by the focused quiet-switch state suite plus all Watch regression suites.
+- [x] Clarification recorded: preserve the backend-filtered provider contract; do not restore or expose providers that have no stream.
+- [x] Repair only the frontend state rollback when a backend-provided provider later fails to resolve during a quiet manual switch. The UI now restores the actual prior provider and names it in the warning instead of leaving the failed target selected.
+- [ ] Verify the contained provider-state repair using the sandbox browser rather than the personal browser session.
+- [x] Confirm sandbox-browser routing: the isolated local Watch preview loads in the sandbox browser; its unauthenticated backend response currently has no providers for the live episode, so browser-level source switching cannot be exercised locally.
+- [x] Commit, push, and sandbox-browser verify the approved quiet manual provider-switch rollback. Published as Aniraku/Aniraku commit `c9eaafa`; GitHub CI succeeded.
+- [x] Sandbox production probe: initial custom-domain requests served a stale Watch asset, but the promoted asset `Watch-62WyQWnX.js` contains the quiet-switch helper from `c9eaafa`.
+- [x] Sandbox live switch probe: with Bonk active, manually selecting SUB Kiwi on the promoted bundle returned the selected provider to Bonk after resolution, preserving Bonk as the visible current provider.
+- [x] Production verification first hit a stale custom-domain asset, which explained the initial failed rollback observation. The promoted bundle subsequently passed the same sandbox Kiwi-switch check.
+- [x] Deployment verification constraint: Vercel’s exact `c9eaafa` preview is login-protected in the sandbox browser; verification was completed through the promoted custom-domain bundle instead.
+- [ ] Treat browser Kiwi playback as blocking: diagnose start failures and mid-episode stops, restore a browser-safe Kiwi path, and do not close Watch work until uninterrupted Kiwi playback is verified.
+- [x] Preserve Kiwi’s direct `uwucdn.top` HLS sources through Aniraku backend verdicting when the Azure datacenter probe is blocked, while retaining explicit unsafe-CDN exclusions.
+- [ ] Route backend-unverified direct HLS sources through browser-direct playback before the Aniraku media proxy, then validate a Kiwi start and sustained playback in production.
+- [x] Update the main website Android fallback prompt from its stale v4.0 APK link to the current stable v4.2 release asset, then verify the live prompt and deep-link fallback.
+- [x] Replace the Android fallback prompt’s fixed versioned APK route with the GitHub latest-release download route so future stable builds do not require a popup-link code edit.
+- [x] Add source-aware in-place quality controls: true HLS rendition levels switch 1080p/720p/480p/360p without rebuilding the Watch player, while Auto-only streams offer an honest bandwidth-saving mode without pretending to create unavailable resolutions.
+- [x] Make manual provider changes hand off at the preserved playback timestamp as quickly as the selected source can produce its first playable segment, without reintroducing automatic provider switching or false immediate-start claims.
+- [x] Repair the Kiwi playback regression reported after main-site commit `ad1ed00`; compare it with the prior confirmed working direct-HLS path and production-verify a sustained Kiwi start before closing the regression.
+- [x] Repair reported Ally playback failure on the main Watch page while preserving the confirmed Kiwi proxy-first path and manual-provider behavior.
+- [x] Restore visible 10-second backward and forward seek controls in the main Watch player without changing buffer policy, quality controls, or provider selection.
+- [x] Diagnose and repair the browser Watch playback-cache failure using measured buffered ranges and hls.js state, without reintroducing source refreshes or automatic provider switching.
+- [x] Extend bounded forward buffering and prefetch coverage to every browser-playable direct and proxied media path, including native MP4, HLS, and DASH, while preserving device memory safeguards.
+- [x] Diagnose and correct the reported forward-buffer behavior so active browser playback builds the intended bounded reserve rather than appearing to over-buffer or fail to buffer ahead.
+- [x] Add a backend-first grace period to Anime Detail episode loading so fallback cannot replace a slow backend result prematurely and leave Watch without a complete episode chooser.
+- [x] Set browser playback cache targets to a bounded 120 seconds ahead and 120 seconds behind where the media engine supports explicit buffer control.
+- [x] Add a clear timeline-level buffered-range indicator so viewers can see the downloaded playback reserve while watching.
+- [ ] Resolve AniList 429 rate-limit handling so Anime Detail and Watch avoid amplifying upstream throttling and degrade gracefully.
+- [ ] Resolve backend episode endpoint 502 handling so complete episode navigation remains available without premature or incomplete fallback lists.
+- [ ] Preserve every backend-approved provider by waiting through provider-resolution timing and retry windows before rendering an incomplete provider list.
+- [ ] Repair Kiwi and Ally browser playback when proxy delivery fails and direct MP4 fallback is blocked by CORS, without automatic provider switching.
+- [ ] Revalidate and correct the bounded forward/backward playback buffer so it remains visible and useful during real Kiwi and Ally streams.
+- [ ] Compare pre-release and current Kiwi startup transport, then restore the last verified browser-playable Kiwi path without reverting unrelated cache-indicator or episode-navigation fixes.
+- [ ] Repair Ally’s live same-provider fallback when the selected eligible Byse embed returns a 404, without switching the viewer to another provider automatically.
+- [ ] Remove Ally from browser provider controls while its HLS and embed paths are live-broken, retaining it only when a verified playable browser source is available.
+- [ ] Make the browser cache indicator communicate decoded, playable forward reserve rather than a misleading full downloaded-range appearance during a stall.

@@ -22,17 +22,20 @@ import {
   isAutoQuality,
   isProxySource,
   isVerifiedEmbedSource,
+  filterConditionalAllyProviders,
+  mergeProviderServers,
   mergeSkipSegments,
   nativeSources,
   nextProviderIndex,
   normalizeAniSkipSegments,
   providerSkipSegments,
   proxySources,
-  shouldApplyInitialHistoryResume,
   shouldRetryProxiedSourceAfterDirect,
+  shouldApplyInitialHistoryResume,
   shouldMountReplacementSource,
   shouldHoldRebufferWatermark,
   type Language,
+  PROVIDER_DISCOVERY_RETRY_DELAYS_MS,
   type SkipKind,
   type SkipSegments,
 } from "@/lib/watch-engine";
@@ -44,6 +47,7 @@ import { useProviderSync } from "@/hooks/use-provider-sync";
 import { useAnirakuAuth } from "@/providers/auth-provider";
 import { downloadLabel, findOfflineDownload, removeOfflineDownload, selectMaximumQualityDownload, shareOfflineDownload, startMaximumQualityDownload, type OfflineDownload } from "@/lib/downloads";
 import { NATIVE_STREAM_BUFFER_OPTIONS } from "@/lib/playback-buffer-policy";
+import { selectedWatchQuality, watchQualityOptions, type WatchQualityOption } from "@/lib/watch-quality";
 import { AppIcon } from "@/components/app-icon";
 import { EmbedPlayer } from "@/components/embed-player";
 import { DotLabel, NothingButton, NothingCard, nothing, Signal } from "@/components/nothing-ui";
@@ -53,7 +57,6 @@ const RESUME_MIN_TIME = 30;
 const STREAM_CACHE_TTL_MS = 30_000;
 // Keep source-list retries aligned with Watch.jsx. A fast retry can repeatedly
 // re-query a still-warming provider and leave it absent from the native picker.
-const SERVER_RETRY_DELAY_MS = 12_000;
 const STARTUP_WATCHDOG_MS = 6_000;
 const SKIP_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const ANISKIP_TIMEOUT_MS = 8_000;
@@ -169,6 +172,7 @@ export default function WatchScreen() {
   const [offlineDownload, setOfflineDownload] = useState<OfflineDownload | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [downloadMessage, setDownloadMessage] = useState<string | null>(null);
+  const [requestedQuality, setRequestedQuality] = useState("auto");
 
   useEffect(() => () => {
     if (Platform.OS !== "web") void ScreenOrientation.unlockAsync().catch(() => {});
@@ -218,6 +222,8 @@ export default function WatchScreen() {
     // provider has no native candidate, keep those real resolutions selectable.
     return embedSource || native.length === 0 ? embedSources(response) : native;
   }, [embedSource, stream]);
+  const adaptiveQualityOptions = useMemo(() => watchQualityOptions(stream, source), [source, stream]);
+  const displayedQuality = selectedWatchQuality(source, requestedQuality);
   const maximumDownloadSource = useMemo(() => selectMaximumQualityDownload(stream?.sources ?? activeProvider?.sources ?? []), [activeProvider?.sources, stream?.sources]);
   const currentRating = ratings.scoreFor(episode) ?? 0;
   const episodeComments = useMemo(() => (comments.comments.data ?? []).filter((item) => item.episode_number === episode), [comments.comments.data, episode]);
@@ -380,8 +386,8 @@ export default function WatchScreen() {
   // both language requests and commit SUB as soon as it arrives.
   useEffect(() => {
     let cancelled = false;
-    let retries = 0;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let discovered: Record<Language, Server[]> = { sub: [], dub: [] };
     clearEpisodePlayback();
     setProviders({ sub: [], dub: [] });
     setLanguage("sub");
@@ -398,33 +404,36 @@ export default function WatchScreen() {
       return;
     }
 
-    const fetchServers = async () => {
-      setServerAttempt(retries + 1);
+    const fetchServers = async (attempt: number) => {
+      setServerAttempt(attempt + 1);
       const subTask = getServers(animeId, episode, "sub").catch(() => [] as Server[]);
       const dubTask = getServers(animeId, episode, "dub").catch(() => [] as Server[]);
-      const subs = await subTask;
+      const [subs, dubs] = await Promise.all([subTask, dubTask]);
       if (cancelled) return;
-      // Match Watch.jsx: show every provider returned for this episode. A
-      // source may be resolved only when /stream is requested after selection.
-      setProviders({ sub: subs, dub: [] });
-      if (subs.length) setLoadingServers(false);
-
-      const dubs = await dubTask;
-      if (cancelled) return;
-      setProviders({ sub: subs, dub: dubs });
-      if (subs.length || dubs.length) {
+      // Match Watch.jsx: retain late providers across the bounded discovery
+      // window. This avoids an early incomplete list while never removing a
+      // source that the user has already started playing.
+      discovered = {
+        sub: filterConditionalAllyProviders(mergeProviderServers(discovered.sub, subs), activeProviderId.current),
+        dub: filterConditionalAllyProviders(mergeProviderServers(discovered.dub, dubs), activeProviderId.current),
+      };
+      setProviders(discovered);
+      if (discovered.sub.length || discovered.dub.length) {
         setLoadingServers(false);
-        if (!subs.length && dubs.length) setLanguage("dub");
-      } else if (retries >= 2) {
+        if (!discovered.sub.length && discovered.dub.length) setLanguage("dub");
+      }
+
+      const nextDelay = PROVIDER_DISCOVERY_RETRY_DELAYS_MS[attempt + 1];
+      if (nextDelay !== undefined) {
+        retryTimer = setTimeout(() => { void fetchServers(attempt + 1); }, nextDelay);
+        return;
+      }
+      if (!discovered.sub.length && !discovered.dub.length) {
         setLoadingServers(false);
         setError("We don't have streaming for this episode.");
       }
-      if ((subs.length === 0 || dubs.length === 0) && retries < 2) {
-        retries += 1;
-        retryTimer = setTimeout(() => { void fetchServers(); }, SERVER_RETRY_DELAY_MS);
-      }
     };
-    void fetchServers();
+    void fetchServers(0);
     return () => { cancelled = true; if (retryTimer) clearTimeout(retryTimer); };
   }, [animeId, canonicalEpisodes.length, clearEpisodePlayback, episode, episodeQuery.isPending, invalidEpisode]);
 
@@ -782,7 +791,37 @@ export default function WatchScreen() {
       setSourceRevision((value) => value + 1);
     }
     setPlaybackHeaders(stream?.headers ?? activeProvider?.headers);
+    setRequestedQuality(isAutoQuality(next) ? "auto" : next.quality || "auto");
     setShowQualityPicker(false);
+  };
+  const selectAdaptiveQuality = async (choice: WatchQualityOption) => {
+    if (!activeProvider || !source) return;
+    if (choice.source) {
+      selectQuality(choice.source);
+      return;
+    }
+    if (choice.requestQuality === "auto" && isAutoQuality(source)) {
+      setRequestedQuality("auto");
+      setShowQualityPicker(false);
+      return;
+    }
+    try {
+      setLoadingStream(true);
+      const response = await getStream({ animeId, episode, provider: activeProvider.provider, lang: language, quality: choice.requestQuality });
+      const replacement = nativeSources(response)[0] ?? embedSources(response)[0];
+      if (!replacement) {
+        console.info(`[Aniraku Watch] requested quality unavailable: ${choice.requestQuality}`);
+        throw new Error("This provider did not return that quality.");
+      }
+      setStream(response);
+      applySkipSegments(providerSkipSegments(response));
+      setPlaybackHeaders(response.headers ?? activeProvider.headers);
+      setRequestedQuality(choice.requestQuality);
+      selectQuality(replacement);
+    } catch (cause) {
+      setDownloadMessage(cause instanceof Error ? cause.message.toUpperCase() : "QUALITY COULD NOT BE CHANGED.");
+      setLoadingStream(false);
+    }
   };
   const markIntentionalSeek = (target?: number) => {
     intentionalSeekUntil.current = Date.now() + 1_500;
@@ -918,6 +957,14 @@ export default function WatchScreen() {
   const onProgressLayout = (event: LayoutChangeEvent) => setProgressWidth(event.nativeEvent.layout.width);
   const progress = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
   const buffered = duration > 0 && timeEvent?.bufferedPosition > 0 ? Math.min(100, (timeEvent.bufferedPosition / duration) * 100) : 0;
+  const displayedQualityOptions: WatchQualityOption[] = source
+    ? adaptiveQualityOptions
+    : qualityOptions.map((item) => ({
+      id: item.url,
+      label: isAutoQuality(item) ? "Auto" : item.quality || "Source",
+      requestQuality: item.quality || "auto",
+      source: item,
+    }));
 
   return <NativeScreen scroll={false} style={styles.fill}>
     <StatusBar hidden={manualFullscreen} />
@@ -932,12 +979,12 @@ export default function WatchScreen() {
           : <View style={styles.videoPlaceholder}>{loadingServers || loadingStream ? <><ActivityIndicator color={nothing.white} /><Text style={styles.placeholderText}>{loadingServers ? `WAITING FOR EPISODE ${episode} SOURCE · CHECK ${Math.max(1, serverAttempt)} OF 3` : "STARTING VIDEO"}</Text></> : error ? <Text style={styles.errorText}>{error}</Text> : <Text style={styles.placeholderText}>PREPARING VIDEO</Text>}</View>}
       {embedSource ? <View style={playerStyles.embedProviderActions}>{qualityOptions.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel="Open embedded quality selector" accessibilityState={{ expanded: showQualityPicker }} onPress={toggleQualityPicker} style={playerStyles.embedQualityButton}><Text style={playerStyles.embedProviderButtonText}>{embedSource.quality || "QUALITY"}</Text></Pressable> : null}<Pressable accessibilityRole="button" accessibilityLabel="Open audio language and provider selector" accessibilityState={{ expanded: showSourcePicker }} onPress={toggleSourcePicker} style={playerStyles.embedProviderButton}><AppIcon name="headphones" size={20} color={nothing.white} /><Text style={playerStyles.embedProviderButtonText}>AUDIO & PROVIDER</Text></Pressable></View> : null}
       {source && controlsVisible ? <View style={styles.playerOverlay} pointerEvents="box-none">
-        <View style={styles.overlayTop}><View style={styles.sourcePill}><Signal label={buffering ? "BUFFERING" : `${language.toUpperCase()} · ${activeProvider?.label || "PLAYING"}`} tone={buffering ? "muted" : "live"} /></View><View style={watchPageStyles.overlayActions}>{qualityOptions.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel="Open video quality selector" accessibilityState={{ expanded: showQualityPicker }} onPress={toggleQualityPicker} style={[playerStyles.quickQualityButton, showQualityPicker && styles.overlayMenuActive]}><Text style={playerStyles.quickQualityButtonText}>{isAutoQuality(source) ? "AUTO" : source.quality || "HD"}</Text></Pressable> : null}<Pressable accessibilityRole="button" accessibilityLabel="Open audio language and provider selector" accessibilityState={{ expanded: showSourcePicker }} onPress={toggleSourcePicker} style={[styles.overlayMenu, showSourcePicker && styles.overlayMenuActive]}><AppIcon name="headphones" size={20} color={nothing.white} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel={manualFullscreen ? "Exit fullscreen" : "Enter fullscreen"} onPress={manualFullscreen ? exitFullscreen : enterFullscreen} style={styles.overlayMenu}><AppIcon name={manualFullscreen ? "fullscreen-exit" : "fullscreen"} size={20} color={nothing.white} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Open player settings" accessibilityState={{ expanded: showConsole }} onPress={togglePlayerSettings} style={[styles.overlayMenu, showConsole && styles.overlayMenuActive]}><AppIcon name="tune-variant" size={20} color={nothing.white} /></Pressable></View></View>
+        <View style={styles.overlayTop}><View style={styles.sourcePill}><Signal label={buffering ? "BUFFERING" : `${language.toUpperCase()} · ${activeProvider?.label || "PLAYING"}`} tone={buffering ? "muted" : "live"} /></View><View style={watchPageStyles.overlayActions}>{adaptiveQualityOptions.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel="Open video quality selector" accessibilityState={{ expanded: showQualityPicker }} onPress={toggleQualityPicker} style={[playerStyles.quickQualityButton, showQualityPicker && styles.overlayMenuActive]}><Text style={playerStyles.quickQualityButtonText}>{displayedQuality.toUpperCase()}</Text></Pressable> : null}<Pressable accessibilityRole="button" accessibilityLabel="Open audio language and provider selector" accessibilityState={{ expanded: showSourcePicker }} onPress={toggleSourcePicker} style={[styles.overlayMenu, showSourcePicker && styles.overlayMenuActive]}><AppIcon name="headphones" size={20} color={nothing.white} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel={manualFullscreen ? "Exit fullscreen" : "Enter fullscreen"} onPress={manualFullscreen ? exitFullscreen : enterFullscreen} style={styles.overlayMenu}><AppIcon name={manualFullscreen ? "fullscreen-exit" : "fullscreen"} size={20} color={nothing.white} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Open player settings" accessibilityState={{ expanded: showConsole }} onPress={togglePlayerSettings} style={[styles.overlayMenu, showConsole && styles.overlayMenuActive]}><AppIcon name="tune-variant" size={20} color={nothing.white} /></Pressable></View></View>
         <View style={styles.centerControls}><Pressable accessibilityRole="button" accessibilityLabel="Seek backward ten seconds" onPress={() => seek(-10)} style={styles.seekControl}><AppIcon name="rewind-10" size={30} color={nothing.white} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel={isPlaying ? "Pause" : "Play"} onPress={() => { if (isPlaying) player.pause(); else player.play(); }} style={styles.heroPlay}>{buffering ? <ActivityIndicator color={nothing.black} /> : <AppIcon name={isPlaying ? "pause" : "play"} size={32} color={nothing.black} />}</Pressable><Pressable accessibilityRole="button" accessibilityLabel="Seek forward ten seconds" onPress={() => seek(10)} style={styles.seekControl}><AppIcon name="fast-forward-10" size={30} color={nothing.white} /></Pressable></View>
-        <View style={styles.overlayBottom}><View style={playerStyles.overlayContextActions}>{resumePosition ? <Pressable accessibilityRole="button" onPress={() => { pendingResume.current = resumePosition; player.currentTime = resumePosition; setResumePosition(null); }} style={styles.resumeInline}><AppIcon name="play" size={14} color={nothing.white} /><Text style={styles.resumeInlineText}>{`RESUME ${formatTime(resumePosition)}`}</Text></Pressable> : null}{skipKind ? <Pressable accessibilityRole="button" onPress={() => skip(skipKind)} style={styles.skipInline}><Text style={styles.skipInlineText}>{`SKIP ${skipKind.toUpperCase()}`}</Text></Pressable> : null}</View><View style={playerStyles.playerTimelineBlock}><Pressable accessibilityRole="adjustable" accessibilityLabel="Playback position" onLayout={onProgressLayout} onPress={seekFromBar} style={styles.timeline}><View style={[styles.timelineBuffered, { width: `${buffered}%` }]} /><View style={[styles.timelinePlayed, { width: `${progress}%` }]} /></Pressable><View style={styles.timeRow}><Text style={styles.timeText}>{formatTime(currentTime)}</Text><Text style={styles.timeMeta}>{buffering ? "BUFFERING" : isAutoQuality(source) ? "AUTO" : source.quality || "SOURCE"}</Text><Text style={styles.timeText}>{formatTime(duration)}</Text></View></View></View>
+        <View style={styles.overlayBottom}><View style={playerStyles.overlayContextActions}>{resumePosition ? <Pressable accessibilityRole="button" onPress={() => { pendingResume.current = resumePosition; player.currentTime = resumePosition; setResumePosition(null); }} style={styles.resumeInline}><AppIcon name="play" size={14} color={nothing.white} /><Text style={styles.resumeInlineText}>{`RESUME ${formatTime(resumePosition)}`}</Text></Pressable> : null}{skipKind ? <Pressable accessibilityRole="button" onPress={() => skip(skipKind)} style={styles.skipInline}><Text style={styles.skipInlineText}>{`SKIP ${skipKind.toUpperCase()}`}</Text></Pressable> : null}</View><View style={playerStyles.playerTimelineBlock}><Pressable accessibilityRole="adjustable" accessibilityLabel="Playback position" onLayout={onProgressLayout} onPress={seekFromBar} style={styles.timeline}><View style={[styles.timelineBuffered, { width: `${buffered}%` }]} /><View style={[styles.timelinePlayed, { width: `${progress}%` }]} /></Pressable><View style={styles.timeRow}><Text style={styles.timeText}>{formatTime(currentTime)}</Text><Text style={styles.timeMeta}>{buffering ? "BUFFERING" : displayedQuality.toUpperCase()}</Text><Text style={styles.timeText}>{formatTime(duration)}</Text></View></View></View>
       </View> : null}
-      {(source || embedSource) && showQualityPicker ? <View style={playerStyles.quickQualityOverlay}><View style={playerStyles.quickQualityHeading}><DotLabel>QUALITY</DotLabel><Pressable accessibilityRole="button" accessibilityLabel="Close video quality selector" onPress={() => setShowQualityPicker(false)}><AppIcon name="close" size={18} color={nothing.muted} /></Pressable></View><Text style={playerStyles.quickQualityHint}>{embedSource ? "EMBEDDED RESOLUTION" : "AVAILABLE RESOLUTION"}</Text><View style={playerStyles.quickQualityChoices}>{qualityOptions.map((item, index) => { const selected = (source ?? embedSource)?.url === item.url; return <Pressable key={`${item.url}:${index}`} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => selectQuality(item)} style={[playerStyles.quickQualityChoice, selected && playerStyles.quickQualityChoiceActive]}><Text style={[playerStyles.quickQualityChoiceText, selected && playerStyles.quickQualityChoiceTextActive]}>{isAutoQuality(item) ? "AUTO · ADAPTIVE" : item.quality || "SOURCE"}</Text><Text style={[playerStyles.quickQualityChoiceState, selected && playerStyles.quickQualityChoiceStateActive]}>{selected ? "PLAYING" : "SELECT"}</Text></Pressable>; })}</View></View> : null}
-      {source && showConsole ? <View style={playerStyles.playerSettingsOverlay}><ScrollView contentContainerStyle={playerStyles.playerSettingsContent} showsVerticalScrollIndicator={false}><View style={watchPageStyles.playerMenuHeading}><DotLabel>PLAYER SETTINGS</DotLabel><Pressable accessibilityRole="button" accessibilityLabel="Close player settings" onPress={() => setShowConsole(false)}><AppIcon name="close" size={18} color={nothing.muted} /></Pressable></View>{qualityOptions.length ? <View style={watchPageStyles.menuSection}><DotLabel>QUALITY</DotLabel><View style={styles.qualityRow}>{qualityOptions.map((item, index) => <Pressable key={`${item.url}:${index}`} accessibilityRole="button" onPress={() => selectQuality(item)} style={[styles.quality, source?.url === item.url && styles.qualityActive]}><Text style={[styles.qualityText, source?.url === item.url && styles.qualityTextActive]}>{isAutoQuality(item) ? "AUTO · ADAPTIVE" : item.quality || "SOURCE"}</Text></Pressable>)}</View></View> : null}<View style={watchPageStyles.menuSection}><DotLabel>PLAYBACK</DotLabel><View style={styles.toggleRow}><Pressable accessibilityRole="switch" accessibilityState={{ checked: autoNext }} onPress={() => setAutoNext((value) => !value)} style={[styles.toggle, autoNext && styles.toggleOn]}><Text style={[styles.toggleText, autoNext && styles.toggleTextOn]}>AUTO NEXT {autoNext ? "ON" : "OFF"}</Text></Pressable><Pressable accessibilityRole="switch" accessibilityState={{ checked: autoSkip }} onPress={() => setAutoSkip((value) => !value)} style={[styles.toggle, autoSkip && styles.toggleOn]}><Text style={[styles.toggleText, autoSkip && styles.toggleTextOn]}>AUTO SKIP {autoSkip ? "ON" : "OFF"}</Text></Pressable></View><View style={styles.speedRow}>{[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((value) => <Pressable key={value} accessibilityRole="button" onPress={() => setSpeed(value)} style={[styles.speed, speed === value && styles.speedActive]}><Text style={[styles.speedText, speed === value && styles.speedTextActive]}>{value}×</Text></Pressable>)}</View></View><View style={watchPageStyles.menuSection}><DotLabel>OFFLINE</DotLabel>{offlineDownload ? <View style={watchPageStyles.offlineBlock}><Text style={watchPageStyles.offlineCopy}>{`${offlineDownload.quality} SAVED · ${Math.max(1, Math.round(offlineDownload.size / 1024 / 1024))} MB`}</Text><View style={watchPageStyles.offlineActions}><Pressable accessibilityRole="button" onPress={playOffline} style={watchPageStyles.offlinePrimary}><AppIcon name="play" size={15} color={nothing.black} /><Text style={watchPageStyles.offlinePrimaryText}>PLAY SAVED</Text></Pressable><Pressable accessibilityRole="button" onPress={() => void shareOfflineDownload(offlineDownload).catch((cause) => setDownloadMessage(cause instanceof Error ? cause.message.toUpperCase() : "SAVED FILE COULD NOT BE SHARED."))} style={watchPageStyles.offlineAction}><Text style={watchPageStyles.offlineActionText}>SHARE</Text></Pressable><Pressable accessibilityRole="button" onPress={() => void removeDownload()} style={watchPageStyles.offlineAction}><Text style={[watchPageStyles.offlineActionText, watchPageStyles.offlineRemove]}>REMOVE</Text></Pressable></View></View> : <Pressable accessibilityRole="button" disabled={downloadProgress !== null || !maximumDownloadSource} onPress={() => void startDownload()} style={[watchPageStyles.downloadAction, (!maximumDownloadSource || downloadProgress !== null) && watchPageStyles.downloadDisabled]}><AppIcon name="download" size={17} color={nothing.black} /><Text style={watchPageStyles.downloadActionText}>{downloadProgress !== null ? `SAVING ${Math.round(downloadProgress * 100)}%` : maximumDownloadSource ? `SAVE ${downloadLabel(maximumDownloadSource)}` : "DIRECT SOURCE REQUIRED"}</Text></Pressable>}{downloadMessage ? <Text style={watchPageStyles.downloadMessage}>{downloadMessage}</Text> : null}</View>{subtitleTracks.length ? <View style={watchPageStyles.menuSection}><DotLabel>SUBTITLES</DotLabel><View style={styles.qualityRow}><Pressable accessibilityRole="button" onPress={() => selectSubtitle(null)} style={[styles.quality, !player.subtitleTrack && styles.qualityActive]}><Text style={[styles.qualityText, !player.subtitleTrack && styles.qualityTextActive]}>OFF</Text></Pressable>{subtitleTracks.map((track) => <Pressable key={track.id} onPress={() => selectSubtitle(track)} style={[styles.quality, player.subtitleTrack?.id === track.id && styles.qualityActive]}><Text style={[styles.qualityText, player.subtitleTrack?.id === track.id && styles.qualityTextActive]}>{track.label || track.language}</Text></Pressable>)}</View></View> : null}</ScrollView></View> : null}
+      {(source || embedSource) && showQualityPicker ? <View style={playerStyles.quickQualityOverlay}><View style={playerStyles.quickQualityHeading}><DotLabel>QUALITY</DotLabel><Pressable accessibilityRole="button" accessibilityLabel="Close video quality selector" onPress={() => setShowQualityPicker(false)}><AppIcon name="close" size={18} color={nothing.muted} /></Pressable></View><Text style={playerStyles.quickQualityHint}>{embedSource ? "EMBEDDED RESOLUTION" : "PROVIDER-RETURNED RESOLUTION"}</Text><View style={playerStyles.quickQualityChoices}>{displayedQualityOptions.map((item: WatchQualityOption) => { const selected = source ? displayedQuality.toLowerCase() === item.label.toLowerCase() : embedSource?.url === item.source?.url; return <Pressable key={item.id} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => source ? void selectAdaptiveQuality(item) : item.source && selectQuality(item.source)} style={[playerStyles.quickQualityChoice, selected && playerStyles.quickQualityChoiceActive]}><Text style={[playerStyles.quickQualityChoiceText, selected && playerStyles.quickQualityChoiceTextActive]}>{item.label.toUpperCase()}</Text><Text style={[playerStyles.quickQualityChoiceState, selected && playerStyles.quickQualityChoiceStateActive]}>{selected ? "PLAYING" : "SELECT"}</Text></Pressable>; })}</View></View> : null}
+      {source && showConsole ? <View style={playerStyles.playerSettingsOverlay}><ScrollView contentContainerStyle={playerStyles.playerSettingsContent} showsVerticalScrollIndicator={false}><View style={watchPageStyles.playerMenuHeading}><DotLabel>PLAYER SETTINGS</DotLabel><Pressable accessibilityRole="button" accessibilityLabel="Close player settings" onPress={() => setShowConsole(false)}><AppIcon name="close" size={18} color={nothing.muted} /></Pressable></View>{adaptiveQualityOptions.length ? <View style={watchPageStyles.menuSection}><DotLabel>QUALITY</DotLabel><View style={styles.qualityRow}>{adaptiveQualityOptions.map((item: WatchQualityOption) => <Pressable key={item.id} accessibilityRole="button" onPress={() => void selectAdaptiveQuality(item)} style={[styles.quality, displayedQuality.toLowerCase() === item.label.toLowerCase() && styles.qualityActive]}><Text style={[styles.qualityText, displayedQuality.toLowerCase() === item.label.toLowerCase() && styles.qualityTextActive]}>{item.label.toUpperCase()}</Text></Pressable>)}</View></View> : null}<View style={watchPageStyles.menuSection}><DotLabel>PLAYBACK</DotLabel><View style={styles.toggleRow}><Pressable accessibilityRole="switch" accessibilityState={{ checked: autoNext }} onPress={() => setAutoNext((value) => !value)} style={[styles.toggle, autoNext && styles.toggleOn]}><Text style={[styles.toggleText, autoNext && styles.toggleTextOn]}>AUTO NEXT {autoNext ? "ON" : "OFF"}</Text></Pressable><Pressable accessibilityRole="switch" accessibilityState={{ checked: autoSkip }} onPress={() => setAutoSkip((value) => !value)} style={[styles.toggle, autoSkip && styles.toggleOn]}><Text style={[styles.toggleText, autoSkip && styles.toggleTextOn]}>AUTO SKIP {autoSkip ? "ON" : "OFF"}</Text></Pressable></View><View style={styles.speedRow}>{[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((value) => <Pressable key={value} accessibilityRole="button" onPress={() => setSpeed(value)} style={[styles.speed, speed === value && styles.speedActive]}><Text style={[styles.speedText, speed === value && styles.speedTextActive]}>{value}×</Text></Pressable>)}</View></View><View style={watchPageStyles.menuSection}><DotLabel>PLAYBACK STATUS</DotLabel><Text style={watchPageStyles.diagnosticLine}>{`SERVER · ${activeProvider?.label || "UNKNOWN"}`}</Text><Text style={watchPageStyles.diagnosticLine}>{`DELIVERY · ${useSourceProxy ? "ANIRAKU PROXY" : getPlaybackType(source).toUpperCase()}`}</Text><Text style={watchPageStyles.diagnosticLine}>{`QUALITY · ${displayedQuality.toUpperCase()}`}</Text><Text style={watchPageStyles.diagnosticLine}>{timeEvent?.bufferedPosition >= 0 ? `PLAYABLE BUFFER · ${Math.max(0, Math.round((timeEvent?.bufferedPosition ?? 0) - currentTime))}S` : "PLAYABLE BUFFER · UNKNOWN"}</Text></View><View style={watchPageStyles.menuSection}><DotLabel>OFFLINE</DotLabel>{offlineDownload ? <View style={watchPageStyles.offlineBlock}><Text style={watchPageStyles.offlineCopy}>{`${offlineDownload.quality} SAVED · ${Math.max(1, Math.round(offlineDownload.size / 1024 / 1024))} MB`}</Text><View style={watchPageStyles.offlineActions}><Pressable accessibilityRole="button" onPress={playOffline} style={watchPageStyles.offlinePrimary}><AppIcon name="play" size={15} color={nothing.black} /><Text style={watchPageStyles.offlinePrimaryText}>PLAY SAVED</Text></Pressable><Pressable accessibilityRole="button" onPress={() => void shareOfflineDownload(offlineDownload).catch((cause) => setDownloadMessage(cause instanceof Error ? cause.message.toUpperCase() : "SAVED FILE COULD NOT BE SHARED."))} style={watchPageStyles.offlineAction}><Text style={watchPageStyles.offlineActionText}>SHARE</Text></Pressable><Pressable accessibilityRole="button" onPress={() => void removeDownload()} style={watchPageStyles.offlineAction}><Text style={[watchPageStyles.offlineActionText, watchPageStyles.offlineRemove]}>REMOVE</Text></Pressable></View></View> : <><Pressable accessibilityRole="button" disabled={downloadProgress !== null || !maximumDownloadSource} onPress={() => void startDownload()} style={[watchPageStyles.downloadAction, (!maximumDownloadSource || downloadProgress !== null) && watchPageStyles.downloadDisabled]}><AppIcon name="download" size={17} color={nothing.black} /><Text style={watchPageStyles.downloadActionText}>{downloadProgress !== null ? `SAVING ${Math.round(downloadProgress * 100)}%` : maximumDownloadSource ? `SAVE ${downloadLabel(maximumDownloadSource)}` : "DIRECT SOURCE REQUIRED"}</Text></Pressable>{!maximumDownloadSource ? <Text style={watchPageStyles.downloadMessage}>THIS PROVIDER OFFERS EMBEDDED, PROTECTED, OR ADAPTIVE PLAYBACK ONLY.</Text> : null}</>}{downloadMessage ? <Text style={watchPageStyles.downloadMessage}>{downloadMessage}</Text> : null}</View>{subtitleTracks.length ? <View style={watchPageStyles.menuSection}><DotLabel>SUBTITLES</DotLabel><View style={styles.qualityRow}><Pressable accessibilityRole="button" onPress={() => selectSubtitle(null)} style={[styles.quality, !player.subtitleTrack && styles.qualityActive]}><Text style={[styles.qualityText, !player.subtitleTrack && styles.qualityTextActive]}>OFF</Text></Pressable>{subtitleTracks.map((track) => <Pressable key={track.id} onPress={() => selectSubtitle(track)} style={[styles.quality, player.subtitleTrack?.id === track.id && styles.qualityActive]}><Text style={[styles.qualityText, player.subtitleTrack?.id === track.id && styles.qualityTextActive]}>{track.label || track.language}</Text></Pressable>)}</View></View> : null}</ScrollView></View> : null}
       {manualFullscreen && (source || embedSource) && showSourcePicker ? <View style={playerStyles.playerSourceFullscreenSheet}><View style={watchPageStyles.playerMenuHeading}><DotLabel>AUDIO & PROVIDER</DotLabel><Pressable accessibilityRole="button" accessibilityLabel="Close audio and provider selector" onPress={() => setShowSourcePicker(false)}><AppIcon name="close" size={18} color={nothing.muted} /></Pressable></View><View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} accessibilityRole="button" onPress={() => selectLanguage(item)} disabled={!providers[item].length} style={[styles.language, language === item && styles.languageActive, !providers[item].length && styles.languageDisabled]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${providers.sub.length}` : `DUB · ${providers.dub.length}`}</Text></Pressable>)}</View><ScrollView style={playerStyles.inPlayerProviderScroll} contentContainerStyle={playerStyles.inPlayerProviderList} nestedScrollEnabled showsVerticalScrollIndicator={false}>{activeProviders.map((provider, index) => <Pressable key={provider.id} accessibilityRole="button" onPress={() => selectServer(index)} style={[playerStyles.inPlayerProvider, index === serverIndex && playerStyles.inPlayerProviderActive]}><View style={playerStyles.inPlayerProviderName}><View style={[playerStyles.providerSignal, index === serverIndex && playerStyles.providerSignalActive]} /><Text style={[playerStyles.inPlayerProviderText, index === serverIndex && playerStyles.inPlayerProviderTextActive]}>{provider.label || provider.provider}</Text></View><Text style={[playerStyles.inPlayerProviderState, index === serverIndex && playerStyles.inPlayerProviderTextActive]}>{index === serverIndex ? (embedSource ? "RECONNECT" : "PLAYING") : "SELECT"}</Text></Pressable>)}</ScrollView></View> : null}
       {source ? <Pressable accessibilityRole="button" accessibilityLabel="Show or hide player controls" onPress={() => setControlsVisible((value) => { if (value) { setShowConsole(false); setShowSourcePicker(false); setShowQualityPicker(false); } return !value; })} style={styles.revealZone} /> : null}
     </View>
@@ -995,6 +1042,7 @@ const watchPageStyles = StyleSheet.create({
   downloadActionText: { color: nothing.black, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.3 },
   downloadDisabled: { opacity: 0.38 },
   downloadMessage: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.25, lineHeight: 13 },
+  diagnosticLine: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.25, lineHeight: 14 },
   offlineBlock: { gap: 8 },
   offlineCopy: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.25 },
   offlineActions: { flexDirection: "row", gap: 6 },

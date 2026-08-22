@@ -83,6 +83,7 @@ export type StreamSource = {
 
 export type StreamResponse = {
   sources: StreamSource[];
+  qualities?: string[];
   headers?: Record<string, string>;
   intro?: { startTime?: number; endTime?: number };
   outro?: { startTime?: number; endTime?: number };

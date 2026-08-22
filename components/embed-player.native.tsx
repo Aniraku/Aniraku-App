@@ -9,13 +9,13 @@ export function EmbedPlayer({ uri, headers, onError }: { uri: string; headers?: 
     <WebView
       source={{ uri, headers }}
       style={styles.webview}
-      originWhitelist={["*"]}
+      originWhitelist={["https://*", "http://*"]}
       allowsFullscreenVideo
       allowsInlineMediaPlayback
       mediaPlaybackRequiresUserAction={false}
       javaScriptEnabled
       domStorageEnabled
-      javaScriptCanOpenWindowsAutomatically
+      javaScriptCanOpenWindowsAutomatically={false}
       setSupportMultipleWindows={false}
       cacheEnabled
       cacheMode="LOAD_DEFAULT"

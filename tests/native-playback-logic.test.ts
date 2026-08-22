@@ -4,7 +4,7 @@ import { getKnownMalId } from "../lib/anilist";
 import { shouldAllowEmbedNavigation } from "../lib/embed-navigation";
 import { adaptiveVideoCacheBytes, NATIVE_STREAM_BUFFER_OPTIONS } from "../lib/playback-buffer-policy";
 import { chooseResumeEpisode, progressFraction } from "../lib/watch-progress";
-import { directSources, embedSources, episodePageCount, episodePageFor, episodePageSlice, hasConfirmedPlaybackStart, isProxySource, nativeSources, nextProviderIndex, normalizeAniSkipSegments, proxySources, shouldApplyInitialHistoryResume, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect, usableProvider } from "../lib/watch-engine";
+import { directSources, embedSources, episodePageCount, episodePageFor, episodePageSlice, filterConditionalAllyProviders, hasConfirmedPlaybackStart, isProxySource, mergeProviderServers, nativeSources, nextProviderIndex, normalizeAniSkipSegments, PROVIDER_DISCOVERY_RETRY_DELAYS_MS, proxySources, shouldApplyInitialHistoryResume, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect, usableProvider } from "../lib/watch-engine";
 
 describe("Aniraku native playback coordination", () => {
   it("keeps only Android-safe transport headers for direct media", () => {
@@ -77,6 +77,16 @@ describe("Aniraku native playback coordination", () => {
     const servers = normalizeServers([{ name: "kiwi", provider: "miruro", verification: "dead" }], "sub");
     expect(servers).toHaveLength(1);
     expect(servers[0]).toMatchObject({ id: "sub:kiwi", provider: "kiwi", lang: "sub" });
+  });
+
+  it("keeps Ally only while it is the sole source-bearing fallback and preserves an active Ally row", () => {
+    const ally = { id: "sub:ally", provider: "ally", label: "ALLY", lang: "sub" as const, sources: [{ url: "https://cdn.example/ally.m3u8", verification: "proxy" }] };
+    const bonk = { id: "sub:bonk", provider: "bonk", label: "BONK", lang: "sub" as const, sources: [{ url: "https://cdn.example/bonk.m3u8", verification: "proxy" }] };
+    expect(PROVIDER_DISCOVERY_RETRY_DELAYS_MS).toEqual([0, 4_000, 8_000, 12_000]);
+    expect(filterConditionalAllyProviders([ally])).toEqual([ally]);
+    expect(filterConditionalAllyProviders([ally, bonk])).toEqual([bonk]);
+    expect(filterConditionalAllyProviders([ally, bonk], ally.id)).toEqual([ally, bonk]);
+    expect(mergeProviderServers([ally], [{ ...ally, sources: [{ url: "https://cdn.example/fresh-ally.m3u8", verification: "proxy" }] }, bonk])[0].sources?.[0].url).toContain("fresh-ally");
   });
 
   it("uses known backend or AniList metadata IDs before a separate AniSkip fallback lookup", () => {

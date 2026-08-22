@@ -10,6 +10,10 @@ const NUISANCE_HOST_SUFFIXES = [
   "popcash.net",
   "propellerads.com",
   "trafficjunky.net",
+  "hilltopads.net",
+  "onclicka.com",
+  "clickadu.com",
+  "monetag.com",
 ];
 
 function hasBlockedHost(hostname: string) {
@@ -26,9 +30,11 @@ function hasBlockedHost(hostname: string) {
 export function shouldAllowEmbedNavigation(url: string) {
   try {
     const parsed = new URL(url);
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
-    return !hasBlockedHost(parsed.hostname);
+    const allowed = (parsed.protocol === "https:" || parsed.protocol === "http:") && !hasBlockedHost(parsed.hostname);
+    if (!allowed) console.info(`[Aniraku embed] navigation blocked: ${parsed.protocol}//${parsed.hostname || "unknown"}`);
+    return allowed;
   } catch {
+    console.info("[Aniraku embed] navigation blocked: invalid URL");
     return false;
   }
 }
@@ -36,10 +42,19 @@ export function shouldAllowEmbedNavigation(url: string) {
 export const embeddedPopupGuardScript = `
   (function () {
     window.open = function () { return null; };
+    window.alert = function () { return undefined; };
+    window.confirm = function () { return false; };
     document.addEventListener('click', function (event) {
       var node = event.target;
       while (node && node.tagName !== 'A') node = node.parentElement;
       if (node && node.target === '_blank') {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }, true);
+    document.addEventListener('submit', function (event) {
+      var form = event.target;
+      if (form && form.target === '_blank') {
         event.preventDefault();
         event.stopPropagation();
       }

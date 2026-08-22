@@ -7,6 +7,33 @@ export type SkipSegment = { startTime: number; endTime: number; source: "provide
 export type SkipSegments = Record<SkipKind, SkipSegment | null>;
 
 export const EPISODE_PAGE_SIZE = 50;
+export const PROVIDER_DISCOVERY_RETRY_DELAYS_MS = [0, 4_000, 8_000, 12_000] as const;
+
+function providerName(server: Server) {
+  return String(server.provider || server.label || "").trim().toLowerCase();
+}
+
+/** Merge late resolver responses without making already surfaced servers disappear. */
+export function mergeProviderServers(existing: Server[] = [], incoming: Server[] = []) {
+  const merged = new Map<string, Server>();
+  for (const server of [...existing, ...incoming]) {
+    if (!server?.id) continue;
+    merged.set(server.id, server);
+  }
+  return [...merged.values()];
+}
+
+/**
+ * Ally is offered only while it is the sole source-bearing fallback. Keep an
+ * actively playing Ally row visible until the user changes source so filtering
+ * provider controls never mislabels or interrupts an existing player.
+ */
+export function filterConditionalAllyProviders(servers: Server[] = [], activeProviderId?: string | null) {
+  const candidates = servers.filter((server) => Boolean(server?.id));
+  const hasPlayableAlternative = candidates.some((server) => providerName(server) !== "ally" && usableProvider(server));
+  if (!hasPlayableAlternative) return candidates;
+  return candidates.filter((server) => providerName(server) !== "ally" || server.id === activeProviderId);
+}
 
 export function qualityRank(quality?: string) {
   const value = String(quality || "").toLowerCase();

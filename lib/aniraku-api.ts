@@ -145,11 +145,11 @@ export async function getServers(animeId: number, episode: number, lang: "sub" |
   return normalizeServers(payload, lang);
 }
 
-export async function getStream(input: { animeId: number; episode: number; provider: string; lang: "sub" | "dub"; refresh?: boolean }): Promise<StreamResponse> {
+export async function getStream(input: { animeId: number; episode: number; provider: string; lang: "sub" | "dub"; quality?: string; refresh?: boolean }): Promise<StreamResponse> {
   const payload = await apiRequest<BackendStreamResponse>("/api/v1/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...input, quality: "auto", refresh: Boolean(input.refresh) }),
+    body: JSON.stringify({ ...input, quality: input.quality || "auto", refresh: Boolean(input.refresh) }),
   });
   return normalizeStreamResponse(payload);
 }
