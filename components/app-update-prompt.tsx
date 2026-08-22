@@ -5,6 +5,7 @@ import Constants from "expo-constants";
 import { AnirakuMark, DotLabel, nothing, Signal } from "@/components/nothing-ui";
 import { checkForAnirakuUpdate, updateDismissalKey, type AppRelease } from "@/lib/app-update";
 import { downloadAndInstallAnirakuUpdate } from "@/lib/android-app-installer";
+import { updatePromptCopy } from "@/lib/update-prompt-copy";
 
 const installedVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || "0.0.0";
 
@@ -48,15 +49,17 @@ export function AppUpdatePrompt() {
     } finally { setOpening(false); }
   };
 
+  const copy = release ? updatePromptCopy(installedVersion, release.version) : null;
+
   return <Modal transparent visible={Boolean(release)} animationType="fade" onRequestClose={() => { void dismiss(); }}>
     <View style={styles.backdrop}><View style={styles.sheet} accessibilityViewIsModal>
-      <View style={styles.top}><DotLabel tone="signal">ANIRAKU / UPDATE READY</DotLabel><Signal label={`V${release?.version || ""}`} tone="live" /></View>
+      <View style={styles.top}><DotLabel tone="signal">{copy?.label || "ANIRAKU / UPDATE READY"}</DotLabel><Signal label="VERIFIED RELEASE" tone="live" /></View>
       <View style={styles.mark}><AnirakuMark size={38} inverted /></View>
-      <Text style={styles.title}>A newer Aniraku build is ready.</Text>
-      <Text style={styles.copy}>Your installed build is v{installedVersion}. Aniraku will download the verified v{release?.version} APK and open Android’s installer directly.</Text>
+      <Text style={styles.title}>{copy?.title || "A newer Aniraku build is ready."}</Text>
+      <Text style={styles.copy}>{copy?.body || "Aniraku will download the verified official APK and open Android’s installer directly."}</Text>
       {installMessage ? <Text style={styles.status}>{installMessage}</Text> : null}
-      <Pressable accessibilityRole="button" disabled={opening} onPress={() => void installRelease()} style={[styles.primary, opening && styles.primaryDisabled]}><Text style={styles.primaryText}>{opening ? "PREPARING INSTALL" : "UPDATE NOW"}</Text>{opening ? <ActivityIndicator color={nothing.black} size="small" /> : null}</Pressable>
-      <Pressable accessibilityRole="button" onPress={() => void dismiss()} style={styles.secondary}><Text style={styles.secondaryText}>LATER</Text></Pressable>
+      <Pressable accessibilityRole="button" disabled={opening} onPress={() => void installRelease()} style={[styles.primary, opening && styles.primaryDisabled]}><Text style={styles.primaryText}>{opening ? "PREPARING INSTALL" : copy?.installLabel || "INSTALL UPDATE"}</Text>{opening ? <ActivityIndicator color={nothing.black} size="small" /> : null}</Pressable>
+      <Pressable accessibilityRole="button" onPress={() => void dismiss()} style={styles.secondary}><Text style={styles.secondaryText}>NOT NOW</Text></Pressable>
     </View></View>
   </Modal>;
 }

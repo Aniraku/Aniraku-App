@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { sessionIsVerified } from "@/lib/auth-session";
+import { ANIRAKU_AUTH_REDIRECT_URL } from "@/lib/auth-redirect";
 import { defaultAvatar } from "@/lib/aniraku-avatars";
 import type { AnirakuProfile } from "@/lib/types";
 
@@ -112,13 +113,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const { error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: { username: clean, display_name: clean }, emailRedirectTo: "aniraku://auth?mode=confirmed" },
+      options: { data: { username: clean, display_name: clean }, emailRedirectTo: `${ANIRAKU_AUTH_REDIRECT_URL}?mode=confirmed` },
     });
     if (error) throw error;
   }, []);
 
   const sendRecovery = useCallback(async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: "aniraku://auth?mode=recovery" });
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${ANIRAKU_AUTH_REDIRECT_URL}?mode=recovery` });
     if (error) throw error;
   }, []);
 

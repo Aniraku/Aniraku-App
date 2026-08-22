@@ -1,10 +1,10 @@
-name: Build Aniraku v4.2.3 APK
+name: Build Aniraku v4.2.4 APK
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the verified v4.2.3 APK as the standard GitHub release
+        description: Publish the verified v4.2.4 APK as the standard GitHub release
         required: true
         default: false
         type: boolean
@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      RELEASE_TAG: v4.2.3
-      RELEASE_VERSION: 4.2.3
-      RELEASE_VERSION_CODE: "25"
-      RELEASE_ASSET_NAME: Aniraku-v4.2.3.apk
+      RELEASE_TAG: v4.2.4
+      RELEASE_VERSION: 4.2.4
+      RELEASE_VERSION_CODE: "26"
+      RELEASE_ASSET_NAME: Aniraku-v4.2.4.apk
       EXPO_PUBLIC_API_BASE_URL: https://api.aniraku.tech
       EXPO_PUBLIC_ANILIST_GRAPHQL_URL: https://graphql.anilist.co
       EXPO_PUBLIC_SUPABASE_URL: https://sbjdrjaovcgvttfnpfsz.supabase.co
@@ -47,7 +47,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Validate native source
         run: pnpm check && pnpm test
-      - name: Verify v4.2.3 release identity
+      - name: Verify v4.2.4 release identity
         run: |
           pnpm exec expo config --json > /tmp/aniraku-expo-config.json
           grep -Eq "\"version\"[[:space:]]*:[[:space:]]*\"$RELEASE_VERSION\"" /tmp/aniraku-expo-config.json
@@ -67,14 +67,14 @@ jobs:
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
           sha256sum "$APK" | tee /tmp/aniraku-release.apk.sha256
-      - name: Upload Aniraku v4.2.3 APK
+      - name: Upload Aniraku v4.2.4 APK
         uses: actions/upload-artifact@v4
         with:
           name: Aniraku-${{ env.RELEASE_TAG }}-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish stable v4.2.3 release
+      - name: Publish stable v4.2.4 release
         if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -84,27 +84,27 @@ jobs:
           RELEASE_DIGEST=/tmp/$RELEASE_ASSET_NAME.sha256
           cp "$APK" "$RELEASE_APK"
           cp /tmp/aniraku-release.apk.sha256 "$RELEASE_DIGEST"
-          cat > /tmp/aniraku-v4.2.3-notes.md <<'EOF'
-          ## Aniraku v4.2.3
+          cat > /tmp/aniraku-v4.2.4-notes.md <<'EOF'
+          ## Aniraku v4.2.4
 
-          **Package:** `aniraku.anime.app` · **versionCode:** 25
+          **Package:** `aniraku.anime.app` · **versionCode:** 26
 
-          ### Optional community support
-          - Adds **Profile → Support Me**, with Patreon as the primary support route and an optional USDT address on **BNB Smart Chain (BEP20)**. The QR image, full address, and network warning are visible in the app; the address can be copied deliberately.
-          - Support is voluntary, funds hosting, releases, and open-source development, and does not alter access to Aniraku features.
-          - A single support sheet can appear after 30 minutes of active use. Choosing **Not now** suppresses it for seven days, and automatic presentation is excluded during Watch playback.
+          ### Verified accounts, returned to Aniraku
+          - Creating an account now clearly explains that email verification is required before sign-in, names the destination email address, and asks users to check **Spam** or **Junk** if the message is not in the inbox.
+          - Supabase email-confirmation and password-recovery callbacks use the registered `aniraku://auth` Android route. The app safely completes either a PKCE code or token-hash callback and returns the user to Aniraku.
 
-          ### Direct distribution stays verified
-          - Updates still validate the official Aniraku GitHub Release asset and its expected byte size before handing the APK to Android’s system installer.
-          - `Aniraku-v4.2.3.apk.sha256` is included for independent download verification.
+          ### Clearer verified direct updates
+          - The in-app update sheet now identifies the installed and available versions, labels the release as verified, and names the exact install action before opening Android’s system installer.
+          - Updates still validate the official Aniraku GitHub Release asset and expected byte size. `Aniraku-v4.2.4.apk.sha256` is included for independent download verification.
 
-          > **Crypto safety:** Send USDT on **BNB Smart Chain (BEP20) only**. Verify both asset and network before sending; transfers cannot be reversed.
+          ### Community support remains available
+          - **Profile → Support Me** continues to provide Patreon plus optional USDT on **BNB Smart Chain (BEP20)** with a visible QR, exact network warning, and deliberate copy action.
 
           > If you are upgrading from v1.x under `aniraku.anine.app`, uninstall that legacy package first. Android treats `aniraku.anime.app` as a separate application.
           EOF
           if gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --clobber
-            gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.2.3 — Community Support" --notes-file /tmp/aniraku-v4.2.3-notes.md --latest
+            gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.2.4 — Verified Accounts" --notes-file /tmp/aniraku-v4.2.4-notes.md --latest
           else
-            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --title "v4.2.3 — Community Support" --notes-file /tmp/aniraku-v4.2.3-notes.md --latest
+            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --title "v4.2.4 — Verified Accounts" --notes-file /tmp/aniraku-v4.2.4-notes.md --latest
           fi
