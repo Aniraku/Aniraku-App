@@ -55,6 +55,4 @@ Live preview validation confirmed the new Home surface renders real AniList artw
 The redesign applies visual hierarchy through controlled scale, spacing, value, and asymmetric balance rather than through repeated card decoration. It uses the Nothing-inspired principle of purposeful, clear controls without treating typographic utility cues as the product identity.
 ---
 
-`SIGNAL / ARTWORK FIRST, NOISE LAST`
-
-[README](./README.md) · [Nothing OS inspiration](./docs/NOTHING_OS_RESEARCH.md) · [Architecture](./docs/NATIVE_ARCHITECTURE.md) · [Contributing](./CONTRIBUTING.md)
+[README](./README.md) · [Contributing](./CONTRIBUTING.md)
