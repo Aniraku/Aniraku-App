@@ -1,7 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from "react";
 import type { Session, User } from "@supabase/supabase-js";
+import { AppState } from "react-native";
 import { supabase } from "@/lib/supabase";
-import { sessionIsVerified } from "@/lib/auth-session";
+import { serverUserCanStartSession, sessionIsVerified } from "@/lib/auth-session";
 import { ANIRAKU_AUTH_REDIRECT_URL } from "@/lib/auth-redirect";
 import { defaultAvatar } from "@/lib/aniraku-avatars";
 import type { AnirakuProfile } from "@/lib/types";
@@ -16,6 +17,7 @@ type AuthState = {
   verified: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, username: string) => Promise<void>;
+  resendVerification: (email: string) => Promise<void>;
   sendRecovery: (email: string) => Promise<void>;
   updatePassword: (password: string) => Promise<void>;
   updateProfile: (updates: ProfileUpdate) => Promise<void>;
@@ -43,6 +45,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<AnirakuProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const sessionValidation = useRef(0);
 
   const loadProfile = useCallback(async (user: User) => {
     const fallback = fallbackProfile(user);
@@ -75,36 +78,64 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     let mounted = true;
-    const applySession = (candidate: Session | null) => {
-      const next = sessionIsVerified(candidate) ? candidate : null;
-      setSession(next);
-      if (!next?.user) {
-        setProfile(null);
-        setLoading(false);
+    const clearSessionState = () => {
+      if (!mounted) return;
+      setSession(null);
+      setProfile(null);
+      setLoading(false);
+    };
+    const applySession = async (candidate: Session | null) => {
+      const validationId = ++sessionValidation.current;
+      if (!candidate?.user) {
+        clearSessionState();
         return;
       }
-      setLoading(true);
-      void loadProfile(next.user).finally(() => { if (mounted) setLoading(false); });
+      if (mounted) setLoading(true);
+      try {
+        // getUser always asks Supabase Auth for the present user record. This
+        // deliberately rejects a cached token after an account was deleted.
+        const { data, error } = await supabase.auth.getUser();
+        if (!mounted || validationId !== sessionValidation.current) return;
+        if (error || !serverUserCanStartSession(candidate, data.user)) {
+          await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+          clearSessionState();
+          return;
+        }
+        const next = { ...candidate, user: data.user };
+        setSession(next);
+        void loadProfile(data.user).finally(() => {
+          if (mounted && validationId === sessionValidation.current) setLoading(false);
+        });
+      } catch {
+        if (!mounted || validationId !== sessionValidation.current) return;
+        // Offline or malformed stored sessions must not grant app access.
+        await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        clearSessionState();
+      }
     };
-    void supabase.auth.getSession().then(({ data }) => applySession(data.session)).catch(() => applySession(null));
+    void supabase.auth.getSession().then(({ data }) => void applySession(data.session)).catch(() => void applySession(null));
+    const appStateSubscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void supabase.auth.getSession().then(({ data }) => void applySession(data.session));
+    });
     let subscription: ReturnType<typeof supabase.auth.onAuthStateChange>["data"]["subscription"] | undefined;
     try {
       ({ data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-        // Defer the profile request outside Supabase's state-change callback.
-        setTimeout(() => { if (mounted) applySession(nextSession); }, 0);
+        // Defer the Supabase Auth network request outside the state-change callback.
+        setTimeout(() => { if (mounted) void applySession(nextSession); }, 0);
       }));
     } catch {
-      if (mounted) setLoading(false);
+      clearSessionState();
     }
-    return () => { mounted = false; subscription?.unsubscribe(); };
+    return () => { mounted = false; sessionValidation.current += 1; appStateSubscription.remove(); subscription?.unsubscribe(); };
   }, [loadProfile]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     if (error) throw error;
-    if (!sessionIsVerified(data.session)) {
-      await supabase.auth.signOut();
-      throw new Error("Verify your email before signing in.");
+    const { data: current, error: currentUserError } = await supabase.auth.getUser();
+    if (currentUserError || !serverUserCanStartSession(data.session, current.user)) {
+      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+      throw new Error("Please confirm your email before signing in.");
     }
   }, []);
 
@@ -113,13 +144,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const { error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: { username: clean, display_name: clean }, emailRedirectTo: `${ANIRAKU_AUTH_REDIRECT_URL}?mode=confirmed` },
+      options: { data: { username: clean, display_name: clean }, emailRedirectTo: ANIRAKU_AUTH_REDIRECT_URL },
+    });
+    if (error) throw error;
+  }, []);
+
+  const resendVerification = useCallback(async (email: string) => {
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: email.trim(),
+      options: { emailRedirectTo: ANIRAKU_AUTH_REDIRECT_URL },
     });
     if (error) throw error;
   }, []);
 
   const sendRecovery = useCallback(async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${ANIRAKU_AUTH_REDIRECT_URL}?mode=recovery` });
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: ANIRAKU_AUTH_REDIRECT_URL });
     if (error) throw error;
   }, []);
 
@@ -148,6 +188,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, [session?.user]);
 
   const signOut = useCallback(async () => {
+    sessionValidation.current += 1;
     await supabase.auth.signOut().catch(() => {});
     setSession(null);
     setProfile(null);
@@ -161,11 +202,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
     verified: sessionIsVerified(session),
     signIn,
     signUp,
+    resendVerification,
     sendRecovery,
     updatePassword,
     updateProfile,
     signOut,
-  }), [loading, profile, session, sendRecovery, signIn, signOut, signUp, updatePassword, updateProfile]);
+  }), [loading, profile, resendVerification, session, sendRecovery, signIn, signOut, signUp, updatePassword, updateProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

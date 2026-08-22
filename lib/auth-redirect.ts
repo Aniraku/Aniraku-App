@@ -2,7 +2,12 @@ export const ANIRAKU_AUTH_REDIRECT_URL = "aniraku://auth";
 
 export function signUpVerificationNotice(email: string) {
   const destination = email.trim() || "your email address";
-  return `We sent an activation link to ${destination}. Verify your email before signing in. Check your inbox, then check Spam or Junk if it does not arrive within a few minutes.`;
+  return `We sent a confirmation email to ${destination}. Open it and select Confirm email address to finish setting up your account. If it is not there after a few minutes, please check Spam or Junk.`;
+}
+
+export function verificationResentNotice(email: string) {
+  const destination = email.trim() || "your email address";
+  return `We sent another confirmation email to ${destination}. Please use that email to finish setting up your account.`;
 }
 
 export function readCallbackValue(value: string | string[] | undefined) {
