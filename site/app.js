@@ -68,6 +68,56 @@ if (packageButton && copyFeedback) {
   });
 }
 
+const supportCopyButtons = [...document.querySelectorAll("[data-copy-support]")];
+supportCopyButtons.forEach((supportCopyButton) => {
+  supportCopyButton.addEventListener("click", async () => {
+    const value = supportCopyButton.dataset.copySupport;
+    const supportCopyFeedback = supportCopyButton.parentElement?.querySelector(".support-copy-feedback");
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
+      await navigator.clipboard.writeText(value);
+      if (supportCopyFeedback) supportCopyFeedback.textContent = "USDT BEP20 address copied.";
+    } catch {
+      if (supportCopyFeedback) supportCopyFeedback.textContent = value;
+    }
+  });
+});
+
+const SUPPORT_PROMPT_ACTIVE_MS = 30 * 60 * 1000;
+const SUPPORT_PROMPT_DISMISS_MS = 7 * 24 * 60 * 60 * 1000;
+const SUPPORT_PROMPT_DISMISS_KEY = "aniraku.support.dismissed-until";
+const supportPrompt = document.querySelector("[data-support-prompt]");
+const supportPromptDismiss = document.querySelectorAll("[data-dismiss-support]");
+
+if (supportPrompt) {
+  let activeMs = 0;
+  let activeStartedAt = Date.now();
+  let documentVisible = document.visibilityState === "visible";
+  const dismissedUntil = () => Number(localStorage.getItem(SUPPORT_PROMPT_DISMISS_KEY) || 0) || 0;
+  const isDismissed = (now = Date.now()) => dismissedUntil() > now;
+  const dismissSupport = () => {
+    localStorage.setItem(SUPPORT_PROMPT_DISMISS_KEY, String(Date.now() + SUPPORT_PROMPT_DISMISS_MS));
+    supportPrompt.hidden = true;
+  };
+  const updateVisibility = () => {
+    const now = Date.now();
+    const isVisible = document.visibilityState === "visible";
+    if (documentVisible && !isVisible) activeMs += now - activeStartedAt;
+    if (!documentVisible && isVisible) activeStartedAt = now;
+    documentVisible = isVisible;
+  };
+  const evaluateSupportPrompt = () => {
+    if (!documentVisible || !supportPrompt.hidden || isDismissed()) return;
+    const elapsed = activeMs + (Date.now() - activeStartedAt);
+    if (elapsed >= SUPPORT_PROMPT_ACTIVE_MS) supportPrompt.hidden = false;
+  };
+  document.addEventListener("visibilitychange", updateVisibility);
+  supportPromptDismiss.forEach((button) => button.addEventListener("click", dismissSupport));
+  supportPrompt.addEventListener("mousedown", (event) => { if (event.target === supportPrompt) dismissSupport(); });
+  setInterval(evaluateSupportPrompt, 15000);
+  evaluateSupportPrompt();
+}
+
 const dockLinks = [...document.querySelectorAll(".mobile-dock a")];
 const sections = dockLinks
   .map((link) => document.querySelector(link.getAttribute("href")))

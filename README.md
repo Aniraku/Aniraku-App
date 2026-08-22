@@ -29,6 +29,8 @@
   <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v4.2">☁️ v4.2 Notes</a>
   &nbsp;‧&nbsp;
   <a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku">🫧 Orion</a>
+  &nbsp;‧&nbsp;
+  <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 
 <br>

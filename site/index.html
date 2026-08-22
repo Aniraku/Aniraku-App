@@ -32,6 +32,7 @@
         <a href="#detail">RELATIONS</a>
         <a href="#watch">WATCH</a>
         <a href="#install">INSTALL</a>
+        <a href="#support">SUPPORT</a>
       </nav>
       <a
         class="top-download"
@@ -535,11 +536,38 @@
         </aside>
       </section>
 
+      <section class="support section" id="support" aria-labelledby="support-title">
+        <div class="support-copy">
+          <p class="eyebrow"><span>06 / COMMUNITY SUPPORT</span><i></i> OPTIONAL</p>
+          <h2 id="support-title">Keep Aniraku<br /><em>moving.</em></h2>
+          <p>
+            If Aniraku has helped you find something to watch, voluntary support
+            helps fund hosting, releases, and open-source development. Choose the
+            method that works for you—support never changes access to features.
+          </p>
+          <a class="button primary" href="https://patreon.com/ShoIslam" target="_blank" rel="noreferrer"><span>SUPPORT ON PATREON</span><b>↗</b></a>
+        </div>
+        <aside class="support-crypto" aria-label="Optional USDT BEP20 support">
+          <div class="support-crypto-top"><span>CRYPTO / OPTIONAL</span><b>USDT · BEP20</b></div>
+          <div class="support-crypto-body">
+            <img src="./assets/usdt-bep20-support-qr.png" alt="USDT BNB Smart Chain payment QR code" loading="lazy" />
+            <div>
+              <p><b>NETWORK</b><span>BNB SMART CHAIN (BEP20)</span></p>
+              <p><b>ASSET</b><span>USDT</span></p>
+              <code>0x0dc085fc880f2f67b4e200f125bc0de352da904e</code>
+              <button class="copy-support" type="button" data-copy-support="0x0dc085fc880f2f67b4e200f125bc0de352da904e">COPY ADDRESS <b>⧉</b></button>
+              <p class="support-copy-feedback" aria-live="polite"></p>
+            </div>
+          </div>
+          <p class="support-warning">SEND USDT ON BNB SMART CHAIN (BEP20) ONLY. VERIFY THE NETWORK BEFORE SENDING.</p>
+        </aside>
+      </section>
+
       <section class="docs section" id="docs" aria-labelledby="docs-title">
         <div class="section-head">
           <div>
             <p class="eyebrow">
-              <span>06 / DOCUMENTATION</span><i></i> USEFUL DETAILS
+              <span>07 / DOCUMENTATION</span><i></i> USEFUL DETAILS
             </p>
             <h2 id="docs-title">Everything needed<br /><em>to begin.</em></h2>
           </div>
@@ -661,7 +689,8 @@
         ></span>
         ANIRAKU</span
       >
-      <p>KEEP YOUR ANIME CLOSE.</p>
+      <p>OPEN SOURCE / COMMUNITY FUNDED</p>
+      <a href="#support">SUPPORT ANIRAKU</a>
       <a href="#home">BACK TO TOP ↑</a>
     </footer>
     <nav class="mobile-dock" aria-label="Mobile section navigation">
@@ -670,6 +699,21 @@
       ><a href="#detail"><span>◫</span>DETAIL</a
       ><a href="#install"><span>↓</span>INSTALL</a>
     </nav>
+    <div class="support-prompt" data-support-prompt hidden>
+      <section class="support-sheet" role="dialog" aria-modal="true" aria-labelledby="support-prompt-title" aria-describedby="support-prompt-copy">
+        <div class="support-top"><span class="support-signal" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>ANIRAKU / COMMUNITY SUPPORT</span><button class="support-close" type="button" data-dismiss-support aria-label="Dismiss support prompt">×</button></div>
+        <div class="support-mark" aria-hidden="true">♥</div>
+        <h2 id="support-prompt-title">Keep Aniraku<br /><em>moving.</em></h2>
+        <p id="support-prompt-copy">If Aniraku has helped you find something to watch, voluntary support funds hosting, releases, and open-source development.</p>
+        <a class="button primary" href="https://patreon.com/ShoIslam" target="_blank" rel="noreferrer" data-dismiss-support><span>SUPPORT ON PATREON</span><b>↗</b></a>
+        <aside class="support-crypto" aria-label="Optional USDT BEP20 support">
+          <div class="support-crypto-top"><span>CRYPTO / OPTIONAL</span><b>USDT · BEP20</b></div>
+          <div class="support-crypto-body"><img src="./assets/usdt-bep20-support-qr.png" alt="USDT BNB Smart Chain payment QR code" /><div><p><b>NETWORK</b><span>BNB SMART CHAIN (BEP20)</span></p><code>0x0dc085fc880f2f67b4e200f125bc0de352da904e</code><button class="copy-support" type="button" data-copy-support="0x0dc085fc880f2f67b4e200f125bc0de352da904e">COPY ADDRESS <b>⧉</b></button><p class="support-copy-feedback" aria-live="polite"></p></div></div>
+          <p class="support-warning">SEND USDT ON BNB SMART CHAIN (BEP20) ONLY. VERIFY THE NETWORK BEFORE SENDING.</p>
+        </aside>
+        <button class="support-later" type="button" data-dismiss-support>NOT NOW · ASK AGAIN IN 7 DAYS</button>
+      </section>
+    </div>
     <script src="./app.js"></script>
   </body>
 </html>

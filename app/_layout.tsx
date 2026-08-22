@@ -9,6 +9,7 @@ import { AppProviders } from "@/providers/app-providers";
 import { nothing } from "@/components/nothing-ui";
 import { ConnectivitySignal } from "@/components/connectivity-signal";
 import { AppUpdatePrompt } from "@/components/app-update-prompt";
+import { SupportPrompt } from "@/components/support-prompt";
 import { configureAdaptiveVideoCache } from "@/lib/video-cache";
 
 export const unstable_settings = { anchor: "(tabs)" };
@@ -26,7 +27,7 @@ export default function RootLayout() {
   if (!videoCacheReady) {
     return <GestureHandlerRootView style={{ flex: 1, backgroundColor: nothing.black }}><StatusBar style="light" translucent backgroundColor="transparent" /><View style={{ flex: 1, backgroundColor: nothing.black }} /></GestureHandlerRootView>;
   }
-  return <GestureHandlerRootView style={{ flex: 1, backgroundColor: nothing.black }}><SafeAreaProvider><AppProviders><StatusBar style="light" translucent backgroundColor="transparent" /><Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: nothing.black } }}><Stack.Screen name="(tabs)" /><Stack.Screen name="anime/[id]" /><Stack.Screen name="watch/[id]" /><Stack.Screen name="search" options={{ presentation: "card" }} /><Stack.Screen name="auth" options={{ presentation: "modal" }} /><Stack.Screen name="settings" options={{ presentation: "modal" }} /><Stack.Screen name="library" /><Stack.Screen name="legal" options={{ presentation: "modal" }} /></Stack><ConnectivitySignal /><AppUpdatePrompt /></AppProviders></SafeAreaProvider></GestureHandlerRootView>;
+  return <GestureHandlerRootView style={{ flex: 1, backgroundColor: nothing.black }}><SafeAreaProvider><AppProviders><StatusBar style="light" translucent backgroundColor="transparent" /><Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: nothing.black } }}><Stack.Screen name="(tabs)" /><Stack.Screen name="anime/[id]" /><Stack.Screen name="watch/[id]" /><Stack.Screen name="search" options={{ presentation: "card" }} /><Stack.Screen name="auth" options={{ presentation: "modal" }} /><Stack.Screen name="settings" options={{ presentation: "modal" }} /><Stack.Screen name="support" options={{ presentation: "modal" }} /><Stack.Screen name="library" /><Stack.Screen name="legal" options={{ presentation: "modal" }} /></Stack><ConnectivitySignal /><AppUpdatePrompt /><SupportPrompt /></AppProviders></SafeAreaProvider></GestureHandlerRootView>;
 }
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
