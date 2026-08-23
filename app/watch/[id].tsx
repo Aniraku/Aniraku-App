@@ -49,6 +49,7 @@ import { useAnirakuAuth } from "@/providers/auth-provider";
 import { downloadLabel, findOfflineDownload, removeOfflineDownload, selectMaximumQualityDownload, shareOfflineDownload, startMaximumQualityDownload, type OfflineDownload } from "@/lib/downloads";
 import { NATIVE_STREAM_BUFFER_OPTIONS } from "@/lib/playback-buffer-policy";
 import { selectedWatchQuality, watchQualityOptions, type WatchQualityOption } from "@/lib/watch-quality";
+import { commentAuthorLabel } from "@/lib/comment-content";
 import { AppIcon } from "@/components/app-icon";
 import { EmbedPlayer } from "@/components/embed-player";
 import { DotLabel, NothingButton, NothingCard, nothing, Signal } from "@/components/nothing-ui";
@@ -1016,7 +1017,7 @@ export default function WatchScreen() {
       <View style={styles.watchCommunitySection}>
         <DotLabel>EPISODE ACTIVITY</DotLabel>
         <View style={styles.ratingRow}><Text style={styles.ratingPrompt}>{currentRating ? `YOU RATED ${currentRating}/10` : "RATE THIS EPISODE"}</Text><View style={styles.ratingChoices}>{Array.from({ length: 10 }, (_, index) => index + 1).map((score) => <Pressable key={score} accessibilityRole="button" accessibilityLabel={`Rate ${score} out of 10`} onPress={() => { if (!auth.user) { router.push("/auth" as never); return; } ratings.setRating.mutate({ episode, score }); }} style={[styles.ratingChoice, currentRating >= score && styles.ratingChoiceActive]}><Text style={[styles.ratingChoiceText, currentRating >= score && styles.ratingChoiceTextActive]}>{score}</Text></Pressable>)}</View></View>
-        <View style={styles.commentBlock}><Text style={styles.commentTitle}>Discussion</Text>{auth.user ? <><TextInput value={watchComment} onChangeText={setWatchComment} placeholder="Add a comment about this episode" placeholderTextColor={nothing.dim} style={styles.watchCommentInput} multiline maxLength={2000} /><NothingButton label={comments.add.isPending ? "POSTING" : "POST COMMENT"} disabled={!watchComment.trim() || comments.add.isPending} onPress={() => comments.add.mutate({ content: watchComment, episode }, { onSuccess: () => setWatchComment("") })} /></> : <NothingButton label="SIGN IN TO COMMENT" variant="outline" onPress={() => router.push("/auth" as never)} />}{episodeComments.slice(0, 4).map((item) => <View key={item.id} style={styles.watchComment}><Text style={styles.watchCommentMeta}>EP {item.episode_number} · {new Date(item.created_at).toLocaleDateString()}</Text><Text style={styles.watchCommentText}>{item.content}</Text></View>)}</View>
+        <View style={styles.commentBlock}><Text style={styles.commentTitle}>Discussion</Text>{auth.user ? <><TextInput value={watchComment} onChangeText={setWatchComment} placeholder="Add a comment about this episode" placeholderTextColor={nothing.dim} style={styles.watchCommentInput} multiline maxLength={2000} /><NothingButton label={comments.add.isPending ? "POSTING" : "POST COMMENT"} disabled={!watchComment.trim() || comments.add.isPending} onPress={() => comments.add.mutate({ content: watchComment, episode }, { onSuccess: () => setWatchComment("") })} /></> : <NothingButton label="SIGN IN TO COMMENT" variant="outline" onPress={() => router.push("/auth" as never)} />}{episodeComments.slice(0, 4).map((item) => <View key={item.id} style={styles.watchComment}><Text style={styles.watchCommentAuthor}>{commentAuthorLabel(item.author)}</Text><Text style={styles.watchCommentMeta}>EP {item.episode_number} · {new Date(item.created_at).toLocaleDateString()}</Text><Text style={styles.watchCommentText}>{item.content}</Text></View>)}</View>
       </View>
     </ScrollView>
   </NativeScreen>;
@@ -1121,6 +1122,7 @@ const watchPageStyles = StyleSheet.create({
   commentTitle: { color: nothing.white, fontSize: 19, fontWeight: "900" },
   watchCommentInput: { minHeight: 78, color: nothing.white, fontSize: 13, lineHeight: 19, textAlignVertical: "top", padding: 11, borderWidth: 1, borderColor: nothing.line, borderRadius: 4, backgroundColor: nothing.surface },
   watchComment: { gap: 5, paddingVertical: 11, borderTopWidth: 1, borderTopColor: nothing.line },
+  watchCommentAuthor: { color: nothing.white, fontSize: 13, fontWeight: "800" },
   watchCommentMeta: { color: nothing.dim, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.4 },
   watchCommentText: { color: nothing.white, fontSize: 13, lineHeight: 19 },
 });

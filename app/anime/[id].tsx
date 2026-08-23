@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { getAnimeById } from "@/lib/anilist";
 import { getEpisodes } from "@/lib/aniraku-api";
 import { displayAnimeRelations } from "@/lib/anime-relations";
@@ -11,9 +11,9 @@ import { chooseResumeEpisode } from "@/lib/watch-progress";
 import { episodePageCount, episodePageSlice } from "@/lib/watch-engine";
 import { useAnirakuAuth } from "@/providers/auth-provider";
 import { useBookmarks } from "@/hooks/use-bookmarks";
-import { useComments } from "@/hooks/use-comments";
 import { useEpisodeRatings } from "@/hooks/use-episode-ratings";
 import { useWatchHistory } from "@/hooks/use-watch-history";
+import { AnimeComments } from "@/components/anime-comments";
 import { ErrorState, LoadingState } from "@/components/async-state";
 import { DotLabel, NothingButton, NothingCard, nothing, Signal } from "@/components/nothing-ui";
 import { NativeHeader, NativeScreen } from "@/components/screen";
@@ -27,8 +27,6 @@ export default function AnimeDetailScreen() {
   const history = useWatchHistory();
   const bookmarks = useBookmarks();
   const ratings = useEpisodeRatings(id);
-  const comments = useComments(id);
-  const [comment, setComment] = useState("");
   const [episodePage, setEpisodePage] = useState(0);
   // Match the main Aniraku detail page: preserve the whole canonical backend
   // episode list instead of silently truncating Watch entry points after 24.
@@ -53,7 +51,6 @@ export default function AnimeDetailScreen() {
   const data = anime.data;
   const title = animeTitle(data);
   const openEpisode = (episode: number) => router.push({ pathname: "/watch/[id]", params: { id: String(id), episode: String(episode), title, image: data.coverImage?.extraLarge || data.coverImage?.large || "" } } as never);
-  const sendComment = () => comments.add.mutate({ content: comment }, { onSuccess: () => setComment("") });
   const lastAvailableEpisode = episodeRows.at(-1)?.number ?? Math.max(data.episodes ?? 1, 1);
   const displayedResume = Math.min(resumeEpisode, lastAvailableEpisode);
 
@@ -65,11 +62,9 @@ export default function AnimeDetailScreen() {
     {animeHistory.length ? <NothingCard style={styles.continueCard}><DotLabel tone="live">CONTINUE WATCHING</DotLabel><Text style={styles.continueText}>Pick up from the furthest episode you completed, or carry on from where you paused.</Text></NothingCard> : null}
     <NothingCard style={styles.summary}><DotLabel>Synopsis</DotLabel><Text style={styles.copy}>{(data.description || "No synopsis is currently available.").replace(/<[^>]+>/g, "")}</Text>{data.genres?.length ? <Text style={styles.genre}>{data.genres.join(" · ")}</Text> : null}</NothingCard>
     {relations.length ? <View style={styles.relationsSection}><View style={styles.relationsHeading}><View><DotLabel>RELATIONSHIPS</DotLabel><Text style={styles.heading}>Continue the story</Text></View><Text style={styles.count}>{String(relations.length).padStart(2, "0")}</Text></View><View style={styles.relationsList}>{relations.map((relation) => { const relationTitle = animeTitle(relation.anime); const cover = relation.anime.coverImage?.large || relation.anime.coverImage?.extraLarge || ""; return <Pressable key={relation.id} accessibilityRole="button" accessibilityLabel={`Open ${relation.label}: ${relationTitle}`} onPress={() => router.push({ pathname: "/anime/[id]", params: { id: String(relation.id) } } as never)} style={({ pressed }) => pressed && styles.pressed}><NothingCard style={styles.relationCard}><View style={styles.relationPoster}>{cover ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" /> : <Text style={styles.relationPosterFallback}>ANIME</Text>}</View><View style={styles.relationBody}><Text style={styles.relationLabel}>{relation.label.toUpperCase()}</Text><Text style={styles.relationTitle} numberOfLines={2}>{relationTitle}</Text><Text style={styles.relationMeta}>{[relation.anime.format, relation.anime.episodes ? `${relation.anime.episodes} EP` : null, relation.anime.status].filter(Boolean).join(" · ") || "OPEN DETAILS"}</Text></View><Text style={styles.relationArrow}>›</Text></NothingCard></Pressable>; })}</View></View> : null}
+    <AnimeComments animeId={id} />
     <View style={styles.episodeHeading}><View><DotLabel>EPISODES</DotLabel><Text style={styles.heading}>Choose an episode</Text></View><Text style={styles.count}>{episodes.isPending ? "…" : String(episodes.data?.length ?? 0).padStart(2, "0")}</Text></View>
     {episodes.isPending ? <LoadingState label="Finding available episodes" /> : episodes.isError ? <ErrorState message={episodes.error?.message || "We could not load episodes right now."} onRetry={() => void episodes.refetch()} /> : !episodeRows.length ? <NothingCard style={styles.emptyEpisodes}><DotLabel tone="muted">NO EPISODES YET</DotLabel><Text style={styles.copy}>Episodes are not available for this anime yet. Check back soon.</Text><NothingButton label="CHECK AGAIN" variant="outline" onPress={() => void episodes.refetch()} /></NothingCard> : <><View style={styles.episodePageBar}><Text style={styles.episodePageText}>{`SHOWING ${String(episodePageStart).padStart(2, "0")}–${String(episodePageEnd).padStart(2, "0")} · PAGE ${safeEpisodePage + 1}/${totalEpisodePages}`}</Text>{totalEpisodePages > 1 ? <View style={styles.episodePager}><Pressable accessibilityRole="button" accessibilityLabel="Previous episode page" disabled={safeEpisodePage === 0} onPress={() => setEpisodePage((value) => Math.max(0, value - 1))} style={[styles.episodePageButton, safeEpisodePage === 0 && styles.episodePageButtonDisabled]}><Text style={styles.episodePageButtonText}>PREV</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Next episode page" disabled={safeEpisodePage >= totalEpisodePages - 1} onPress={() => setEpisodePage((value) => Math.min(totalEpisodePages - 1, value + 1))} style={[styles.episodePageButton, safeEpisodePage >= totalEpisodePages - 1 && styles.episodePageButtonDisabled]}><Text style={styles.episodePageButtonText}>NEXT</Text></Pressable></View> : null}</View><View style={styles.episodeList}>{pagedEpisodeRows.map((episode) => { const score = ratings.scoreFor(episode.number); const seen = animeHistory.find((entry) => entry.episode_number === episode.number); const progress = seen ? Math.min(100, Math.round((seen.progress / Math.max(seen.duration, 1)) * 100)) : 0; return <Pressable key={episode.number} accessibilityRole="button" accessibilityLabel={`Watch episode ${episode.number}: ${episode.title || "Untitled"}`} onPress={() => openEpisode(episode.number)} style={({ pressed }) => pressed && styles.pressed}><NothingCard style={styles.episode}><View style={styles.episodeVisual}><Image source={{ uri: episode.thumbnail || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" /><View style={styles.episodeVisualMask} /><Text style={styles.episodeNumber}>{String(episode.number).padStart(2, "0")}</Text></View><View style={styles.episodeBody}><Text style={styles.episodeTitle} numberOfLines={2}>{episode.title || `Episode ${episode.number}`}</Text><View style={styles.episodeStatus}><Text style={[styles.episodeMeta, episode.isFiller && styles.fillerMeta]}>{seen ? `${progress}% WATCHED` : episode.isFiller ? "FILLER" : "READY TO WATCH"}</Text>{seen ? <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View> : null}</View></View><Pressable accessibilityRole="button" accessibilityLabel={`Rate episode ${episode.number}`} onPress={(event) => { event.stopPropagation(); if (!auth.user) { router.push("/auth" as never); return; } ratings.setRating.mutate({ episode: episode.number, score: score ? score % 10 + 1 : 8 }); }} style={styles.rating}><Text style={styles.ratingText}>{score ? `${score}/10` : "RATE"}</Text></Pressable></NothingCard></Pressable>; })}</View></>}
-    <View style={styles.commentHeading}><DotLabel>Community</DotLabel><Text style={styles.heading}>Comments</Text></View>
-    <NothingCard style={styles.commentComposer}>{auth.user ? <><TextInput value={comment} onChangeText={setComment} placeholder="Add a respectful comment" placeholderTextColor={nothing.dim} style={styles.commentInput} multiline maxLength={2000} /><NothingButton label={comments.add.isPending ? "Posting…" : "Post comment"} disabled={!comment.trim() || comments.add.isPending} onPress={sendComment} /></> : <><Text style={styles.copy}>Use a verified Aniraku account to join the discussion.</Text><NothingButton label="Sign in to comment" variant="outline" onPress={() => router.push("/auth" as never)} /></>}</NothingCard>
-    {comments.comments.isPending ? <LoadingState label="Loading community comments" /> : comments.comments.data?.map((item) => <NothingCard key={item.id} style={styles.comment}><Text style={styles.commentMeta}>{item.episode_number ? `EP ${item.episode_number}` : "ANIME"} · {new Date(item.created_at).toLocaleDateString()}</Text><Text style={styles.commentText}>{item.content}</Text></NothingCard>)}
   </NativeScreen>;
 }
 
@@ -105,7 +100,6 @@ const styles = StyleSheet.create({
   copy: { color: nothing.muted, fontSize: 14, lineHeight: 21 },
   genre: { color: nothing.white, fontFamily: "monospace", fontSize: 10, lineHeight: 15, letterSpacing: 0.4 },
   episodeHeading: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
-  commentHeading: { gap: 4, marginTop: 4 },
   heading: { color: nothing.white, fontSize: 21, fontWeight: "900", marginTop: 4 },
   count: { color: nothing.dim, fontFamily: "monospace", fontSize: 12 },
   episodeList: { gap: 8 },
@@ -129,9 +123,4 @@ const styles = StyleSheet.create({
   progressFill: { height: "100%", backgroundColor: nothing.green },
   rating: { minWidth: 48, height: 34, borderRadius: 8, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line },
   ratingText: { color: nothing.white, fontFamily: "monospace", fontWeight: "800", fontSize: 9 },
-  commentComposer: { padding: 14, gap: 12 },
-  commentInput: { minHeight: 82, color: nothing.white, fontSize: 14, textAlignVertical: "top", borderBottomWidth: 1, borderBottomColor: nothing.line, paddingBottom: 12 },
-  comment: { padding: 14, gap: 7 },
-  commentMeta: { color: nothing.dim, fontFamily: "monospace", fontSize: 9, fontWeight: "700", letterSpacing: 0.6 },
-  commentText: { color: nothing.white, fontSize: 14, lineHeight: 20 },
 });
