@@ -58,7 +58,7 @@ export function AnimeComments({ animeId, episodeNumber }: { animeId: number; epi
       {pickerOpen ? <View style={styles.picker} accessibilityLabel="GIF picker">
         <View style={styles.pickerHead}><Text style={styles.pickerTitle}>REACTION GIFS</Text><Pressable accessibilityRole="button" accessibilityLabel="Close GIF picker" onPress={() => setPickerOpen(false)} style={styles.pickerClose}><AppIcon name="close" size={16} color={nothing.muted} /></Pressable></View>
         <TextInput value={search} onChangeText={setSearch} placeholder="Search reactions" placeholderTextColor={nothing.dim} style={styles.search} returnKeyType="search" />
-        {gifs.isPending ? <View style={styles.gifStatus}><ActivityIndicator size="small" color={nothing.red} /><Text style={styles.gifStatusText}>Loading GIFs</Text></View> : gifs.isError ? <Text style={styles.gifStatusText}>GIFs are unavailable. Try again.</Text> : gifs.data?.length ? <ScrollView style={styles.gifResults} contentContainerStyle={styles.gifGrid} nestedScrollEnabled showsVerticalScrollIndicator>{gifs.data.map((gif) => <Pressable key={gif.id} accessibilityRole="button" accessibilityLabel={`Use GIF ${gif.label}`} accessibilityHint="Adds this reaction GIF to your comment" onPress={() => chooseGif(gif.url)} style={({ pressed }) => [styles.gifTile, pressed && styles.pressed]}><Image source={{ uri: gif.previewUrl }} style={styles.gifImage} resizeMode="contain" /></Pressable>)}</ScrollView> : <Text style={styles.gifStatusText}>No G-rated GIFs found.</Text>}
+        {gifs.isPending ? <View style={styles.gifStatus}><ActivityIndicator size="small" color={nothing.red} /><Text style={styles.gifStatusText}>Loading GIFs</Text></View> : gifs.isError ? <Text style={styles.gifStatusText}>GIFs are unavailable. Try again.</Text> : gifs.data?.length ? <ScrollView style={styles.gifResults} contentContainerStyle={styles.gifGrid} nestedScrollEnabled showsVerticalScrollIndicator>{gifs.data.map((gif) => <Pressable key={gif.id} accessibilityRole="button" accessibilityLabel={`Use GIF ${gif.label}`} accessibilityHint="Adds this reaction GIF to your comment" onPress={() => chooseGif(gif.url)} style={({ pressed }) => [styles.gifTile, { aspectRatio: gif.aspectRatio }, pressed && styles.pressed]}><Image source={{ uri: gif.previewUrl }} style={styles.gifImage} resizeMode="contain" /></Pressable>)}</ScrollView> : <Text style={styles.gifStatusText}>No G-rated GIFs found.</Text>}
         <Text style={styles.attribution}>POWERED BY GIPHY</Text>
       </View> : null}
       {comments.add.isError ? <Text style={styles.error}>{comments.add.error.message}</Text> : null}
@@ -90,9 +90,9 @@ const styles = StyleSheet.create({
   pickerTitle: { color: nothing.white, fontFamily: "monospace", fontSize: 10, fontWeight: "900", letterSpacing: 0.6 },
   pickerClose: { alignItems: "center", height: 28, justifyContent: "center", width: 28 },
   search: { backgroundColor: nothing.surface, borderColor: nothing.line, borderRadius: 6, borderWidth: 1, color: nothing.white, fontSize: 13, height: 34, paddingHorizontal: 9 },
-  gifResults: { maxHeight: 158 },
-  gifGrid: { flexDirection: "row", flexWrap: "wrap", gap: 5 },
-  gifTile: { aspectRatio: 1.45, backgroundColor: nothing.surface, borderRadius: 5, overflow: "hidden", width: "31.8%" },
+  gifResults: { maxHeight: 360 },
+  gifGrid: { gap: 8 },
+  gifTile: { backgroundColor: nothing.surface, borderRadius: 5, overflow: "hidden", width: "100%" },
   gifImage: { height: "100%", width: "100%" },
   gifStatus: { alignItems: "center", flexDirection: "row", gap: 7, minHeight: 62, justifyContent: "center" },
   gifStatusText: { color: nothing.muted, fontSize: 12, textAlign: "center" },
