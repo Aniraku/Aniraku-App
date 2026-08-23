@@ -7,7 +7,7 @@ describe("native GIF picker layout", () => {
   it("shows a compact two-row GIF viewport with additional results internally scrollable", async () => {
     const source = await readFile(resolve(dirname(fileURLToPath(import.meta.url)), "../components/anime-comments.tsx"), "utf8");
 
-    expect(source).toContain('resizeMode="cover"');
+    expect(source).toContain('resizeMode="contain"');
     expect(source).toContain('gifTile: { aspectRatio: 1.45');
     expect(source).toContain('width: "31.8%"');
     expect(source).toContain('<ScrollView style={styles.gifResults}');
