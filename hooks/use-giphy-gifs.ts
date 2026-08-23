@@ -15,7 +15,7 @@ export function useGiphyGifs(open: boolean, search: string) {
     queryFn: async () => {
       const endpoint = new URL(normalizedSearch ? `${GIPHY_API_BASE}/search` : `${GIPHY_API_BASE}/trending`);
       endpoint.searchParams.set("api_key", apiKey);
-      endpoint.searchParams.set("limit", "8");
+      endpoint.searchParams.set("limit", "20");
       endpoint.searchParams.set("rating", "g");
       if (normalizedSearch) {
         endpoint.searchParams.set("q", normalizedSearch);

@@ -10,6 +10,8 @@ describe("native GIF picker layout", () => {
     expect(source).toContain('aspectRatio: gif.aspectRatio');
     expect(source).toContain('resizeMode="contain"');
     expect(source).toContain('width: "31.8%"');
+    expect(source).toContain('<ScrollView style={styles.gifResults}');
+    expect(source).toContain('gifResults: { maxHeight: 300 }');
     expect(source).not.toContain('style={styles.gifLabel}');
   });
 });
