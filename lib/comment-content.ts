@@ -5,6 +5,7 @@ export type GiphyReaction = {
   url: string;
   previewUrl: string;
   label: string;
+  aspectRatio: number;
 };
 
 export type CommentAuthorIdentity = {
@@ -38,12 +39,17 @@ export function canSubmitSharedComment(content: unknown, gifUrl: unknown) {
 export function toGiphyReaction(record: any): GiphyReaction | null {
   const images = record?.images ?? {};
   const url = images.downsized?.url ?? images.fixed_width?.url ?? images.original?.url ?? "";
-  const previewUrl = images.fixed_width_small?.url ?? images.fixed_width?.url ?? images.downsized_still?.url ?? url;
+  const preview = images.fixed_width_small ?? images.fixed_width ?? images.downsized ?? images.original ?? {};
+  const previewUrl = preview.url ?? images.downsized_still?.url ?? url;
   if (!isTrustedGiphyGifUrl(url) || !isTrustedGiphyGifUrl(previewUrl)) return null;
+  const width = Number(preview.width);
+  const height = Number(preview.height);
+  const aspectRatio = Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0 ? width / height : 1;
   return {
     id: String(record?.id ?? url),
     url,
     previewUrl,
     label: String(record?.title ?? record?.slug ?? "Animated reaction").trim() || "Animated reaction",
+    aspectRatio,
   };
 }

@@ -16,7 +16,7 @@ describe("shared comment content", () => {
   });
 
   it("normalizes a GIPHY API record without trusting an arbitrary URL", () => {
-    expect(toGiphyReaction({ id: "gif-1", title: "Reaction", images: { downsized: { url: trustedGif }, fixed_width_small: { url: trustedGif } } })).toMatchObject({ id: "gif-1", url: trustedGif, label: "Reaction" });
+    expect(toGiphyReaction({ id: "gif-1", title: "Reaction", images: { downsized: { url: trustedGif }, fixed_width_small: { url: trustedGif, width: "120", height: "80" } } })).toMatchObject({ id: "gif-1", url: trustedGif, label: "Reaction", aspectRatio: 1.5 });
     expect(toGiphyReaction({ images: { downsized: { url: "https://example.com/bad.gif" } } })).toBeNull();
     expect(cleanCommentContent("  hello  ")).toBe("hello");
   });
