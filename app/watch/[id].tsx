@@ -43,13 +43,12 @@ import {
 import { animeTitle, type Episode, type Server, type StreamResponse, type StreamSource } from "@/lib/types";
 import { useWatchHistory } from "@/hooks/use-watch-history";
 import { useEpisodeRatings } from "@/hooks/use-episode-ratings";
-import { useComments } from "@/hooks/use-comments";
+import { AnimeComments } from "@/components/anime-comments";
 import { useProviderSync } from "@/hooks/use-provider-sync";
 import { useAnirakuAuth } from "@/providers/auth-provider";
 import { downloadLabel, findOfflineDownload, removeOfflineDownload, selectMaximumQualityDownload, shareOfflineDownload, startMaximumQualityDownload, type OfflineDownload } from "@/lib/downloads";
 import { NATIVE_STREAM_BUFFER_OPTIONS } from "@/lib/playback-buffer-policy";
 import { selectedWatchQuality, watchQualityOptions, type WatchQualityOption } from "@/lib/watch-quality";
-import { commentAuthorLabel } from "@/lib/comment-content";
 import { AppIcon } from "@/components/app-icon";
 import { EmbedPlayer } from "@/components/embed-player";
 import { DotLabel, NothingButton, NothingCard, nothing, Signal } from "@/components/nothing-ui";
@@ -106,9 +105,7 @@ export default function WatchScreen() {
   const auth = useAnirakuAuth();
   const history = useWatchHistory();
   const ratings = useEpisodeRatings(animeId);
-  const comments = useComments(animeId);
   const providerSync = useProviderSync();
-  const [watchComment, setWatchComment] = useState("");
   const episodeQuery = useQuery({ queryKey: ["watch-episodes", animeId], queryFn: () => getEpisodes(animeId), enabled: Number.isFinite(animeId) && animeId > 0, staleTime: 60_000 });
   const canonicalEpisodes = episodeQuery.data ?? EMPTY_EPISODES;
   const episodeIsKnown = useMemo(
@@ -228,7 +225,6 @@ export default function WatchScreen() {
   const displayedQuality = selectedWatchQuality(source, requestedQuality);
   const maximumDownloadSource = useMemo(() => selectMaximumQualityDownload(stream?.sources ?? activeProvider?.sources ?? []), [activeProvider?.sources, stream?.sources]);
   const currentRating = ratings.scoreFor(episode) ?? 0;
-  const episodeComments = useMemo(() => (comments.comments.data ?? []).filter((item) => item.episode_number === episode), [comments.comments.data, episode]);
   const subtitleTracks = subtitleEvent?.availableSubtitleTracks ?? player.availableSubtitleTracks ?? [];
   const skipKind = activeSkipKind(skipSegments, currentTime);
   const buffering = loadingStream || status === "loading";
@@ -1017,7 +1013,7 @@ export default function WatchScreen() {
       <View style={styles.watchCommunitySection}>
         <DotLabel>EPISODE ACTIVITY</DotLabel>
         <View style={styles.ratingRow}><Text style={styles.ratingPrompt}>{currentRating ? `YOU RATED ${currentRating}/10` : "RATE THIS EPISODE"}</Text><View style={styles.ratingChoices}>{Array.from({ length: 10 }, (_, index) => index + 1).map((score) => <Pressable key={score} accessibilityRole="button" accessibilityLabel={`Rate ${score} out of 10`} onPress={() => { if (!auth.user) { router.push("/auth" as never); return; } ratings.setRating.mutate({ episode, score }); }} style={[styles.ratingChoice, currentRating >= score && styles.ratingChoiceActive]}><Text style={[styles.ratingChoiceText, currentRating >= score && styles.ratingChoiceTextActive]}>{score}</Text></Pressable>)}</View></View>
-        <View style={styles.commentBlock}><Text style={styles.commentTitle}>Discussion</Text>{auth.user ? <><TextInput value={watchComment} onChangeText={setWatchComment} placeholder="Add a comment about this episode" placeholderTextColor={nothing.dim} style={styles.watchCommentInput} multiline maxLength={2000} /><NothingButton label={comments.add.isPending ? "POSTING" : "POST COMMENT"} disabled={!watchComment.trim() || comments.add.isPending} onPress={() => comments.add.mutate({ content: watchComment, episode }, { onSuccess: () => setWatchComment("") })} /></> : <NothingButton label="SIGN IN TO COMMENT" variant="outline" onPress={() => router.push("/auth" as never)} />}{episodeComments.slice(0, 4).map((item) => <View key={item.id} style={styles.watchComment}><Text style={styles.watchCommentAuthor}>{commentAuthorLabel(item.author)}</Text><Text style={styles.watchCommentMeta}>EP {item.episode_number} · {new Date(item.created_at).toLocaleDateString()}</Text><Text style={styles.watchCommentText}>{item.content}</Text></View>)}</View>
+        <AnimeComments animeId={animeId} episodeNumber={episode} />
       </View>
     </ScrollView>
   </NativeScreen>;

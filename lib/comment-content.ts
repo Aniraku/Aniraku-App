@@ -38,12 +38,12 @@ export function canSubmitSharedComment(content: unknown, gifUrl: unknown) {
 
 export function toGiphyReaction(record: any): GiphyReaction | null {
   const images = record?.images ?? {};
-  const url = images.downsized?.url ?? images.fixed_width?.url ?? images.original?.url ?? "";
-  const preview = images.fixed_width_small ?? images.fixed_width ?? images.downsized ?? images.original ?? {};
-  const previewUrl = preview.url ?? images.downsized_still?.url ?? url;
+  const original = images.original ?? {};
+  const url = original.url ?? "";
+  const previewUrl = original.url ?? url;
   if (!isTrustedGiphyGifUrl(url) || !isTrustedGiphyGifUrl(previewUrl)) return null;
-  const width = Number(preview.width);
-  const height = Number(preview.height);
+  const width = Number(original.width);
+  const height = Number(original.height);
   const aspectRatio = Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0 ? width / height : 1;
   return {
     id: String(record?.id ?? url),

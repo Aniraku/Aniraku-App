@@ -15,12 +15,14 @@ export type SharedComment = {
   author: { username: string | null; display_name: string | null; avatar_url: string | null } | null;
 };
 
-export function useComments(animeId?: number) {
+export function useComments(animeId?: number, episodeNumber?: number) {
   const { user } = useAnirakuAuth();
   const queryClient = useQueryClient();
-  const queryKey = ["comments", animeId];
+  const queryKey = ["comments", animeId, episodeNumber ?? "all"];
   const comments = useQuery<SharedComment[]>({ queryKey, enabled: Boolean(animeId), queryFn: async () => {
-    const { data, error } = await supabase.from("comments").select("id, user_id, content, gif_url, is_spoiler, episode_number, likes, created_at").eq("anime_id", animeId!).is("parent_id", null).order("created_at", { ascending: false }).limit(100);
+    let request = supabase.from("comments").select("id, user_id, content, gif_url, is_spoiler, episode_number, likes, created_at").eq("anime_id", animeId!).is("parent_id", null);
+    if (typeof episodeNumber === "number") request = request.eq("episode_number", episodeNumber);
+    const { data, error } = await request.order("created_at", { ascending: false }).limit(100);
     if (error) throw error;
     const rows = data ?? [];
     const authorIds = [...new Set(rows.map((comment) => comment.user_id).filter(Boolean))];
@@ -36,7 +38,7 @@ export function useComments(animeId?: number) {
     const gifUrl = input.gifUrl && isTrustedGiphyGifUrl(input.gifUrl) ? input.gifUrl : null;
     if (!canSubmitSharedComment(content, gifUrl)) throw new Error("Add a comment or a GIF before posting.");
     if (input.gifUrl && !gifUrl) throw new Error("Only GIFs selected from the Aniraku picker can be attached.");
-    const { error } = await supabase.from("comments").insert({ user_id: user.id, anime_id: animeId, episode_number: input.episode ?? null, content, gif_url: gifUrl, is_spoiler: Boolean(input.spoiler) });
+    const { error } = await supabase.from("comments").insert({ user_id: user.id, anime_id: animeId, episode_number: input.episode ?? episodeNumber ?? null, content, gif_url: gifUrl, is_spoiler: Boolean(input.spoiler) });
     if (error) throw error;
   }, onSuccess: () => void queryClient.invalidateQueries({ queryKey }) });
   return { comments, add };

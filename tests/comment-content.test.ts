@@ -15,9 +15,9 @@ describe("shared comment content", () => {
     expect(canSubmitSharedComment("", "https://example.com/reaction.gif")).toBe(false);
   });
 
-  it("normalizes a GIPHY API record without trusting an arbitrary URL", () => {
-    expect(toGiphyReaction({ id: "gif-1", title: "Reaction", images: { downsized: { url: trustedGif }, fixed_width_small: { url: trustedGif, width: "120", height: "80" } } })).toMatchObject({ id: "gif-1", url: trustedGif, label: "Reaction", aspectRatio: 1.5 });
-    expect(toGiphyReaction({ images: { downsized: { url: "https://example.com/bad.gif" } } })).toBeNull();
+  it("uses original GIPHY media and dimensions without trusting an arbitrary URL", () => {
+    expect(toGiphyReaction({ id: "gif-1", title: "Reaction", images: { fixed_width_small: { url: "https://media.giphy.com/media/thumbnail/giphy.gif", width: "120", height: "80" }, original: { url: trustedGif, width: "300", height: "200" } } })).toMatchObject({ id: "gif-1", url: trustedGif, previewUrl: trustedGif, label: "Reaction", aspectRatio: 1.5 });
+    expect(toGiphyReaction({ images: { original: { url: "https://example.com/bad.gif" } } })).toBeNull();
     expect(cleanCommentContent("  hello  ")).toBe("hello");
   });
 

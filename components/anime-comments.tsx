@@ -28,9 +28,9 @@ function CommentAuthor({ comment }: { comment: SharedComment }) {
   return <View style={styles.commentAuthor}>{avatar ? <Image source={{ uri: avatar }} style={styles.avatar} /> : <View style={styles.initialAvatar}><Text style={styles.initialAvatarText}>{name.slice(0, 1).toUpperCase()}</Text></View>}<View style={styles.authorCopy}><Text style={styles.authorName} numberOfLines={1}>{name}</Text><Text style={styles.authorMeta}>{comment.episode_number ? `EP ${comment.episode_number} · ` : ""}{elapsedTime(comment.created_at)}</Text></View></View>;
 }
 
-export function AnimeComments({ animeId }: { animeId: number }) {
+export function AnimeComments({ animeId, episodeNumber }: { animeId: number; episodeNumber?: number }) {
   const auth = useAnirakuAuth();
-  const comments = useComments(animeId);
+  const comments = useComments(animeId, episodeNumber);
   const [content, setContent] = useState("");
   const [gifUrl, setGifUrl] = useState("");
   const [spoiler, setSpoiler] = useState(false);
@@ -41,12 +41,12 @@ export function AnimeComments({ animeId }: { animeId: number }) {
   const canPost = canSubmitSharedComment(content, gifUrl);
   const giphyEnabled = Boolean(APP_CONFIG.giphyApiKey.trim());
 
-  const post = () => comments.add.mutate({ content, gifUrl, spoiler }, { onSuccess: () => { setContent(""); setGifUrl(""); setSpoiler(false); } });
+  const post = () => comments.add.mutate({ content, gifUrl, spoiler, episode: episodeNumber }, { onSuccess: () => { setContent(""); setGifUrl(""); setSpoiler(false); } });
   const chooseGif = (url: string) => { setGifUrl(url); setPickerOpen(false); };
   const reveal = (id: string) => setRevealed((current) => new Set(current).add(id));
 
   return <View style={styles.section}>
-    <View style={styles.heading}><View><DotLabel>COMMUNITY</DotLabel><Text style={styles.title}>Comments</Text></View><Text style={styles.count}>{String(comments.comments.data?.length ?? 0).padStart(2, "0")}</Text></View>
+    <View style={styles.heading}><View><DotLabel>{episodeNumber ? "EPISODE ACTIVITY" : "COMMUNITY"}</DotLabel><Text style={styles.title}>{episodeNumber ? "Episode discussion" : "Comments"}</Text></View><Text style={styles.count}>{String(comments.comments.data?.length ?? 0).padStart(2, "0")}</Text></View>
     {auth.user ? <NothingCard style={styles.composer}>
       <TextInput value={content} onChangeText={setContent} placeholder="Share a thought" placeholderTextColor={nothing.dim} style={styles.input} multiline maxLength={2000} textAlignVertical="top" />
       {gifUrl ? <View style={styles.selectedGif}><Image source={{ uri: gifUrl }} style={styles.selectedGifImage} /><Pressable accessibilityRole="button" accessibilityLabel="Remove selected GIF" onPress={() => setGifUrl("")} style={({ pressed }) => [styles.removeGif, pressed && styles.pressed]}><AppIcon name="close" size={16} color={nothing.white} /></Pressable></View> : null}
@@ -63,7 +63,7 @@ export function AnimeComments({ animeId }: { animeId: number }) {
       </View> : null}
       {comments.add.isError ? <Text style={styles.error}>{comments.add.error.message}</Text> : null}
     </NothingCard> : <NothingCard style={styles.guest}><Text style={styles.guestText}>Sign in with a verified Aniraku account to join the discussion.</Text><NothingButton label="SIGN IN TO COMMENT" variant="outline" onPress={() => router.push("/auth" as never)} /></NothingCard>}
-    {comments.comments.isPending ? <LoadingState label="Loading community comments" /> : comments.comments.isError ? <ErrorState message="Comments could not load right now." onRetry={() => void comments.comments.refetch()} /> : !comments.comments.data?.length ? <NothingCard style={styles.empty}><Text style={styles.emptyTitle}>No discussion yet</Text><Text style={styles.emptyText}>Start the conversation without spoiling the story for everyone else.</Text></NothingCard> : <FlatList data={comments.comments.data} keyExtractor={(comment) => comment.id} scrollEnabled={false} contentContainerStyle={styles.list} renderItem={({ item: comment }) => { const hidden = comment.is_spoiler && !revealed.has(comment.id); return <NothingCard style={styles.commentCard}><CommentAuthor comment={comment} />{hidden ? <Pressable accessibilityRole="button" accessibilityLabel="Spoiler hidden. Reveal comment." onPress={() => reveal(comment.id)} style={({ pressed }) => [styles.spoilerShield, pressed && styles.pressed]}><AppIcon name="eye-off-outline" size={17} color={nothing.red} /><Text style={styles.spoilerText}>SPOILER HIDDEN · TAP TO REVEAL</Text></Pressable> : <>{comment.is_spoiler ? <Text style={styles.revealed}>SPOILER REVEALED</Text> : null}{comment.content ? <Text style={styles.commentText}>{comment.content}</Text> : null}{comment.gif_url ? <Image source={{ uri: comment.gif_url }} style={styles.commentGif} resizeMode="cover" /> : null}</>}</NothingCard>; }} />}
+    {comments.comments.isPending ? <LoadingState label="Loading community comments" /> : comments.comments.isError ? <ErrorState message="Comments could not load right now." onRetry={() => void comments.comments.refetch()} /> : !comments.comments.data?.length ? <NothingCard style={styles.empty}><Text style={styles.emptyTitle}>No discussion yet</Text><Text style={styles.emptyText}>Start the conversation without spoiling the story for everyone else.</Text></NothingCard> : <FlatList data={comments.comments.data} keyExtractor={(comment) => comment.id} scrollEnabled={false} contentContainerStyle={styles.list} renderItem={({ item: comment }) => { const hidden = comment.is_spoiler && !revealed.has(comment.id); return <NothingCard style={styles.commentCard}><CommentAuthor comment={comment} />{hidden ? <Pressable accessibilityRole="button" accessibilityLabel="Spoiler hidden. Reveal comment." onPress={() => reveal(comment.id)} style={({ pressed }) => [styles.spoilerShield, pressed && styles.pressed]}><AppIcon name="eye-off-outline" size={17} color={nothing.red} /><Text style={styles.spoilerText}>SPOILER HIDDEN · TAP TO REVEAL</Text></Pressable> : <>{comment.is_spoiler ? <Text style={styles.revealed}>SPOILER REVEALED</Text> : null}{comment.content ? <Text style={styles.commentText}>{comment.content}</Text> : null}{comment.gif_url ? <Image source={{ uri: comment.gif_url }} style={styles.commentGif} resizeMode="contain" /> : null}</>}</NothingCard>; }} />}
   </View>;
 }
 
