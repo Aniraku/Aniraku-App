@@ -5,6 +5,8 @@ export type GiphyReaction = {
   url: string;
   previewUrl: string;
   label: string;
+  width: number | null;
+  height: number | null;
   aspectRatio: number;
 };
 
@@ -50,6 +52,8 @@ export function toGiphyReaction(record: any): GiphyReaction | null {
     url,
     previewUrl,
     label: String(record?.title ?? record?.slug ?? "Animated reaction").trim() || "Animated reaction",
+    width: Number.isFinite(width) && width > 0 ? width : null,
+    height: Number.isFinite(height) && height > 0 ? height : null,
     aspectRatio,
   };
 }

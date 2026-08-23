@@ -9,8 +9,10 @@ describe("native GIF picker layout", () => {
 
     expect(source).toContain('resizeMode="contain"');
     expect(source).toContain('{ aspectRatio: gif.aspectRatio }');
-    expect(source).toContain('gifTile: { backgroundColor: nothing.surface');
+    expect(source).toContain('gifTile: { alignItems: "center", backgroundColor: nothing.surface');
+    expect(source).toContain('minHeight: 124');
     expect(source).toContain('width: "100%"');
+    expect(source).toContain('width: gif.width ?? undefined, height: gif.height ?? undefined');
     expect(source).toContain('<ScrollView style={styles.gifResults}');
     expect(source).toContain('gifResults: { maxHeight: 360 }');
     expect(source).not.toContain('style={styles.gifLabel}');
