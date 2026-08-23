@@ -4,14 +4,14 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 describe("native GIF picker layout", () => {
-  it("preserves each reaction GIF's intrinsic ratio without forcing a square crop", async () => {
+  it("shows a compact two-row GIF viewport with additional results internally scrollable", async () => {
     const source = await readFile(resolve(dirname(fileURLToPath(import.meta.url)), "../components/anime-comments.tsx"), "utf8");
 
-    expect(source).toContain('aspectRatio: gif.aspectRatio');
-    expect(source).toContain('resizeMode="contain"');
+    expect(source).toContain('resizeMode="cover"');
+    expect(source).toContain('gifTile: { aspectRatio: 1.45');
     expect(source).toContain('width: "31.8%"');
     expect(source).toContain('<ScrollView style={styles.gifResults}');
-    expect(source).toContain('gifResults: { maxHeight: 300 }');
+    expect(source).toContain('gifResults: { maxHeight: 158 }');
     expect(source).not.toContain('style={styles.gifLabel}');
   });
 });
