@@ -3,8 +3,7 @@ import { useLocalSearchParams, router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { getAnimeById } from "@/lib/anilist";
-import { getEpisodes } from "@/lib/aniraku-api";
+import { getAnimeMetadata, getEpisodes } from "@/lib/aniraku-api";
 import { displayAnimeRelations } from "@/lib/anime-relations";
 import { animeTitle } from "@/lib/types";
 import { chooseResumeEpisode } from "@/lib/watch-progress";
@@ -22,7 +21,7 @@ export default function AnimeDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const id = Number(params.id);
   const auth = useAnirakuAuth();
-  const anime = useQuery({ queryKey: ["anime", id], queryFn: () => getAnimeById(id), enabled: Number.isFinite(id) });
+  const anime = useQuery({ queryKey: ["anime", id], queryFn: () => getAnimeMetadata(id), enabled: Number.isFinite(id) });
   const episodes = useQuery({ queryKey: ["episodes", id], queryFn: () => getEpisodes(id), enabled: Number.isFinite(id) });
   const history = useWatchHistory();
   const bookmarks = useBookmarks();

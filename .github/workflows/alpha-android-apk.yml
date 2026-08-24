@@ -1,10 +1,10 @@
-name: Build Aniraku v4.4 APK
+name: Build Aniraku v4.4.1 APK
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the verified v4.4 APK as the standard GitHub release
+        description: Publish the verified v4.4.1 APK as the standard GitHub release
         required: true
         default: false
         type: boolean
@@ -18,12 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      RELEASE_TAG: v4.4
-      RELEASE_VERSION: "4.4"
-      RELEASE_VERSION_CODE: "28"
-      RELEASE_ASSET_NAME: Aniraku-v4.4.apk
+      RELEASE_TAG: v4.4.1
+      RELEASE_VERSION: "4.4.1"
+      RELEASE_VERSION_CODE: "29"
+      RELEASE_ASSET_NAME: Aniraku-v4.4.1.apk
       EXPO_PUBLIC_API_BASE_URL: https://api.aniraku.tech
-      EXPO_PUBLIC_ANILIST_GRAPHQL_URL: https://graphql.anilist.co
       EXPO_PUBLIC_SUPABASE_URL: https://sbjdrjaovcgvttfnpfsz.supabase.co
       EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_-Ht3PZpNy_a35hOI8w1G8g_vwOhAPgS
     steps:
@@ -49,7 +48,7 @@ jobs:
         env:
           EXPO_PUBLIC_GIPHY_API_KEY: ${{ secrets.EXPO_PUBLIC_GIPHY_API_KEY }}
         run: pnpm check && pnpm test
-      - name: Verify v4.4 release identity
+      - name: Verify v4.4.1 release identity
         run: |
           pnpm exec expo config --json > /tmp/aniraku-expo-config.json
           grep -Eq "\"version\"[[:space:]]*:[[:space:]]*\"$RELEASE_VERSION\"" /tmp/aniraku-expo-config.json
@@ -69,14 +68,14 @@ jobs:
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
           sha256sum "$APK" | tee /tmp/aniraku-release.apk.sha256
-      - name: Upload Aniraku v4.4 APK
+      - name: Upload Aniraku v4.4.1 APK
         uses: actions/upload-artifact@v4
         with:
           name: Aniraku-${{ env.RELEASE_TAG }}-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish stable v4.4 release
+      - name: Publish stable v4.4.1 release
         if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -86,24 +85,24 @@ jobs:
           RELEASE_DIGEST=/tmp/$RELEASE_ASSET_NAME.sha256
           cp "$APK" "$RELEASE_APK"
           cp /tmp/aniraku-release.apk.sha256 "$RELEASE_DIGEST"
-          cat > /tmp/aniraku-v4.4-notes.md <<'EOF'
-          ## Aniraku v4.4
+          cat > /tmp/aniraku-v4.4.1-notes.md <<'EOF'
+          ## Aniraku v4.4.1
 
-          **Package:** `aniraku.anime.app` · **versionCode:** 28
+          **Package:** `aniraku.anime.app` · **versionCode:** 29
 
-          ### Community comments across the app
-          - Anime Detail and Watch episode discussions now read the shared Supabase comment source with each commenter’s public display name or username.
-          - Anime Detail supports compact text or G-rated GIPHY reaction GIF comments for verified accounts, with direct GIPHY attribution and trusted-media URL validation.
-          - Persisted spoiler comments conceal both text and GIF media until the reader explicitly reveals them.
+          ### Main Aniraku API routing
+          - Home, Catalog, Search, Random, Schedule, Anime Detail metadata, episode information, release alerts, and Watch metadata now use Aniraku API routes rather than direct AniList or Jikan client requests.
+          - Anime Detail and Watch episode lists use the Miruro episode route only.
+          - When metadata is unavailable, the app reports the Aniraku service state honestly and offers retry instead of falling back to a different catalog API.
 
           ### Release integrity
-          - The build validates the configured GIPHY browser key during source checks and includes a SHA-256 sidecar for independent APK verification.
+          - The build verifies source checks, the configured GIPHY key, and ships a SHA-256 sidecar for independent APK verification.
 
           > If you are upgrading from v1.x under `aniraku.anine.app`, uninstall that legacy package first. Android treats `aniraku.anime.app` as a separate application.
           EOF
           if gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --clobber
-            gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.4 — Shared Community Comments" --notes-file /tmp/aniraku-v4.4-notes.md --latest
+          gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.4.1 — Aniraku API Metadata Routing" --notes-file /tmp/aniraku-v4.4.1-notes.md --latest
           else
-            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --title "v4.4 — Shared Community Comments" --notes-file /tmp/aniraku-v4.4-notes.md --latest
+          gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --title "v4.4.1 — Aniraku API Metadata Routing" --notes-file /tmp/aniraku-v4.4.1-notes.md --latest
           fi

@@ -1,5 +1,5 @@
 import { APP_CONFIG } from "@/lib/app-config";
-import type { Anime, Episode, Server, StreamResponse, StreamSource } from "@/lib/types";
+import type { AiringSchedulePage, Anime, AnimePage, Episode, Server, StreamResponse, StreamSource } from "@/lib/types";
 
 async function apiRequest<T>(path: string, init?: RequestInit, timeoutMs: number = 15_000): Promise<T> {
   let response: Response;
@@ -90,16 +90,94 @@ export function normalizeStreamResponse(payload: BackendStreamResponse): StreamR
   return { ...payload, intro: normalizeSegment(payload.intro), outro: normalizeSegment(payload.outro) };
 }
 
-/** Main Watch.jsx loads this backend payload before falling back to AniList. */
+/** Anime Detail metadata comes from the main Aniraku API. */
 export async function getAnimeMetadata(animeId: number): Promise<Anime> {
   return apiRequest<Anime>(`/api/v1/anime/${animeId}`);
 }
 
+export type AnimePageInput = {
+  page?: number;
+  perPage?: number;
+  search?: string;
+  genre?: string;
+  format?: string;
+  status?: string;
+  year?: number;
+  sort?: string | string[];
+};
+
+function metadataParams(input: AnimePageInput) {
+  const params = new URLSearchParams();
+  Object.entries(input).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    if (Array.isArray(value)) {
+      value.filter(Boolean).forEach((item) => params.append(key, item));
+      return;
+    }
+    params.set(key, String(value));
+  });
+  return params.toString();
+}
+
+const emptyPageInfo: AnimePage["pageInfo"] = { currentPage: 1, hasNextPage: false, total: 0 };
+
+export async function getAnimePage(input: AnimePageInput = {}): Promise<AnimePage> {
+  const params = metadataParams(input);
+  if (input.search) {
+    const searchParams = new URLSearchParams(metadataParams({ ...input, search: undefined }));
+    searchParams.set("q", input.search);
+    const payload = await apiRequest<{ results?: Anime[]; media?: Anime[]; pageInfo?: AnimePage["pageInfo"] }>(`/api/v1/search?${searchParams.toString()}`);
+    return { media: payload.results ?? payload.media ?? [], pageInfo: payload.pageInfo ?? { ...emptyPageInfo, currentPage: input.page ?? 1 } };
+  }
+
+  const payload = await apiRequest<{ media?: Anime[]; pageInfo?: AnimePage["pageInfo"] }>(`/api/v1/browse${params ? `?${params}` : ""}`);
+  return { media: payload.media ?? [], pageInfo: payload.pageInfo ?? { ...emptyPageInfo, currentPage: input.page ?? 1 } };
+}
+
+export async function getTrendingAnime(page = 1, perPage = 20): Promise<Anime[]> {
+  const payload = await apiRequest<Anime[] | { media?: Anime[] }>(`/api/v1/trending?page=${page}&perPage=${perPage}`);
+  return Array.isArray(payload) ? payload : (payload.media ?? []);
+}
+
+export async function getHomeAnime() {
+  const [trending, popular, upcoming] = await Promise.all([
+    getTrendingAnime(1, 20),
+    getAnimePage({ page: 1, perPage: 20, sort: "POPULARITY_DESC" }).then((page) => page.media),
+    getAnimePage({ page: 1, perPage: 20, status: "RELEASING", sort: "POPULARITY_DESC" }).then((page) => page.media),
+  ]);
+  return { trending, popular, upcoming };
+}
+
+export async function getAiringSchedule(): Promise<AiringSchedulePage> {
+  const payload = await apiRequest<{ schedule?: Array<{ airingAt?: number; episode?: number; media?: Anime }>; pageInfo?: AiringSchedulePage["pageInfo"] }>("/api/v1/schedule?page=1&perPage=100");
+  const airingSchedules = (payload.schedule ?? []).flatMap((item) => item.media && Number.isFinite(item.airingAt) && Number.isFinite(item.episode)
+    ? [{ airingAt: Number(item.airingAt), episode: Number(item.episode), media: item.media }]
+    : []);
+  return { airingSchedules, pageInfo: payload.pageInfo ?? emptyPageInfo };
+}
+
+export function getKnownMalId(anime?: Partial<Pick<Anime, "idMal" | "malId" | "mal_id" | "myAnimeListId">> | null) {
+  const candidate = Number(anime?.idMal ?? anime?.malId ?? anime?.mal_id ?? anime?.myAnimeListId);
+  return Number.isFinite(candidate) && candidate > 0 ? candidate : null;
+}
+
 export async function getEpisodes(animeId: number): Promise<Episode[]> {
-  type BackendEpisode = Omit<Episode, "isFiller"> & { filler?: boolean; isFiller?: boolean };
-  const payload = await apiRequest<BackendEpisode[] | { episodes?: BackendEpisode[] }>(`/api/v1/anime/${animeId}/episodes`);
-  const episodes = Array.isArray(payload) ? payload : payload.episodes;
-  if (!Array.isArray(episodes)) throw new Error("Aniraku returned an invalid episode availability response.");
+  type MiruroEpisode = Omit<Episode, "isFiller"> & { filler?: boolean; isFiller?: boolean; image?: string; thumbnail?: string };
+  type MiruroPayload = { providers?: Record<string, { episodes?: Record<string, MiruroEpisode[]> }> };
+  const payload = await apiRequest<MiruroPayload>(`/api/v1/miruro/episodes/${animeId}`);
+  const byNumber = new Map<number, MiruroEpisode>();
+  Object.values(payload.providers ?? {}).forEach((provider) => {
+    Object.values(provider.episodes ?? {}).forEach((list) => {
+      if (!Array.isArray(list)) return;
+      list.forEach((episode) => {
+        const number = Number(episode?.number);
+        if (!Number.isFinite(number) || number < 1 || byNumber.has(number)) return;
+        byNumber.set(number, episode);
+      });
+    });
+  });
+  const episodes = [...byNumber.values()].sort((a, b) => Number(a.number) - Number(b.number));
+  if (!episodes.length) throw new Error("Miruro returned no episodes for this anime.");
 
   // The Aniraku web player and native player share canonical 1-based ordering.
   // This prevents upstream provider sequences such as 10, 20, 30 from reaching
@@ -107,7 +185,7 @@ export async function getEpisodes(animeId: number): Promise<Episode[]> {
   return episodes.filter(Boolean).map((episode, index) => ({
     number: index + 1,
     title: episode.title,
-    thumbnail: episode.thumbnail,
+    thumbnail: episode.thumbnail ?? episode.image,
     description: episode.description,
     isFiller: Boolean(episode.isFiller ?? episode.filler),
   }));

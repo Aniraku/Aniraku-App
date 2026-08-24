@@ -1,10 +1,8 @@
-import { useMemo } from "react";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { getEpisodes } from "@/lib/aniraku-api";
-import { getAnimeById } from "@/lib/anilist";
+import { getAnimeMetadata, getEpisodes } from "@/lib/aniraku-api";
 import { animeTitle } from "@/lib/types";
 import { AppIcon } from "@/components/app-icon";
 import { DotLabel, NothingButton, NothingCard, nothing } from "@/components/nothing-ui";
@@ -16,7 +14,7 @@ export default function EpisodeInfoScreen() {
   const animeId = Number(params.id);
   const episodeNumber = Math.max(1, Number(params.episode ?? "1"));
   const episodes = useQuery({ queryKey: ["episode-info", animeId], queryFn: () => getEpisodes(animeId), enabled: Number.isFinite(animeId) && animeId > 0, staleTime: 60_000 });
-  const anime = useQuery({ queryKey: ["episode-info-anime", animeId], queryFn: () => getAnimeById(animeId), enabled: Number.isFinite(animeId) && animeId > 0, staleTime: 10 * 60_000 });
+  const anime = useQuery({ queryKey: ["episode-info-anime", animeId], queryFn: () => getAnimeMetadata(animeId), enabled: Number.isFinite(animeId) && animeId > 0, staleTime: 10 * 60_000 });
   const rows = episodes.data ?? [];
   const selected = rows.find((item) => item.number === episodeNumber);
   const previous = [...rows].reverse().find((item) => item.number < episodeNumber)?.number;

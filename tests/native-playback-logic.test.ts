@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { anirakuProxyUrl, getPlaybackType, hasExpiredEmbeddedToken, nativePlaybackHeaders, normalizeServers, normalizeStreamResponse, playableSources } from "../lib/aniraku-api";
-import { getKnownMalId } from "../lib/anilist";
+import { anirakuProxyUrl, getKnownMalId, getPlaybackType, hasExpiredEmbeddedToken, nativePlaybackHeaders, normalizeServers, normalizeStreamResponse, playableSources } from "../lib/aniraku-api";
+import { APP_CONFIG } from "../lib/app-config";
 import { shouldAllowEmbedNavigation } from "../lib/embed-navigation";
 import { adaptiveVideoCacheBytes, NATIVE_STREAM_BUFFER_OPTIONS } from "../lib/playback-buffer-policy";
 import { chooseResumeEpisode, progressFraction } from "../lib/watch-progress";
@@ -13,7 +13,7 @@ describe("Aniraku native playback coordination", () => {
 
   it("uses the same Aniraku proxy request contract as Watch.jsx before direct-media fallback", () => {
     const proxied = anirakuProxyUrl("https://cdn.example/episode.m3u8", { Referer: "https://provider.example/", "User-Agent": "browser" });
-    expect(proxied).toContain("https://api.aniraku.tech/api/v1/proxy?");
+    expect(proxied).toContain(`${APP_CONFIG.apiBaseUrl}/api/v1/proxy?`);
     expect(decodeURIComponent(proxied)).toContain("url=https://cdn.example/episode.m3u8");
     expect(decodeURIComponent(proxied)).toContain('headers={"Referer":"https://provider.example/","User-Agent":"browser"}');
   });
@@ -95,7 +95,7 @@ describe("Aniraku native playback coordination", () => {
     expect(providerDiscoveryCopy({ attempt: 2, providersDiscovered: 3 })).toEqual({ title: "PROVIDERS FOUND", detail: "3 READY · CHECKING FOR MORE" });
   });
 
-  it("uses known backend or AniList metadata IDs before a separate AniSkip fallback lookup", () => {
+  it("uses known Aniraku metadata IDs before optional AniSkip enrichment", () => {
     expect(getKnownMalId({ idMal: 21 })).toBe(21);
     expect(getKnownMalId({ malId: 22 })).toBe(22);
     expect(getKnownMalId({ mal_id: 23 })).toBe(23);

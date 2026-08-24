@@ -1,7 +1,7 @@
 import { useDeferredValue, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { getAnimePage } from "@/lib/anilist";
+import { getAnimePage } from "@/lib/aniraku-api";
 import { AnimeCard } from "@/components/anime-card";
 import { ErrorState, LoadingState } from "@/components/async-state";
 import { DotLabel, nothing } from "@/components/nothing-ui";
