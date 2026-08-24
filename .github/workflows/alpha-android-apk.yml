@@ -1,10 +1,10 @@
-name: Build Aniraku v4.4.0.1 APK
+name: Build Aniraku v4.4.2 APK
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the verified v4.4.0.1 APK as the standard GitHub release
+        description: Publish the verified v4.4.2 APK as the standard GitHub release
         required: true
         default: false
         type: boolean
@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      RELEASE_TAG: v4.4.0.1
-      RELEASE_VERSION: "4.4.0.1"
-      RELEASE_VERSION_CODE: "29"
-      RELEASE_ASSET_NAME: Aniraku-v4.4.0.1.apk
+      RELEASE_TAG: v4.4.2
+      RELEASE_VERSION: "4.4.2"
+      RELEASE_VERSION_CODE: "31"
+      RELEASE_ASSET_NAME: Aniraku-v4.4.2.apk
       EXPO_PUBLIC_API_BASE_URL: https://api.aniraku.tech
       EXPO_PUBLIC_ANILIST_GRAPHQL_URL: https://graphql.anilist.co
       EXPO_PUBLIC_SUPABASE_URL: https://sbjdrjaovcgvttfnpfsz.supabase.co
@@ -49,7 +49,7 @@ jobs:
         env:
           EXPO_PUBLIC_GIPHY_API_KEY: ${{ secrets.EXPO_PUBLIC_GIPHY_API_KEY }}
         run: pnpm check && pnpm test
-      - name: Verify v4.4.0.1 release identity
+      - name: Verify v4.4.2 release identity
         run: |
           pnpm exec expo config --json > /tmp/aniraku-expo-config.json
           grep -Eq "\"version\"[[:space:]]*:[[:space:]]*\"$RELEASE_VERSION\"" /tmp/aniraku-expo-config.json
@@ -69,14 +69,14 @@ jobs:
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
           sha256sum "$APK" | tee /tmp/aniraku-release.apk.sha256
-      - name: Upload Aniraku v4.4.0.1 APK
+      - name: Upload Aniraku v4.4.2 APK
         uses: actions/upload-artifact@v4
         with:
           name: Aniraku-${{ env.RELEASE_TAG }}-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish stable v4.4.0.1 release
+      - name: Publish stable v4.4.2 release
         if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -86,15 +86,19 @@ jobs:
           RELEASE_DIGEST=/tmp/$RELEASE_ASSET_NAME.sha256
           cp "$APK" "$RELEASE_APK"
           cp /tmp/aniraku-release.apk.sha256 "$RELEASE_DIGEST"
-          cat > /tmp/aniraku-v4.4.0.1-notes.md <<'EOF'
-          ## Aniraku v4.4.0.1
+          cat > /tmp/aniraku-v4.4.2-notes.md <<'EOF'
+          ## Aniraku v4.4.2
 
-          **Package:** `aniraku.anime.app` · **versionCode:** 29
+          **Package:** `aniraku.anime.app` · **versionCode:** 31
+
+          ### Anime Detail layout
+          - Comments now appear after the complete episode selector, so episode selection stays together before the discussion.
+          - Related titles remain grouped in compact Story order, Extras, and More related rails using real relationship data.
 
           ### Episode availability recovery
           - Anime Detail and Watch keep using the existing Aniraku episode route first.
           - If that route is temporarily unreachable, the app retrieves the same title's real numbered episode list from Miruro using its AniList ID.
-          - This recovery path does not alter provider discovery, stream selection, or playback transport.
+          - This recovery path does not alter provider discovery, stream selection, or Direct → Proxy → Embed playback transport.
 
           ### Release integrity
           - The build validates native source, packages both ARM architectures, and includes a SHA-256 sidecar for independent APK verification.
@@ -103,7 +107,7 @@ jobs:
           EOF
           if gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --clobber
-            gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.4.0.1 — Episode Availability Recovery" --notes-file /tmp/aniraku-v4.4.0.1-notes.md --latest
+            gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.4.2 — Anime Detail Layout Update" --notes-file /tmp/aniraku-v4.4.2-notes.md --latest
           else
-            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --target "$GITHUB_SHA" --title "v4.4.0.1 — Episode Availability Recovery" --notes-file /tmp/aniraku-v4.4.0.1-notes.md --latest
+            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --target "$GITHUB_SHA" --title "v4.4.2 — Anime Detail Layout Update" --notes-file /tmp/aniraku-v4.4.2-notes.md --latest
           fi
