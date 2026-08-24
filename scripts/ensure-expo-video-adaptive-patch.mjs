@@ -5,6 +5,23 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const patchTargets = [
   {
+    path: "node_modules/expo-video/android/src/main/java/expo/modules/video/player/VideoPlayerLoadControl.kt",
+    marker: "val steadyStateFloorUs = minOf(targetBufferUs, Util.msToUs(DEFAULT_MIN_BUFFER_MS.toLong()))",
+    search: `    set(value) {
+      minBufferUs = Util.msToUs(value)
+      maxBufferUs = Util.msToUs(value)
+    }`,
+    replacement: `    set(value) {
+      val targetBufferUs = Util.msToUs(value)
+      // Keep a refill window rather than using the forward target as both the
+      // loading floor and ceiling. This resumes segment loading automatically
+      // after normal playback consumes part of the reserve.
+      val steadyStateFloorUs = minOf(targetBufferUs, Util.msToUs(DEFAULT_MIN_BUFFER_MS.toLong()))
+      minBufferUs = steadyStateFloorUs
+      maxBufferUs = targetBufferUs
+    }`,
+  },
+  {
     path: "node_modules/expo-video/android/src/main/java/expo/modules/video/player/VideoPlayer.kt",
     marker: ".setTrackSelector(trackSelector)",
     search: "    .setLoadControl(loadControl)\n    .build()",
@@ -88,4 +105,4 @@ for (const target of patchTargets) {
   changed += 1;
 }
 
-console.log(`[aniraku] expo-video adaptive bitrate bridge ${changed ? "applied" : "already present"}.`);
+console.log(`[aniraku] expo-video adaptive playback bridge ${changed ? "applied" : "already present"}.`);

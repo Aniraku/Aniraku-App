@@ -3,12 +3,13 @@ const GIB = 1024 * MIB;
 
 /**
  * Media3's byte allocator stays automatic while time-based buffering keeps a
- * meaningful forward reserve. The longer recovery threshold prevents a short
- * rebuffer from immediately decoding the just-rendered keyframe again.
+ * meaningful forward reserve. Android treats the forward duration as the top
+ * of a refill window, so it continuously replenishes playback instead of
+ * treating the selected duration as a one-shot stop point.
  */
 export const NATIVE_STREAM_BUFFER_OPTIONS = {
   maxBufferBytes: 0,
-  minBufferForPlayback: 20,
+  minBufferForPlayback: 8,
   preferredForwardBufferDuration: 120,
   prioritizeTimeOverSizeThreshold: true,
   waitsToMinimizeStalling: true,
