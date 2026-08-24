@@ -163,10 +163,10 @@ describe("Aniraku native playback coordination", () => {
     expect(shouldApplyInitialHistoryResume({ currentTime: 0, hasPendingResume: true, isPlaying: true, resumeAppliedForSource: true, status: "readyToPlay" })).toBe(false);
   });
 
-  it("uses a long time-priority reserve and a larger resume cushion without a fixed byte allocator limit", () => {
+  it("uses a refillable time-priority reserve with a short rebuffer resume cushion and no fixed byte allocator limit", () => {
     expect(NATIVE_STREAM_BUFFER_OPTIONS).toEqual({
       maxBufferBytes: 0,
-      minBufferForPlayback: 20,
+      minBufferForPlayback: 8,
       preferredForwardBufferDuration: 120,
       prioritizeTimeOverSizeThreshold: true,
       waitsToMinimizeStalling: true,

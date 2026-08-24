@@ -1,10 +1,10 @@
-name: Build Aniraku v4.5.1 APK
+name: Build Aniraku v4.5.2 APK
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the verified v4.5.1 APK as the standard GitHub release
+        description: Publish the verified v4.5.2 APK as the standard GitHub release
         required: true
         default: false
         type: boolean
@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      RELEASE_TAG: v4.5.1
-      RELEASE_VERSION: "4.5.1"
-      RELEASE_VERSION_CODE: "35"
-      RELEASE_ASSET_NAME: Aniraku-v4.5.1.apk
+      RELEASE_TAG: v4.5.2
+      RELEASE_VERSION: "4.5.2"
+      RELEASE_VERSION_CODE: "37"
+      RELEASE_ASSET_NAME: Aniraku-v4.5.2.apk
       EXPO_PUBLIC_API_BASE_URL: https://api.aniraku.tech
       EXPO_PUBLIC_ANILIST_GRAPHQL_URL: https://graphql.anilist.co
       EXPO_PUBLIC_SUPABASE_URL: https://sbjdrjaovcgvttfnpfsz.supabase.co
@@ -49,7 +49,7 @@ jobs:
         env:
           EXPO_PUBLIC_GIPHY_API_KEY: ${{ secrets.EXPO_PUBLIC_GIPHY_API_KEY }}
         run: pnpm check && pnpm test
-      - name: Verify v4.5.1 release identity
+      - name: Verify v4.5.2 release identity
         run: |
           pnpm exec expo config --json > /tmp/aniraku-expo-config.json
           grep -Eq "\"version\"[[:space:]]*:[[:space:]]*\"$RELEASE_VERSION\"" /tmp/aniraku-expo-config.json
@@ -69,14 +69,14 @@ jobs:
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
           sha256sum "$APK" | tee /tmp/aniraku-release.apk.sha256
-      - name: Upload Aniraku v4.5.1 APK
+      - name: Upload Aniraku v4.5.2 APK
         uses: actions/upload-artifact@v4
         with:
           name: Aniraku-${{ env.RELEASE_TAG }}-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish stable v4.5.1 release
+      - name: Publish stable v4.5.2 release
         if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -86,10 +86,15 @@ jobs:
           RELEASE_DIGEST=/tmp/$RELEASE_ASSET_NAME.sha256
           cp "$APK" "$RELEASE_APK"
           cp /tmp/aniraku-release.apk.sha256 "$RELEASE_DIGEST"
-          cat > /tmp/aniraku-v4.5.1-notes.md <<'EOF'
-          ## Aniraku v4.5.1
+          cat > /tmp/aniraku-v4.5.2-notes.md <<'EOF'
+          ## Aniraku v4.5.2
 
-          **Package:** `aniraku.anime.app` · **versionCode:** 35
+          **Package:** `aniraku.anime.app` · **versionCode:** 37
+
+          ### Continuous buffer refill
+          - Android now treats the 120-second forward reserve as the top of a continuously refreshed Media3 buffer window, not as a single fixed loading point.
+          - When playback consumes the reserve, the player resumes loading automatically before the buffer is exhausted instead of waiting for the full selected duration again.
+          - After a real rebuffer, playback can resume from an 8-second verified cushion rather than unnecessarily waiting for 20 seconds. This changes no source, proxy mode, headers, provider order, or playback position.
 
           ### Truthful adaptive quality caps
           - For an Auto/adaptive native stream, Watch shows controls only after the Android player has loaded more than one real supported video variant with known height and bitrate.
@@ -117,7 +122,7 @@ jobs:
           EOF
           if gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --clobber
-          gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.5.1 — Adaptive Quality Caps" --notes-file /tmp/aniraku-v4.5.1-notes.md --latest
+          gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.5.2 — Buffer Continuity" --notes-file /tmp/aniraku-v4.5.2-notes.md --latest
           else
-            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --target "$GITHUB_SHA" --title "v4.5.1 — Adaptive Quality Caps" --notes-file /tmp/aniraku-v4.5.1-notes.md --latest
+            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --target "$GITHUB_SHA" --title "v4.5.2 — Buffer Continuity" --notes-file /tmp/aniraku-v4.5.2-notes.md --latest
           fi
