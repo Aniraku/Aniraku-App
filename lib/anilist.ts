@@ -2,6 +2,8 @@ import { APP_CONFIG } from "@/lib/app-config";
 import type { AiringSchedulePage, Anime, AnimePage } from "@/lib/types";
 
 const REQUEST_CACHE_TTL_MS = 2 * 60_000;
+const MAL_API_BASE_URL = "https://api.myanimelist.net/v2";
+const MAL_FIELDS = "alternative_titles,mean,popularity,num_list_users,media_type,status,num_episodes,start_season,average_episode_duration,rating,pictures,genres,synopsis";
 const responseCache = new Map<string, { expiresAt: number; value: unknown }>();
 const inFlightRequests = new Map<string, Promise<unknown>>();
 
@@ -47,6 +49,113 @@ function getRetryAfterMs(headers: Headers): number | null {
   return null;
 }
 
+type MalAnimeNode = {
+  id?: number;
+  title?: string;
+  alternative_titles?: { en?: string; ja?: string };
+  main_picture?: { large?: string; medium?: string };
+  pictures?: Array<{ large?: string; medium?: string }>;
+  synopsis?: string;
+  mean?: number;
+  popularity?: number;
+  num_list_users?: number;
+  media_type?: string;
+  status?: string;
+  num_episodes?: number;
+  start_season?: { season?: string; year?: number };
+  average_episode_duration?: number;
+  rating?: string;
+  genres?: Array<{ name?: string }>;
+};
+
+function malStatus(status?: string) {
+  const statuses: Record<string, string> = { currently_airing: "RELEASING", finished_airing: "FINISHED", not_yet_aired: "NOT_YET_RELEASED" };
+  return statuses[status || ""] || "FINISHED";
+}
+
+function malFormat(type?: string) {
+  const formats: Record<string, string> = { tv: "TV", movie: "MOVIE", ova: "OVA", ona: "ONA", special: "SPECIAL", tv_special: "TV_SPECIAL", music: "MUSIC" };
+  return formats[type || ""] || "TV";
+}
+
+function normalizeMalAnime(node: MalAnimeNode, anilistId: number): Anime {
+  const malId = Number(node.id);
+  const title = String(node.title || "Unknown Anime").trim() || "Unknown Anime";
+  const large = node.main_picture?.large || node.main_picture?.medium || "";
+  const mean = Number(node.mean);
+  return {
+    id: anilistId,
+    idMal: Number.isInteger(malId) && malId > 0 ? malId : null,
+    title: { romaji: node.alternative_titles?.ja || title, english: node.alternative_titles?.en || title, native: node.alternative_titles?.ja || title },
+    coverImage: { extraLarge: large, large, color: null },
+    bannerImage: node.pictures?.[0]?.large || null,
+    description: node.synopsis || null,
+    genres: (node.genres || []).map((genre) => String(genre.name || "").trim()).filter(Boolean),
+    format: malFormat(node.media_type),
+    status: malStatus(node.status),
+    episodes: Number(node.num_episodes) || null,
+    duration: Number(node.average_episode_duration) ? Math.round(Number(node.average_episode_duration) / 60) : null,
+    averageScore: Number.isFinite(mean) ? Math.round(mean * 10) : null,
+    popularity: Number(node.num_list_users) || Number(node.popularity) || null,
+    season: node.start_season?.season?.toUpperCase() || null,
+    seasonYear: Number(node.start_season?.year) || null,
+    isAdult: String(node.rating || "").toLowerCase() === "rx",
+    relations: { edges: [] },
+  };
+}
+
+async function mapMalIdsToAniList(malIds: number[]) {
+  const ids = [...new Set(malIds.map(Number).filter((id) => Number.isInteger(id) && id > 0))].slice(0, 50);
+  if (!ids.length) return new Map<number, number>();
+  const response = await fetch(APP_CONFIG.metadataFallbackUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ query: "query ($ids: [Int]) { Page(perPage: 50) { media(idMal_in: $ids, type: ANIME) { id idMal } } }", variables: { ids } }),
+  });
+  const payload = await response.json().catch(() => ({})) as { data?: { Page?: { media?: Array<{ id?: number; idMal?: number }> } } };
+  if (!response.ok) throw new Error("AniList ID mapping is temporarily unavailable.");
+  return new Map((payload.data?.Page?.media || []).flatMap((item) => {
+    const malId = Number(item.idMal);
+    const anilistId = Number(item.id);
+    return Number.isInteger(malId) && malId > 0 && Number.isInteger(anilistId) && anilistId > 0 ? [[malId, anilistId] as const] : [];
+  }));
+}
+
+async function requestDirectMalPage<T>(query: string, variables: Record<string, unknown>): Promise<T | null> {
+  if (!APP_CONFIG.directMalEnabled || !APP_CONFIG.malClientId) return null;
+  if (!query.includes("Page(") || query.includes("airingSchedule") || query.includes("relations")) return null;
+  const page = Math.max(1, Number(variables.page) || 1);
+  const perPage = Math.min(50, Math.max(1, Number(variables.perPage) || 20));
+  const sort = Array.isArray(variables.sort) ? variables.sort.join(",") : String(variables.sort || "");
+  const search = String(variables.search || "").trim();
+  const status = String(variables.status || "");
+  const format = String(variables.format || "");
+  const limit = format ? Math.min(50, perPage * 2) : perPage;
+  const offset = (page - 1) * limit;
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset), fields: MAL_FIELDS });
+  let path: string;
+  if (search) {
+    params.set("q", search);
+    path = `/anime?${params}`;
+  } else {
+    params.set("ranking_type", status === "RELEASING" || /TRENDING|AIRING/.test(sort) ? "airing" : /POPULARITY/.test(sort) ? "bypopularity" : "all");
+    path = `/anime/ranking?${params}`;
+  }
+  const response = await fetch(`${MAL_API_BASE_URL}${path}`, { headers: { Accept: "application/json", "X-MAL-CLIENT-ID": APP_CONFIG.malClientId } });
+  if (response.status === 429) throw new MetadataRateLimitError(getRetryAfterMs(response.headers));
+  if (!response.ok) throw new Error(`MyAnimeList is unavailable (${response.status}).`);
+  const payload = await response.json().catch(() => ({})) as { data?: Array<{ node?: MalAnimeNode }>; paging?: { next?: string } };
+  let nodes = (payload.data || []).map((item) => item.node).filter((node): node is MalAnimeNode => Boolean(node));
+  if (format) nodes = nodes.filter((node) => malFormat(node.media_type) === format);
+  const mapping = await mapMalIdsToAniList(nodes.map((node) => Number(node.id)));
+  const media = nodes.flatMap((node) => {
+    const anilistId = mapping.get(Number(node.id));
+    return anilistId ? [normalizeMalAnime(node, anilistId)] : [];
+  });
+  if (nodes.length && !media.length) throw new Error("MyAnimeList results could not be mapped to verified AniList IDs.");
+  return { Page: { pageInfo: { currentPage: page, hasNextPage: Boolean(payload.paging?.next), total: offset + media.length }, media } } as T;
+}
+
 const fields = `
   id type title { romaji english native } coverImage { large extraLarge color } bannerImage
   description(asHtml: false) genres format status episodes duration averageScore popularity
@@ -84,20 +193,32 @@ async function request<T>(query: string, variables: Record<string, unknown> = {}
       try { return rawPayload ? JSON.parse(rawPayload) : {}; } catch { throw new Error("Metadata service returned an unreadable response."); }
     };
 
+    try {
+      const directMalData = await requestDirectMalPage<T>(query, providedVariables);
+      if (directMalData) {
+        responseCache.set(cacheKey, { expiresAt: Date.now() + REQUEST_CACHE_TTL_MS, value: directMalData });
+        return directMalData;
+      }
+    } catch (error) {
+      if (isMetadataRateLimitError(error)) throw error;
+    }
+
     let response: Response;
     let payload: { data?: T; errors?: Array<{ message?: string }>; error?: { code?: string; message?: string; retryAfter?: number | null } };
     try {
-      response = await fetch(APP_CONFIG.metadataResolverUrl, requestInit);
-      payload = await parsePayload(response);
-      if (response.status === 429) {
-        const payloadRetryAfter = Number(payload.error?.retryAfter);
-        const retryAfterMs = Number.isFinite(payloadRetryAfter) && payloadRetryAfter > 0 ? payloadRetryAfter * 1000 : null;
-        throw new MetadataRateLimitError(getRetryAfterMs(response.headers) ?? retryAfterMs);
-      }
-      if (response.ok && payload.data) {
-        const data = payload.data as T;
-        responseCache.set(cacheKey, { expiresAt: Date.now() + REQUEST_CACHE_TTL_MS, value: data });
-        return data;
+      if (APP_CONFIG.metadataResolverUrl) {
+        response = await fetch(APP_CONFIG.metadataResolverUrl, requestInit);
+        payload = await parsePayload(response);
+        if (response.status === 429) {
+          const payloadRetryAfter = Number(payload.error?.retryAfter);
+          const retryAfterMs = Number.isFinite(payloadRetryAfter) && payloadRetryAfter > 0 ? payloadRetryAfter * 1000 : null;
+          throw new MetadataRateLimitError(getRetryAfterMs(response.headers) ?? retryAfterMs);
+        }
+        if (response.ok && payload.data) {
+          const data = payload.data as T;
+          responseCache.set(cacheKey, { expiresAt: Date.now() + REQUEST_CACHE_TTL_MS, value: data });
+          return data;
+        }
       }
     } catch (error) {
       if (isMetadataRateLimitError(error)) throw error;

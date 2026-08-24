@@ -64,6 +64,25 @@ describe("AniList query construction", () => {
     expect(fetchMock.mock.calls[1]?.[0]).toBe(APP_CONFIG.metadataFallbackUrl);
   });
 
+  it("uses direct MAL browse data only when the native direct-MAL build flag and public client ID are present", async () => {
+    vi.resetModules();
+    vi.stubEnv("EXPO_PUBLIC_DIRECT_MAL", "true");
+    vi.stubEnv("EXPO_PUBLIC_MAL_CLIENT_ID", "test-mal-client-id");
+    const directFetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, headers: new Headers(), json: async () => ({ data: [{ node: { id: 21, title: "One Piece", media_type: "tv", status: "currently_airing" } }], paging: {} }) })
+      .mockResolvedValueOnce({ ok: true, status: 200, headers: new Headers(), json: async () => ({ data: { Page: { media: [{ id: 21, idMal: 21 }] } } }) });
+    global.fetch = directFetch as typeof fetch;
+    const directClient = await import("../lib/anilist");
+
+    const page = await directClient.getAnimePage({ page: 1, perPage: 12, sort: ["TRENDING_DESC"] });
+
+    expect(page.media[0]).toMatchObject({ id: 21, idMal: 21, title: { english: "One Piece" } });
+    expect(String(directFetch.mock.calls[0]?.[0])).toContain("https://api.myanimelist.net/v2/anime/ranking");
+    expect((directFetch.mock.calls[0]?.[1] as RequestInit).headers).toMatchObject({ "X-MAL-CLIENT-ID": "test-mal-client-id" });
+    expect(directFetch.mock.calls[1]?.[0]).toBe("https://api.aniraku.tech/api/v1/anilist");
+    vi.unstubAllEnvs();
+  });
+
   it("coalesces concurrent identical searches and reuses their short-lived response cache", async () => {
     let resolveResponse: ((value: unknown) => void) | undefined;
     const responsePromise = new Promise((resolve) => { resolveResponse = resolve; });

@@ -9,8 +9,8 @@ on:
         default: false
         type: boolean
       metadata_resolver_url:
-        description: HTTPS URL of the verified Vercel Preview resolver, ending before /api/mal
-        required: true
+        description: Optional HTTPS Vercel resolver URL used only as metadata recovery, ending before /api/mal
+        required: false
         type: string
 
 permissions:
@@ -30,6 +30,8 @@ jobs:
       EXPO_PUBLIC_API_BASE_URL: https://api.aniraku.tech
       EXPO_PUBLIC_ANILIST_GRAPHQL_URL: https://graphql.anilist.co
       EXPO_PUBLIC_METADATA_RESOLVER_URL: ${{ inputs.metadata_resolver_url }}/api/mal
+      EXPO_PUBLIC_DIRECT_MAL: "true"
+      EXPO_PUBLIC_MAL_CLIENT_ID: ${{ secrets.MAL_CLIENT_ID }}
       EXPO_PUBLIC_SUPABASE_URL: https://sbjdrjaovcgvttfnpfsz.supabase.co
       EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_-Ht3PZpNy_a35hOI8w1G8g_vwOhAPgS
     steps:
@@ -54,10 +56,15 @@ jobs:
       - name: Validate native source
         env:
           EXPO_PUBLIC_GIPHY_API_KEY: ${{ secrets.EXPO_PUBLIC_GIPHY_API_KEY }}
+          EXPO_PUBLIC_DIRECT_MAL: "false"
+          EXPO_PUBLIC_MAL_CLIENT_ID: ""
         run: pnpm check && pnpm test
-      - name: Verify preview resolver URL and v4.5.Beta identity
+      - name: Verify native MAL configuration and v4.5.Beta identity
         run: |
-          case "$EXPO_PUBLIC_METADATA_RESOLVER_URL" in https://*/api/mal) ;; *) echo "A Vercel HTTPS resolver URL is required" >&2; exit 1 ;; esac
+          test -n "$EXPO_PUBLIC_MAL_CLIENT_ID"
+          if [ -n "${{ inputs.metadata_resolver_url }}" ]; then
+            case "$EXPO_PUBLIC_METADATA_RESOLVER_URL" in https://*/api/mal) ;; *) echo "Metadata recovery resolver must be an HTTPS Vercel URL" >&2; exit 1 ;; esac
+          fi
           pnpm exec expo config --json > /tmp/aniraku-expo-config.json
           grep -Eq "\"version\"[[:space:]]*:[[:space:]]*\"$RELEASE_VERSION\"" /tmp/aniraku-expo-config.json
           grep -Eq "\"versionCode\"[[:space:]]*:[[:space:]]*$RELEASE_VERSION_CODE([,}])" /tmp/aniraku-expo-config.json
@@ -103,9 +110,9 @@ jobs:
           - Related titles remain grouped in compact Story order, Extras, and More related rails using real relationship data.
 
           ### MAL metadata preview
-          - The Android client requests MyAnimeList metadata through the supplied Vercel Preview resolver.
-          - The resolver returns the verified AniList ID before the existing Anime Detail episode list, Watch metadata, AniSkip lookup, provider discovery, and playback flows run.
-          - The current Aniraku API remains the metadata recovery path if the preview resolver is unavailable.
+          - Native discovery and search request public MyAnimeList metadata directly with the app's public client ID, using short-lived caching and request coalescing.
+          - Each returned MAL title is mapped through the existing Aniraku metadata API to its verified AniList ID before existing episode, Watch, AniSkip, provider, and playback flows run.
+          - The optional Vercel resolver and the current Aniraku API remain metadata recovery paths; production website behavior is unchanged.
 
           ### Episode availability recovery
           - Anime Detail and Watch keep using the existing Aniraku episode route first.
@@ -114,7 +121,7 @@ jobs:
 
           ### Preview boundary
           - This is a pre-release for validation only. It does not replace the public v4.4 stable APK or the production website.
-          - The build uses the explicit Vercel Preview URL supplied when the workflow is dispatched.
+          - This Android preview does not require a publicly exposed Vercel Preview deployment.
 
           > If you are upgrading from v1.x under `aniraku.anine.app`, uninstall that legacy package first. Android treats `aniraku.anime.app` as a separate application.
           EOF
