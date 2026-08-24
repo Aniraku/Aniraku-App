@@ -16,8 +16,22 @@ export class AniListRateLimitError extends Error {
   }
 }
 
+export class AniListUnavailableError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status = 503) {
+    super(message);
+    this.name = "AniListUnavailableError";
+    this.status = status;
+  }
+}
+
 export function isAniListRateLimitError(error: unknown): error is AniListRateLimitError {
   return error instanceof AniListRateLimitError;
+}
+
+export function isAniListUnavailableError(error: unknown): error is AniListUnavailableError {
+  return error instanceof AniListUnavailableError;
 }
 
 function getRetryAfterMs(headers: Headers): number | null {
@@ -69,7 +83,11 @@ async function request<T>(query: string, variables: Record<string, unknown> = {}
     let payload: { data?: T; errors?: Array<{ message?: string }> } = {};
     try { payload = rawPayload ? JSON.parse(rawPayload) : {}; } catch { throw new Error("AniList returned an unreadable response."); }
     if (response.status === 429) throw new AniListRateLimitError(getRetryAfterMs(response.headers));
-    if (!response.ok) throw new Error(payload.errors?.[0]?.message || `AniList is unavailable (${response.status}).`);
+    const upstreamMessage = payload.errors?.[0]?.message || `AniList is unavailable (${response.status}).`;
+    if (response.status === 403 && /temporarily disabled|severe stability issues/i.test(upstreamMessage)) {
+      throw new AniListUnavailableError("AniList is temporarily unavailable due to an upstream stability issue. Try again shortly.", response.status);
+    }
+    if (!response.ok) throw new Error(upstreamMessage);
     if (payload.errors?.length) throw new Error(payload.errors[0]?.message || "AniList returned an invalid response.");
     const data = payload.data as T;
     responseCache.set(cacheKey, { expiresAt: Date.now() + REQUEST_CACHE_TTL_MS, value: data });

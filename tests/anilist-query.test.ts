@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AniListRateLimitError, getAiringSchedule, getAnimeById, getAnimePage, resetAniListRequestStateForTests } from "../lib/anilist";
+import { AniListRateLimitError, AniListUnavailableError, getAiringSchedule, getAnimeById, getAnimePage, resetAniListRequestStateForTests } from "../lib/anilist";
 
 const originalFetch = global.fetch;
 
@@ -80,5 +80,17 @@ describe("AniList query construction", () => {
     }));
     await expect(getAnimePage({ search: "Bleach", perPage: 30, sort: ["SEARCH_MATCH"] })).rejects.toBeInstanceOf(AniListRateLimitError);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("classifies AniList’s confirmed temporary stability shutdown for a recovery banner", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      headers: new Headers(),
+      text: async () => JSON.stringify({ errors: [{ message: "The AniList API has been temporarily disabled due to severe stability issues." }] }),
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    await expect(getAnimePage()).rejects.toBeInstanceOf(AniListUnavailableError);
   });
 });
