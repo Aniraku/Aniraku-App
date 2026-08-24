@@ -22,7 +22,8 @@ import {
   isAutoQuality,
   isProxySource,
   isVerifiedEmbedSource,
-  filterConditionalAllyProviders,
+  filterProviderChoices,
+  isBonkProvider,
   mergeProviderServers,
   mergeSkipSegments,
   nativeSources,
@@ -221,8 +222,10 @@ export default function WatchScreen() {
     const native = nativeSources(response);
     // Kiwi currently returns verified embedded URLs per resolution. When the
     // provider has no native candidate, keep those real resolutions selectable.
-    return embedSource || native.length === 0 ? embedSources(response) : native;
-  }, [embedSource, stream]);
+    return !isBonkProvider(activeProvider ?? { id: "", provider: "", label: "", lang: "sub" }) && (embedSource || native.length === 0)
+      ? embedSources(response)
+      : native;
+  }, [activeProvider, embedSource, stream]);
   const adaptiveQualityOptions = useMemo(() => watchQualityOptions(stream, source), [source, stream]);
   const displayedQuality = selectedWatchQuality(source, requestedQuality);
   const maximumDownloadSource = useMemo(() => selectMaximumQualityDownload(stream?.sources ?? activeProvider?.sources ?? []), [activeProvider?.sources, stream?.sources]);
@@ -310,7 +313,7 @@ export default function WatchScreen() {
   const handleProviderBlocked = useCallback((reason: "player" | "permanent" | "stream" | "startup" = "player") => {
     const current = activeProviders[serverIndex];
     if (!current) return;
-    const fallbackEmbed = embedSources(stream ?? { sources: current.sources ?? [] })[0];
+    const fallbackEmbed = isBonkProvider(current) ? undefined : embedSources(stream ?? { sources: current.sources ?? [] })[0];
     // A provider has already had proxy and direct-native delivery attempts.
     // For a silent 0:00 startup stall, the verified embed is the fastest
     // device-compatible escape; the persistent picker still exposes every
@@ -414,8 +417,8 @@ export default function WatchScreen() {
       // window. This avoids an early incomplete list while never removing a
       // source that the user has already started playing.
       discovered = {
-        sub: filterConditionalAllyProviders(mergeProviderServers(discovered.sub, subs), activeProviderId.current),
-        dub: filterConditionalAllyProviders(mergeProviderServers(discovered.dub, dubs), activeProviderId.current),
+        sub: filterProviderChoices(mergeProviderServers(discovered.sub, subs), activeProviderId.current),
+        dub: filterProviderChoices(mergeProviderServers(discovered.dub, dubs), activeProviderId.current),
       };
       setProviders(discovered);
       if (discovered.sub.length || discovered.dub.length) {
@@ -448,7 +451,7 @@ export default function WatchScreen() {
     const initial: StreamResponse = { sources: activeProvider.sources ?? [], headers: activeProvider.headers };
     const initialDirect = directSources(initial);
     const initialProxies = proxySources(initial);
-    const initialEmbeds = embedSources(initial);
+    const initialEmbeds = isBonkProvider(activeProvider) ? [] : embedSources(initial);
     const existingSourceMounted = sourceMounted.current;
     const forceThisRequest = forceRefresh.current;
     forceRefresh.current = false;
@@ -486,7 +489,7 @@ export default function WatchScreen() {
     if (!forceThisRequest && cached && Date.now() - cached.savedAt < STREAM_CACHE_TTL_MS) {
       const cachedDirect = directSources(cached.data);
       const cachedProxies = proxySources(cached.data);
-      const cachedEmbeds = embedSources(cached.data);
+      const cachedEmbeds = isBonkProvider(activeProvider) ? [] : embedSources(cached.data);
       if (!sourceMounted.current && (cachedDirect.length || cachedProxies.length || cachedEmbeds.length)) {
         setStream(cached.data);
         setPlaybackHeaders(cached.data.headers ?? activeProvider.headers);
@@ -517,7 +520,7 @@ export default function WatchScreen() {
         if (cancelled || activeProviderId.current !== providerId) return;
         const refreshedDirect = directSources(response);
         const refreshedProxies = proxySources(response);
-        const refreshedEmbeds = embedSources(response);
+        const refreshedEmbeds = isBonkProvider(activeProvider) ? [] : embedSources(response);
         if (!refreshedDirect.length && !refreshedProxies.length && !refreshedEmbeds.length) {
           if (!hasInitial || forceThisRequest) handleProviderBlockedRef.current("stream");
           return;

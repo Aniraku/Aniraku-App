@@ -7,7 +7,7 @@ export type SkipSegment = { startTime: number; endTime: number; source: "provide
 export type SkipSegments = Record<SkipKind, SkipSegment | null>;
 
 export const EPISODE_PAGE_SIZE = 50;
-export const PROVIDER_DISCOVERY_RETRY_DELAYS_MS = [0, 4_000, 8_000, 12_000] as const;
+export const PROVIDER_DISCOVERY_RETRY_DELAYS_MS = [0, 5_000, 10_000, 15_000, 20_000, 30_000] as const;
 
 /** Human-readable progress for the bounded provider-discovery window. */
 export function providerDiscoveryCopy(input: { attempt: number; providersDiscovered: number }) {
@@ -20,6 +20,12 @@ export function providerDiscoveryCopy(input: { attempt: number; providersDiscove
 
 function providerName(server: Server) {
   return String(server.provider || server.label || "").trim().toLowerCase();
+}
+
+export function isBonkProvider(server: Pick<Server, "provider" | "label" | "id">) {
+  return [server.provider, server.label, server.id]
+    .map((value) => String(value || "").trim().toLowerCase())
+    .some((value) => /(^|[:\s_-])bonk($|[:\s_-])/.test(value));
 }
 
 /** Merge late resolver responses without making already surfaced servers disappear. */
@@ -42,6 +48,20 @@ export function filterConditionalAllyProviders(servers: Server[] = [], activePro
   const hasPlayableAlternative = candidates.some((server) => providerName(server) !== "ally" && usableProvider(server));
   if (!hasPlayableAlternative) return candidates;
   return candidates.filter((server) => providerName(server) !== "ally" || server.id === activeProviderId);
+}
+
+/** Bonk never enters the embedded-player path: it needs real direct or proxy media. */
+export function bonkHasDirectOrProxySource(server: Server) {
+  const initial = { sources: server.sources ?? [] };
+  return directSources(initial).length > 0 || proxySources(initial).length > 0;
+}
+
+/** Apply Bonk's direct/proxy-only requirement before retaining the existing Ally fallback policy. */
+export function filterProviderChoices(servers: Server[] = [], activeProviderId?: string | null) {
+  return filterConditionalAllyProviders(
+    servers.filter((server) => !isBonkProvider(server) || bonkHasDirectOrProxySource(server)),
+    activeProviderId,
+  );
 }
 
 export function qualityRank(quality?: string) {

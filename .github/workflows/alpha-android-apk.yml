@@ -1,10 +1,10 @@
-name: Build Aniraku v4.5.Beta Preview APK
+name: Build Aniraku v4.5.1.Beta Preview APK
 
 on:
   workflow_dispatch:
     inputs:
       publish_preview:
-        description: Publish the verified v4.5.Beta APK as a GitHub pre-release
+        description: Publish the verified v4.5.1.Beta APK as a GitHub pre-release
         required: true
         default: false
         type: boolean
@@ -23,10 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      RELEASE_TAG: v4.5.Beta
-      RELEASE_VERSION: "4.5.Beta"
-      RELEASE_VERSION_CODE: "32"
-      RELEASE_ASSET_NAME: Aniraku-v4.5.Beta-preview.apk
+      RELEASE_TAG: v4.5.1.Beta
+      RELEASE_VERSION: "4.5.1.Beta"
+      RELEASE_VERSION_CODE: "34"
+      RELEASE_ASSET_NAME: Aniraku-v4.5.1.Beta-preview.apk
       EXPO_PUBLIC_API_BASE_URL: https://api.aniraku.tech
       EXPO_PUBLIC_ANILIST_GRAPHQL_URL: https://graphql.anilist.co
       EXPO_PUBLIC_METADATA_RESOLVER_URL: ${{ inputs.metadata_resolver_url }}/api/mal
@@ -60,7 +60,7 @@ jobs:
           EXPO_PUBLIC_MAL_CLIENT_ID: ""
           EXPO_PUBLIC_METADATA_RESOLVER_URL: https://resolver.example.invalid/api/mal
         run: pnpm check && pnpm test
-      - name: Verify native MAL configuration and v4.5.Beta identity
+      - name: Verify native MAL configuration and v4.5.1.Beta identity
         run: |
           test -n "$EXPO_PUBLIC_MAL_CLIENT_ID"
           if [ -n "${{ inputs.metadata_resolver_url }}" ]; then
@@ -84,14 +84,14 @@ jobs:
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
           sha256sum "$APK" | tee /tmp/aniraku-release.apk.sha256
-      - name: Upload Aniraku v4.5.Beta preview APK
+      - name: Upload Aniraku v4.5.1.Beta preview APK
         uses: actions/upload-artifact@v4
         with:
           name: Aniraku-${{ env.RELEASE_TAG }}-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish v4.5.Beta pre-release
+      - name: Publish v4.5.1.Beta pre-release
         if: ${{ inputs.publish_preview }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -101,14 +101,19 @@ jobs:
           RELEASE_DIGEST=/tmp/$RELEASE_ASSET_NAME.sha256
           cp "$APK" "$RELEASE_APK"
           cp /tmp/aniraku-release.apk.sha256 "$RELEASE_DIGEST"
-          cat > /tmp/aniraku-v4.5-beta-notes.md <<'EOF'
-          ## Aniraku v4.5.Beta Preview
+          cat > /tmp/aniraku-v4.5.1-beta-notes.md <<'EOF'
+          ## Aniraku v4.5.1.Beta Preview
 
-          **Package:** `aniraku.anime.app` · **versionCode:** 32
+          **Package:** `aniraku.anime.app` · **versionCode:** 34
 
-          ### Anime Detail layout
-          - Comments now appear after the complete episode selector, so episode selection stays together before the discussion.
-          - Related titles remain grouped in compact Story order, Extras, and More related rails using real relationship data.
+          ### Bonk direct and proxy playback
+          - Bonk is available only when direct or proxy-capable media is returned, including older episodes that still have those sources.
+          - Embedded-only Bonk is intentionally hidden because the embedded player is unreliable.
+          - Other providers retain their existing Direct → Proxy → Embed behavior.
+
+          ### More complete provider discovery
+          - Native Watch keeps checking the existing backend source list through a longer bounded discovery window and retains late provider results.
+          - No backend, Azure service, provider API, or stream payload was changed.
 
           ### MAL metadata preview
           - Native discovery and search request public MyAnimeList metadata directly with the app's public client ID, using short-lived caching and request coalescing.
@@ -118,7 +123,7 @@ jobs:
           ### Episode availability recovery
           - Anime Detail and Watch keep using the existing Aniraku episode route first.
           - If that route is temporarily unreachable, the app retrieves the title's real numbered Miruro episode list using the resolved AniList ID.
-          - This recovery path does not alter provider discovery, stream selection, or Direct → Proxy → Embed playback transport.
+          - This recovery path does not alter backend routing or other provider playback transport.
 
           ### Preview boundary
           - This is a pre-release for validation only. It does not replace the public v4.4 stable APK or the production website.
@@ -128,7 +133,7 @@ jobs:
           EOF
           if gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --clobber
-            gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.5.Beta — MAL Metadata Preview" --notes-file /tmp/aniraku-v4.5-beta-notes.md --prerelease
+            gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.5.1.Beta — Direct Bonk and MAL Preview" --notes-file /tmp/aniraku-v4.5.1-beta-notes.md --prerelease
           else
-            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --target "$GITHUB_SHA" --title "v4.5.Beta — MAL Metadata Preview" --notes-file /tmp/aniraku-v4.5-beta-notes.md --prerelease
+            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --target "$GITHUB_SHA" --title "v4.5.1.Beta — Direct Bonk and MAL Preview" --notes-file /tmp/aniraku-v4.5.1-beta-notes.md --prerelease
           fi
