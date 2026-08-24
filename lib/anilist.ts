@@ -5,13 +5,13 @@ const REQUEST_CACHE_TTL_MS = 2 * 60_000;
 const responseCache = new Map<string, { expiresAt: number; value: unknown }>();
 const inFlightRequests = new Map<string, Promise<unknown>>();
 
-export class AniListRateLimitError extends Error {
+export class MetadataRateLimitError extends Error {
   readonly retryAfterMs: number | null;
 
   constructor(retryAfterMs: number | null) {
     const retrySeconds = retryAfterMs === null ? null : Math.max(1, Math.ceil(retryAfterMs / 1000));
-    super(retrySeconds ? `AniList is busy. Try again in ${retrySeconds} seconds.` : "AniList is busy. Try again in a moment.");
-    this.name = "AniListRateLimitError";
+    super(retrySeconds ? `Metadata is busy. Try again in ${retrySeconds} seconds.` : "Metadata is busy. Try again in a moment.");
+    this.name = "MetadataRateLimitError";
     this.retryAfterMs = retryAfterMs;
   }
 }
@@ -26,8 +26,8 @@ export class AniListUnavailableError extends Error {
   }
 }
 
-export function isAniListRateLimitError(error: unknown): error is AniListRateLimitError {
-  return error instanceof AniListRateLimitError;
+export function isMetadataRateLimitError(error: unknown): error is MetadataRateLimitError {
+  return error instanceof MetadataRateLimitError;
 }
 
 export function isAniListUnavailableError(error: unknown): error is AniListUnavailableError {
@@ -74,22 +74,47 @@ async function request<T>(query: string, variables: Record<string, unknown> = {}
   if (existingRequest) return existingRequest as Promise<T>;
 
   const requestPromise = (async () => {
-    const response = await fetch(APP_CONFIG.anilistGraphqlUrl, {
+    const requestInit = {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: requestBody,
-    });
-    const rawPayload = await response.text();
-    let payload: { data?: T; errors?: Array<{ message?: string }> } = {};
-    try { payload = rawPayload ? JSON.parse(rawPayload) : {}; } catch { throw new Error("AniList returned an unreadable response."); }
-    if (response.status === 429) throw new AniListRateLimitError(getRetryAfterMs(response.headers));
-    const upstreamMessage = payload.errors?.[0]?.message || `AniList is unavailable (${response.status}).`;
-    if (response.status === 403 && /temporarily disabled|severe stability issues/i.test(upstreamMessage)) {
-      throw new AniListUnavailableError("AniList is temporarily unavailable due to an upstream stability issue. Try again shortly.", response.status);
+    };
+    const parsePayload = async (response: Response): Promise<{ data?: T; errors?: Array<{ message?: string }>; error?: { code?: string; message?: string; retryAfter?: number | null } }> => {
+      const rawPayload = await response.text();
+      try { return rawPayload ? JSON.parse(rawPayload) : {}; } catch { throw new Error("Metadata service returned an unreadable response."); }
+    };
+
+    let response: Response;
+    let payload: { data?: T; errors?: Array<{ message?: string }>; error?: { code?: string; message?: string; retryAfter?: number | null } };
+    try {
+      response = await fetch(APP_CONFIG.metadataResolverUrl, requestInit);
+      payload = await parsePayload(response);
+      if (response.status === 429) {
+        const payloadRetryAfter = Number(payload.error?.retryAfter);
+        const retryAfterMs = Number.isFinite(payloadRetryAfter) && payloadRetryAfter > 0 ? payloadRetryAfter * 1000 : null;
+        throw new MetadataRateLimitError(getRetryAfterMs(response.headers) ?? retryAfterMs);
+      }
+      if (response.ok && payload.data) {
+        const data = payload.data as T;
+        responseCache.set(cacheKey, { expiresAt: Date.now() + REQUEST_CACHE_TTL_MS, value: data });
+        return data;
+      }
+    } catch (error) {
+      if (isMetadataRateLimitError(error)) throw error;
+      response = undefined as never;
+      payload = {};
     }
-    if (!response.ok) throw new Error(upstreamMessage);
-    if (payload.errors?.length) throw new Error(payload.errors[0]?.message || "AniList returned an invalid response.");
-    const data = payload.data as T;
+
+    const fallback = await fetch(APP_CONFIG.metadataFallbackUrl, requestInit);
+    const fallbackPayload = await parsePayload(fallback);
+    if (fallback.status === 429) throw new MetadataRateLimitError(getRetryAfterMs(fallback.headers));
+    const upstreamMessage = fallbackPayload.errors?.[0]?.message || fallbackPayload.error?.message || `Metadata fallback is unavailable (${fallback.status}).`;
+    if (fallback.status === 403 && /temporarily disabled|severe stability issues/i.test(upstreamMessage)) {
+      throw new AniListUnavailableError("AniList is temporarily unavailable due to an upstream stability issue. Try again shortly.", fallback.status);
+    }
+    if (!fallback.ok) throw new Error(upstreamMessage);
+    if (fallbackPayload.errors?.length) throw new Error(fallbackPayload.errors[0]?.message || "Metadata fallback returned an invalid response.");
+    const data = fallbackPayload.data as T;
     responseCache.set(cacheKey, { expiresAt: Date.now() + REQUEST_CACHE_TTL_MS, value: data });
     return data;
   })();

@@ -1,29 +1,35 @@
-name: Build Aniraku v4.4 APK
+name: Build Aniraku v4.4.1.Beta Preview APK
 
 on:
   workflow_dispatch:
     inputs:
-      publish_release:
-        description: Publish the verified v4.4 APK as the standard GitHub release
+      publish_preview:
+        description: Publish the verified v4.4.1.Beta APK as a GitHub pre-release
         required: true
         default: false
         type: boolean
+      metadata_resolver_url:
+        description: HTTPS URL of the verified Vercel Preview resolver, ending before /api/mal
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
-  build-stable-apk:
-    name: Build universal Android stable APK
+  build-preview-apk:
+    name: Build universal Android preview APK
+    if: github.ref == 'refs/heads/preview/mal-v4.4.1-beta'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      RELEASE_TAG: v4.4
-      RELEASE_VERSION: "4.4"
-      RELEASE_VERSION_CODE: "28"
-      RELEASE_ASSET_NAME: Aniraku-v4.4.apk
+      RELEASE_TAG: v4.4.1.Beta
+      RELEASE_VERSION: "4.4.1.Beta"
+      RELEASE_VERSION_CODE: "29"
+      RELEASE_ASSET_NAME: Aniraku-v4.4.1.Beta-preview.apk
       EXPO_PUBLIC_API_BASE_URL: https://api.aniraku.tech
       EXPO_PUBLIC_ANILIST_GRAPHQL_URL: https://graphql.anilist.co
+      EXPO_PUBLIC_METADATA_RESOLVER_URL: ${{ inputs.metadata_resolver_url }}/api/mal
       EXPO_PUBLIC_SUPABASE_URL: https://sbjdrjaovcgvttfnpfsz.supabase.co
       EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_-Ht3PZpNy_a35hOI8w1G8g_vwOhAPgS
     steps:
@@ -49,8 +55,9 @@ jobs:
         env:
           EXPO_PUBLIC_GIPHY_API_KEY: ${{ secrets.EXPO_PUBLIC_GIPHY_API_KEY }}
         run: pnpm check && pnpm test
-      - name: Verify v4.4 release identity
+      - name: Verify preview resolver URL and v4.4.1.Beta identity
         run: |
+          case "$EXPO_PUBLIC_METADATA_RESOLVER_URL" in https://*/api/mal) ;; *) echo "A Vercel HTTPS resolver URL is required" >&2; exit 1 ;; esac
           pnpm exec expo config --json > /tmp/aniraku-expo-config.json
           grep -Eq "\"version\"[[:space:]]*:[[:space:]]*\"$RELEASE_VERSION\"" /tmp/aniraku-expo-config.json
           grep -Eq "\"versionCode\"[[:space:]]*:[[:space:]]*$RELEASE_VERSION_CODE([,}])" /tmp/aniraku-expo-config.json
@@ -69,15 +76,15 @@ jobs:
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
           sha256sum "$APK" | tee /tmp/aniraku-release.apk.sha256
-      - name: Upload Aniraku v4.4 APK
+      - name: Upload Aniraku v4.4.1.Beta preview APK
         uses: actions/upload-artifact@v4
         with:
           name: Aniraku-${{ env.RELEASE_TAG }}-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish stable v4.4 release
-        if: ${{ inputs.publish_release }}
+      - name: Publish v4.4.1.Beta pre-release
+        if: ${{ inputs.publish_preview }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -86,24 +93,25 @@ jobs:
           RELEASE_DIGEST=/tmp/$RELEASE_ASSET_NAME.sha256
           cp "$APK" "$RELEASE_APK"
           cp /tmp/aniraku-release.apk.sha256 "$RELEASE_DIGEST"
-          cat > /tmp/aniraku-v4.4-notes.md <<'EOF'
-          ## Aniraku v4.4
+          cat > /tmp/aniraku-v4.4.1-beta-notes.md <<'EOF'
+          ## Aniraku v4.4.1.Beta Preview
 
-          **Package:** `aniraku.anime.app` · **versionCode:** 28
+          **Package:** `aniraku.anime.app` · **versionCode:** 29
 
-          ### Community comments across the app
-          - Anime Detail and Watch episode discussions now read the shared Supabase comment source with each commenter’s public display name or username.
-          - Anime Detail supports compact text or G-rated GIPHY reaction GIF comments for verified accounts, with direct GIPHY attribution and trusted-media URL validation.
-          - Persisted spoiler comments conceal both text and GIF media until the reader explicitly reveals them.
+          ### MAL metadata preview
+          - The Android client requests MyAnimeList metadata through the supplied Vercel Preview resolver.
+          - The resolver returns the verified AniList ID before the existing Anime Detail episode list, Watch metadata, AniSkip lookup, provider discovery, and playback flows run.
+          - The current Aniraku API remains the metadata recovery path if the preview resolver is unavailable.
 
-          ### Release integrity
-          - The build validates the configured GIPHY browser key during source checks and includes a SHA-256 sidecar for independent APK verification.
+          ### Preview boundary
+          - This is a pre-release for validation only. It does not replace the public v4.4 stable APK or the production website.
+          - The build uses the explicit Vercel Preview URL supplied when the workflow is dispatched.
 
           > If you are upgrading from v1.x under `aniraku.anine.app`, uninstall that legacy package first. Android treats `aniraku.anime.app` as a separate application.
           EOF
           if gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --clobber
-            gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.4 — Shared Community Comments" --notes-file /tmp/aniraku-v4.4-notes.md --latest
+            gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.4.1.Beta — MAL Metadata Preview" --notes-file /tmp/aniraku-v4.4.1-beta-notes.md --prerelease
           else
-            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --title "v4.4 — Shared Community Comments" --notes-file /tmp/aniraku-v4.4-notes.md --latest
+            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --title "v4.4.1.Beta — MAL Metadata Preview" --notes-file /tmp/aniraku-v4.4.1-beta-notes.md --prerelease
           fi

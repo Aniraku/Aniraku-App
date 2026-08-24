@@ -88,11 +88,13 @@ export default function WatchScreen() {
     queryKey: ["watch-anime", animeId],
     queryFn: async () => {
       try {
-        return await getAnimeMetadata(animeId);
+        return await getAnimeById(animeId);
       } catch {
-        // Preserve the main site’s AniList recovery path without making the
-        // rate-limited public GraphQL service the default Watch dependency.
-        return getAnimeById(animeId);
+        // The shared resolver supplies MAL metadata normalized back to the
+        // AniList ID used by Watch. Preserve the existing Aniraku API only as
+        // the recovery path so source, episode, and playback contracts stay
+        // untouched when metadata is temporarily unavailable.
+        return getAnimeMetadata(animeId);
       }
     },
     enabled: Number.isFinite(animeId) && animeId > 0,

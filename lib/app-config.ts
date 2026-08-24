@@ -18,6 +18,8 @@ export const APP_CONFIG = {
   // deliberately restricts its browser CORS allow-list to trusted web origins.
   apiBaseUrl: previewAnirakuProxy() ?? productionAnirakuApi,
   anilistGraphqlUrl: process.env.EXPO_PUBLIC_ANILIST_GRAPHQL_URL ?? "https://graphql.anilist.co",
+  metadataResolverUrl: process.env.EXPO_PUBLIC_METADATA_RESOLVER_URL ?? "https://www.aniraku.tech/api/mal",
+  metadataFallbackUrl: process.env.EXPO_PUBLIC_METADATA_FALLBACK_URL ?? "https://api.aniraku.tech/api/v1/anilist",
   supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
   supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
   giphyApiKey: process.env.EXPO_PUBLIC_GIPHY_API_KEY ?? "",

@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { getAnimePage, isAniListRateLimitError } from "@/lib/anilist";
+import { getAnimePage, isMetadataRateLimitError } from "@/lib/anilist";
 import { AnimeCard } from "@/components/anime-card";
 import { ErrorState, LoadingState, EmptyState } from "@/components/async-state";
 import { AppIcon } from "@/components/app-icon";
@@ -33,10 +33,10 @@ export default function SearchScreen() {
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     refetchOnMount: false,
-    retry: (failureCount, error) => !isAniListRateLimitError(error) && failureCount < 1,
+    retry: (failureCount, error) => !isMetadataRateLimitError(error) && failureCount < 1,
     retryDelay: 1_200,
   });
-  const rateLimitError = isAniListRateLimitError(results.error) ? results.error : null;
+  const rateLimitError = isMetadataRateLimitError(results.error) ? results.error : null;
   const retryAfterMs = rateLimitError?.retryAfterMs ?? null;
 
   useEffect(() => {

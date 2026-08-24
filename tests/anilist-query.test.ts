@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AniListRateLimitError, AniListUnavailableError, getAiringSchedule, getAnimeById, getAnimePage, resetAniListRequestStateForTests } from "../lib/anilist";
+import { AniListUnavailableError, MetadataRateLimitError, getAiringSchedule, getAnimeById, getAnimePage, resetAniListRequestStateForTests } from "../lib/anilist";
+import { APP_CONFIG } from "../lib/app-config";
 
 const originalFetch = global.fetch;
 
@@ -50,6 +51,19 @@ describe("AniList query construction", () => {
     expect(body.query).toContain("node {");
   });
 
+  it("uses the website metadata resolver first and only falls back to the existing Aniraku API", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 502, headers: new Headers(), text: async () => JSON.stringify({ error: { message: "Resolver unavailable" } }) })
+      .mockResolvedValueOnce({ ok: true, status: 200, headers: new Headers(), text: async () => JSON.stringify({ data: { Media: { id: 21, idMal: 21, title: { english: "One Piece" } } } }) });
+    global.fetch = fetchMock as typeof fetch;
+
+    const anime = await getAnimeById(21);
+
+    expect(anime.id).toBe(21);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(APP_CONFIG.metadataResolverUrl);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(APP_CONFIG.metadataFallbackUrl);
+  });
+
   it("coalesces concurrent identical searches and reuses their short-lived response cache", async () => {
     let resolveResponse: ((value: unknown) => void) | undefined;
     const responsePromise = new Promise((resolve) => { resolveResponse = resolve; });
@@ -75,10 +89,10 @@ describe("AniList query construction", () => {
     global.fetch = fetchMock as typeof fetch;
 
     await expect(getAnimePage({ search: "Bleach", perPage: 30, sort: ["SEARCH_MATCH"] })).rejects.toEqual(expect.objectContaining({
-      name: "AniListRateLimitError",
+      name: "MetadataRateLimitError",
       retryAfterMs: 12_000,
     }));
-    await expect(getAnimePage({ search: "Bleach", perPage: 30, sort: ["SEARCH_MATCH"] })).rejects.toBeInstanceOf(AniListRateLimitError);
+    await expect(getAnimePage({ search: "Bleach", perPage: 30, sort: ["SEARCH_MATCH"] })).rejects.toBeInstanceOf(MetadataRateLimitError);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
