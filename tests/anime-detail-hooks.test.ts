@@ -12,4 +12,13 @@ describe("Anime Detail hook ordering", () => {
     expect(firstEarlyReturn).toBeGreaterThan(-1);
     expect(relationsMemo).toBeLessThan(firstEarlyReturn);
   });
+
+  it("places the comments section after the complete episode selector", () => {
+    const source = readFileSync(resolve(process.cwd(), "app/anime/[id].tsx"), "utf8");
+    const episodeSection = source.indexOf('<DotLabel>EPISODES</DotLabel>');
+    const commentsSection = source.lastIndexOf("<AnimeComments animeId={id} />");
+
+    expect(episodeSection).toBeGreaterThan(-1);
+    expect(commentsSection).toBeGreaterThan(episodeSection);
+  });
 });
