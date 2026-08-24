@@ -95,15 +95,21 @@ export async function getAnimeMetadata(animeId: number): Promise<Anime> {
   return apiRequest<Anime>(`/api/v1/anime/${animeId}`);
 }
 
-export async function getEpisodes(animeId: number): Promise<Episode[]> {
-  type BackendEpisode = Omit<Episode, "isFiller"> & { filler?: boolean; isFiller?: boolean };
-  const payload = await apiRequest<BackendEpisode[] | { episodes?: BackendEpisode[] }>(`/api/v1/anime/${animeId}/episodes`);
+type BackendEpisode = Omit<Episode, "isFiller"> & { filler?: boolean; isFiller?: boolean };
+type MiruroEpisode = {
+  number?: number;
+  title?: string | null;
+  image?: string | null;
+  thumbnail?: string | null;
+  description?: string | null;
+  filler?: boolean;
+  fillerType?: string | null;
+};
+type MiruroEpisodePayload = { providers?: Record<string, { episodes?: { sub?: MiruroEpisode[]; dub?: MiruroEpisode[] } }> };
+
+function normalizeBackendEpisodes(payload: BackendEpisode[] | { episodes?: BackendEpisode[] }): Episode[] {
   const episodes = Array.isArray(payload) ? payload : payload.episodes;
   if (!Array.isArray(episodes)) throw new Error("Aniraku returned an invalid episode availability response.");
-
-  // The Aniraku web player and native player share canonical 1-based ordering.
-  // This prevents upstream provider sequences such as 10, 20, 30 from reaching
-  // the episode picker while retaining the backend’s real titles and thumbnails.
   return episodes.filter(Boolean).map((episode, index) => ({
     number: index + 1,
     title: episode.title,
@@ -111,6 +117,63 @@ export async function getEpisodes(animeId: number): Promise<Episode[]> {
     description: episode.description,
     isFiller: Boolean(episode.isFiller ?? episode.filler),
   }));
+}
+
+export function normalizeMiruroEpisodes(payload: MiruroEpisodePayload): Episode[] {
+  const providerRows = Object.values(payload.providers ?? {})
+    .flatMap((provider) => [provider.episodes?.sub, provider.episodes?.dub])
+    .filter((episodes): episodes is MiruroEpisode[] => Array.isArray(episodes));
+  const sourceEpisodes = providerRows.sort((left, right) => right.length - left.length)[0];
+  if (!sourceEpisodes?.length) throw new Error("Miruro returned no real episode availability for this anime.");
+
+  const unique = new Map<number, MiruroEpisode>();
+  for (const episode of sourceEpisodes) {
+    const number = Number(episode.number);
+    if (Number.isInteger(number) && number >= 1 && !unique.has(number)) unique.set(number, episode);
+  }
+  const episodes = [...unique.entries()].sort(([left], [right]) => left - right).map(([number, episode]) => ({
+    number,
+    title: episode.title ?? undefined,
+    thumbnail: episode.image ?? episode.thumbnail ?? undefined,
+    description: episode.description ?? undefined,
+    isFiller: Boolean(episode.filler || episode.fillerType?.toLowerCase().includes("filler")),
+  }));
+  if (!episodes.length) throw new Error("Miruro returned no numbered episode availability for this anime.");
+  return episodes;
+}
+
+async function getFallbackEpisodes(animeId: number): Promise<Episode[]> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetch(`${APP_CONFIG.episodeFallbackBaseUrl}/episodes/${animeId}`, {
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+    });
+    const rawPayload = await response.text();
+    if (!response.ok) throw new Error("Miruro episode availability is unavailable.");
+    let payload: MiruroEpisodePayload;
+    try {
+      payload = rawPayload ? JSON.parse(rawPayload) as MiruroEpisodePayload : {};
+    } catch {
+      throw new Error("Miruro episode availability was not valid JSON.");
+    }
+    return normalizeMiruroEpisodes(payload);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function getEpisodes(animeId: number): Promise<Episode[]> {
+  try {
+    return normalizeBackendEpisodes(await apiRequest<BackendEpisode[] | { episodes?: BackendEpisode[] }>(`/api/v1/anime/${animeId}/episodes`));
+  } catch {
+    try {
+      return await getFallbackEpisodes(animeId);
+    } catch {
+      throw new Error("Episode availability is temporarily unavailable from both sources. Please try again.");
+    }
+  }
 }
 
 export type BackendServer = Partial<Server> & { name?: string; sources?: StreamSource[] };

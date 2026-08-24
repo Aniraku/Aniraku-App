@@ -17,6 +17,7 @@ export const APP_CONFIG = {
   // browser preview uses a same-project forwarding route because api.aniraku.tech
   // deliberately restricts its browser CORS allow-list to trusted web origins.
   apiBaseUrl: previewAnirakuProxy() ?? productionAnirakuApi,
+  episodeFallbackBaseUrl: process.env.EXPO_PUBLIC_EPISODE_FALLBACK_URL ?? "https://miruro-api-v3.onrender.com",
   anilistGraphqlUrl: process.env.EXPO_PUBLIC_ANILIST_GRAPHQL_URL ?? "https://graphql.anilist.co",
   supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
   supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",

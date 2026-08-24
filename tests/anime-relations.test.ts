@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayAnimeRelations, relationLabel } from "../lib/anime-relations";
+import { displayAnimeRelations, groupAnimeRelations, relationLabel } from "../lib/anime-relations";
 import type { Anime, AnimeRelationEdge } from "../lib/types";
 
 const anime = (id: number, format = "TV"): Anime => ({ id, type: "ANIME", format, title: { english: `Title ${id}` } });
@@ -25,6 +25,10 @@ describe("Anime Detail relationships", () => {
       [2, "Prequel"],
       [3, "Sequel"],
       [4, "Side story"],
+    ]);
+    expect(groupAnimeRelations(edges).map((group) => [group.key, group.relations.map((item) => item.id)])).toEqual([
+      ["story", [2, 3]],
+      ["extras", [4]],
     ]);
   });
 });
