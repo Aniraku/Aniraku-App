@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
-import { getAiringSchedule } from "@/lib/aniraku-api";
+import { getAiringSchedule } from "@/lib/anilist";
 import { animeTitle } from "@/lib/types";
 import type { AiringScheduleItem } from "@/lib/types";
 import { ErrorState, LoadingState } from "@/components/async-state";

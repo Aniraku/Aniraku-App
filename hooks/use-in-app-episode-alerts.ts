@@ -2,7 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useRef } from "react";
 import { AppState } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
-import { getAnimeMetadata, getEpisodes } from "@/lib/aniraku-api";
+import { getEpisodes } from "@/lib/aniraku-api";
+import { getAnimeById } from "@/lib/anilist";
 import { availableReleasedEpisode, shouldCreateEpisodeAlert, type EpisodeAlertMarker } from "@/lib/in-app-alerts";
 import { supabase } from "@/lib/supabase";
 import { useAnirakuAuth } from "@/providers/auth-provider";
@@ -42,7 +43,7 @@ export function InAppEpisodeAlertMonitor() {
 
       for (const bookmark of bookmarks) {
         try {
-          const anime = await getAnimeMetadata(Number(bookmark.anime_id));
+          const anime = await getAnimeById(Number(bookmark.anime_id));
           const releasedEpisode = availableReleasedEpisode(anime);
           const marker = markers[String(bookmark.anime_id)];
           if (!releasedEpisode || !shouldCreateEpisodeAlert(marker, releasedEpisode, now)) continue;

@@ -9,7 +9,8 @@ import { useVideoPlayer, VideoView, type SubtitleTrack, type VideoSource } from 
 import { useKeepAwake } from "expo-keep-awake";
 import { StatusBar } from "expo-status-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
-import { anirakuProxyUrl, getAnimeMetadata, getEpisodes, getKnownMalId, getServers, getStream, getPlaybackType, nativePlaybackHeaders } from "@/lib/aniraku-api";
+import { anirakuProxyUrl, getAnimeMetadata, getEpisodes, getServers, getStream, getPlaybackType, nativePlaybackHeaders } from "@/lib/aniraku-api";
+import { getAnimeById, getKnownMalId, getMalIdByAnimeId } from "@/lib/anilist";
 import {
   activeSkipKind,
   directSources,
@@ -85,7 +86,15 @@ export default function WatchScreen() {
   const episode = Math.max(1, Number(params.episode ?? "1"));
   const animeQuery = useQuery({
     queryKey: ["watch-anime", animeId],
-    queryFn: () => getAnimeMetadata(animeId),
+    queryFn: async () => {
+      try {
+        return await getAnimeMetadata(animeId);
+      } catch {
+        // Preserve the main site’s AniList recovery path without making the
+        // rate-limited public GraphQL service the default Watch dependency.
+        return getAnimeById(animeId);
+      }
+    },
     enabled: Number.isFinite(animeId) && animeId > 0,
     staleTime: 10 * 60_000,
     retry: 1,
@@ -627,6 +636,18 @@ export default function WatchScreen() {
       const stored = await AsyncStorage.getItem(cacheKey).catch(() => null);
       const cached = Number(stored);
       if (Number.isFinite(cached) && cached > 0) return cached;
+      // AniList can rate-limit public requests. Retry this auxiliary lookup in
+      // the background; it must never delay server discovery or video startup.
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const resolved = await getMalIdByAnimeId(animeId);
+          if (resolved) {
+            void AsyncStorage.setItem(cacheKey, String(resolved)).catch(() => {});
+            return resolved;
+          }
+        } catch {}
+        await new Promise((resolve) => setTimeout(resolve, 1_500 * (attempt + 1)));
+      }
       return null;
     };
     void resolveMalId()

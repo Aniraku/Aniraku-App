@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { getHomeAnime } from "@/lib/aniraku-api";
+import { getHomeAnime } from "@/lib/anilist";
 import { animeTitle } from "@/lib/types";
 import { AnimeRail } from "@/components/anime-rail";
 import { ErrorState, LoadingState } from "@/components/async-state";
