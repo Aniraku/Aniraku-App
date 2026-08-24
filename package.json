@@ -20,6 +20,7 @@
     "lint": "expo lint",
     "format": "prettier --write .",
     "test": "vitest run",
+    "postinstall": "node ./scripts/ensure-expo-video-adaptive-patch.mjs",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "android": "expo run:android",
     "ios": "expo run:ios",
