@@ -113,5 +113,5 @@ jobs:
             gh release upload "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --clobber
             gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.4.1.Beta — MAL Metadata Preview" --notes-file /tmp/aniraku-v4.4.1-beta-notes.md --prerelease
           else
-            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --title "v4.4.1.Beta — MAL Metadata Preview" --notes-file /tmp/aniraku-v4.4.1-beta-notes.md --prerelease
+            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --target "$GITHUB_SHA" --title "v4.4.1.Beta — MAL Metadata Preview" --notes-file /tmp/aniraku-v4.4.1-beta-notes.md --prerelease
           fi
