@@ -58,6 +58,7 @@ jobs:
           EXPO_PUBLIC_GIPHY_API_KEY: ${{ secrets.EXPO_PUBLIC_GIPHY_API_KEY }}
           EXPO_PUBLIC_DIRECT_MAL: "false"
           EXPO_PUBLIC_MAL_CLIENT_ID: ""
+          EXPO_PUBLIC_METADATA_RESOLVER_URL: https://resolver.example.invalid/api/mal
         run: pnpm check && pnpm test
       - name: Verify native MAL configuration and v4.5.Beta identity
         run: |
