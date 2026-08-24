@@ -7,6 +7,13 @@ export type DisplayAnimeRelation = {
   anime: Anime;
 };
 
+export type DisplayAnimeRelationGroup = {
+  key: "story" | "extras" | "other";
+  title: string;
+  subtitle: string;
+  relations: DisplayAnimeRelation[];
+};
+
 const RELATION_LABELS: Partial<Record<AnimeRelationType, string>> = {
   PREQUEL: "Prequel",
   SEQUEL: "Sequel",
@@ -59,4 +66,22 @@ export function displayAnimeRelations(edges: AnimeRelationEdge[] | null | undefi
     }, [])
     .sort((left, right) => (RELATION_PRIORITY[left.relationType ?? "OTHER"] ?? 99) - (RELATION_PRIORITY[right.relationType ?? "OTHER"] ?? 99) || left.index - right.index)
     .map(({ index: _index, ...relation }) => relation);
+}
+
+function relationGroupKey(relation: DisplayAnimeRelation): DisplayAnimeRelationGroup["key"] {
+  if (relation.relationType === "PREQUEL" || relation.relationType === "SEQUEL" || relation.relationType === "PARENT") return "story";
+  if (relation.relationType === "SIDE_STORY" || relation.relationType === "SPIN_OFF" || relation.relationType === "CHARACTER" || ["SPECIAL", "OVA", "ONA"].includes(relation.anime.format ?? "")) return "extras";
+  return "other";
+}
+
+export function groupAnimeRelations(edges: AnimeRelationEdge[] | null | undefined): DisplayAnimeRelationGroup[] {
+  const groups: DisplayAnimeRelationGroup[] = [
+    { key: "story", title: "Story order", subtitle: "Prequels, sequels, and parent stories", relations: [] },
+    { key: "extras", title: "Extras", subtitle: "Specials, side stories, and spin-offs", relations: [] },
+    { key: "other", title: "More related", subtitle: "Alternate versions and companion titles", relations: [] },
+  ];
+  for (const relation of displayAnimeRelations(edges)) {
+    groups.find((group) => group.key === relationGroupKey(relation))?.relations.push(relation);
+  }
+  return groups.filter((group) => group.relations.length > 0);
 }

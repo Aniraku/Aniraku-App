@@ -1,10 +1,10 @@
-name: Build Aniraku v4.4.1.Beta Preview APK
+name: Build Aniraku v4.4.1.1.Beta Preview APK
 
 on:
   workflow_dispatch:
     inputs:
       publish_preview:
-        description: Publish the verified v4.4.1.Beta APK as a GitHub pre-release
+        description: Publish the verified v4.4.1.1.Beta APK as a GitHub pre-release
         required: true
         default: false
         type: boolean
@@ -23,10 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      RELEASE_TAG: v4.4.1.Beta
-      RELEASE_VERSION: "4.4.1.Beta"
-      RELEASE_VERSION_CODE: "29"
-      RELEASE_ASSET_NAME: Aniraku-v4.4.1.Beta-preview.apk
+      RELEASE_TAG: v4.4.1.1.Beta
+      RELEASE_VERSION: "4.4.1.1.Beta"
+      RELEASE_VERSION_CODE: "30"
+      RELEASE_ASSET_NAME: Aniraku-v4.4.1.1.Beta-preview.apk
       EXPO_PUBLIC_API_BASE_URL: https://api.aniraku.tech
       EXPO_PUBLIC_ANILIST_GRAPHQL_URL: https://graphql.anilist.co
       EXPO_PUBLIC_METADATA_RESOLVER_URL: ${{ inputs.metadata_resolver_url }}/api/mal
@@ -55,7 +55,7 @@ jobs:
         env:
           EXPO_PUBLIC_GIPHY_API_KEY: ${{ secrets.EXPO_PUBLIC_GIPHY_API_KEY }}
         run: pnpm check && pnpm test
-      - name: Verify preview resolver URL and v4.4.1.Beta identity
+      - name: Verify preview resolver URL and v4.4.1.1.Beta identity
         run: |
           case "$EXPO_PUBLIC_METADATA_RESOLVER_URL" in https://*/api/mal) ;; *) echo "A Vercel HTTPS resolver URL is required" >&2; exit 1 ;; esac
           pnpm exec expo config --json > /tmp/aniraku-expo-config.json
@@ -76,14 +76,14 @@ jobs:
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
           sha256sum "$APK" | tee /tmp/aniraku-release.apk.sha256
-      - name: Upload Aniraku v4.4.1.Beta preview APK
+      - name: Upload Aniraku v4.4.1.1.Beta preview APK
         uses: actions/upload-artifact@v4
         with:
           name: Aniraku-${{ env.RELEASE_TAG }}-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish v4.4.1.Beta pre-release
+      - name: Publish v4.4.1.1.Beta pre-release
         if: ${{ inputs.publish_preview }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -93,15 +93,20 @@ jobs:
           RELEASE_DIGEST=/tmp/$RELEASE_ASSET_NAME.sha256
           cp "$APK" "$RELEASE_APK"
           cp /tmp/aniraku-release.apk.sha256 "$RELEASE_DIGEST"
-          cat > /tmp/aniraku-v4.4.1-beta-notes.md <<'EOF'
-          ## Aniraku v4.4.1.Beta Preview
+          cat > /tmp/aniraku-v4.4.1.1-beta-notes.md <<'EOF'
+          ## Aniraku v4.4.1.1.Beta Preview
 
-          **Package:** `aniraku.anime.app` · **versionCode:** 29
+          **Package:** `aniraku.anime.app` · **versionCode:** 30
 
           ### MAL metadata preview
           - The Android client requests MyAnimeList metadata through the supplied Vercel Preview resolver.
           - The resolver returns the verified AniList ID before the existing Anime Detail episode list, Watch metadata, AniSkip lookup, provider discovery, and playback flows run.
           - The current Aniraku API remains the metadata recovery path if the preview resolver is unavailable.
+
+          ### Episode availability recovery
+          - Anime Detail and Watch keep using the existing Aniraku episode route first.
+          - If that route is temporarily unreachable, the app retrieves the title's real numbered Miruro episode list using the resolved AniList ID.
+          - This recovery path does not alter provider discovery, stream selection, or playback transport.
 
           ### Preview boundary
           - This is a pre-release for validation only. It does not replace the public v4.4 stable APK or the production website.
@@ -111,7 +116,7 @@ jobs:
           EOF
           if gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --clobber
-            gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.4.1.Beta — MAL Metadata Preview" --notes-file /tmp/aniraku-v4.4.1-beta-notes.md --prerelease
+            gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.4.1.1.Beta — MAL Metadata Preview" --notes-file /tmp/aniraku-v4.4.1.1-beta-notes.md --prerelease
           else
-            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --target "$GITHUB_SHA" --title "v4.4.1.Beta — MAL Metadata Preview" --notes-file /tmp/aniraku-v4.4.1-beta-notes.md --prerelease
+            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --target "$GITHUB_SHA" --title "v4.4.1.1.Beta — MAL Metadata Preview" --notes-file /tmp/aniraku-v4.4.1.1-beta-notes.md --prerelease
           fi
