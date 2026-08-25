@@ -8,6 +8,34 @@ export type SkipSegments = Record<SkipKind, SkipSegment | null>;
 
 export const EPISODE_PAGE_SIZE = 50;
 export const PROVIDER_DISCOVERY_RETRY_DELAYS_MS = [0, 5_000, 10_000, 15_000, 20_000, 30_000] as const;
+export const FUTURE_RELEASE_MESSAGE = "Time travel still has not been invented—sorry, we cannot stream an episode from the future. It will appear here the moment it is officially released.";
+
+/**
+ * Classify only releases that metadata confirms are in the future. Missing
+ * metadata is never treated as future: it remains a normal retryable lookup.
+ */
+export function isConfirmedFutureRelease(input: {
+  episodeNumber: number;
+  episodes?: ReadonlyArray<{ number?: number }>;
+  status?: string | null;
+  nextAiringEpisode?: { episode?: number | null } | null;
+  hasConfirmedEpisodeList?: boolean;
+}) {
+  const target = Number(input.episodeNumber);
+  if (!Number.isInteger(target) || target < 1) return false;
+
+  const status = String(input.status || "").toUpperCase();
+  const nextEpisode = Number(input.nextAiringEpisode?.episode);
+  if (Number.isInteger(nextEpisode) && nextEpisode >= 1 && target >= nextEpisode) return true;
+  if (status === "NOT_YET_RELEASED") return true;
+  if (status !== "RELEASING" || !input.hasConfirmedEpisodeList) return false;
+
+  const latestReleased = (input.episodes ?? []).reduce(
+    (latest, item) => Math.max(latest, Number(item.number) || 0),
+    0,
+  );
+  return latestReleased > 0 && target > latestReleased;
+}
 
 /** Human-readable progress for the bounded provider-discovery window. */
 export function providerDiscoveryCopy(input: { attempt: number; providersDiscovered: number }) {

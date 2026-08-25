@@ -23,7 +23,9 @@ import {
   isProxySource,
   isVerifiedEmbedSource,
   filterProviderChoices,
+  FUTURE_RELEASE_MESSAGE,
   isBonkProvider,
+  isConfirmedFutureRelease,
   mergeProviderServers,
   mergeSkipSegments,
   nativeSources,
@@ -114,6 +116,13 @@ export default function WatchScreen() {
     [canonicalEpisodes, episode],
   );
   const invalidEpisode = Boolean(episodeQuery.isSuccess && canonicalEpisodes.length && !episodeIsKnown);
+  const futureRelease = isConfirmedFutureRelease({
+    episodeNumber: episode,
+    episodes: canonicalEpisodes,
+    status: animeQuery.data?.status,
+    nextAiringEpisode: animeQuery.data?.nextAiringEpisode,
+    hasConfirmedEpisodeList: episodeQuery.isSuccess && canonicalEpisodes.length > 0,
+  });
   useKeepAwake("aniraku-watch");
 
   const player = useVideoPlayer(null, (instance) => {
@@ -407,7 +416,12 @@ export default function WatchScreen() {
     setLoadingStream(false);
     setError(null);
 
-    if (episodeQuery.isPending) return;
+    if (episodeQuery.isPending || animeQuery.isPending) return;
+    if (futureRelease) {
+      setLoadingServers(false);
+      setError(FUTURE_RELEASE_MESSAGE);
+      return;
+    }
     if (invalidEpisode) {
       setLoadingServers(false);
       setError(`Episode ${episode} is not available for this Aniraku title. Choose one of the ${canonicalEpisodes.length} listed episodes.`);
@@ -445,13 +459,13 @@ export default function WatchScreen() {
     };
     void fetchServers(0);
     return () => { cancelled = true; if (retryTimer) clearTimeout(retryTimer); };
-  }, [animeId, canonicalEpisodes.length, clearEpisodePlayback, episode, episodeQuery.isPending, invalidEpisode]);
+  }, [animeId, animeQuery.isPending, canonicalEpisodes.length, clearEpisodePlayback, episode, episodeQuery.isPending, futureRelease, invalidEpisode]);
 
   // The source of truth from Watch.jsx: play the source already present in the
   // server response immediately; fetch /stream only to refresh metadata and
   // never tear down a source that has started successfully.
   useEffect(() => {
-    if (!activeProvider) return;
+    if (futureRelease || !activeProvider) return;
     let cancelled = false;
     const providerId = activeProvider.id;
     activeProviderId.current = providerId;
@@ -563,7 +577,7 @@ export default function WatchScreen() {
         if (!hasInitial || forceThisRequest) handleProviderBlockedRef.current("stream");
       });
     return () => { cancelled = true; };
-  }, [activeProvider, animeId, applySkipSegments, episode, language, refreshNonce]);
+  }, [activeProvider, animeId, applySkipSegments, episode, futureRelease, language, refreshNonce]);
 
   useEffect(() => {
     if (!source) return;
@@ -1026,7 +1040,7 @@ export default function WatchScreen() {
     </View>
     {!manualFullscreen && (source || embedSource) && showSourcePicker ? <View style={playerStyles.playerSourceSheet}><View style={watchPageStyles.playerMenuHeading}><DotLabel>AUDIO & PROVIDER</DotLabel><Pressable accessibilityRole="button" accessibilityLabel="Close audio and provider selector" onPress={() => setShowSourcePicker(false)}><AppIcon name="close" size={18} color={nothing.muted} /></Pressable></View><View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} accessibilityRole="button" onPress={() => selectLanguage(item)} disabled={!providers[item].length} style={[styles.language, language === item && styles.languageActive, !providers[item].length && styles.languageDisabled]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${providers.sub.length}` : `DUB · ${providers.dub.length}`}</Text></Pressable>)}</View><ScrollView style={playerStyles.inPlayerProviderScroll} contentContainerStyle={playerStyles.inPlayerProviderList} nestedScrollEnabled showsVerticalScrollIndicator={false}>{activeProviders.map((provider, index) => <Pressable key={provider.id} accessibilityRole="button" onPress={() => selectServer(index)} style={[playerStyles.inPlayerProvider, index === serverIndex && playerStyles.inPlayerProviderActive]}><View style={playerStyles.inPlayerProviderName}><View style={[playerStyles.providerSignal, index === serverIndex && playerStyles.providerSignalActive]} /><Text style={[playerStyles.inPlayerProviderText, index === serverIndex && playerStyles.inPlayerProviderTextActive]}>{provider.label || provider.provider}</Text></View><Text style={[playerStyles.inPlayerProviderState, index === serverIndex && playerStyles.inPlayerProviderTextActive]}>{index === serverIndex ? (embedSource ? "RECONNECT" : "PLAYING") : "SELECT"}</Text></Pressable>)}</ScrollView></View> : null}
     {(source || embedSource) && !manualFullscreen && !controlsVisible && !showSourcePicker ? <View style={watchPageStyles.collapsedSourceRail} accessibilityLabel="Collapsed audio and provider controls"><View style={watchPageStyles.collapsedSourceCopy}><DotLabel>AUDIO & PROVIDER</DotLabel><Text style={watchPageStyles.collapsedSourceMeta}>{`${language.toUpperCase()} · ${activeProviders.length} AVAILABLE`}</Text></View><View style={watchPageStyles.collapsedLanguageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} accessibilityRole="button" accessibilityState={{ selected: language === item, disabled: !providers[item].length }} disabled={!providers[item].length} onPress={() => selectLanguage(item)} style={[watchPageStyles.collapsedLanguage, language === item && watchPageStyles.collapsedLanguageActive, !providers[item].length && watchPageStyles.collapsedLanguageDisabled]}><Text style={[watchPageStyles.collapsedLanguageText, language === item && watchPageStyles.collapsedLanguageTextActive]}>{`${item.toUpperCase()} ${providers[item].length}`}</Text></Pressable>)}</View><Pressable accessibilityRole="button" accessibilityLabel="Open provider selector" onPress={toggleSourcePicker} style={watchPageStyles.collapsedProviderButton}><AppIcon name="headphones" size={16} color={nothing.white} /><Text style={watchPageStyles.collapsedProviderButtonText}>SERVERS</Text></Pressable></View> : null}
-    {error ? <View style={styles.errorAction}><NothingCard style={styles.errorCard}><DotLabel tone="muted">VIDEO UNAVAILABLE</DotLabel><Text style={styles.errorCopy}>{error}</Text><NothingButton label="TRY AGAIN" onPress={retry} variant="outline" /></NothingCard></View> : null}
+    {error ? <View style={styles.errorAction}><NothingCard style={styles.errorCard}><DotLabel tone="muted">{futureRelease ? "FUTURE EPISODE" : "VIDEO UNAVAILABLE"}</DotLabel><Text style={styles.errorCopy}>{error}</Text>{futureRelease ? null : <NothingButton label="TRY AGAIN" onPress={retry} variant="outline" />}</NothingCard></View> : null}
     <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} removeClippedSubviews={Platform.OS === "android"}>
       <View style={styles.siteWatchInfo}>
         <View style={styles.watchInfoHead}>

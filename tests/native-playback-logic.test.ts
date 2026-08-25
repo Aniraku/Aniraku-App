@@ -4,7 +4,7 @@ import { getKnownMalId } from "../lib/anilist";
 import { shouldAllowEmbedNavigation } from "../lib/embed-navigation";
 import { adaptiveVideoCacheBytes, NATIVE_STREAM_BUFFER_OPTIONS } from "../lib/playback-buffer-policy";
 import { chooseResumeEpisode, progressFraction } from "../lib/watch-progress";
-import { bonkHasDirectOrProxySource, directSources, embedSources, episodePageCount, episodePageFor, episodePageSlice, filterConditionalAllyProviders, filterProviderChoices, hasConfirmedPlaybackStart, isBonkProvider, isProxySource, mergeProviderServers, nativeSources, nextProviderIndex, normalizeAniSkipSegments, providerDiscoveryCopy, PROVIDER_DISCOVERY_RETRY_DELAYS_MS, proxySources, shouldApplyInitialHistoryResume, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect, usableProvider } from "../lib/watch-engine";
+import { bonkHasDirectOrProxySource, directSources, embedSources, episodePageCount, episodePageFor, episodePageSlice, filterConditionalAllyProviders, filterProviderChoices, FUTURE_RELEASE_MESSAGE, hasConfirmedPlaybackStart, isBonkProvider, isConfirmedFutureRelease, isProxySource, mergeProviderServers, nativeSources, nextProviderIndex, normalizeAniSkipSegments, providerDiscoveryCopy, PROVIDER_DISCOVERY_RETRY_DELAYS_MS, proxySources, shouldApplyInitialHistoryResume, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect, usableProvider } from "../lib/watch-engine";
 
 describe("Aniraku native playback coordination", () => {
   it("keeps only Android-safe transport headers for direct media", () => {
@@ -104,6 +104,16 @@ describe("Aniraku native playback coordination", () => {
     expect(providerDiscoveryCopy({ attempt: 0, providersDiscovered: 0 })).toEqual({ title: "FINDING PROVIDERS", detail: "CHECK 1 OF 6" });
     expect(providerDiscoveryCopy({ attempt: 9, providersDiscovered: 0 })).toEqual({ title: "FINDING PROVIDERS", detail: "CHECK 6 OF 6" });
     expect(providerDiscoveryCopy({ attempt: 2, providersDiscovered: 3 })).toEqual({ title: "PROVIDERS FOUND", detail: "3 READY · CHECKING FOR MORE" });
+  });
+
+  it("blocks confirmed future episodes and movies before provider lookup without blocking released titles", () => {
+    const released = [{ number: 1 }, { number: 2 }, { number: 3 }];
+    expect(isConfirmedFutureRelease({ episodeNumber: 4, episodes: released, status: "RELEASING", hasConfirmedEpisodeList: true })).toBe(true);
+    expect(isConfirmedFutureRelease({ episodeNumber: 3, episodes: released, status: "RELEASING", hasConfirmedEpisodeList: true })).toBe(false);
+    expect(isConfirmedFutureRelease({ episodeNumber: 1, status: "NOT_YET_RELEASED" })).toBe(true);
+    expect(isConfirmedFutureRelease({ episodeNumber: 1, nextAiringEpisode: { episode: 1 } })).toBe(true);
+    expect(isConfirmedFutureRelease({ episodeNumber: 1, status: "FINISHED" })).toBe(false);
+    expect(FUTURE_RELEASE_MESSAGE).toContain("Time travel still has not been invented");
   });
 
   it("uses known backend or AniList metadata IDs before a separate AniSkip fallback lookup", () => {
