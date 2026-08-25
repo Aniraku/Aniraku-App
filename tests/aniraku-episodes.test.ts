@@ -27,36 +27,21 @@ describe("Aniraku episode contract", () => {
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("https://api.aniraku.tech/api/v1/anime/16498/episodes"), expect.objectContaining({ headers: { Accept: "application/json" } }));
   });
 
-  it("rejects malformed primary and fallback episode responses instead of treating them as empty availability", async () => {
+  it("rejects a malformed Aniraku episode response instead of treating it as empty availability", async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ unexpected: [] }) }) as typeof fetch;
-    await expect(getEpisodes(16498)).rejects.toThrow("Episode availability is temporarily unavailable from both sources");
+    await expect(getEpisodes(16498)).rejects.toThrow("Aniraku returned an invalid episode availability response");
   });
 
-  it("recovers real numbered episodes through Miruro when the Aniraku episode origin cannot be reached", async () => {
-    const fetchMock = vi.fn()
-      .mockRejectedValueOnce(new TypeError("TLS connection closed"))
-      .mockResolvedValueOnce({
-        ok: true,
-        text: async () => JSON.stringify({
-          providers: {
-            ally: {
-              episodes: {
-                sub: [
-                  { number: 1, title: "A real fallback episode", image: "https://cdn.example.test/one.jpg", fillerType: "manga_canon" },
-                  { number: 2, title: "A real filler episode", image: "https://cdn.example.test/two.jpg", fillerType: "mixed_canon/filler" },
-                ],
-              },
-            },
-          },
-        }),
-      });
+  it("uses the Aniraku episode endpoint once and does not fall back to Miruro", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      text: async () => JSON.stringify({ error: "Aniraku episodes are unavailable" }),
+    });
     global.fetch = fetchMock as typeof fetch;
 
-    await expect(getEpisodes(16498)).resolves.toEqual([
-      { number: 1, title: "A real fallback episode", thumbnail: "https://cdn.example.test/one.jpg", description: undefined, isFiller: false },
-      { number: 2, title: "A real filler episode", thumbnail: "https://cdn.example.test/two.jpg", description: undefined, isFiller: true },
-    ]);
-    expect(fetchMock.mock.calls[1][0]).toContain("https://miruro-api-v3.onrender.com/episodes/16498");
+    await expect(getEpisodes(16498)).rejects.toThrow("Aniraku episodes are unavailable");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toContain("https://api.aniraku.tech/api/v1/anime/16498/episodes");
   });
 
   it("maps real Aniraku public server names instead of exposing a duplicate adapter label", async () => {
