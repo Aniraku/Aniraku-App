@@ -1,10 +1,10 @@
-name: Build Aniraku v4.6.1.Beta Preview APK
+name: Build Aniraku v4.6.2.Beta Preview APK
 
 on:
   workflow_dispatch:
     inputs:
       publish_preview:
-        description: Publish the verified v4.6.1.Beta APK as a GitHub pre-release
+        description: Publish the verified v4.6.2.Beta APK as a GitHub pre-release
         required: true
         default: false
         type: boolean
@@ -19,14 +19,14 @@ permissions:
 jobs:
   build-preview-apk:
     name: Build universal Android preview APK
-    if: github.ref == 'refs/heads/preview/mal-v4.4.1-beta'
+    if: github.ref == 'refs/heads/Beta'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      RELEASE_TAG: v4.6.1.Beta
-      RELEASE_VERSION: "4.6.1.Beta"
-      RELEASE_VERSION_CODE: "38"
-      RELEASE_ASSET_NAME: Aniraku-v4.6.1.Beta-preview.apk
+      RELEASE_TAG: v4.6.2.Beta
+      RELEASE_VERSION: "4.6.2.Beta"
+      RELEASE_VERSION_CODE: "40"
+      RELEASE_ASSET_NAME: Aniraku-v4.6.2.Beta-preview.apk
       EXPO_PUBLIC_API_BASE_URL: https://api.aniraku.tech
       EXPO_PUBLIC_ANILIST_GRAPHQL_URL: https://graphql.anilist.co
       EXPO_PUBLIC_METADATA_RESOLVER_URL: ${{ inputs.metadata_resolver_url }}/api/mal
@@ -60,7 +60,7 @@ jobs:
           EXPO_PUBLIC_MAL_CLIENT_ID: ""
           EXPO_PUBLIC_METADATA_RESOLVER_URL: https://resolver.example.invalid/api/mal
         run: pnpm check && pnpm test
-      - name: Verify native MAL configuration and v4.6.1.Beta identity
+      - name: Verify native MAL configuration and v4.6.2.Beta identity
         run: |
           test -n "$EXPO_PUBLIC_MAL_CLIENT_ID"
           if [ -n "${{ inputs.metadata_resolver_url }}" ]; then
@@ -84,14 +84,14 @@ jobs:
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
           sha256sum "$APK" | tee /tmp/aniraku-release.apk.sha256
-      - name: Upload Aniraku v4.6.1.Beta preview APK
+      - name: Upload Aniraku v4.6.2.Beta preview APK
         uses: actions/upload-artifact@v4
         with:
           name: Aniraku-${{ env.RELEASE_TAG }}-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish v4.6.1.Beta pre-release
+      - name: Publish v4.6.2.Beta pre-release
         if: ${{ inputs.publish_preview }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -101,39 +101,20 @@ jobs:
           RELEASE_DIGEST=/tmp/$RELEASE_ASSET_NAME.sha256
           cp "$APK" "$RELEASE_APK"
           cp /tmp/aniraku-release.apk.sha256 "$RELEASE_DIGEST"
-          cat > /tmp/aniraku-v4.6.1-beta-notes.md <<'EOF'
-          ## Aniraku v4.6.1.Beta Preview
+          cat > /tmp/aniraku-v4.6.2-beta-notes.md <<'EOF'
+          ## Aniraku v4.6.2.Beta Preview
 
-          **Package:** `aniraku.anime.app` · **versionCode:** 38
-
-          ### Continuous buffer refill
-          - Android now treats the 120-second forward reserve as the top of a continuously refreshed Media3 buffer window, not as a one-shot loading point.
-          - The player resumes loading automatically as normal playback consumes the reserve, instead of holding at a fixed selected duration.
-          - A real rebuffer can resume from an 8-second verified cushion instead of unnecessarily waiting for 20 seconds. This preserves the stream, proxy mode, request headers, provider order, and playback position.
-
-          ### Truthful adaptive quality caps
-          - For an Auto/adaptive native stream, Watch shows controls only after the Android player has loaded more than one real supported video variant with known height and bitrate.
-          - `Auto` restores unrestricted provider adaptation. A label such as `720p cap` means a local Android bitrate ceiling based on that actual loaded variant; it is not a fabricated or forced rendition claim.
-          - Cap changes preserve the current stream, proxy mode, headers, and playback position. Embedded players and fixed or single-track sources retain existing quality behavior.
-
-          ### Bonk direct and proxy playback
-          - Bonk is available only when direct or proxy-capable media is returned, including older episodes that still have those sources.
-          - Embedded-only Bonk is intentionally hidden because the embedded player is unreliable.
-          - Other providers retain their existing Direct → Proxy → Embed behavior.
-
-          ### More complete provider discovery
-          - Native Watch keeps checking the existing backend source list through a longer bounded discovery window and retains late provider results.
-          - No backend, Azure service, provider API, or stream payload was changed.
+          **Package:** `aniraku.anime.app` · **versionCode:** 40
 
           ### MAL metadata preview
           - Native discovery and search request public MyAnimeList metadata directly with the app's public client ID, using short-lived caching and request coalescing.
           - Each returned MAL title is mapped through the existing Aniraku metadata API to its verified AniList ID before existing episode, Watch, AniSkip, provider, and playback flows run.
           - The optional Vercel resolver and the current Aniraku API remain metadata recovery paths; production website behavior is unchanged.
 
-          ### Episode availability recovery
-          - Anime Detail and Watch keep using the existing Aniraku episode route first.
-          - If that route is temporarily unreachable, the app retrieves the title's real numbered Miruro episode list using the resolved AniList ID.
-          - This recovery path does not alter backend routing or other provider playback transport.
+          ### Aniraku API episode metadata
+          - Anime Detail, Episode Info, Watch, and episode-release alerts use the existing `api.aniraku.tech/api/v1/anime/:id/episodes` contract as their only episode metadata source.
+          - The beta app no longer calls Miruro directly or uses a Miruro episode fallback.
+          - If Aniraku’s endpoint is unavailable or malformed, the app preserves its truthful episode error state rather than inventing an episode list.
 
           ### Preview boundary
           - This is a pre-release for validation only. It does not replace the public v4.4 stable APK or the production website.
@@ -143,7 +124,7 @@ jobs:
           EOF
           if gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --clobber
-          gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.6.1.Beta — Buffer Continuity and MAL Preview" --notes-file /tmp/aniraku-v4.6.1-beta-notes.md --prerelease
+          gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.6.2.Beta — Aniraku API Episode Metadata" --notes-file /tmp/aniraku-v4.6.2-beta-notes.md --prerelease
           else
-            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --target "$GITHUB_SHA" --title "v4.6.1.Beta — Buffer Continuity and MAL Preview" --notes-file /tmp/aniraku-v4.6.1-beta-notes.md --prerelease
+            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --target "$GITHUB_SHA" --title "v4.6.2.Beta — Aniraku API Episode Metadata" --notes-file /tmp/aniraku-v4.6.2-beta-notes.md --prerelease
           fi
