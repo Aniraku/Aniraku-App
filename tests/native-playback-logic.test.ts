@@ -4,7 +4,7 @@ import { getKnownMalId } from "../lib/anilist";
 import { shouldAllowEmbedNavigation } from "../lib/embed-navigation";
 import { adaptiveVideoCacheBytes, NATIVE_STREAM_BUFFER_OPTIONS } from "../lib/playback-buffer-policy";
 import { chooseResumeEpisode, progressFraction } from "../lib/watch-progress";
-import { directSources, embedSources, episodePageCount, episodePageFor, episodePageSlice, filterConditionalAllyProviders, hasConfirmedPlaybackStart, isProxySource, mergeProviderServers, nativeSources, nextProviderIndex, normalizeAniSkipSegments, providerDiscoveryCopy, PROVIDER_DISCOVERY_RETRY_DELAYS_MS, proxySources, shouldApplyInitialHistoryResume, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect, usableProvider } from "../lib/watch-engine";
+import { bonkHasDirectOrProxySource, directSources, embedSources, episodePageCount, episodePageFor, episodePageSlice, filterConditionalAllyProviders, filterProviderChoices, hasConfirmedPlaybackStart, isBonkProvider, isProxySource, mergeProviderServers, nativeSources, nextProviderIndex, normalizeAniSkipSegments, providerDiscoveryCopy, PROVIDER_DISCOVERY_RETRY_DELAYS_MS, proxySources, shouldApplyInitialHistoryResume, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect, usableProvider } from "../lib/watch-engine";
 
 describe("Aniraku native playback coordination", () => {
   it("keeps only Android-safe transport headers for direct media", () => {
@@ -82,16 +82,27 @@ describe("Aniraku native playback coordination", () => {
   it("keeps Ally only while it is the sole source-bearing fallback and preserves an active Ally row", () => {
     const ally = { id: "sub:ally", provider: "ally", label: "ALLY", lang: "sub" as const, sources: [{ url: "https://cdn.example/ally.m3u8", verification: "proxy" }] };
     const bonk = { id: "sub:bonk", provider: "bonk", label: "BONK", lang: "sub" as const, sources: [{ url: "https://cdn.example/bonk.m3u8", verification: "proxy" }] };
-    expect(PROVIDER_DISCOVERY_RETRY_DELAYS_MS).toEqual([0, 4_000, 8_000, 12_000]);
+    expect(PROVIDER_DISCOVERY_RETRY_DELAYS_MS).toEqual([0, 5_000, 10_000, 15_000, 20_000, 30_000]);
     expect(filterConditionalAllyProviders([ally])).toEqual([ally]);
     expect(filterConditionalAllyProviders([ally, bonk])).toEqual([bonk]);
     expect(filterConditionalAllyProviders([ally, bonk], ally.id)).toEqual([ally, bonk]);
     expect(mergeProviderServers([ally], [{ ...ally, sources: [{ url: "https://cdn.example/fresh-ally.m3u8", verification: "proxy" }] }, bonk])[0].sources?.[0].url).toContain("fresh-ally");
   });
 
+  it("keeps Bonk only when real direct or proxy media is present and never treats an embed as Bonk playback", () => {
+    const directBonk = { id: "sub:bonk-direct", provider: "bonk", label: "BONK", lang: "sub" as const, sources: [{ url: "https://cdn.example/bonk.m3u8", verification: "verified" }] };
+    const proxyBonk = { id: "sub:bonk-proxy", provider: "bonk", label: "BONK", lang: "sub" as const, sources: [{ url: "https://cdn.example/bonk-proxy.m3u8", verification: "proxy" }] };
+    const embeddedBonk = { id: "sub:bonk-embed", provider: "bonk", label: "BONK", lang: "sub" as const, sources: [{ url: "https://player.example/embed/bonk", type: "embed", verification: "embed" }] };
+    expect(isBonkProvider(directBonk)).toBe(true);
+    expect(bonkHasDirectOrProxySource(directBonk)).toBe(true);
+    expect(bonkHasDirectOrProxySource(proxyBonk)).toBe(true);
+    expect(bonkHasDirectOrProxySource(embeddedBonk)).toBe(false);
+    expect(filterProviderChoices([embeddedBonk, directBonk, proxyBonk])).toEqual([directBonk, proxyBonk]);
+  });
+
   it("reports bounded provider-discovery progress without pretending a provider is ready", () => {
-    expect(providerDiscoveryCopy({ attempt: 0, providersDiscovered: 0 })).toEqual({ title: "FINDING PROVIDERS", detail: "CHECK 1 OF 4" });
-    expect(providerDiscoveryCopy({ attempt: 9, providersDiscovered: 0 })).toEqual({ title: "FINDING PROVIDERS", detail: "CHECK 4 OF 4" });
+    expect(providerDiscoveryCopy({ attempt: 0, providersDiscovered: 0 })).toEqual({ title: "FINDING PROVIDERS", detail: "CHECK 1 OF 6" });
+    expect(providerDiscoveryCopy({ attempt: 9, providersDiscovered: 0 })).toEqual({ title: "FINDING PROVIDERS", detail: "CHECK 6 OF 6" });
     expect(providerDiscoveryCopy({ attempt: 2, providersDiscovered: 3 })).toEqual({ title: "PROVIDERS FOUND", detail: "3 READY · CHECKING FOR MORE" });
   });
 
@@ -152,10 +163,10 @@ describe("Aniraku native playback coordination", () => {
     expect(shouldApplyInitialHistoryResume({ currentTime: 0, hasPendingResume: true, isPlaying: true, resumeAppliedForSource: true, status: "readyToPlay" })).toBe(false);
   });
 
-  it("uses a long time-priority reserve and a larger resume cushion without a fixed byte allocator limit", () => {
+  it("uses a refillable time-priority reserve with a short rebuffer resume cushion and no fixed byte allocator limit", () => {
     expect(NATIVE_STREAM_BUFFER_OPTIONS).toEqual({
       maxBufferBytes: 0,
-      minBufferForPlayback: 20,
+      minBufferForPlayback: 8,
       preferredForwardBufferDuration: 120,
       prioritizeTimeOverSizeThreshold: true,
       waitsToMinimizeStalling: true,
