@@ -47,18 +47,21 @@ describe("AniList query construction", () => {
     expect(schedule.airingSchedules).toMatchObject([{ airingAt: 1_800_000_000, episode: 1148, media: { id: 21_000, idMal: 21, nextAiringEpisode: { episode: 1148, airingAt: 1_800_000_000 } } }]);
   });
 
-  it("uses the existing Aniraku GraphQL proxy for a bounded full local week so past and future release rows are available together", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ data: { Page: { pageInfo: { currentPage: 1, hasNextPage: false, total: 1 }, airingSchedules: [{ airingAt: 1_800_000_000, episode: 1148, media: { id: 21_000, idMal: 21, title: { english: "One Piece" }, coverImage: {}, format: "TV" } }] } } }) });
+  it("uses the existing Aniraku GraphQL popular-releasing feed for a bounded full local week, matching production Schedule filtering", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ data: { Page: { pageInfo: { currentPage: 1, hasNextPage: false, total: 2 }, media: [{ id: 21_000, idMal: 21, title: { english: "One Piece" }, coverImage: {}, format: "TV", nextAiringEpisode: { episode: 1148, airingAt: 1_800_000_000 } }, { id: 21_001, idMal: 22, title: { english: "Already aired" }, coverImage: {}, format: "TV", nextAiringEpisode: { episode: 4, airingAt: 1_798_999_999 } }] } } }) });
     global.fetch = fetchMock as typeof fetch;
 
-    await getAiringSchedule(1, 100, { startAt: 1_799_000_000, endAt: 1_801_000_000 });
+    const schedule = await getAiringSchedule(1, 100, { startAt: 1_799_000_000, endAt: 1_801_000_000 });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[0]).toBe(APP_CONFIG.metadataFallbackUrl);
     const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
     const body = JSON.parse(String(request.body)) as { query: string; variables: Record<string, number> };
-    expect(body.query).toContain("airingSchedules(airingAt_greater: $startAt, airingAt_lesser: $endAt, sort: [TIME])");
-    expect(body.variables).toMatchObject({ page: 1, perPage: 100, startAt: 1_799_000_000, endAt: 1_801_000_000 });
+    expect(body.query).toContain("media(type: ANIME, status: RELEASING, sort: POPULARITY_DESC)");
+    expect(body.query).toContain("nextAiringEpisode { episode airingAt }");
+    expect(body.variables).toMatchObject({ page: 1, perPage: 100 });
+    expect(schedule.airingSchedules).toMatchObject([{ airingAt: 1_800_000_000, episode: 1148, media: { id: 21_000 } }]);
+    expect(schedule.airingSchedules).toHaveLength(1);
   });
 
   it("requests AniList relationship edges only for a single Anime Detail query", async () => {

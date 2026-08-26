@@ -91,6 +91,15 @@ type AnirakuAiringScheduleProxyResponse = {
   };
 };
 
+type AnirakuCalendarWeekProxyResponse = {
+  data?: {
+    Page?: {
+      pageInfo?: AiringSchedulePage["pageInfo"];
+      media?: Array<{ id?: number; idMal?: number | null; title?: Anime["title"]; coverImage?: Anime["coverImage"]; format?: string | null; nextAiringEpisode?: { episode?: number; airingAt?: number } }>;
+    };
+  };
+};
+
 export type AiringScheduleWindow = { startAt: number; endAt: number };
 
 function malStatus(status?: string) {
@@ -167,6 +176,16 @@ const anirakuAiringScheduleQuery = `query AnirakuAiringSchedule($page: Int!, $pe
   }
 }`;
 
+const anirakuCalendarWeekQuery = `query AnirakuCalendarWeek($page: Int!, $perPage: Int!) {
+  Page(page: $page, perPage: $perPage) {
+    pageInfo { currentPage hasNextPage total }
+    media(type: ANIME, status: RELEASING, sort: POPULARITY_DESC) {
+      id idMal title { romaji english native } coverImage { extraLarge large medium color } format
+      nextAiringEpisode { episode airingAt }
+    }
+  }
+}`;
+
 async function getAnirakuAiringScheduleFallback(page: number, perPage: number, window?: AiringScheduleWindow): Promise<AiringSchedulePage> {
   const response = await fetch(APP_CONFIG.metadataFallbackUrl, {
     method: "POST",
@@ -200,13 +219,45 @@ async function getAnirakuAiringScheduleFallback(page: number, perPage: number, w
   };
 }
 
+async function getAnirakuCalendarWeek(page: number, perPage: number, window: AiringScheduleWindow): Promise<AiringSchedulePage> {
+  const response = await fetch(APP_CONFIG.metadataFallbackUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ query: anirakuCalendarWeekQuery, variables: { page, perPage } }),
+  });
+  const payload = await response.json().catch(() => ({})) as AnirakuCalendarWeekProxyResponse;
+  if (!response.ok) throw new Error(`Weekly Schedule is unavailable (${response.status}).`);
+  const pageData = payload.data?.Page;
+  const airingSchedules = (pageData?.media || []).flatMap((media) => {
+    const id = Number(media.id);
+    const episode = Number(media.nextAiringEpisode?.episode);
+    const airingAt = Number(media.nextAiringEpisode?.airingAt);
+    if (!Number.isInteger(id) || id < 1 || !Number.isInteger(episode) || episode < 1 || !Number.isInteger(airingAt) || airingAt < window.startAt || airingAt >= window.endAt) return [];
+    const normalizedMedia: Anime = {
+      id,
+      idMal: Number.isInteger(Number(media.idMal)) ? Number(media.idMal) : null,
+      title: normalizeScheduleTitle(media.title || null),
+      coverImage: media.coverImage && typeof media.coverImage === "object" ? media.coverImage : null,
+      format: String(media.format || "").trim() || null,
+      nextAiringEpisode: { episode, airingAt },
+    };
+    return [{ airingAt, episode, media: normalizedMedia }];
+  });
+  return {
+    pageInfo: pageData?.pageInfo && typeof pageData.pageInfo === "object"
+      ? pageData.pageInfo
+      : { currentPage: page, hasNextPage: false, total: airingSchedules.length },
+    airingSchedules,
+  };
+}
+
 async function getAnirakuAiringSchedule(page: number, perPage: number, window?: AiringScheduleWindow): Promise<AiringSchedulePage> {
   const safePage = Math.max(1, Math.floor(Number(page) || 1));
   const safePerPage = Math.min(100, Math.max(1, Math.floor(Number(perPage) || 40)));
   const startAt = Math.floor(Number(window?.startAt));
   const endAt = Math.floor(Number(window?.endAt));
   const boundedWindow = Number.isInteger(startAt) && Number.isInteger(endAt) && startAt > 0 && endAt > startAt;
-  if (boundedWindow) return getAnirakuAiringScheduleFallback(safePage, safePerPage, { startAt, endAt });
+  if (boundedWindow) return getAnirakuCalendarWeek(safePage, safePerPage, { startAt, endAt });
   const response = await fetch(`${APP_CONFIG.apiBaseUrl}/api/v1/schedule?page=${safePage}&perPage=${safePerPage}`, { headers: { Accept: "application/json" } });
   const payload = await response.json().catch(() => ({})) as AnirakuScheduleResponse;
   if (!response.ok) throw new Error(`Schedule is unavailable (${response.status}).`);
