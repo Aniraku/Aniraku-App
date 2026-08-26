@@ -22,7 +22,7 @@
 
   <br>
 
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/latest">🌸 Download APK</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/download/v4.7.Beta/Aniraku-v4.7.Beta-preview.apk">🌸 Download v4.7.Beta APK</a>
   &nbsp;‧&nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">🌙 App Site</a>
   &nbsp;‧&nbsp;
@@ -111,6 +111,11 @@ Read the full [Support Guide](./SUPPORT.md).
 - random & schedule views  
 - provider controls
 
+**v4.7.Beta preview data boundary**
+- MAL remains the primary source for this Beta branch’s discovery, search, and title metadata.
+- The visible Schedule and Next Airing surfaces use the existing Aniraku API schedule contract, then retain the verified AniList ID required by the established detail, Watch, and playback routes.
+- This prerelease is for validation; it does not replace the public v4.6 stable APK or production website.
+
 **Quiet Privacy**
 - provider secrets never live inside the APK  
 - open source so you can see everything  
@@ -121,8 +126,8 @@ Read the full [Support Guide](./SUPPORT.md).
 
 ### ⋆ ˚｡⋆ how to install ⋆ ˚｡⋆
 
-1. Open the [latest release](https://github.com/Aniraku/Aniraku-App/releases/latest)  
-2. Download the universal Android 9+ APK  
+1. Open the [v4.7.Beta prerelease](https://github.com/Aniraku/Aniraku-App/releases/tag/v4.7.Beta)
+2. Download the `Aniraku-v4.7.Beta-preview.apk` universal Android 9+ APK
 3. Install softly  
 
 **tiny note:**  

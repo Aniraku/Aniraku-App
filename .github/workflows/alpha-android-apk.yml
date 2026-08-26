@@ -115,6 +115,11 @@ jobs:
           - Each returned MAL title is mapped through the existing Aniraku metadata API to its verified AniList ID before existing episode, Watch, AniSkip, provider, and playback flows run.
           - The optional Vercel resolver and the current Aniraku API remain metadata recovery paths; production website behavior is unchanged.
 
+          ### Schedule and Next Airing
+          - The visible Schedule and Next Airing surfaces use `GET api.aniraku.tech/api/v1/schedule`; no MAL next-airing API is assumed.
+          - Returned schedule MAL IDs are mapped through the existing Aniraku metadata API before the established detail, Watch, and playback routes consume them.
+          - MAL remains the Beta branch source for all other discovery and title metadata.
+
           ### Aniraku API episode metadata
           - Anime Detail, Episode Info, Watch, and episode-release alerts use the existing `api.aniraku.tech/api/v1/anime/:id/episodes` contract as their only episode metadata source.
           - The beta app no longer calls Miruro directly or uses a Miruro episode fallback.

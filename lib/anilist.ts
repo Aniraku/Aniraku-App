@@ -68,6 +68,20 @@ type MalAnimeNode = {
   genres?: Array<{ name?: string }>;
 };
 
+type AnirakuScheduleItem = {
+  id?: number;
+  title?: Anime["title"] | string | null;
+  coverImage?: Anime["coverImage"] | null;
+  format?: string | null;
+  episode?: number;
+  airingAt?: number;
+};
+
+type AnirakuScheduleResponse = {
+  schedule?: AnirakuScheduleItem[];
+  pageInfo?: AiringSchedulePage["pageInfo"];
+};
+
 function malStatus(status?: string) {
   const statuses: Record<string, string> = { currently_airing: "RELEASING", finished_airing: "FINISHED", not_yet_aired: "NOT_YET_RELEASED" };
   return statuses[status || ""] || "FINISHED";
@@ -119,6 +133,51 @@ async function mapMalIdsToAniList(malIds: number[]) {
     const anilistId = Number(item.id);
     return Number.isInteger(malId) && malId > 0 && Number.isInteger(anilistId) && anilistId > 0 ? [[malId, anilistId] as const] : [];
   }));
+}
+
+function normalizeScheduleTitle(value: AnirakuScheduleItem["title"]): Anime["title"] {
+  if (value && typeof value === "object") {
+    const romaji = String(value.romaji || value.english || value.native || "").trim();
+    const english = String(value.english || romaji || "").trim();
+    const native = String(value.native || romaji || "").trim();
+    return { romaji, english, native };
+  }
+  const title = String(value || "").trim() || "Unknown title";
+  return { romaji: title, english: title, native: title };
+}
+
+async function getAnirakuAiringSchedule(page: number, perPage: number): Promise<AiringSchedulePage> {
+  const safePage = Math.max(1, Math.floor(Number(page) || 1));
+  const safePerPage = Math.min(50, Math.max(1, Math.floor(Number(perPage) || 40)));
+  const response = await fetch(`${APP_CONFIG.apiBaseUrl}/api/v1/schedule?page=${safePage}&perPage=${safePerPage}`, { headers: { Accept: "application/json" } });
+  const payload = await response.json().catch(() => ({})) as AnirakuScheduleResponse;
+  if (!response.ok) throw new Error(`Schedule is unavailable (${response.status}).`);
+
+  const source = Array.isArray(payload.schedule) ? payload.schedule : [];
+  const idMap = await mapMalIdsToAniList(source.map((item) => Number(item.id)));
+  const airingSchedules = source.flatMap((item) => {
+    const malId = Number(item.id);
+    const anilistId = idMap.get(malId);
+    const episode = Number(item.episode);
+    const airingAt = Number(item.airingAt);
+    if (!anilistId || !Number.isInteger(episode) || episode < 1 || !Number.isInteger(airingAt) || airingAt < 1) return [];
+    const media: Anime = {
+      id: anilistId,
+      idMal: malId,
+      title: normalizeScheduleTitle(item.title),
+      coverImage: item.coverImage && typeof item.coverImage === "object" ? item.coverImage : null,
+      format: String(item.format || "").trim() || null,
+      nextAiringEpisode: { episode, airingAt },
+    };
+    return [{ airingAt, episode, media }];
+  });
+
+  return {
+    pageInfo: payload.pageInfo && typeof payload.pageInfo === "object"
+      ? payload.pageInfo
+      : { currentPage: safePage, hasNextPage: false, total: airingSchedules.length },
+    airingSchedules,
+  };
 }
 
 async function requestDirectMalPage<T>(query: string, variables: Record<string, unknown>): Promise<T | null> {
@@ -257,10 +316,6 @@ const pageQuery = `query MediaPage($page: Int!, $perPage: Int!, $sort: [MediaSor
   Page(page: $page, perPage: $perPage) { pageInfo { currentPage hasNextPage total } media(type: ANIME, isAdult: false, sort: $sort, search: $search, status: $status, season: $season, seasonYear: $seasonYear) { ${fields} } }
 }`;
 
-const airingScheduleQuery = `query AiringSchedule($page: Int!, $perPage: Int!) {
-  Page(page: $page, perPage: $perPage) { pageInfo { currentPage hasNextPage total } airingSchedules(notYetAired: true, sort: [TIME]) { airingAt episode media { ${fields} } } }
-}`;
-
 export async function getAnimePage(options: {
   page?: number;
   perPage?: number;
@@ -313,6 +368,5 @@ export function getKnownMalId(anime: Pick<Anime, "idMal" | "malId" | "mal_id" | 
 }
 
 export async function getAiringSchedule(page = 1, perPage = 40): Promise<AiringSchedulePage> {
-  const data = await request<{ Page: AiringSchedulePage }>(airingScheduleQuery, { page, perPage });
-  return data.Page;
+  return getAnirakuAiringSchedule(page, perPage);
 }
