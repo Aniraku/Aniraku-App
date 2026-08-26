@@ -10,10 +10,10 @@
   </p>
 
   <p>
-    <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v4.6.2.Beta">
+    <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v4.7.Beta">
       <img src="https://img.shields.io/github/downloads/Aniraku/Aniraku-App/total?style=for-the-badge&logo=github&label=Downloads&color=c4b5fd&labelColor=1e1b4b" />
     </a>
-    <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v4.6.2.Beta">
+    <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v4.7.Beta">
       <img src="https://img.shields.io/github/v/release/Aniraku/Aniraku-App?include_prereleases&style=for-the-badge&color=a78bfa&labelColor=1e1b4b&label=pre-release" />
     </a>
     <img src="https://img.shields.io/badge/Android-9%2B-a5b4fc?style=for-the-badge&logo=android&logoColor=white&labelColor=1e1b4b" />
@@ -26,7 +26,7 @@
   &nbsp;‧&nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">🌙 App Site</a>
   &nbsp;‧&nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v4.6.2.Beta">☁️ v4.6.2.Beta Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v4.7.Beta">☁️ v4.7.Beta Preview Notes</a>
   &nbsp;‧&nbsp;
   <a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku">🫧 Orion</a>
   &nbsp;‧&nbsp;
