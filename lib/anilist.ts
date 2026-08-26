@@ -91,6 +91,8 @@ type AnirakuAiringScheduleProxyResponse = {
   };
 };
 
+export type AiringScheduleWindow = { startAt: number; endAt: number };
+
 function malStatus(status?: string) {
   const statuses: Record<string, string> = { currently_airing: "RELEASING", finished_airing: "FINISHED", not_yet_aired: "NOT_YET_RELEASED" };
   return statuses[status || ""] || "FINISHED";
@@ -155,21 +157,21 @@ function normalizeScheduleTitle(value: AnirakuScheduleItem["title"]): Anime["tit
   return { romaji: title, english: title, native: title };
 }
 
-const anirakuAiringScheduleQuery = `query AnirakuAiringSchedule($page: Int!, $perPage: Int!) {
+const anirakuAiringScheduleQuery = `query AnirakuAiringSchedule($page: Int!, $perPage: Int!, $startAt: Int, $endAt: Int) {
   Page(page: $page, perPage: $perPage) {
     pageInfo { currentPage hasNextPage total }
-    airingSchedules(notYetAired: true, sort: [TIME]) {
+    airingSchedules(airingAt_greater: $startAt, airingAt_lesser: $endAt, sort: [TIME]) {
       airingAt episode
       media { id idMal title { romaji english native } coverImage { extraLarge large medium color } format }
     }
   }
 }`;
 
-async function getAnirakuAiringScheduleFallback(page: number, perPage: number): Promise<AiringSchedulePage> {
+async function getAnirakuAiringScheduleFallback(page: number, perPage: number, window?: AiringScheduleWindow): Promise<AiringSchedulePage> {
   const response = await fetch(APP_CONFIG.metadataFallbackUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ query: anirakuAiringScheduleQuery, variables: { page, perPage } }),
+    body: JSON.stringify({ query: anirakuAiringScheduleQuery, variables: { page, perPage, startAt: window?.startAt, endAt: window?.endAt } }),
   });
   const payload = await response.json().catch(() => ({})) as AnirakuAiringScheduleProxyResponse;
   if (!response.ok) throw new Error(`Schedule fallback is unavailable (${response.status}).`);
@@ -198,9 +200,13 @@ async function getAnirakuAiringScheduleFallback(page: number, perPage: number): 
   };
 }
 
-async function getAnirakuAiringSchedule(page: number, perPage: number): Promise<AiringSchedulePage> {
+async function getAnirakuAiringSchedule(page: number, perPage: number, window?: AiringScheduleWindow): Promise<AiringSchedulePage> {
   const safePage = Math.max(1, Math.floor(Number(page) || 1));
-  const safePerPage = Math.min(50, Math.max(1, Math.floor(Number(perPage) || 40)));
+  const safePerPage = Math.min(100, Math.max(1, Math.floor(Number(perPage) || 40)));
+  const startAt = Math.floor(Number(window?.startAt));
+  const endAt = Math.floor(Number(window?.endAt));
+  const boundedWindow = Number.isInteger(startAt) && Number.isInteger(endAt) && startAt > 0 && endAt > startAt;
+  if (boundedWindow) return getAnirakuAiringScheduleFallback(safePage, safePerPage, { startAt, endAt });
   const response = await fetch(`${APP_CONFIG.apiBaseUrl}/api/v1/schedule?page=${safePage}&perPage=${safePerPage}`, { headers: { Accept: "application/json" } });
   const payload = await response.json().catch(() => ({})) as AnirakuScheduleResponse;
   if (!response.ok) throw new Error(`Schedule is unavailable (${response.status}).`);
@@ -428,6 +434,6 @@ export function getKnownMalId(anime: Pick<Anime, "idMal" | "malId" | "mal_id" | 
   return Number.isInteger(malId) && malId > 0 ? malId : null;
 }
 
-export async function getAiringSchedule(page = 1, perPage = 40): Promise<AiringSchedulePage> {
-  return getAnirakuAiringSchedule(page, perPage);
+export async function getAiringSchedule(page = 1, perPage = 40, window?: AiringScheduleWindow): Promise<AiringSchedulePage> {
+  return getAnirakuAiringSchedule(page, perPage, window);
 }

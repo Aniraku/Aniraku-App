@@ -43,8 +43,22 @@ describe("AniList query construction", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe(`${APP_CONFIG.apiBaseUrl}/api/v1/schedule?page=1&perPage=12`);
     expect(fetchMock.mock.calls[1]?.[0]).toBe(APP_CONFIG.metadataFallbackUrl);
     const fallbackRequest = fetchMock.mock.calls[1]?.[1] as RequestInit;
-    expect(String(fallbackRequest.body)).toContain("airingSchedules(notYetAired: true, sort: [TIME])");
+    expect(String(fallbackRequest.body)).toContain("airingSchedules(airingAt_greater: $startAt, airingAt_lesser: $endAt, sort: [TIME])");
     expect(schedule.airingSchedules).toMatchObject([{ airingAt: 1_800_000_000, episode: 1148, media: { id: 21_000, idMal: 21, nextAiringEpisode: { episode: 1148, airingAt: 1_800_000_000 } } }]);
+  });
+
+  it("uses the existing Aniraku GraphQL proxy for a bounded full local week so past and future release rows are available together", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ data: { Page: { pageInfo: { currentPage: 1, hasNextPage: false, total: 1 }, airingSchedules: [{ airingAt: 1_800_000_000, episode: 1148, media: { id: 21_000, idMal: 21, title: { english: "One Piece" }, coverImage: {}, format: "TV" } }] } } }) });
+    global.fetch = fetchMock as typeof fetch;
+
+    await getAiringSchedule(1, 100, { startAt: 1_799_000_000, endAt: 1_801_000_000 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(APP_CONFIG.metadataFallbackUrl);
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const body = JSON.parse(String(request.body)) as { query: string; variables: Record<string, number> };
+    expect(body.query).toContain("airingSchedules(airingAt_greater: $startAt, airingAt_lesser: $endAt, sort: [TIME])");
+    expect(body.variables).toMatchObject({ page: 1, perPage: 100, startAt: 1_799_000_000, endAt: 1_801_000_000 });
   });
 
   it("requests AniList relationship edges only for a single Anime Detail query", async () => {
