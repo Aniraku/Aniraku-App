@@ -116,8 +116,8 @@ jobs:
           - The optional Vercel resolver and the current Aniraku API remain metadata recovery paths; production website behavior is unchanged.
 
           ### Schedule and Next Airing
-          - The visible Schedule and Next Airing surfaces use `GET api.aniraku.tech/api/v1/schedule`; no MAL next-airing API is assumed.
-          - Returned schedule MAL IDs are mapped through the existing Aniraku metadata API before the established detail, Watch, and playback routes consume them.
+          - The visible Schedule and Next Airing surfaces first use `GET api.aniraku.tech/api/v1/schedule`; no MAL next-airing API is assumed.
+          - If that REST response has no usable rows, the app uses the existing Aniraku GraphQL proxy for real upcoming entries before established detail, Watch, and playback routes consume them.
           - MAL remains the Beta branch source for all other discovery and title metadata.
 
           ### Aniraku API episode metadata

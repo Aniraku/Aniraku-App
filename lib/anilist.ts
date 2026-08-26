@@ -82,6 +82,15 @@ type AnirakuScheduleResponse = {
   pageInfo?: AiringSchedulePage["pageInfo"];
 };
 
+type AnirakuAiringScheduleProxyResponse = {
+  data?: {
+    Page?: {
+      pageInfo?: AiringSchedulePage["pageInfo"];
+      airingSchedules?: Array<{ airingAt?: number; episode?: number; media?: { id?: number; idMal?: number | null; title?: Anime["title"]; coverImage?: Anime["coverImage"]; format?: string | null } }>;
+    };
+  };
+};
+
 function malStatus(status?: string) {
   const statuses: Record<string, string> = { currently_airing: "RELEASING", finished_airing: "FINISHED", not_yet_aired: "NOT_YET_RELEASED" };
   return statuses[status || ""] || "FINISHED";
@@ -146,6 +155,49 @@ function normalizeScheduleTitle(value: AnirakuScheduleItem["title"]): Anime["tit
   return { romaji: title, english: title, native: title };
 }
 
+const anirakuAiringScheduleQuery = `query AnirakuAiringSchedule($page: Int!, $perPage: Int!) {
+  Page(page: $page, perPage: $perPage) {
+    pageInfo { currentPage hasNextPage total }
+    airingSchedules(notYetAired: true, sort: [TIME]) {
+      airingAt episode
+      media { id idMal title { romaji english native } coverImage { extraLarge large medium color } format }
+    }
+  }
+}`;
+
+async function getAnirakuAiringScheduleFallback(page: number, perPage: number): Promise<AiringSchedulePage> {
+  const response = await fetch(APP_CONFIG.metadataFallbackUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ query: anirakuAiringScheduleQuery, variables: { page, perPage } }),
+  });
+  const payload = await response.json().catch(() => ({})) as AnirakuAiringScheduleProxyResponse;
+  if (!response.ok) throw new Error(`Schedule fallback is unavailable (${response.status}).`);
+  const pageData = payload.data?.Page;
+  const airingSchedules = (pageData?.airingSchedules || []).flatMap((item) => {
+    const media = item.media;
+    const id = Number(media?.id);
+    const episode = Number(item.episode);
+    const airingAt = Number(item.airingAt);
+    if (!Number.isInteger(id) || id < 1 || !Number.isInteger(episode) || episode < 1 || !Number.isInteger(airingAt) || airingAt < 1) return [];
+    const normalizedMedia: Anime = {
+      id,
+      idMal: Number.isInteger(Number(media?.idMal)) ? Number(media?.idMal) : null,
+      title: normalizeScheduleTitle(media?.title || null),
+      coverImage: media?.coverImage && typeof media.coverImage === "object" ? media.coverImage : null,
+      format: String(media?.format || "").trim() || null,
+      nextAiringEpisode: { episode, airingAt },
+    };
+    return [{ airingAt, episode, media: normalizedMedia }];
+  });
+  return {
+    pageInfo: pageData?.pageInfo && typeof pageData.pageInfo === "object"
+      ? pageData.pageInfo
+      : { currentPage: page, hasNextPage: false, total: airingSchedules.length },
+    airingSchedules,
+  };
+}
+
 async function getAnirakuAiringSchedule(page: number, perPage: number): Promise<AiringSchedulePage> {
   const safePage = Math.max(1, Math.floor(Number(page) || 1));
   const safePerPage = Math.min(50, Math.max(1, Math.floor(Number(perPage) || 40)));
@@ -154,7 +206,13 @@ async function getAnirakuAiringSchedule(page: number, perPage: number): Promise<
   if (!response.ok) throw new Error(`Schedule is unavailable (${response.status}).`);
 
   const source = Array.isArray(payload.schedule) ? payload.schedule : [];
-  const idMap = await mapMalIdsToAniList(source.map((item) => Number(item.id)));
+  let idMap = new Map<number, number>();
+  try {
+    idMap = await mapMalIdsToAniList(source.map((item) => Number(item.id)));
+  } catch {
+    // The primary Schedule endpoint is allowed to be temporarily empty or unmapppable.
+    // In that case the existing Aniraku GraphQL proxy below returns real upstream rows.
+  }
   const airingSchedules = source.flatMap((item) => {
     const malId = Number(item.id);
     const anilistId = idMap.get(malId);
@@ -172,12 +230,15 @@ async function getAnirakuAiringSchedule(page: number, perPage: number): Promise<
     return [{ airingAt, episode, media }];
   });
 
-  return {
-    pageInfo: payload.pageInfo && typeof payload.pageInfo === "object"
-      ? payload.pageInfo
-      : { currentPage: safePage, hasNextPage: false, total: airingSchedules.length },
-    airingSchedules,
-  };
+  if (airingSchedules.length) {
+    return {
+      pageInfo: payload.pageInfo && typeof payload.pageInfo === "object"
+        ? payload.pageInfo
+        : { currentPage: safePage, hasNextPage: false, total: airingSchedules.length },
+      airingSchedules,
+    };
+  }
+  return getAnirakuAiringScheduleFallback(safePage, safePerPage);
 }
 
 async function requestDirectMalPage<T>(query: string, variables: Record<string, unknown>): Promise<T | null> {

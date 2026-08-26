@@ -113,7 +113,7 @@ Read the full [Support Guide](./SUPPORT.md).
 
 **v4.7.Beta preview data boundary**
 - MAL remains the primary source for this Beta branch’s discovery, search, and title metadata.
-- The visible Schedule and Next Airing surfaces use the existing Aniraku API schedule contract, then retain the verified AniList ID required by the established detail, Watch, and playback routes.
+- The visible Schedule and Next Airing surfaces use the existing Aniraku API schedule contract. If its REST response has no usable rows, the Beta uses the existing Aniraku GraphQL proxy for real upcoming entries, retaining verified AniList IDs required by established detail, Watch, and playback routes.
 - This prerelease is for validation; it does not replace the public v4.6 stable APK or production website.
 
 **Quiet Privacy**

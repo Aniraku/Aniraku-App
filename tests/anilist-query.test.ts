@@ -25,23 +25,25 @@ describe("AniList query construction", () => {
     expect(body.variables).not.toHaveProperty("season");
   });
 
-  it("uses the Aniraku Schedule endpoint and maps its MAL schedule IDs before routing", async () => {
+  it("uses the Aniraku Schedule endpoint and falls back to its GraphQL proxy when that endpoint has no usable upcoming rows", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
         json: async () => ({
-          pageInfo: { currentPage: 1, hasNextPage: false, total: 1 },
-          schedule: [{ id: 21, title: { english: "One Piece" }, coverImage: { large: "https://example.test/one-piece.jpg" }, format: "TV", episode: 1148, airingAt: 1_800_000_000 }],
+          pageInfo: { currentPage: 1, hasNextPage: true, total: 142 },
+          schedule: [],
         }),
       })
-      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ data: { Page: { media: [{ id: 21_000, idMal: 21 }] } } }) });
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ data: { Page: { pageInfo: { currentPage: 1, hasNextPage: true, total: 142 }, airingSchedules: [{ airingAt: 1_800_000_000, episode: 1148, media: { id: 21_000, idMal: 21, title: { english: "One Piece" }, coverImage: { large: "https://example.test/one-piece.jpg" }, format: "TV" } }] } } }) });
     global.fetch = fetchMock as typeof fetch;
 
     const schedule = await getAiringSchedule(1, 12);
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe(`${APP_CONFIG.apiBaseUrl}/api/v1/schedule?page=1&perPage=12`);
     expect(fetchMock.mock.calls[1]?.[0]).toBe(APP_CONFIG.metadataFallbackUrl);
+    const fallbackRequest = fetchMock.mock.calls[1]?.[1] as RequestInit;
+    expect(String(fallbackRequest.body)).toContain("airingSchedules(notYetAired: true, sort: [TIME])");
     expect(schedule.airingSchedules).toMatchObject([{ airingAt: 1_800_000_000, episode: 1148, media: { id: 21_000, idMal: 21, nextAiringEpisode: { episode: 1148, airingAt: 1_800_000_000 } } }]);
   });
 
