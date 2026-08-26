@@ -100,6 +100,10 @@ jobs:
           - The app no longer calls Miruro directly or uses a Miruro episode fallback.
           - If Aniraku’s endpoint is unavailable or malformed, the app presents its existing truthful episode error state rather than inventing an episode list.
 
+          ### Schedule
+          - The native Schedule begins with Today and then shows the next six local calendar days.
+          - It lists only confirmed upcoming episodes in that window.
+
           ### Release integrity
           - The build validates native source, packages both ARM architectures, and includes a SHA-256 sidecar for independent APK verification.
 

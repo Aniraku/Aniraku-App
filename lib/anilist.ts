@@ -111,8 +111,10 @@ const pageQuery = `query MediaPage($page: Int!, $perPage: Int!, $sort: [MediaSor
   Page(page: $page, perPage: $perPage) { pageInfo { currentPage hasNextPage total } media(type: ANIME, isAdult: false, sort: $sort, search: $search, status: $status, season: $season, seasonYear: $seasonYear) { ${fields} } }
 }`;
 
-const airingScheduleQuery = `query AiringSchedule($page: Int!, $perPage: Int!) {
-  Page(page: $page, perPage: $perPage) { pageInfo { currentPage hasNextPage total } airingSchedules(notYetAired: true, sort: [TIME]) { airingAt episode media { ${fields} } } }
+export type AiringScheduleWindow = { startAt: number; endAt: number };
+
+const airingScheduleQuery = `query AiringSchedule($page: Int!, $perPage: Int!, $startAt: Int, $endAt: Int) {
+  Page(page: $page, perPage: $perPage) { pageInfo { currentPage hasNextPage total } airingSchedules(notYetAired: true, airingAt_greater: $startAt, airingAt_lesser: $endAt, sort: [TIME]) { airingAt episode media { ${fields} } } }
 }`;
 
 export async function getAnimePage(options: {
@@ -166,7 +168,7 @@ export function getKnownMalId(anime: Pick<Anime, "idMal" | "malId" | "mal_id" | 
   return Number.isInteger(malId) && malId > 0 ? malId : null;
 }
 
-export async function getAiringSchedule(page = 1, perPage = 40): Promise<AiringSchedulePage> {
-  const data = await request<{ Page: AiringSchedulePage }>(airingScheduleQuery, { page, perPage });
+export async function getAiringSchedule(page = 1, perPage = 40, window?: AiringScheduleWindow): Promise<AiringSchedulePage> {
+  const data = await request<{ Page: AiringSchedulePage }>(airingScheduleQuery, { page, perPage, startAt: window?.startAt, endAt: window?.endAt });
   return data.Page;
 }

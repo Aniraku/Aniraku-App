@@ -24,7 +24,7 @@ describe("AniList query construction", () => {
     expect(body.variables).not.toHaveProperty("season");
   });
 
-  it("uses the documented AiringSchedule TIME sort for upcoming episodes", async () => {
+  it("uses the documented bounded AiringSchedule TIME sort for upcoming episodes", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ data: { Page: { airingSchedules: [], pageInfo: { currentPage: 1, hasNextPage: false, total: 0 } } } }) });
     global.fetch = fetchMock as typeof fetch;
 
@@ -32,7 +32,7 @@ describe("AniList query construction", () => {
 
     const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
     const body = JSON.parse(String(request.body)) as { query: string; variables: Record<string, unknown> };
-    expect(body.query).toContain("airingSchedules(notYetAired: true, sort: [TIME])");
+    expect(body.query).toContain("airingSchedules(notYetAired: true, airingAt_greater: $startAt, airingAt_lesser: $endAt, sort: [TIME])");
     expect(body.query).not.toContain("NEXT_AIRING_EPISODE_ASC");
     expect(body.variables).toEqual({ page: 1, perPage: 12 });
   });
