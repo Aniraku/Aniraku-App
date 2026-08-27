@@ -1,10 +1,10 @@
-name: Build Aniraku v4.6 APK
+name: Build Aniraku v4.6.1 APK
 
 on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: Publish the verified v4.6 APK as the standard GitHub release
+        description: Publish the verified v4.6.1 APK as the standard GitHub release
         required: true
         default: false
         type: boolean
@@ -18,10 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      RELEASE_TAG: v4.6
-      RELEASE_VERSION: "4.6"
-      RELEASE_VERSION_CODE: "41"
-      RELEASE_ASSET_NAME: Aniraku-v4.6.apk
+      RELEASE_TAG: v4.6.1
+      RELEASE_VERSION: "4.6.1"
+      RELEASE_VERSION_CODE: "43"
+      RELEASE_ASSET_NAME: Aniraku-v4.6.1.apk
       EXPO_PUBLIC_API_BASE_URL: https://api.aniraku.tech
       EXPO_PUBLIC_ANILIST_GRAPHQL_URL: https://graphql.anilist.co
       EXPO_PUBLIC_SUPABASE_URL: https://sbjdrjaovcgvttfnpfsz.supabase.co
@@ -49,7 +49,7 @@ jobs:
         env:
           EXPO_PUBLIC_GIPHY_API_KEY: ${{ secrets.EXPO_PUBLIC_GIPHY_API_KEY }}
         run: pnpm check && pnpm test
-      - name: Verify v4.6 release identity
+      - name: Verify v4.6.1 release identity
         run: |
           pnpm exec expo config --json > /tmp/aniraku-expo-config.json
           grep -Eq "\"version\"[[:space:]]*:[[:space:]]*\"$RELEASE_VERSION\"" /tmp/aniraku-expo-config.json
@@ -69,14 +69,14 @@ jobs:
           unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           unzip -l "$APK" | grep -q 'lib/armeabi-v7a/'
           sha256sum "$APK" | tee /tmp/aniraku-release.apk.sha256
-      - name: Upload Aniraku v4.6 APK
+      - name: Upload Aniraku v4.6.1 APK
         uses: actions/upload-artifact@v4
         with:
           name: Aniraku-${{ env.RELEASE_TAG }}-universal-apk
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Publish stable v4.6 release
+      - name: Publish stable v4.6.1 release
         if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -86,14 +86,21 @@ jobs:
           RELEASE_DIGEST=/tmp/$RELEASE_ASSET_NAME.sha256
           cp "$APK" "$RELEASE_APK"
           cp /tmp/aniraku-release.apk.sha256 "$RELEASE_DIGEST"
-          cat > /tmp/aniraku-v4.6-notes.md <<'EOF'
-          ## Aniraku v4.6
+          cat > /tmp/aniraku-v4.6.1-notes.md <<'EOF'
+          ## Aniraku v4.6.1
 
-          **Package:** `aniraku.anime.app` · **versionCode:** 41
+          **Package:** `aniraku.anime.app` · **versionCode:** 43
 
           ### Future-release protection
-          - Confirmed upcoming episodes, next-airing releases, and not-yet-released movies stop before provider or stream requests begin.
-          - Watch shows the dedicated future-release message without a retry action; already released titles retain normal playback recovery.
+          - Every selected episode of a confirmed not-yet-released title, including navigation with Next and Previous, stops before provider or stream requests begin.
+          - Watch shows only the dedicated future-release message without a retry or misleading recovery state; already released titles retain normal playback recovery.
+
+          ### Exact episode display metadata
+          - Anime Detail, Episode Info, and Watch use the website's server-side exact TMDB episode resolver for verified titles, descriptions, and stills only.
+          - Aniraku remains authoritative for availability, canonical episode numbering, provider IDs, and playback. No TMDB credential is packaged in the app.
+
+          ### Home upcoming titles
+          - Home's Upcoming shelf lists confirmed not-yet-released anime titles; the separate weekly schedule continues to show actual upcoming episode releases.
 
           ### Aniraku API episode metadata
           - Anime Detail, Episode Info, Watch, and episode-release alerts use the existing `api.aniraku.tech/api/v1/anime/:id/episodes` contract as their only episode metadata source.
@@ -111,7 +118,7 @@ jobs:
           EOF
           if gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --clobber
-          gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.6 — Future Release Protection" --notes-file /tmp/aniraku-v4.6-notes.md --latest
+          gh release edit "$RELEASE_TAG" --repo "${{ github.repository }}" --title "v4.6.1 — Release-Aware Discovery" --notes-file /tmp/aniraku-v4.6.1-notes.md --latest
           else
-            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --target "$GITHUB_SHA" --title "v4.6 — Future Release Protection" --notes-file /tmp/aniraku-v4.6-notes.md --latest
+            gh release create "$RELEASE_TAG" "$RELEASE_APK" "$RELEASE_DIGEST" --repo "${{ github.repository }}" --target "$GITHUB_SHA" --title "v4.6.1 — Release-Aware Discovery" --notes-file /tmp/aniraku-v4.6.1-notes.md --latest
           fi
