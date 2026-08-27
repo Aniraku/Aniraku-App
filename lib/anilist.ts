@@ -459,9 +459,9 @@ export async function getHomeAnime() {
   const [trending, popular, upcoming] = await Promise.all([
     getAnimePage({ perPage: 12, sort: ["TRENDING_DESC", "POPULARITY_DESC"] }),
     getAnimePage({ perPage: 12, sort: ["POPULARITY_DESC"] }),
-    getAiringSchedule(1, 12),
+    getAnimePage({ perPage: 12, status: "NOT_YET_RELEASED", sort: ["POPULARITY_DESC"] }),
   ]);
-  return { trending: trending.media, popular: popular.media, upcoming: upcoming.airingSchedules.map((item) => item.media) };
+  return { trending: trending.media, popular: popular.media, upcoming: upcoming.media };
 }
 
 export async function getAnimeById(id: number): Promise<Anime> {
