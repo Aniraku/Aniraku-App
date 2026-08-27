@@ -4,16 +4,18 @@
 
 # Changelog
 
-This is the public record of meaningful native Android releases. This `Beta` branch documents the [v4.7.Beta prerelease](https://github.com/Aniraku/Aniraku-App/releases/tag/v4.7.Beta); the public stable build remains separate.
+This is the public record of meaningful native Android releases. This `Beta` branch documents the [v4.7.1.Beta prerelease](https://github.com/Aniraku/Aniraku-App/releases/tag/v4.7.1.Beta); the public stable build remains separate.
 
-## v4.7.Beta — MAL preview and release-aware scheduling
+## v4.7.1.Beta — exact episode displays and release-aware discovery
 
 `PRE-RELEASE / ANDROID 9+ / ARM32 + ARM64`
 
 - Retains MAL-first discovery, search, and title metadata for the Beta validation branch, with verified AniList-ID mapping before existing detail, Watch, AniSkip, provider, and playback routes run.
 - Routes only the visible Schedule and Next Airing surfaces through the existing `GET /api/v1/schedule` Aniraku API contract; schedule MAL IDs are mapped before the established routes consume them.
-- Keeps future-release protection before provider or stream discovery for confirmed future episodes and not-yet-released movies.
-- Does not replace the v4.6 stable APK or change production website behavior.
+- Uses the website's server-side exact TMDB resolver only for verified episode titles, descriptions, and stills; canonical availability, numbering, provider IDs, and playback remain Aniraku-owned, and no TMDB credential is bundled.
+- Keeps future-release protection before provider or stream discovery for every selected episode of a confirmed unavailable title, including Next and Previous navigation.
+- Separates confirmed not-yet-released titles in Home's Upcoming shelf from the weekly schedule’s actual upcoming episode rows.
+- Does not replace the v4.6.1 stable APK or change production website behavior.
 
 ## v4.2 — Rebuffer continuity
 
@@ -60,4 +62,4 @@ This is the public record of meaningful native Android releases. This `Beta` bra
 
 `SIGNAL / CURRENT BUILD FIRST`
 
-[README](./README.md) · [v4.7.Beta prerelease](https://github.com/Aniraku/Aniraku-App/releases/tag/v4.7.Beta) · [Security](./SECURITY.md) · [Contributing](./CONTRIBUTING.md)
+[README](./README.md) · [v4.7.1.Beta prerelease](https://github.com/Aniraku/Aniraku-App/releases/tag/v4.7.1.Beta) · [Security](./SECURITY.md) · [Contributing](./CONTRIBUTING.md)
