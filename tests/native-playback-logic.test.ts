@@ -111,6 +111,7 @@ describe("Aniraku native playback coordination", () => {
     expect(isConfirmedFutureRelease({ episodeNumber: 4, episodes: released, status: "RELEASING", hasConfirmedEpisodeList: true })).toBe(true);
     expect(isConfirmedFutureRelease({ episodeNumber: 3, episodes: released, status: "RELEASING", hasConfirmedEpisodeList: true })).toBe(false);
     expect(isConfirmedFutureRelease({ episodeNumber: 1, status: "NOT_YET_RELEASED" })).toBe(true);
+    expect(isConfirmedFutureRelease({ episodeNumber: 2, episodes: Array.from({ length: 12 }, (_, index) => ({ number: index + 1 })), status: "NOT_YET_RELEASED", hasConfirmedEpisodeList: true })).toBe(true);
     expect(isConfirmedFutureRelease({ episodeNumber: 1, nextAiringEpisode: { episode: 1 } })).toBe(true);
     expect(isConfirmedFutureRelease({ episodeNumber: 1, status: "FINISHED" })).toBe(false);
     expect(FUTURE_RELEASE_MESSAGE).toContain("Time travel still has not been invented");

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AniListRateLimitError, AniListUnavailableError, getAiringSchedule, getAnimeById, getAnimePage, resetAniListRequestStateForTests } from "../lib/anilist";
+import { AniListRateLimitError, AniListUnavailableError, getAiringSchedule, getAnimeById, getAnimePage, getHomeAnime, resetAniListRequestStateForTests } from "../lib/anilist";
 
 const originalFetch = global.fetch;
 
@@ -35,6 +35,23 @@ describe("AniList query construction", () => {
     expect(body.query).toContain("airingSchedules(notYetAired: true, airingAt_greater: $startAt, airingAt_lesser: $endAt, sort: [TIME])");
     expect(body.query).not.toContain("NEXT_AIRING_EPISODE_ASC");
     expect(body.variables).toEqual({ page: 1, perPage: 12 });
+  });
+
+  it("uses a dedicated bounded NOT_YET_RELEASED title query for Home Coming Soon without replacing the weekly schedule source", async () => {
+    const page = (media: Array<Record<string, unknown>>) => ({ ok: true, text: async () => JSON.stringify({ data: { Page: { media, pageInfo: { currentPage: 1, hasNextPage: false, total: media.length } } } }) });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(page([{ id: 1, title: { english: "Trending" } }]))
+      .mockResolvedValueOnce(page([{ id: 2, title: { english: "Popular" } }]))
+      .mockResolvedValueOnce(page([{ id: 3, status: "NOT_YET_RELEASED", title: { english: "Future title" } }]));
+    global.fetch = fetchMock as typeof fetch;
+
+    const home = await getHomeAnime();
+    const finalRequest = fetchMock.mock.calls[2]?.[1] as RequestInit;
+    const finalBody = JSON.parse(String(finalRequest.body)) as { variables: Record<string, unknown> };
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(finalBody.variables).toMatchObject({ page: 1, perPage: 12, status: "NOT_YET_RELEASED", sort: ["POPULARITY_DESC"] });
+    expect(home.upcoming).toMatchObject([{ id: 3, status: "NOT_YET_RELEASED" }]);
   });
 
   it("requests AniList relationship edges only for a single Anime Detail query", async () => {
