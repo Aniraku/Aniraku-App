@@ -5,6 +5,7 @@ import { Image } from "expo-image";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { getAnimeById } from "@/lib/anilist";
 import { getEpisodes } from "@/lib/aniraku-api";
+import { enrichEpisodesWithTmdb } from "@/lib/tmdb-episodes";
 import { groupAnimeRelations } from "@/lib/anime-relations";
 import { animeTitle } from "@/lib/types";
 import { chooseResumeEpisode } from "@/lib/watch-progress";
@@ -24,13 +25,24 @@ export default function AnimeDetailScreen() {
   const auth = useAnirakuAuth();
   const anime = useQuery({ queryKey: ["anime", id], queryFn: () => getAnimeById(id), enabled: Number.isFinite(id) });
   const episodes = useQuery({ queryKey: ["episodes", id], queryFn: () => getEpisodes(id), enabled: Number.isFinite(id) });
+  const canonicalEpisodeRows = useMemo(() => episodes.data ?? [], [episodes.data]);
+  const episodeSignature = useMemo(() => canonicalEpisodeRows.map((item) => `${item.number}:${item.title ?? ""}:${item.thumbnail ?? ""}`).join("|"), [canonicalEpisodeRows]);
+  const fallbackThumbnail = anime.data?.bannerImage || anime.data?.coverImage?.extraLarge || anime.data?.coverImage?.large || "";
+  const fallbackTitle = anime.data ? animeTitle(anime.data) : "";
+  const tmdbEpisodes = useQuery({
+    queryKey: ["tmdb-episode-display", id, episodeSignature, fallbackThumbnail, fallbackTitle, anime.data?.format],
+    queryFn: () => enrichEpisodesWithTmdb(id, canonicalEpisodeRows, { fallbackThumbnail, fallbackTitle, isMovie: anime.data?.format === "MOVIE" }),
+    enabled: Number.isFinite(id) && id > 0 && episodes.isSuccess && canonicalEpisodeRows.length > 0,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
   const history = useWatchHistory();
   const bookmarks = useBookmarks();
   const ratings = useEpisodeRatings(id);
   const [episodePage, setEpisodePage] = useState(0);
   // Match the main Aniraku detail page: preserve the whole canonical backend
   // episode list instead of silently truncating Watch entry points after 24.
-  const episodeRows = useMemo(() => episodes.data ?? [], [episodes.data]);
+  const episodeRows = useMemo(() => tmdbEpisodes.data ?? canonicalEpisodeRows, [canonicalEpisodeRows, tmdbEpisodes.data]);
   const totalEpisodePages = episodePageCount(episodeRows.length);
   const safeEpisodePage = Math.min(episodePage, totalEpisodePages - 1);
   const pagedEpisodeRows = useMemo(() => episodePageSlice(episodeRows, safeEpisodePage), [episodeRows, safeEpisodePage]);

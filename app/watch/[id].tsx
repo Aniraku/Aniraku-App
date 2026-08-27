@@ -11,6 +11,7 @@ import { StatusBar } from "expo-status-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { anirakuProxyUrl, getAnimeMetadata, getEpisodes, getServers, getStream, getPlaybackType, nativePlaybackHeaders } from "@/lib/aniraku-api";
 import { getAnimeById, getKnownMalId, getMalIdByAnimeId } from "@/lib/anilist";
+import { enrichEpisodesWithTmdb } from "@/lib/tmdb-episodes";
 import {
   activeSkipKind,
   directSources,
@@ -113,6 +114,15 @@ export default function WatchScreen() {
   const providerSync = useProviderSync();
   const episodeQuery = useQuery({ queryKey: ["watch-episodes", animeId], queryFn: () => getEpisodes(animeId), enabled: Number.isFinite(animeId) && animeId > 0, staleTime: 60_000 });
   const canonicalEpisodes = episodeQuery.data ?? EMPTY_EPISODES;
+  const episodeSignature = useMemo(() => canonicalEpisodes.map((item) => `${item.number}:${item.title ?? ""}:${item.thumbnail ?? ""}`).join("|"), [canonicalEpisodes]);
+  const tmdbEpisodes = useQuery({
+    queryKey: ["tmdb-episode-display", animeId, episodeSignature, watchBackdrop, title, animeQuery.data?.format],
+    queryFn: () => enrichEpisodesWithTmdb(animeId, canonicalEpisodes, { fallbackThumbnail: watchBackdrop, fallbackTitle: title, isMovie: animeQuery.data?.format === "MOVIE" }),
+    enabled: Number.isFinite(animeId) && animeId > 0 && episodeQuery.isSuccess && canonicalEpisodes.length > 0,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const displayEpisodes = tmdbEpisodes.data ?? canonicalEpisodes;
   const episodeIsKnown = useMemo(
     () => canonicalEpisodes.some((item) => item.number === episode),
     [canonicalEpisodes, episode],
@@ -218,8 +228,8 @@ export default function WatchScreen() {
   const { filteredEpisodes, totalEpisodePages, safeEpisodePage, pagedEpisodes } = useMemo(() => {
     const term = episodeSearch.trim().toLowerCase();
     const filtered = term
-      ? canonicalEpisodes.filter((item) => String(item.number).includes(term) || String(item.title || "").toLowerCase().includes(term))
-      : canonicalEpisodes;
+      ? displayEpisodes.filter((item) => String(item.number).includes(term) || String(item.title || "").toLowerCase().includes(term))
+      : displayEpisodes;
     const pageCount = episodePageCount(filtered.length);
     const safePage = Math.max(0, Math.min(episodePage, pageCount - 1));
     return {
@@ -228,7 +238,7 @@ export default function WatchScreen() {
       safeEpisodePage: safePage,
       pagedEpisodes: episodePageSlice(filtered, safePage),
     };
-  }, [canonicalEpisodes, episodePage, episodeSearch]);
+  }, [displayEpisodes, episodePage, episodeSearch]);
   const qualityOptions = useMemo(() => {
     const response = stream ?? { sources: [] };
     const native = nativeSources(response);
@@ -938,9 +948,9 @@ export default function WatchScreen() {
     router.replace({ pathname: "/watch/[id]", params: { id: String(animeId), episode: String(targetEpisode), title, image } } as never);
   }, [animeId, canonicalEpisodes, image, title]);
   const openEpisodeInfo = useCallback((targetEpisode = episode) => {
-    const selected = canonicalEpisodes.find((item) => item.number === targetEpisode);
+    const selected = displayEpisodes.find((item) => item.number === targetEpisode);
     router.push({ pathname: "/episode/[id]", params: { id: String(animeId), episode: String(targetEpisode), title, image, episodeTitle: selected?.title || "" } } as never);
-  }, [animeId, canonicalEpisodes, episode, image, title]);
+  }, [animeId, displayEpisodes, episode, image, title]);
   const jumpToEpisodePage = () => {
     const target = Number.parseInt(episodeJump, 10);
     if (!Number.isFinite(target) || target < 1 || target > canonicalEpisodes.length) return;

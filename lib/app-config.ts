@@ -5,6 +5,12 @@ const metadataResolverUrl = configuredMetadataResolverUrl === undefined
   : configuredMetadataResolverUrl.startsWith("https://")
     ? configuredMetadataResolverUrl
     : "";
+const configuredTmdbEpisodesResolverUrl = process.env.EXPO_PUBLIC_TMDB_EPISODE_RESOLVER_URL;
+const tmdbEpisodesResolverUrl = configuredTmdbEpisodesResolverUrl === undefined
+  ? "https://www.aniraku.tech/api/tmdb-episodes"
+  : configuredTmdbEpisodesResolverUrl.startsWith("https://")
+    ? configuredTmdbEpisodesResolverUrl
+    : "";
 
 function previewAnirakuProxy() {
   // Native Android has no browser window and always calls api.aniraku.tech
@@ -25,6 +31,9 @@ export const APP_CONFIG = {
   apiBaseUrl: previewAnirakuProxy() ?? productionAnirakuApi,
   anilistGraphqlUrl: process.env.EXPO_PUBLIC_ANILIST_GRAPHQL_URL ?? "https://graphql.anilist.co",
   metadataResolverUrl,
+  // This public URL reaches the website's server-side TMDB resolver. It is not
+  // a TMDB API URL and the TMDB read token never enters an Expo environment.
+  tmdbEpisodesResolverUrl,
   metadataFallbackUrl: process.env.EXPO_PUBLIC_METADATA_FALLBACK_URL ?? "https://api.aniraku.tech/api/v1/anilist",
   directMalEnabled: process.env.EXPO_PUBLIC_DIRECT_MAL === "true" && Boolean(process.env.EXPO_PUBLIC_MAL_CLIENT_ID),
   malClientId: process.env.EXPO_PUBLIC_MAL_CLIENT_ID ?? "",

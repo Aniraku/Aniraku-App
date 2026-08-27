@@ -16,5 +16,7 @@ describe("native app configuration", () => {
     Object.defineProperty(globalThis, "window", { configurable: true, value: {} });
     const { APP_CONFIG } = await import("../lib/app-config");
     expect(APP_CONFIG.apiBaseUrl).toBe("https://api.aniraku.tech");
+    expect(APP_CONFIG.tmdbEpisodesResolverUrl).toBe("https://www.aniraku.tech/api/tmdb-episodes");
+    expect(Object.keys(APP_CONFIG)).not.toContain("tmdbReadAccessToken");
   });
 });
