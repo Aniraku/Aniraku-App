@@ -6,6 +6,16 @@
 
 This is the public record of meaningful native Android releases. For the currently installable build, open [GitHub Releases](https://github.com/Aniraku/Aniraku-App/releases/latest).
 
+## v4.6.2 — Stable direct-client release
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM32 + ARM64`
+
+- Moves public AniList metadata reads to the native client instead of sending them through the shared Aniraku backend IP.
+- Adds client-side request coalescing, bounded pacing, response caching, stale-cache recovery, and Retry-After handling.
+- Consolidates the Home AniList request into one GraphQL operation to reduce startup traffic.
+- Increments the Android versionCode to 44 and preserves the compatibility-focused legacy architecture configuration.
+- Publishes a universal APK with packaged JavaScript, ARM32/ARM64 libraries, and a SHA-256 verification sidecar.
+
 ## v4.2 — Rebuffer continuity
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM32 + ARM64`
