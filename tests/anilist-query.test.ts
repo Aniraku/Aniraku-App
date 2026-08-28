@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AniListRateLimitError, AniListUnavailableError, getAiringSchedule, getAnimeById, getAnimePage, getHomeAnime, resetAniListRequestStateForTests } from "../lib/anilist";
+import { APP_CONFIG } from "../lib/app-config";
 
 const originalFetch = global.fetch;
 
 afterEach(() => {
   global.fetch = originalFetch;
+  vi.useRealTimers();
   resetAniListRequestStateForTests();
 });
 
@@ -37,21 +39,52 @@ describe("AniList query construction", () => {
     expect(body.variables).toEqual({ page: 1, perPage: 12 });
   });
 
-  it("uses a dedicated bounded NOT_YET_RELEASED title query for Home Coming Soon without replacing the weekly schedule source", async () => {
-    const page = (media: Array<Record<string, unknown>>) => ({ ok: true, text: async () => JSON.stringify({ data: { Page: { media, pageInfo: { currentPage: 1, hasNextPage: false, total: media.length } } } }) });
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(page([{ id: 1, title: { english: "Trending" } }]))
-      .mockResolvedValueOnce(page([{ id: 2, title: { english: "Popular" } }]))
-      .mockResolvedValueOnce(page([{ id: 3, status: "NOT_YET_RELEASED", title: { english: "Future title" } }]));
+  it("loads all Home shelves through one direct AniList query", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ data: {
+        trending: { media: [{ id: 1, title: { english: "Trending" } }] },
+        popular: { media: [{ id: 2, title: { english: "Popular" } }] },
+        upcoming: { media: [{ id: 3, status: "NOT_YET_RELEASED", title: { english: "Future title" } }] },
+      } }),
+    });
     global.fetch = fetchMock as typeof fetch;
 
     const home = await getHomeAnime();
-    const finalRequest = fetchMock.mock.calls[2]?.[1] as RequestInit;
-    const finalBody = JSON.parse(String(finalRequest.body)) as { variables: Record<string, unknown> };
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const body = JSON.parse(String(request.body)) as { query: string; variables: Record<string, unknown> };
 
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(finalBody.variables).toMatchObject({ page: 1, perPage: 12, status: "NOT_YET_RELEASED", sort: ["POPULARITY_DESC"] });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(body.query).toContain("trending:");
+    expect(body.query).toContain("popular:");
+    expect(body.query).toContain("upcoming:");
+    expect(body.variables).toEqual({});
     expect(home.upcoming).toMatchObject([{ id: 3, status: "NOT_YET_RELEASED" }]);
+  });
+
+  it("uses the configured direct AniList GraphQL endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, headers: new Headers(), text: async () => JSON.stringify({ data: { Page: { media: [], pageInfo: { currentPage: 1, hasNextPage: false, total: 0 } } } }) });
+    global.fetch = fetchMock as typeof fetch;
+
+    await getAnimePage();
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(APP_CONFIG.anilistGraphqlUrl);
+  });
+
+  it("returns a recent stale response when AniList is temporarily rate limited", async () => {
+    vi.useFakeTimers();
+    const success = { ok: true, headers: new Headers(), text: async () => JSON.stringify({ data: { Page: { media: [{ id: 7 }], pageInfo: { currentPage: 1, hasNextPage: false, total: 1 } } } }) };
+    const limited = { ok: false, status: 429, headers: new Headers({ "Retry-After": "12" }), text: async () => JSON.stringify({ errors: [{ message: "Too Many Requests." }] }) };
+    const fetchMock = vi.fn().mockResolvedValueOnce(success).mockResolvedValueOnce(limited);
+    global.fetch = fetchMock as typeof fetch;
+
+    const first = await getAnimePage({ search: "Bleach" });
+    vi.setSystemTime(Date.now() + 5 * 60_000 + 1);
+    const second = await getAnimePage({ search: "Bleach" });
+
+    expect(first.media).toMatchObject([{ id: 7 }]);
+    expect(second.media).toMatchObject([{ id: 7 }]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("requests AniList relationship edges only for a single Anime Detail query", async () => {
@@ -83,6 +116,7 @@ describe("AniList query construction", () => {
   });
 
   it("classifies upstream HTTP 429 responses and preserves Retry-After timing", async () => {
+    vi.useFakeTimers();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
       status: 429,
@@ -95,7 +129,9 @@ describe("AniList query construction", () => {
       name: "AniListRateLimitError",
       retryAfterMs: 12_000,
     }));
-    await expect(getAnimePage({ search: "Bleach", perPage: 30, sort: ["SEARCH_MATCH"] })).rejects.toBeInstanceOf(AniListRateLimitError);
+    const second = expect(getAnimePage({ search: "Bleach", perPage: 30, sort: ["SEARCH_MATCH"] })).rejects.toBeInstanceOf(AniListRateLimitError);
+    await vi.advanceTimersByTimeAsync(12_000);
+    await second;
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
