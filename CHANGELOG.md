@@ -6,6 +6,16 @@
 
 This is the public record of meaningful native Android releases. For the currently installable build, open [GitHub Releases](https://github.com/Aniraku/Aniraku-App/releases/latest).
 
+## v4.8.0 — FlixCloud Provider Release
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM32 + ARM64`
+
+- Adds Yuta and Syota servers powered by FlixCloud, scraped from AnimeX watch pages.
+- FlixCloud provides dual-audio embed sources with both Sub and Dub tracks selectable from the player's audio settings.
+- Servers appear alongside existing Miruro providers (Bonk, Pewe, Ally) when the backend resolves sources from AnimeX.
+- Fixes a routing issue where switching to FlixCloud servers sent the individual server name instead of the provider family to the stream endpoint.
+- Retains future-release protection, exact episode metadata, AniList client, Schedule, buffering indicator, Downloads, fullscreen, AniSkip, and Relations.
+
 ## v4.6.2 — Stable direct-client release
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM32 + ARM64`

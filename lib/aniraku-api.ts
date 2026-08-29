@@ -119,11 +119,13 @@ export type BackendServer = Partial<Server> & { name?: string; sources?: StreamS
 export function normalizeServers(payload: BackendServer[], lang: "sub" | "dub"): Server[] {
   return (Array.isArray(payload) ? payload : []).filter(Boolean).map((server, index) => {
     const publicName = server.name || server.label || server.id || server.provider || `source-${index + 1}`;
+    const family = String(server.provider || 'miruro');
     return {
       id: server.id || `${lang}:${publicName}`,
-      // `/api/v1/stream` accepts this public provider/server key (for example
-      // ally, pewe, kiwi), not the shared upstream adapter name such as miruro.
-      provider: server.name || server.provider || publicName,
+      // `/api/v1/stream` accepts the upstream provider family key (for example
+      // flixcloud), not the individual server name (Yuta/Syota) for providers
+      // that use a single backend handler for multiple servers.
+      provider: family === 'flixcloud' ? 'flixcloud' : (server.name || server.provider || publicName),
       label: server.label || publicName.toUpperCase(),
       lang: server.lang || lang,
       verification: server.verification,
