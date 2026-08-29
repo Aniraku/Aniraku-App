@@ -120,7 +120,12 @@ jobs:
           ### Mobile and performance polish
           - Anime rails use bounded rendering windows and clipped off-screen cards for smoother scrolling on mid-range Android devices.
           - Metadata queries use a longer mobile cache window and avoid focus-triggered refetch storms.
+          - The native Watch player shows a restrained episode-thumbnail loading surface while a source starts, with episode artwork and anime artwork fallback.
+          - Native playback keeps its buffering indicator after startup for direct, proxy, and embedded playback states.
           - The PWA shell includes Search, Catalog, and Schedule shortcuts plus navigation preload for faster installed launches.
+
+          ### Legal contact
+          - Copyright, privacy, and policy questions should be sent to `sho.islam0311@proton.me`. Do not post private legal or account information in public issues.
 
           ### Release integrity
           - The build validates native source, packages both ARM architectures, and includes a SHA-256 sidecar for independent APK verification.
