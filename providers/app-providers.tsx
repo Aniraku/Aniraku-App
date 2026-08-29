@@ -6,7 +6,15 @@ import { AuthProvider } from "@/providers/auth-provider";
 export function AppProviders({ children }: PropsWithChildren) {
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
-      queries: { staleTime: 60_000, retry: 2, refetchOnReconnect: true },
+      queries: {
+        // Anime metadata changes slowly; keep it warm between tab switches
+        // without refetching every time a screen remounts.
+        staleTime: 5 * 60_000,
+        gcTime: 30 * 60_000,
+        retry: 1,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: true,
+      },
       mutations: { retry: 1 },
     },
   }));
