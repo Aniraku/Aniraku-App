@@ -6,6 +6,14 @@
 
 This is the public record of meaningful native Android releases. For the currently installable build, open [GitHub Releases](https://github.com/Aniraku/Aniraku-App/releases/latest).
 
+## v4.8.1 — Niko and Momo Provider Support
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM32 + ARM64`
+
+- Adds native provider-family routing for Niko and Momo.
+- Preserves direct, proxy, and verified embedded playback for both providers.
+- Keeps the existing provider fallback and release build configuration intact.
+
 ## v4.8.0 — FlixCloud Provider Release
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM32 + ARM64`
