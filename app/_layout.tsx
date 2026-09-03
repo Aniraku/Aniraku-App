@@ -3,6 +3,7 @@ import { Platform, Pressable, Text, View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
+import { useFonts } from "expo-font";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppProviders } from "@/providers/app-providers";
@@ -10,23 +11,26 @@ import { nothing } from "@/components/nothing-ui";
 import { ConnectivitySignal } from "@/components/connectivity-signal";
 import { AppUpdatePrompt } from "@/components/app-update-prompt";
 import { SupportPrompt } from "@/components/support-prompt";
-import { configureAdaptiveVideoCache } from "@/lib/video-cache";
 
 export const unstable_settings = { anchor: "(tabs)" };
 
 export default function RootLayout() {
-  const [videoCacheReady, setVideoCacheReady] = useState(Platform.OS !== "android");
+  const [fontsLoaded] = useFonts({
+    "Caveat-Bold": require("../assets/fonts/Caveat-Bold.ttf"),
+    "Caveat-Medium": require("../assets/fonts/Caveat-Medium.ttf"),
+    "Caveat-Regular": require("../assets/fonts/Caveat-Regular.ttf"),
+    "Caveat-SemiBold": require("../assets/fonts/Caveat-SemiBold.ttf"),
+    "HennyPenny-Regular": require("../assets/fonts/HennyPenny-Regular.ttf"),
+  });
+
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(nothing.black).catch(() => {});
-    let active = true;
-    void configureAdaptiveVideoCache().catch(() => {}).finally(() => {
-      if (active) setVideoCacheReady(true);
-    });
-    return () => { active = false; };
   }, []);
-  if (!videoCacheReady) {
+
+  if (!fontsLoaded) {
     return <GestureHandlerRootView style={{ flex: 1, backgroundColor: nothing.black }}><StatusBar style="light" translucent backgroundColor="transparent" /><View style={{ flex: 1, backgroundColor: nothing.black }} /></GestureHandlerRootView>;
   }
+
   return <GestureHandlerRootView style={{ flex: 1, backgroundColor: nothing.black }}><SafeAreaProvider><AppProviders><StatusBar style="light" translucent backgroundColor="transparent" /><Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: nothing.black } }}><Stack.Screen name="(tabs)" /><Stack.Screen name="anime/[id]" /><Stack.Screen name="watch/[id]" /><Stack.Screen name="search" options={{ presentation: "card" }} /><Stack.Screen name="auth" options={{ presentation: "modal" }} /><Stack.Screen name="settings" options={{ presentation: "modal" }} /><Stack.Screen name="support" options={{ presentation: "modal" }} /><Stack.Screen name="library" /><Stack.Screen name="legal" options={{ presentation: "modal" }} /></Stack><ConnectivitySignal /><AppUpdatePrompt /><SupportPrompt /></AppProviders></SafeAreaProvider></GestureHandlerRootView>;
 }
 

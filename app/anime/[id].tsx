@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import * as WebBrowser from "expo-web-browser";
 import { getAnimeById } from "@/lib/anilist";
 import { getEpisodes } from "@/lib/aniraku-api";
 import { enrichEpisodesWithTmdb } from "@/lib/tmdb-episodes";
@@ -16,6 +17,9 @@ import { useEpisodeRatings } from "@/hooks/use-episode-ratings";
 import { useWatchHistory } from "@/hooks/use-watch-history";
 import { AnimeComments } from "@/components/anime-comments";
 import { ErrorState, LoadingState } from "@/components/async-state";
+import { AppIcon } from "@/components/app-icon";
+import { TrailerPlayer } from "@/components/trailer-player";
+import { AiringSchedule } from "@/components/airing-schedule";
 import { DotLabel, NothingButton, NothingCard, nothing, Signal } from "@/components/nothing-ui";
 import { NativeHeader, NativeScreen } from "@/components/screen";
 
@@ -66,11 +70,14 @@ export default function AnimeDetailScreen() {
   const lastAvailableEpisode = episodeRows.at(-1)?.number ?? Math.max(data.episodes ?? 1, 1);
   const displayedResume = Math.min(resumeEpisode, lastAvailableEpisode);
 
+  const hasTrailer = Boolean(data.trailer?.id && data.trailer?.site === "youtube");
+
   return <NativeScreen>
-    <View style={styles.backdrop}><Image source={{ uri: data.bannerImage || data.coverImage?.extraLarge || data.coverImage?.large || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" /><View style={styles.backdropMask} /></View>
+    {hasTrailer ? <TrailerPlayer videoId={data.trailer!.id!} /> : <View style={styles.backdrop}><Image source={{ uri: data.bannerImage || data.coverImage?.extraLarge || data.coverImage?.large || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" /><View style={styles.backdropMask} /></View>}
     <NativeHeader eyebrow="ANIME" title="Details" />
     <View style={styles.hero}><Image source={{ uri: data.coverImage?.extraLarge || data.coverImage?.large || "" }} style={styles.poster} contentFit="cover" transition={0} cachePolicy="memory-disk" /><View style={styles.titleBlock}><Signal label={data.status || "ANIME"} tone="live" /><Text style={styles.title}>{title}</Text><Text style={styles.meta}>{[data.format, data.episodes ? `${data.episodes} EP` : null, data.averageScore ? `${Math.round(data.averageScore)}% MATCH` : null].filter(Boolean).join(" · ")}</Text></View></View>
-    <View style={styles.actions}><View style={styles.actionCell}><NothingButton label={animeHistory.length ? `Continue episode ${displayedResume}` : "Watch episode 1"} onPress={() => openEpisode(displayedResume)} /></View><Pressable accessibilityRole="button" onPress={() => auth.user ? bookmarks.toggle.mutate(data) : router.push("/auth" as never)} style={({ pressed }) => [styles.bookmark, bookmarks.isBookmarked(id) && styles.bookmarkActive, pressed && styles.pressed]}><Text style={[styles.bookmarkLabel, bookmarks.isBookmarked(id) && styles.bookmarkActiveLabel]}>{bookmarks.isBookmarked(id) ? "SAVED" : "SAVE"}</Text></Pressable></View>
+    <View style={styles.actions}><View style={styles.actionCell}><NothingButton label={animeHistory.length ? `Continue episode ${displayedResume}` : "Watch episode 1"} onPress={() => openEpisode(displayedResume)} /></View><Pressable accessibilityRole="button" onPress={() => auth.user ? bookmarks.toggle.mutate(data) : router.push("/auth" as never)} style={({ pressed }) => [styles.bookmark, bookmarks.isBookmarked(id) && styles.bookmarkActive, pressed && styles.pressed]}><Text style={[styles.bookmarkLabel, bookmarks.isBookmarked(id) && styles.bookmarkActiveLabel]}>{bookmarks.isBookmarked(id) ? "SAVED" : "SAVE"}</Text></Pressable><Pressable accessibilityRole="button" onPress={() => { const deepLink = `aniraku://anime/${id}`; const webUrl = `https://aniraku.tech/anime/${id}`; Share.share({ title, message: `Watch ${title} on Aniraku\n${deepLink}`, url: Platform.OS === "ios" ? deepLink : webUrl }).catch(() => {}); }} style={({ pressed }) => [styles.shareBtn, pressed && styles.pressed]}><AppIcon name="share-variant" size={18} color={nothing.white} /></Pressable></View>
+    <AiringSchedule nextAiringEpisode={data.nextAiringEpisode} totalEpisodes={data.episodes} />
     {animeHistory.length ? <NothingCard style={styles.continueCard}><DotLabel tone="live">CONTINUE WATCHING</DotLabel><Text style={styles.continueText}>Pick up from the furthest episode you completed, or carry on from where you paused.</Text></NothingCard> : null}
     <NothingCard style={styles.summary}><DotLabel>Synopsis</DotLabel><Text style={styles.copy}>{(data.description || "No synopsis is currently available.").replace(/<[^>]+>/g, "")}</Text>{data.genres?.length ? <Text style={styles.genre}>{data.genres.join(" · ")}</Text> : null}</NothingCard>
     {relationGroups.length ? <View style={styles.relationsSection}><View style={styles.relationsHeading}><View><DotLabel>RELATIONSHIPS</DotLabel><Text style={styles.heading}>Explore this universe</Text></View><Text style={styles.count}>{String(relationGroups.reduce((count, group) => count + group.relations.length, 0)).padStart(2, "0")}</Text></View>{relationGroups.map((group) => <View key={group.key} style={styles.relationGroup}><View style={styles.relationGroupHeading}><View style={styles.relationGroupCopy}><Text style={styles.relationGroupTitle}>{group.title}</Text><Text style={styles.relationGroupSubtitle}>{group.subtitle}</Text></View><Text style={styles.relationGroupCount}>{String(group.relations.length).padStart(2, "0")}</Text></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.relationRailContent} accessibilityLabel={`${group.title}: ${group.subtitle}`}>{group.relations.map((relation) => { const relationTitle = animeTitle(relation.anime); const cover = relation.anime.coverImage?.large || relation.anime.coverImage?.extraLarge || ""; return <Pressable key={relation.id} accessibilityRole="button" accessibilityLabel={`Open ${relation.label}: ${relationTitle}`} onPress={() => router.push({ pathname: "/anime/[id]", params: { id: String(relation.id) } } as never)} style={({ pressed }) => pressed && styles.pressed}><NothingCard style={styles.relationTile}><View style={styles.relationPoster}>{cover ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" /> : <Text style={styles.relationPosterFallback}>ANIME</Text>}</View><View style={styles.relationTileBody}><Text style={styles.relationLabel}>{relation.label.toUpperCase()}</Text><Text style={styles.relationTitle} numberOfLines={2}>{relationTitle}</Text><Text style={styles.relationMeta} numberOfLines={1}>{[relation.anime.format, relation.anime.episodes ? `${relation.anime.episodes} EP` : null, relation.anime.status].filter(Boolean).join(" · ") || "OPEN DETAILS"}</Text><Text style={styles.relationOpen}>OPEN ›</Text></View></NothingCard></Pressable>; })}</ScrollView></View>)}</View> : null}
@@ -94,6 +101,9 @@ const styles = StyleSheet.create({
   bookmarkActive: { borderColor: nothing.white, backgroundColor: nothing.white },
   bookmarkLabel: { color: nothing.white, fontFamily: "monospace", fontWeight: "900", fontSize: 10, letterSpacing: 0.8 },
   bookmarkActiveLabel: { color: nothing.black },
+  trailerBtn: { minWidth: 72, minHeight: 50, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.red, borderRadius: 14, backgroundColor: "rgba(255,77,77,0.1)" },
+  trailerBtnText: { color: nothing.red, fontFamily: "monospace", fontWeight: "900", fontSize: 10, letterSpacing: 0.8 },
+  shareBtn: { minWidth: 50, minHeight: 50, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 14, backgroundColor: nothing.surface },
   pressed: { opacity: 0.76, transform: [{ scale: 0.985 }] },
   continueCard: { padding: 16, gap: 7, borderColor: "rgba(150,211,123,0.38)" },
   continueText: { color: nothing.muted, fontSize: 13, lineHeight: 19 },

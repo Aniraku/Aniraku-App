@@ -7,6 +7,7 @@ import { DotLabel, NothingButton, NothingCard, nothing } from "@/components/noth
 import { useComments, type SharedComment } from "@/hooks/use-comments";
 import { useGiphyGifs } from "@/hooks/use-giphy-gifs";
 import { APP_CONFIG } from "@/lib/app-config";
+import { avatarUrl } from "@/lib/aniraku-avatars";
 import { canSubmitSharedComment, commentAuthorLabel } from "@/lib/comment-content";
 import { useAnirakuAuth } from "@/providers/auth-provider";
 
@@ -23,7 +24,7 @@ function elapsedTime(iso: string) {
 }
 
 function CommentAuthor({ comment }: { comment: SharedComment }) {
-  const avatar = comment.author?.avatar_url;
+  const avatar = avatarUrl(comment.author?.avatar_url);
   const name = authorName(comment);
   return <View style={styles.commentAuthor}>{avatar ? <Image source={{ uri: avatar }} style={styles.avatar} /> : <View style={styles.initialAvatar}><Text style={styles.initialAvatarText}>{name.slice(0, 1).toUpperCase()}</Text></View>}<View style={styles.authorCopy}><Text style={styles.authorName} numberOfLines={1}>{name}</Text><Text style={styles.authorMeta}>{comment.episode_number ? `EP ${comment.episode_number} · ` : ""}{elapsedTime(comment.created_at)}</Text></View></View>;
 }

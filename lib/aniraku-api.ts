@@ -17,7 +17,6 @@ async function apiRequest<T>(path: string, init?: RequestInit, timeoutMs: number
   } finally {
     clearTimeout(timeout);
   }
-
   const rawPayload = await response.text();
   let payload: { error?: string; message?: string } & T;
   try {
@@ -31,10 +30,9 @@ async function apiRequest<T>(path: string, init?: RequestInit, timeoutMs: number
   return payload;
 }
 
-export function getPlaybackType(source: StreamSource): "hls" | "dash" | "native" | "embed" {
+export function getPlaybackType(source: StreamSource): "hls" | "dash" | "native" {
   const raw = `${source.type ?? ""} ${source.mime ?? ""}`.toLowerCase();
   const url = source.url.toLowerCase();
-  if (raw.includes("embed") || raw.includes("iframe") || raw.includes("page")) return "embed";
   if (raw.includes("dash") || /\.mpd(?:$|[?#])/.test(url)) return "dash";
   if (raw.includes("hls") || raw.includes("mpegurl") || /\.m3u8(?:$|[?#])/.test(url)) return "hls";
   return "native";
@@ -58,30 +56,27 @@ export function playableSources(sources: StreamSource[]) {
   return sources.filter((source) => source.url && sourceVerification(source) !== "dead" && !hasExpiredEmbeddedToken(source.url));
 }
 
-/**
- * ExoPlayer accepts request headers for direct media, but browser-only or
- * connection-managed headers can make a CDN treat the Android request as an
- * invalid client. Preserve useful headers such as Referer and authorization
- * while allowing the native transport to select its own user agent and
- * connection behavior.
- */
 export function nativePlaybackHeaders(headers?: Record<string, string>) {
   const blocked = /^(user-agent|host|origin|content-length|connection|accept-encoding)$/i;
   const retained = Object.entries(headers ?? {}).filter(([name]) => !blocked.test(name));
   return retained.length ? Object.fromEntries(retained) : undefined;
 }
 
-/** Mirrors Watch.jsx's `${PROXY_BASE}/proxy` URL shape for native media. */
 export function anirakuProxyUrl(url: string, headers?: Record<string, string>) {
   const parameters = new URLSearchParams({ url, rn: `${Date.now()}-${Math.random().toString(36).slice(2)}` });
   if (headers && Object.keys(headers).length) parameters.set("headers", JSON.stringify(headers));
   return `${APP_CONFIG.apiBaseUrl}/api/v1/proxy?${parameters.toString()}`;
 }
 
+export function anirakuDownloadUrl(url: string, headers?: Record<string, string>) {
+  const parameters = new URLSearchParams({ url });
+  if (headers && Object.keys(headers).length) parameters.set("headers", JSON.stringify(headers));
+  return `${APP_CONFIG.apiBaseUrl}/api/v1/download?${parameters.toString()}`;
+}
+
 type BackendSkipSegment = { start?: number; end?: number; startTime?: number; endTime?: number };
 type BackendStreamResponse = Omit<StreamResponse, "intro" | "outro"> & { intro?: BackendSkipSegment; outro?: BackendSkipSegment };
 
-/** Align deployed backend `start`/`end` skip fields with the shared native contract. */
 export function normalizeStreamResponse(payload: BackendStreamResponse): StreamResponse {
   const normalizeSegment = (segment?: BackendSkipSegment) => segment ? {
     startTime: segment.startTime ?? segment.start,
@@ -90,7 +85,6 @@ export function normalizeStreamResponse(payload: BackendStreamResponse): StreamR
   return { ...payload, intro: normalizeSegment(payload.intro), outro: normalizeSegment(payload.outro) };
 }
 
-/** Main Watch.jsx loads this backend payload before falling back to AniList. */
 export async function getAnimeMetadata(animeId: number): Promise<Anime> {
   return apiRequest<Anime>(`/api/v1/anime/${animeId}`);
 }
@@ -113,41 +107,41 @@ export async function getEpisodes(animeId: number): Promise<Episode[]> {
   return normalizeBackendEpisodes(await apiRequest<BackendEpisode[] | { episodes?: BackendEpisode[] }>(`/api/v1/anime/${animeId}/episodes`));
 }
 
-export type BackendServer = Partial<Server> & { name?: string; sources?: StreamSource[] };
+const UNSUPPORTED_PROVIDERS = new Set(["flixcloud"]);
 
-/** Mirrors the website's server-list normalization without hiding a server from a stale resolver verdict. */
-export function normalizeServers(payload: BackendServer[], lang: "sub" | "dub"): Server[] {
-  return (Array.isArray(payload) ? payload : []).filter(Boolean).map((server, index) => {
-    const publicName = server.name || server.label || server.id || server.provider || `source-${index + 1}`;
-    const family = String(server.provider || 'miruro').trim().toLowerCase();
-    const providerKey = family === 'flixcloud' || family === 'niko' || family === 'momo'
-      ? family
-      : (server.name || server.provider || publicName);
-    return {
-      id: server.id || `${lang}:${publicName}`,
-      // `/api/v1/stream` accepts the upstream provider family key (for example
-      // flixcloud), not the individual server name (Yuta/Syota) for providers
-      // that use a single backend handler for multiple servers.
-      provider: providerKey,
-      label: server.label || publicName.toUpperCase(),
-      lang: server.lang || lang,
-      verification: server.verification,
-      type: server.type,
-      ...(server.sources ? { sources: server.sources } : {}),
-      ...((server as { headers?: Record<string, string> }).headers ? { headers: (server as { headers?: Record<string, string> }).headers } : {}),
-    };
-  });
-}
-
+/** Anikoto returns Momo and Niko. Both support direct or proxy. Deduplicates by name and filters unsupported. */
 export async function getServers(animeId: number, episode: number, lang: "sub" | "dub"): Promise<Server[]> {
-  // Source enumeration is deliberately more patient than first-frame startup.
-  // A valid provider can need longer than twelve seconds on the free resolver;
-  // the website leaves that fetch alive and native must not hide it earlier.
-  const payload = await apiRequest<BackendServer[]>(`/api/v1/servers?animeId=${animeId}&episode=${episode}&lang=${lang}`, undefined, 30_000);
-  // Keep parity with the website: server-level verification is a stale
-  // resolver snapshot, not a reason to hide a current provider. Source-level
-  // verification remains enforced when an individual URL is selected.
-  return normalizeServers(payload, lang);
+  try {
+    const payload = await apiRequest<any[]>(`/api/v1/servers?animeId=${animeId}&episode=${episode}&lang=${lang}`, undefined, 30_000);
+    if (Array.isArray(payload) && payload.length > 0) {
+      const seen = new Set<string>();
+      const servers: Server[] = [];
+      for (const server of payload) {
+        const providerName = String(server.provider || "").trim().toLowerCase();
+        const displayName = String(server.name || server.provider || "anikoto").trim().toLowerCase();
+        if (UNSUPPORTED_PROVIDERS.has(providerName) || UNSUPPORTED_PROVIDERS.has(displayName)) continue;
+        const dedupeKey = displayName || providerName;
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        servers.push({
+          id: server.id || `${dedupeKey}:${lang}:${servers.length}`,
+          provider: providerName || dedupeKey,
+          label: String(server.name || server.provider || "ANIKOTO").toUpperCase(),
+          lang: (server.lang || lang) as "sub" | "dub",
+          sources: server.sources,
+          headers: server.headers,
+          downloads: server.downloads,
+          subtitles: server.subtitles,
+        });
+      }
+      if (servers.length > 0) return servers;
+    }
+  } catch {}
+  // Fallback: Momo and Niko
+  return [
+    { id: `momo:${lang}`, provider: "momo", label: "MOMO", lang },
+    { id: `niko:${lang}`, provider: "niko", label: "NIKO", lang },
+  ];
 }
 
 export async function getStream(input: { animeId: number; episode: number; provider: string; lang: "sub" | "dub"; quality?: string; refresh?: boolean }): Promise<StreamResponse> {

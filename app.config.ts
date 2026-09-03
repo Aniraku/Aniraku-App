@@ -13,7 +13,7 @@ const env = {
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
-  version: "4.8.1",
+  version: "4.8.2",
   orientation: "default",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
@@ -34,7 +34,11 @@ const config: ExpoConfig = {
     predictiveBackGestureEnabled: false,
     package: env.androidPackage,
     permissions: ["POST_NOTIFICATIONS", "REQUEST_INSTALL_PACKAGES"],
-    intentFilters: [{ action: "VIEW", autoVerify: true, data: [{ scheme: env.scheme, host: "auth" }], category: ["BROWSABLE", "DEFAULT"] }],
+    intentFilters: [
+      { action: "VIEW", autoVerify: true, data: [{ scheme: env.scheme, host: "auth" }], category: ["BROWSABLE", "DEFAULT"] },
+      { action: "VIEW", data: [{ scheme: env.scheme, host: "anime", pathPattern: ".*" }], category: ["BROWSABLE", "DEFAULT"] },
+      { action: "VIEW", autoVerify: true, data: [{ scheme: "https", host: "aniraku.tech", pathPrefix: "/anime/" }], category: ["BROWSABLE", "DEFAULT"] },
+    ],
   },
   web: { bundler: "metro", output: "static", favicon: "./assets/images/favicon.png" },
   plugins: [
@@ -45,7 +49,7 @@ const config: ExpoConfig = {
     "expo-web-browser",
     ["expo-screen-orientation", { initialOrientation: "DEFAULT" }],
     ["expo-secure-store", { configureAndroidBackup: true }],
-    ["expo-video", { supportsBackgroundPlayback: true, supportsPictureInPicture: true }],
+    ["expo-notifications", { icon: "./assets/images/icon.png", color: "#FF4D4D" }],
     ["expo-splash-screen", { image: "./assets/images/splash-icon.png", imageWidth: 200, resizeMode: "contain", backgroundColor: "#090909", dark: { backgroundColor: "#090909" } }],
     ["expo-build-properties", { android: { buildArchs: ["armeabi-v7a", "arm64-v8a"], minSdkVersion: 28 } }],
   ],

@@ -76,6 +76,7 @@ const fields = `
   id type title { romaji english native } coverImage { large extraLarge color } bannerImage
   description(asHtml: false) genres format status episodes duration averageScore popularity
   season seasonYear isAdult idMal nextAiringEpisode { episode airingAt }
+  trailer { id site thumbnail }
 `;
 
 const detailFields = `${fields}
@@ -87,8 +88,8 @@ const detailFields = `${fields}
   }
 `;
 
-const pageQuery = `query MediaPage($page: Int!, $perPage: Int!, $sort: [MediaSort], $search: String, $status: MediaStatus, $season: MediaSeason, $seasonYear: Int) {
-  Page(page: $page, perPage: $perPage) { pageInfo { currentPage hasNextPage total } media(type: ANIME, isAdult: false, sort: $sort, search: $search, status: $status, season: $season, seasonYear: $seasonYear) { ${fields} } }
+const pageQuery = `query MediaPage($page: Int!, $perPage: Int!, $sort: [MediaSort], $search: String, $status: MediaStatus, $season: MediaSeason, $seasonYear: Int, $genre: String, $format: MediaFormat) {
+  Page(page: $page, perPage: $perPage) { pageInfo { currentPage hasNextPage total } media(type: ANIME, isAdult: false, sort: $sort, search: $search, status: $status, season: $season, seasonYear: $seasonYear, genre: $genre, format: $format) { ${fields} } }
 }`;
 
 const homeQuery = `query Home {
@@ -166,6 +167,8 @@ export async function getAnimePage(options: {
   status?: string;
   season?: string;
   seasonYear?: number;
+  genre?: string;
+  format?: string;
 } = {}): Promise<AnimePage> {
   const data = await request<{ Page: AnimePage }>(pageQuery, {
     page: options.page ?? 1,
@@ -175,6 +178,8 @@ export async function getAnimePage(options: {
     status: options.status,
     season: options.season,
     seasonYear: options.seasonYear,
+    genre: options.genre,
+    format: options.format,
   });
   return data.Page;
 }

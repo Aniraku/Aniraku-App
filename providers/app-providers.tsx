@@ -2,13 +2,13 @@ import { useEffect, useState, type PropsWithChildren } from "react";
 import * as Network from "expo-network";
 import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/providers/auth-provider";
+import { NotificationsProvider } from "@/providers/notifications-provider";
+import { ThemeProvider } from "@/providers/theme-provider";
 
 export function AppProviders({ children }: PropsWithChildren) {
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {
-        // Anime metadata changes slowly; keep it warm between tab switches
-        // without refetching every time a screen remounts.
         staleTime: 5 * 60_000,
         gcTime: 30 * 60_000,
         retry: 1,
@@ -31,5 +31,5 @@ export function AppProviders({ children }: PropsWithChildren) {
     }
     return () => { mounted = false; subscription?.remove(); };
   }, []);
-  return <QueryClientProvider client={queryClient}><AuthProvider>{children}</AuthProvider></QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><AuthProvider><NotificationsProvider><ThemeProvider>{children}</ThemeProvider></NotificationsProvider></AuthProvider></QueryClientProvider>;
 }

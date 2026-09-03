@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View, type GestureResponderEvent, type StyleProp, type ViewStyle } from "react-native";
 import * as Haptics from "expo-haptics";
 import { AppIcon } from "@/components/app-icon";
+import { useTheme, lightColors, darkColors } from "@/providers/theme-provider";
 
 export const nothing = {
   black: "#090909",
@@ -14,6 +15,26 @@ export const nothing = {
   red: "#FF4D4D",
   green: "#96D37B",
 } as const;
+
+export function useThemeColors() {
+  const { isDark } = useTheme();
+  const c = isDark ? darkColors : lightColors;
+  return {
+    black: c.background,
+    background: c.background,
+    surface: c.surface,
+    raised: c.raised,
+    line: c.line,
+    white: c.text,
+    text: c.text,
+    muted: c.muted,
+    dim: c.dim,
+    red: c.accent,
+    green: isDark ? "#96D37B" : "#4CAF50",
+    card: c.card,
+    cardBorder: c.cardBorder,
+  };
+}
 
 export function DotLabel({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "signal" | "live" }) {
   const color = tone === "signal" || tone === "live" ? nothing.red : nothing.muted;

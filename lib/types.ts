@@ -34,6 +34,7 @@ export type Anime = {
   mal_id?: number | null;
   myAnimeListId?: number | null;
   relations?: { edges?: AnimeRelationEdge[] | null } | null;
+  trailer?: { id?: string | null; site?: string | null; thumbnail?: string | null } | null;
 };
 
 export type AnimePage = {
@@ -69,6 +70,8 @@ export type Server = {
   type?: string;
   sources?: StreamSource[];
   headers?: Record<string, string>;
+  downloads?: Array<{ url: string; label?: string }>;
+  subtitles?: Array<{ url: string; label?: string; lang?: string }>;
 };
 
 export type StreamSource = {
