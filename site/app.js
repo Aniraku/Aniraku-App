@@ -99,7 +99,7 @@ function initSupport() {
   const modal = document.getElementById("support-prompt");
   if (!modal) return;
 
-  const trigger = document.querySelector('[href="#support"]');
+  const trigger = document.querySelector('.dock [href="#support"]');
   const closeBtn = modal.querySelector(".modal-close");
   const laterBtn = modal.querySelector(".modal-later");
 
