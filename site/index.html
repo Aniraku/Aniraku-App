@@ -1,772 +1,377 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#080808" />
-    <meta
-      name="description"
-      content="Aniraku is a native Android anime experience with source-aware playback, discovery, relationship-aware Anime Detail, and direct FOSS distribution."
-    />
-    <title>Aniraku — Native Android anime</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="icon" href="./assets/icon.png" />
-    <link rel="stylesheet" href="./app.css" />
-  </head>
-  <body>
-    <a class="skip-link" href="#main">Skip to content</a>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Aniraku</title>
+  <meta name="description" content="Aniraku — Free and open source anime streaming platform with no ads, no tracking.">
+  <meta name="theme-color" content="#0a0a0a">
+  <meta property="og:title" content="Aniraku">
+  <meta property="og:description" content="Free anime streaming. No ads. No tracking.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://aniraku.tech">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='12' fill='%23ef4444'/></svg>">
+  <link rel="stylesheet" href="app.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
 
-    <header class="topbar">
-      <a class="brand" href="#home" aria-label="Aniraku home"
-        ><span class="brand-mark" aria-hidden="true"
-          ><i></i><i></i><i></i><i></i></span
-        ><span>ANIRAKU</span></a
-      >
-      <nav class="desktop-nav" aria-label="Primary navigation">
-        <a href="#screens">SCREENS</a>
-        <a href="#detail">RELATIONS</a>
-        <a href="#watch">WATCH</a>
-        <a href="#install">INSTALL</a>
-        <a href="#support">SUPPORT</a>
-      </nav>
-      <a
-        class="top-download"
-        data-release-apk
-        href="https://github.com/Aniraku/Aniraku-App/releases/download/v4.6/Aniraku-v4.6.apk"
-        target="_blank"
-        rel="noreferrer"
-        ><span></span> GET <b data-release-version>V4.6</b></a
-      >
-    </header>
+<a href="#main" class="skip-link">Skip to main</a>
 
-    <main id="main">
-      <section class="release-ticker" aria-label="Current stable release">
-        <p>
-          <span class="live-dot"></span
-          ><b><span data-release-version>V4.6</span> / STABLE</b
-          ><span
-            >Future releases now stop before provider search, while released
-            titles keep normal source recovery.</span
-          >
-        </p>
-        <a
-          data-release-notes
-          href="https://github.com/Aniraku/Aniraku-App/releases/tag/v4.6"
-          target="_blank"
-          rel="noreferrer"
-          >READ RELEASE NOTES <b>↗</b></a
-        >
-      </section>
+<!-- ═══ NAV ═══ -->
+<nav class="nav">
+  <a href="#" class="nav-brand"><i></i>ANIRAKU</a>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#app">App</a>
+    <a href="#download">Download</a>
+    <a href="#support">Support</a>
+    <a href="#docs">Docs</a>
+  </div>
+  <a href="#download" class="nav-cta">Get App →</a>
+</nav>
 
-      <section class="hero scene" id="home" aria-labelledby="hero-title">
-        <div class="hero-bg" aria-hidden="true">
-          <div class="hero-bg-layer hero-bg-grid"></div>
-          <div class="grid-floor"></div>
-          <div class="orb orb-1"></div>
-          <div class="orb orb-2"></div>
-          <div class="orb orb-3"></div>
-          <div class="cube-scene">
-            <div class="cube cube-1" aria-hidden="true">
-              <div class="cube-face front"></div><div class="cube-face back"></div>
-              <div class="cube-face left"></div><div class="cube-face right"></div>
-              <div class="cube-face top"></div><div class="cube-face bottom"></div>
-            </div>
-            <div class="cube cube-2" aria-hidden="true">
-              <div class="cube-face front"></div><div class="cube-face back"></div>
-              <div class="cube-face left"></div><div class="cube-face right"></div>
-              <div class="cube-face top"></div><div class="cube-face bottom"></div>
-            </div>
-            <div class="cube cube-3" aria-hidden="true">
-              <div class="cube-face front"></div><div class="cube-face back"></div>
-              <div class="cube-face left"></div><div class="cube-face right"></div>
-              <div class="cube-face top"></div><div class="cube-face bottom"></div>
-            </div>
-            <div class="cube cube-4" aria-hidden="true">
-              <div class="cube-face front"></div><div class="cube-face back"></div>
-              <div class="cube-face left"></div><div class="cube-face right"></div>
-              <div class="cube-face top"></div><div class="cube-face bottom"></div>
-            </div>
-          </div>
-        </div>
-        <div class="hero-measure" aria-hidden="true">
-          <span>01</span><i></i><span>ANIRAKU / NATIVE</span>
-        </div>
-        <div class="hero-content">
-          <p class="eyebrow">
-            <span>ANDROID / FOSS / <b data-release-version>V4.6</b></span
-            ><i></i> DIRECT DISTRIBUTION
-          </p>
-          <h1 id="hero-title">Anime that<br /><em>keeps context.</em></h1>
-          <p class="hero-lede">
-            A native Android home for discovery, source-aware playback, your
-            watch history, and the full story around a title—not just the first
-            season.
-          </p>
-          <div class="hero-actions">
-            <a
-              class="button primary"
-              data-release-apk
-              href="https://github.com/Aniraku/Aniraku-App/releases/download/v4.6/Aniraku-v4.6.apk"
-              target="_blank"
-              rel="noreferrer"
-              ><span>DOWNLOAD APK</span><b>↓</b></a
-            >
-            <a
-              class="button secondary"
-              href="https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku"
-              target="_blank"
-              rel="noreferrer"
-              ><span>ORION STORE</span><b>↗</b></a
-            >
-          </div>
-          <p class="hero-whisper">
-            <span>●</span> REAL SCREENS · REAL RELEASE · NO GENERATED UI
-          </p>
-          <dl class="hero-facts">
-            <div>
-              <dt>BUILD</dt>
-              <dd>UNIVERSAL APK</dd>
-            </div>
-            <div>
-              <dt>SUPPORT</dt>
-              <dd>ANDROID 9+</dd>
-            </div>
-            <div>
-              <dt>PACKAGE</dt>
-              <dd>aniraku.anime.app</dd>
-            </div>
-          </dl>
-        </div>
-        <div class="hero-phone-wrap">
-          <figure class="phone-3d" aria-label="Real Aniraku Anime Detail screen">
-            <div class="device-frame">
-              <span class="frame-label">REAL NATIVE CAPTURE</span>
-              <img
-                src="./assets/screens/details-v411-relations.jpg"
-                alt="Real Aniraku Anime Detail screen showing Attack on Titan, Continue episode, Synopsis, Relationships and episode selection"
-              />
-            </div>
-            <figcaption>
-              <span>CURRENT / DETAILS</span><b>RELATIONSHIP-AWARE</b>
-            </figcaption>
-          </figure>
-        </div>
-      </section>
+<!-- ═══ HERO ═══ -->
+<section class="hero" id="top">
+  <div class="hero-eyebrow"><i></i> <b>V5</b> — STABLE RELEASE</div>
+  <h1>Anime,<br><span>without</span><br><em>the noise.</em></h1>
+  <p class="hero-sub">Aniraku is a free, open-source anime platform. No ads. No tracking. Just you and the shows you love.</p>
+  <div class="hero-actions">
+    <a href="#download" class="btn btn-primary">Download APK</a>
+    <a href="#features" class="btn btn-outline">Explore Features</a>
+  </div>
+  <div class="hero-stats">
+    <dl class="hero-stat"><dt>Version</dt><dd id="hero-version">V5</dd></dl>
+    <dl class="hero-stat"><dt>APK Size</dt><dd>~80 MB</dd></dl>
+    <dl class="hero-stat"><dt>Min Android</dt><dd>9.0+</dd></dl>
+    <dl class="hero-stat"><dt>Architecture</dt><dd>Universal</dd></dl>
+  </div>
 
-      <section class="proof-strip" aria-label="Aniraku product identifiers">
-        <div><span>01 / BUILT AS</span><b>NATIVE EXPO + REACT NATIVE</b></div>
-        <div>
-          <span>02 / PLAYBACK</span><b>DIRECT → PROXY → VERIFIED EMBED</b>
-        </div>
-        <div>
-          <span>03 / DETAIL</span><b>RELATIONSHIPS + EPISODE CONTEXT</b>
-        </div>
-        <div><span>04 / DISTRIBUTION</span><b>FOSS / GITHUB / ORION</b></div>
-      </section>
-
-      <section
-        class="screens section"
-        id="screens"
-        aria-labelledby="screens-title"
-      >
-        <div class="section-head gallery-head">
-          <div>
-            <p class="eyebrow">
-              <span>02 / REAL INTERFACE</span><i></i> SCREEN MAP
-            </p>
-            <h2 id="screens-title">Every screen,<br /><em>explained.</em></h2>
-          </div>
-          <div class="head-copy">
-            <p>
-              These are real Android captures, not generated mockups. Each panel
-              carries a compact UI map so you can see both the screen and the
-              job of every important element.
-            </p>
-            <span>8 CAPTURED FLOWS / 1 NATIVE SYSTEM</span>
-          </div>
-        </div>
-
-        <div class="screen-grid">
-          <article class="screen-card home-card">
-            <div class="screen-top">
-              <span>01</span><b>HOME</b><i>START DISCOVERING</i>
-            </div>
-            <div class="shot">
-              <img
-                src="./assets/screens/home-feature.jpg"
-                alt="Aniraku Home screen showing a featured title, compact metadata, search and native dock"
-              /><span class="shot-stamp">HOME / FEATURED</span>
-            </div>
-            <p class="screen-description">
-              An editorial starting point that gives one title room to breathe
-              before discovery expands.
-            </p>
-            <ul class="ui-map" aria-label="Home screen elements">
-              <li>ANIRAKU eyebrow</li>
-              <li>Featured artwork</li>
-              <li>Match metadata</li>
-              <li>Search action</li>
-              <li>Native dock</li>
-            </ul>
-          </article>
-
-          <article class="screen-card catalog-card">
-            <div class="screen-top">
-              <span>02</span><b>CATALOG</b><i>BROWSE + SEARCH</i>
-            </div>
-            <div class="shot">
-              <img
-                src="./assets/screens/catalog-explore.jpg"
-                alt="Aniraku Catalog showing search, Popular Trending Newest tabs and poster grid"
-                loading="lazy"
-              /><span class="shot-stamp">EXPLORE / CATALOG</span>
-            </div>
-            <p class="screen-description">
-              Search and browse live in the same calm surface, with clear
-              filters and readable poster metadata.
-            </p>
-            <ul class="ui-map" aria-label="Catalog screen elements">
-              <li>Search field</li>
-              <li>Popular tabs</li>
-              <li>Poster grid</li>
-              <li>Score metadata</li>
-              <li>Catalog dock state</li>
-            </ul>
-          </article>
-
-          <article class="screen-card schedule-card">
-            <div class="screen-top">
-              <span>03</span><b>SCHEDULE</b><i>WHAT IS NEXT</i>
-            </div>
-            <div class="shot">
-              <img
-                src="./assets/screens/schedule.jpg"
-                alt="Aniraku Schedule showing an upcoming episode timeline by local release time"
-                loading="lazy"
-              /><span class="shot-stamp">SCHEDULE / TIMELINE</span>
-            </div>
-            <p class="screen-description">
-              A date-led release timeline for the episodes that are about to
-              arrive in your local time.
-            </p>
-            <ul class="ui-map" aria-label="Schedule screen elements">
-              <li>Local-time note</li>
-              <li>Day header</li>
-              <li>Time rail</li>
-              <li>Episode rows</li>
-              <li>Schedule dock state</li>
-            </ul>
-          </article>
-
-          <article class="screen-card random-card">
-            <div class="screen-top">
-              <span>04</span><b>SURPRISE ME</b><i>PICK FOR ME</i>
-            </div>
-            <div class="shot">
-              <img
-                src="./assets/screens/random-pick.jpg"
-                alt="Aniraku Surprise Me screen recommending an anime with View Anime and Pick Another actions"
-                loading="lazy"
-              /><span class="shot-stamp">RANDOM / DECIDE</span>
-            </div>
-            <p class="screen-description">
-              One deliberate recommendation when an endless grid is not the
-              decision you want to make.
-            </p>
-            <ul class="ui-map" aria-label="Random screen elements">
-              <li>Artwork hero</li>
-              <li>Match status</li>
-              <li>Genre line</li>
-              <li>View Anime action</li>
-              <li>Pick Another</li>
-            </ul>
-          </article>
-
-          <article class="screen-card profile-card">
-            <div class="screen-top">
-              <span>05</span><b>PROFILE</b><i>YOUR SPACE</i>
-            </div>
-            <div class="shot">
-              <img
-                src="./assets/screens/profile-space.jpg"
-                alt="Aniraku Profile showing account identity, avatar controls, Library and Settings"
-                loading="lazy"
-              /><span class="shot-stamp">PROFILE / LIBRARY</span>
-            </div>
-            <p class="screen-description">
-              Your identity, avatar, library, playback settings, and sync
-              confidence stay together.
-            </p>
-            <ul class="ui-map" aria-label="Profile screen elements">
-              <li>Account card</li>
-              <li>Avatar selector</li>
-              <li>Library panel</li>
-              <li>Settings panel</li>
-              <li>Sync status</li>
-            </ul>
-          </article>
-
-          <article class="screen-card watch-card">
-            <div class="screen-top">
-              <span>06</span><b>WATCH</b><i>PLAY + CHOOSE</i>
-            </div>
-            <div class="shot">
-              <img
-                src="./assets/screens/watch-player.jpg"
-                alt="Aniraku Watch player with provider rail, controls, Skip Intro and episode browser"
-                loading="lazy"
-              /><span class="shot-stamp">WATCH / MEDIA PLANE</span>
-            </div>
-            <p class="screen-description">
-              Playback controls are native, source-aware, and paired with an
-              episode browser that respects large series.
-            </p>
-            <ul class="ui-map" aria-label="Watch screen elements">
-              <li>Provider rail</li>
-              <li>10-second controls</li>
-              <li>Skip Intro</li>
-              <li>Player settings</li>
-              <li>Paged episodes</li>
-            </ul>
-          </article>
-        </div>
-        <div class="screen-rail" aria-label="Real-interface inventory">
-          <span><b>REAL CAPTURES</b> 08</span><span><b>UI MAPS</b> 40+</span
-          ><span><b>NATIVE FLOWS</b> DISCOVER → WATCH → RETURN</span
-          ><span><b>DETAILS</b> RELATIONSHIP-AWARE</span>
-        </div>
-      </section>
-
-      <section
-        class="detail-case section"
-        id="detail"
-        aria-labelledby="detail-title"
-      >
-        <div class="detail-visual">
-          <figure class="detail-phone phone-3d">
-            <div class="device-frame">
-              <img
-                src="./assets/screens/details-v411-relations.jpg"
-                alt="Aniraku Attack on Titan Details screen with continuation, synopsis, relationship cards and episode picker"
-                loading="lazy"
-              />
-            </div>
-            <figcaption>
-              <span>SCREEN 07 / DETAILS</span><b>CURRENT</b>
-            </figcaption>
-          </figure>
-          <div class="detail-ruler" aria-hidden="true">
-            <span>RELATIONS</span><i></i><span>EPISODES</span>
-          </div>
-        </div>
-        <div class="detail-copy">
-          <p class="eyebrow">
-            <span>03 / ANIME DETAIL</span><i></i> CONTEXT, NOT CLUTTER
-          </p>
-          <h2 id="detail-title">
-            See the title.<br /><em>Then the story.</em>
-          </h2>
-          <p>
-            Anime Detail keeps the immediate decision close—continue, save,
-            read, or choose an episode—then opens the connected story below it.
-            Relationships stay linked while Watch keeps context through a fresh
-            source start and recovery.
-          </p>
-          <ol class="detail-stack">
-            <li>
-              <span>01</span>
-              <div>
-                <b>Title signal</b>
-                <p>
-                  Artwork, status, type, episode count, and match percentage
-                  establish the title at a glance.
-                </p>
-              </div>
-            </li>
-            <li>
-              <span>02</span>
-              <div>
-                <b>Next action</b>
-                <p>
-                  Continue the furthest completed episode, save the title, or
-                  start a specific episode.
-                </p>
-              </div>
-            </li>
-            <li>
-              <span>03</span>
-              <div>
-                <b>Story connections</b>
-                <p>
-                  Prequels, sequels, OVAs, movies, specials, spin-offs, and
-                  related titles appear as linked native cards.
-                </p>
-              </div>
-            </li>
-            <li>
-              <span>04</span>
-              <div>
-                <b>Episode context</b>
-                <p>
-                  Large titles remain paged, with progress and rating available
-                  on individual rows.
-                </p>
-              </div>
-            </li>
-          </ol>
-          <div class="detail-tags" aria-label="Relationships supported">
-            <span>PREQUEL</span><span>SEQUEL</span><span>OVA</span
-            ><span>MOVIE</span><span>SPECIAL</span>
-          </div>
-        </div>
-      </section>
-
-      <section
-        class="watch-section section"
-        id="watch"
-        aria-labelledby="watch-title"
-      >
-        <div class="watch-copy">
-          <p class="eyebrow"><span>04 / WATCH</span><i></i> THE MEDIA PLANE</p>
-          <h2 id="watch-title">A player that<br /><em>stays oriented.</em></h2>
-          <p>
-            Source discovery can take time. Aniraku preserves episode context
-            while a playable route resolves, then puts the controls that matter
-            inside the player without covering the episode flow.
-          </p>
-          <div class="watch-notes">
-            <p>
-              <b>HEADPHONES</b
-              ><span>Audio and provider choices, including SUB and DUB.</span>
-            </p>
-            <p>
-              <b>SETTINGS</b
-              ><span>Quality, Auto Next, Auto Skip, and playback speed.</span>
-            </p>
-            <p>
-              <b>EPISODES</b
-              ><span
-                >Search, direct jumps, paging, and current-episode context for
-                long-running titles.</span
-              >
-            </p>
-            <p>
-              <b>RECOVERY</b
-              ><span
-                >A longer time-priority reserve and device-aware cache support
-                smoother rebuffer recovery.</span
-              >
-            </p>
-          </div>
-          <p class="watch-pulse">
-            <i></i> PLAYER CONTEXT STAYS WITH THE EPISODE
-          </p>
-        </div>
-        <figure class="watch-frame">
-          <div class="phone-3d">
-            <div class="device-frame">
-              <img
-                src="./assets/screens/watch-player.jpg"
-                alt="Real Aniraku Watch player with headphones, fullscreen, settings and episode controls"
-                loading="lazy"
-              />
-            </div>
-          </div>
-          <figcaption>
-            <span>SCREEN 08 / WATCH</span><b>SUB / ALLY · HLS</b>
-          </figcaption>
-        </figure>
-      </section>
-
-      <section
-        class="install section"
-        id="install"
-        aria-labelledby="install-title"
-      >
-        <div class="install-copy">
-          <p class="eyebrow">
-            <span>05 / INSTALL</span><i></i> <b data-release-version>V4.6</b>
-          </p>
-          <h2 id="install-title">One APK.<br /><em>One clean start.</em></h2>
-          <p>
-            Download the current stable universal build directly from GitHub
-            Releases or use Orion Store. The package supports Android 9 and
-            newer on both 32-bit and 64-bit ARM devices.
-          </p>
-          <div class="hero-actions">
-            <a
-              class="button dark"
-              data-release-apk
-              href="https://github.com/Aniraku/Aniraku-App/releases/download/v4.6/Aniraku-v4.6.apk"
-              target="_blank"
-              rel="noreferrer"
-              ><span>GET ANIRAKU <b data-release-version>V4.6</b></span
-              ><b>↓</b></a
-            ><a
-              class="button outline"
-              href="https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku"
-              target="_blank"
-              rel="noreferrer"
-              ><span>OPEN ORION STORE</span><b>↗</b></a
-            >
-          </div>
-          <div class="install-seal">
-            <span>OFFICIAL ROUTES</span><b>GITHUB RELEASES / ORION STORE</b>
-          </div>
-        </div>
-        <aside class="install-checklist">
-          <div class="checklist-top">
-            <span>INSTALL PROTOCOL</span><b>4 STEPS</b>
-          </div>
-          <ol>
-            <li>
-              <b>01</b>
-              <p>
-                Download
-                <strong data-release-apk-name>Aniraku-v4.6.apk</strong>.
-              </p>
-            </li>
-            <li>
-              <b>02</b>
-              <p>
-                Allow your browser or file manager to install this source when
-                Android asks.
-              </p>
-            </li>
-            <li>
-              <b>03</b>
-              <p>
-                Install and open Aniraku. Browse as a guest or sign in for
-                library sync.
-              </p>
-            </li>
-            <li class="migration">
-              <b>!</b>
-              <p>
-                Using an old alpha? Uninstall
-                <code>aniraku.anine.app</code> first. Stable Aniraku uses
-                <code>aniraku.anime.app</code>.
-              </p>
-            </li>
-          </ol>
-          <button
-            class="copy-package"
-            type="button"
-            data-copy="aniraku.anime.app"
-          >
-            COPY PACKAGE ID <b>⧉</b>
-          </button>
-          <p class="copy-feedback" aria-live="polite"></p>
-        </aside>
-      </section>
-
-      <section class="support section" id="support" aria-labelledby="support-title">
-        <div class="support-copy">
-          <p class="eyebrow"><span>06 / COMMUNITY SUPPORT</span><i></i> OPTIONAL</p>
-          <h2 id="support-title">Keep Aniraku<br /><em>moving.</em></h2>
-          <p>
-            If Aniraku has helped you find something to watch, voluntary support
-            helps fund hosting, releases, and open-source development. Choose the
-            method that works for you—support never changes access to features.
-          </p>
-          <a class="button primary" href="https://patreon.com/ShoIslam" target="_blank" rel="noreferrer"><span>SUPPORT ON PATREON</span><b>↗</b></a>
-        </div>
-        <aside class="support-crypto" aria-label="Optional USDT BEP20 support">
-          <div class="support-crypto-top"><span>CRYPTO / OPTIONAL</span><b>USDT · BEP20</b></div>
-          <div class="support-crypto-body">
-            <img src="./assets/usdt-bep20-support-qr.png" alt="USDT BNB Smart Chain payment QR code" loading="lazy" />
-            <div>
-              <p><b>NETWORK</b><span>BNB SMART CHAIN (BEP20)</span></p>
-              <p><b>ASSET</b><span>USDT</span></p>
-              <code>0x0dc085fc880f2f67b4e200f125bc0de352da904e</code>
-              <button class="copy-support" type="button" data-copy-support="0x0dc085fc880f2f67b4e200f125bc0de352da904e">COPY ADDRESS <b>⧉</b></button>
-              <p class="support-copy-feedback" aria-live="polite"></p>
-            </div>
-          </div>
-          <p class="support-warning">SEND USDT ON BNB SMART CHAIN (BEP20) ONLY. VERIFY THE NETWORK BEFORE SENDING.</p>
-        </aside>
-      </section>
-
-      <section class="release-archive section" id="releases" aria-labelledby="releases-title">
-        <div class="section-head">
-          <div>
-            <p class="eyebrow">
-              <span>07 / RELEASE ARCHIVE</span><i></i> VERSION HISTORY
-            </p>
-            <h2 id="releases-title">Every release,<br /><em>documented.</em></h2>
-          </div>
-          <div class="head-copy">
-            <p>
-              Every stable release with its notes, download link, and date.
-              Auto-updated from GitHub Releases.
-            </p>
-            <span id="release-count">LOADING RELEASES...</span>
-          </div>
-        </div>
-        <div class="release-list" id="release-list">
-          <div class="release-loading">
-            <div class="spinner"></div>
-            <p>FETCHING RELEASES FROM GITHUB...</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="docs section" id="docs" aria-labelledby="docs-title">
-        <div class="section-head">
-          <div>
-            <p class="eyebrow">
-              <span>08 / DOCUMENTATION</span><i></i> USEFUL DETAILS
-            </p>
-            <h2 id="docs-title">Everything needed<br /><em>to begin.</em></h2>
-          </div>
-          <p>
-            Direct release notes, source, installation guidance, privacy terms,
-            and a safe place to report an issue.
-          </p>
-        </div>
-        <div class="docs-grid">
-          <a
-            data-release-notes
-            href="https://github.com/Aniraku/Aniraku-App/releases/tag/v4.6"
-            target="_blank"
-            rel="noreferrer"
-            ><span>01</span
-            ><b><span data-release-version>V4.6</span> RELEASE NOTES</b
-            ><i>↗</i></a
-          >
-          <a
-            href="https://github.com/Aniraku/Aniraku-App"
-            target="_blank"
-            rel="noreferrer"
-            ><span>02</span><b>OPEN SOURCE</b><i>↗</i></a
-          >
-          <a
-            href="https://github.com/Aniraku/Aniraku-App/blob/main/README.md"
-            target="_blank"
-            rel="noreferrer"
-            ><span>03</span><b>INSTALLATION GUIDE</b><i>↗</i></a
-          >
-          <a
-            href="https://github.com/Aniraku/Aniraku-App/blob/main/PRIVACY.md"
-            target="_blank"
-            rel="noreferrer"
-            ><span>04</span><b>PRIVACY</b><i>↗</i></a
-          >
-          <a
-            href="https://github.com/Aniraku/Aniraku-App/blob/main/SECURITY.md"
-            target="_blank"
-            rel="noreferrer"
-            ><span>05</span><b>SECURITY POLICY</b><i>↗</i></a
-          >
-          <a
-            href="https://github.com/Aniraku/Aniraku-App/blob/main/TERMS.md"
-            target="_blank"
-            rel="noreferrer"
-            ><span>06</span><b>TERMS</b><i>↗</i></a
-          >
-          <a
-            href="https://github.com/Aniraku/Aniraku-App/issues"
-            target="_blank"
-            rel="noreferrer"
-            ><span>07</span><b>REPORT AN ISSUE</b><i>↗</i></a
-          >
-        </div>
-        <div class="faq-list">
-          <details class="faq-item" open>
-            <summary>
-              <span>QUESTION 01</span
-              ><b>Why can a source take time to appear?</b><i>−</i>
-            </summary>
-            <p>
-              Source availability comes from third-party providers and the
-              backend runs on a free cloud instance. If discovery is slow, wait
-              briefly, choose another listed provider, or use a lower available
-              quality.
-            </p>
-          </details>
-          <details class="faq-item">
-            <summary>
-              <span>QUESTION 02</span><b>What changed in the current release?</b
-              ><i>+</i>
-            </summary>
-            <p>
-              Comments now sit below the complete episode selector, keeping
-              episode choice and discussion in a clear order. The build retains
-              real episode-list recovery and compact relationship rails without
-              changing provider discovery or playback transport.
-            </p>
-          </details>
-          <details class="faq-item">
-            <summary>
-              <span>QUESTION 03</span><b>Can I install over an old alpha?</b
-              ><i>+</i>
-            </summary>
-            <p>
-              Only if the package is the same. Older builds using
-              <code>aniraku.anine.app</code> must be uninstalled first because
-              stable Aniraku uses <code>aniraku.anime.app</code>.
-            </p>
-          </details>
-          <details class="faq-item">
-            <summary>
-              <span>QUESTION 04</span><b>How can I install Aniraku safely?</b
-              ><i>+</i>
-            </summary>
-            <p>
-              Use the official GitHub Release download on this page or Orion
-              Store, then confirm the Android installer names the package
-              <code>aniraku.anime.app</code>. Do not install APKs shared through
-              unknown mirrors. Review the published
-              <a
-                href="https://github.com/Aniraku/Aniraku-App/blob/main/SECURITY.md"
-                target="_blank"
-                rel="noreferrer"
-                >Security Policy</a
-              >
-              to report a vulnerability responsibly.
-            </p>
-          </details>
-        </div>
-      </section>
-    </main>
-
-    <footer>
-      <span class="brand"
-        ><span class="brand-mark" aria-hidden="true"
-          ><i></i><i></i><i></i><i></i
-        ></span>
-        ANIRAKU</span
-      >
-      <p>OPEN SOURCE / COMMUNITY FUNDED</p>
-      <a href="#support">SUPPORT ANIRAKU</a>
-      <a href="#home">BACK TO TOP ↑</a>
-    </footer>
-    <nav class="mobile-dock" aria-label="Mobile section navigation">
-      <a class="is-active" href="#home"><span>⌂</span>HOME</a
-      ><a href="#screens"><span>▦</span>SCREENS</a
-      ><a href="#detail"><span>◫</span>DETAIL</a
-      ><a href="#install"><span>↓</span>INSTALL</a>
-    </nav>
-    <div class="support-prompt" data-support-prompt hidden>
-      <section class="support-sheet" role="dialog" aria-modal="true" aria-labelledby="support-prompt-title" aria-describedby="support-prompt-copy">
-        <div class="support-top"><span class="support-signal" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>ANIRAKU / COMMUNITY SUPPORT</span><button class="support-close" type="button" data-dismiss-support aria-label="Dismiss support prompt">×</button></div>
-        <div class="support-mark" aria-hidden="true">♥</div>
-        <h2 id="support-prompt-title">Keep Aniraku<br /><em>moving.</em></h2>
-        <p id="support-prompt-copy">If Aniraku has helped you find something to watch, voluntary support funds hosting, releases, and open-source development.</p>
-        <a class="button primary" href="https://patreon.com/ShoIslam" target="_blank" rel="noreferrer" data-dismiss-support><span>SUPPORT ON PATREON</span><b>↗</b></a>
-        <aside class="support-crypto" aria-label="Optional USDT BEP20 support">
-          <div class="support-crypto-top"><span>CRYPTO / OPTIONAL</span><b>USDT · BEP20</b></div>
-          <div class="support-crypto-body"><img src="./assets/usdt-bep20-support-qr.png" alt="USDT BNB Smart Chain payment QR code" /><div><p><b>NETWORK</b><span>BNB SMART CHAIN (BEP20)</span></p><code>0x0dc085fc880f2f67b4e200f125bc0de352da904e</code><button class="copy-support" type="button" data-copy-support="0x0dc085fc880f2f67b4e200f125bc0de352da904e">COPY ADDRESS <b>⧉</b></button><p class="support-copy-feedback" aria-live="polite"></p></div></div>
-          <p class="support-warning">SEND USDT ON BNB SMART CHAIN (BEP20) ONLY. VERIFY THE NETWORK BEFORE SENDING.</p>
-        </aside>
-        <button class="support-later" type="button" data-dismiss-support>NOT NOW · ASK AGAIN IN 7 DAYS</button>
-      </section>
+  <div class="hero-visual">
+    <div class="phone">
+      <img src="assets/screen.png" alt="Aniraku app on Android" loading="eager">
+      <span class="phone-label">ANIRAKU V5</span>
     </div>
-    <script src="./app.js"></script>
-  </body>
+  </div>
+</section>
+
+<!-- ═══ FEATURES ═══ -->
+<section class="features reveal" id="features">
+  <div class="feature">
+    <div class="feature-num">01</div>
+    <div class="feature-title">Zero Tracking</div>
+    <div class="feature-desc">No analytics, no telemetry. Your viewing habits stay on your device, not on our servers.</div>
+  </div>
+  <div class="feature">
+    <div class="feature-num">02</div>
+    <div class="feature-title">No Ads</div>
+    <div class="feature-desc">No pre-rolls, no mid-rolls, no banners. Just uninterrupted anime from start to finish.</div>
+  </div>
+  <div class="feature">
+    <div class="feature-num">03</div>
+    <div class="feature-title">Multi-Source</div>
+    <div class="feature-desc">Stream from Momo and Niko providers with automatic fallback if one goes down.</div>
+  </div>
+  <div class="feature">
+    <div class="feature-num">04</div>
+    <div class="feature-title">Fully Open</div>
+    <div class="feature-desc">Every line of code is auditable. Fork it, contribute, or just use it as-is.</div>
+  </div>
+</section>
+
+<!-- ═══ APP SCREENS ═══ -->
+<section class="section" id="app">
+  <div class="section-label"><i></i>THE APP</div>
+  <h2 class="section-title">Built <span>for you.</span></h2>
+  <p class="section-desc">Aniraku is designed to disappear — your content takes center stage, not the interface.</p>
+
+  <div class="screen-grid reveal">
+    <div class="screen-card">
+      <div class="screen-num">01</div>
+      <div class="screen-name">Home</div>
+      <div class="screen-tag">DISCOVER</div>
+      <img src="assets/screen.png" alt="Home screen" loading="lazy">
+      <div class="screen-desc">Continue Watching rail picks up exactly where you left off. Trending titles surface what's hot.</div>
+      <div class="screen-tags"><span>Continue Watching</span><span>Trending</span><span>Upcoming</span></div>
+    </div>
+    <div class="screen-card">
+      <div class="screen-num">02</div>
+      <div class="screen-name">Catalog</div>
+      <div class="screen-tag">SEARCH</div>
+      <img src="assets/screen.png" alt="Catalog screen" loading="lazy">
+      <div class="screen-desc">Filter by genre, status, format, season, and year. Every combination surfaces exactly what you want.</div>
+      <div class="screen-tags"><span>Advanced Filters</span><span>Genre</span><span>Status</span></div>
+    </div>
+    <div class="screen-card">
+      <div class="screen-num">03</div>
+      <div class="screen-name">Detail</div>
+      <div class="screen-tag">DEEP DIVE</div>
+      <img src="assets/screen.png" alt="Detail screen" loading="lazy">
+      <div class="screen-desc">Auto-playing trailers. Airing schedules. Share via deep link. Everything about an anime in one place.</div>
+      <div class="screen-tags"><span>Trailer</span><span>Schedule</span><span>Share</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ DETAIL DEEP DIVE ═══ -->
+<section class="section">
+  <div class="detail-grid reveal">
+    <div>
+      <div class="section-label"><i></i>ANIME DETAIL</div>
+      <h2 class="section-title">Every detail,<br><span>at a glance.</span></h2>
+      <p class="section-desc">Tap any anime to get the full picture — synopsis, genres, ratings, next episode timer, and shareable links.</p>
+      <div class="detail-tags">
+        <span>YouTube Trailer</span>
+        <span>Deep Link Sharing</span>
+        <span>Airing Schedule</span>
+        <span>Episode Countdown</span>
+      </div>
+    </div>
+    <div class="detail-list">
+      <li>
+        <span>01</span>
+        <div>
+          <b>Auto-Play Trailer</b>
+          <p>YouTube trailers play automatically on detail pages. Trailer ID sourced from AniList.</p>
+        </div>
+      </li>
+      <li>
+        <span>02</span>
+        <div>
+          <b>Share Anywhere</b>
+          <p>Share via <code>aniraku://anime/{id}</code> deep link or web fallback.</p>
+        </div>
+      </li>
+      <li>
+        <span>03</span>
+        <div>
+          <b>Airing Countdown</b>
+          <p>See exactly when the next episode drops, live-updating every second.</p>
+        </div>
+      </li>
+      <li>
+        <span>04</span>
+        <div>
+          <b>Genre Tags</b>
+          <p>All genres rendered as tappable tags linking to catalog filtered views.</p>
+        </div>
+      </li>
+      <li>
+        <span>05</span>
+        <div>
+          <b>Progress Tracking</b>
+          <p>Continue Watching tracks episode progress so you never lose your place.</p>
+        </div>
+      </li>
+      <li>
+        <span>06</span>
+        <div>
+          <b>Legal Info</b>
+          <p>Built-in privacy policy, terms of service, DMCA, and OSS licenses.</p>
+        </div>
+      </li>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ WATCH EXPERIENCE ═══ -->
+<section class="section">
+  <div class="watch-grid reveal">
+    <div>
+      <div class="section-label"><i></i>WATCH</div>
+      <h2 class="section-title">Watch<br><span>your way.</span></h2>
+      <p class="section-desc">Full gesture controls, custom subtitles, PiP, multi-source — the player adapts to you, not the other way around.</p>
+      <div class="detail-tags">
+        <span>Gesture Controls</span>
+        <span>Picture-in-Picture</span>
+        <span>Custom Subtitles</span>
+        <span>Sleep Timer</span>
+      </div>
+    </div>
+    <div class="watch-notes">
+      <div class="watch-note">
+        <b>01</b> <p>Tap left side to go back 10s, right side to go forward 10s. Ripple feedback on every tap.</p>
+      </div>
+      <div class="watch-note">
+        <b>02</b> <p>Swipe left/right on the seek bar to scrub. Vertical swipe adjusts volume or brightness.</p>
+      </div>
+      <div class="watch-note">
+        <b>03</b> <p>Custom subtitles with 4 fonts (Caveat, HennyPenny, System), custom colors, size, stroke, and background.</p>
+      </div>
+      <div class="watch-note">
+        <b>04</b> <p>Multi-source with automatic fallback. Direct URL tried first, proxy fallback, then provider switch.</p>
+      </div>
+      <div class="watch-note">
+        <b>05</b> <p>Sleep timer with 6 presets (15 min — 2 hours). Fires once, no duplicate alerts.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ DOWNLOAD ═══ -->
+<section class="section" id="download">
+  <div class="section-label"><i></i>GET STARTED</div>
+  <h2 class="section-title">Install <span>Aniraku.</span></h2>
+  <p class="section-desc">One APK. No Play Store. No sign-up. Download, install, watch.</p>
+
+  <div class="install-grid reveal">
+    <div>
+      <div class="install-box">
+        <div class="install-box-header">
+          <span>INSTALL</span>
+          <b>ANDROID 9.0+</b>
+        </div>
+        <ol class="install-steps">
+          <li><b>01</b> <p><strong>Download the APK</strong> — Tap the button above or below to download the latest release.</p></li>
+          <li><b>02</b> <p><strong>Allow unknown sources</strong> — Go to Settings → Security → enable "Install unknown apps".</p></li>
+          <li><b>03</b> <p><strong>Install</strong> — Open the downloaded APK and follow the prompts.</p></li>
+          <li><b>04</b> <p><strong>Open & watch</strong> — Launch Aniraku and start watching immediately.</p></li>
+        </ol>
+        <div class="warn"><p>On some devices you may need to revoke permission after install to re-enable Play Protect.</p></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="install-box">
+        <div class="install-box-header">
+          <span>RELEASES</span>
+          <b id="install-latest">LATEST</b>
+        </div>
+        <div id="release-list" class="release-list">
+          <div class="release-loading"><div class="spinner"></div><div>Loading releases…</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ SUPPORT ═══ -->
+<section class="section" id="support">
+  <div class="section-label"><i></i>SUPPORT</div>
+  <h2 class="section-title">Need <span>help?</span></h2>
+  <p class="section-desc">Something broken? Reach out — we respond to every report.</p>
+
+  <div class="support-grid reveal">
+    <div class="support-box">
+      <div class="support-box-top"><span>SUPPORT</span><b>GITHUB ISSUES</b></div>
+      <p>Report bugs, request features, or check known issues.</p>
+      <code>github.com/Aniraku/Aniraku-App/issues</code>
+    </div>
+    <div class="support-box">
+      <div class="support-box-top"><span>SUPPORT</span><b>EMAIL</b></div>
+      <p>For DMCA requests, privacy concerns, or direct contact.</p>
+      <code>support@aniraku.tech</code>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ DOCUMENTATION ═══ -->
+<section class="section" id="docs">
+  <div class="section-label"><i></i>DOCUMENTATION</div>
+  <h2 class="section-title">Read the <span>docs.</span></h2>
+  <p class="section-desc">Everything you need to know, explained clearly.</p>
+
+  <div class="docs-grid reveal">
+    <a href="https://docs.aniraku.tech" class="docs-link"><span>01</span> Getting Started <i>→</i></a>
+    <a href="https://docs.aniraku.tech/privacy" class="docs-link"><span>02</span> Privacy Policy <i>→</i></a>
+    <a href="https://docs.aniraku.tech/terms" class="docs-link"><span>03</span> Terms of Service <i>→</i></a>
+    <a href="https://docs.aniraku.tech/dmca" class="docs-link"><span>04</span> DMCA <i>→</i></a>
+    <a href="https://github.com/Aniraku/Aniraku-App" class="docs-link"><span>05</span> Source Code <i>→</i></a>
+    <a href="https://github.com/Aniraku/Aniraku-App/blob/main/AGENTS.md" class="docs-link"><span>06</span> Contributing <i>→</i></a>
+  </div>
+
+  <div class="faq reveal">
+    <details class="faq-item">
+      <summary>
+        <span>01</span>
+        <b>Is this app completely free?</b>
+        <i>+</i>
+      </summary>
+      <p>Yes, Aniraku is fully free and open source with no hidden paywalls, subscriptions, or in-app purchases.</p>
+    </details>
+    <details class="faq-item">
+      <summary>
+        <span>02</span>
+        <b>Do I need an account?</b>
+        <i>+</i>
+      </summary>
+      <p>No. Download the app and start watching immediately. No sign-up required.</p>
+    </details>
+    <details class="faq-item">
+      <summary>
+        <span>03</span>
+        <b>Does this track my data?</b>
+        <i>+</i>
+      </summary>
+      <p>No. Zero analytics, zero telemetry, zero tracking. Your data stays on your device.</p>
+    </details>
+    <details class="faq-item">
+      <summary>
+        <span>04</span>
+        <b>What devices are supported?</b>
+        <i>+</i>
+      </summary>
+      <p>Android 9.0 and above. Both 32-bit (ARMv7a) and 64-bit (ARM64) devices are supported with the universal APK.</p>
+    </details>
+    <details class="faq-item">
+      <summary>
+        <span>05</span>
+        <b>Why isn't this on the Play Store?</b>
+        <i>+</i>
+      </summary>
+      <p>Google prohibits open-source anime streaming apps. We distribute directly via GitHub Releases for full transparency.</p>
+    </details>
+    <details class="faq-item">
+      <summary>
+        <span>06</span>
+        <b>Is this legal?</b>
+        <i>+</i>
+      </summary>
+      <p>Aniraku is an open-source media player that connects to publicly accessible sources. It does not host any content. Consult your local laws regarding streaming from third-party sources.</p>
+    </details>
+    <details class="faq-item">
+      <summary>
+        <span>07</span>
+        <b>Can I contribute?</b>
+        <i>+</i>
+      </summary>
+      <p>Yes. The project is on GitHub — pull requests, issues, and discussions are welcome.</p>
+    </details>
+  </div>
+</section>
+
+<!-- ═══ FOOTER ═══ -->
+<footer class="footer">
+  <span>© 2026 Aniraku. Not affiliated with any streaming service.</span>
+  <a href="https://github.com/Aniraku/Aniraku-App" target="_blank">GitHub</a>
+</footer>
+
+<!-- ═══ MOBILE DOCK ═══ -->
+<nav class="dock" aria-label="Mobile">
+  <a href="#top" class="active"><span>⌂</span></a>
+  <a href="#features"><span>◎</span></a>
+  <a href="#download"><span>↓</span></a>
+  <a href="#support"><span>?</span></a>
+</nav>
+
+<!-- ═══ SUPPORT MODAL ═══ -->
+<div class="modal" id="support-prompt" role="dialog" aria-label="Support">
+  <div class="modal-sheet">
+    <div class="modal-head">
+      <span>SUPPORT</span>
+      <button class="modal-close" type="button" aria-label="Close">×</button>
+    </div>
+    <h2>Need help?</h2>
+    <p>Something broken or have a feature request?</p>
+    <a href="https://github.com/Aniraku/Aniraku-App/issues" class="btn btn-primary" target="_blank" rel="noopener">Open GitHub Issues</a>
+    <a href="mailto:support@aniraku.tech" class="btn btn-outline">Send Email</a>
+    <button class="modal-later" type="button">Close</button>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
 </html>

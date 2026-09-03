@@ -1,9 +1,9 @@
-name: Aniraku v4.8.2 Stable Release
+name: Aniraku V5 Stable Release
 
 on:
   push:
     tags:
-      - "v4.8.*"
+      - "v5*"
   workflow_dispatch:
     inputs:
       buildType:
@@ -61,21 +61,8 @@ jobs:
       - name: Generate native android project
         run: pnpm expo prebuild --platform android --clean
 
-      - name: Force universal APK (patch build.gradle for both ABIs)
-        run: |
-          BUILD_GRADLE="android/app/build.gradle"
-          if ! grep -q 'abiFilters' "$BUILD_GRADLE"; then
-            echo "=== Patching build.gradle to include both armeabi-v7a and arm64-v8a ==="
-            sed -i '/defaultConfig {/a\            ndk {\n                abiFilters "armeabi-v7a", "arm64-v8a"\n            }' "$BUILD_GRADLE"
-          fi
-          # Disable ABI splits
-          if grep -q 'splits' "$BUILD_GRADLE"; then
-            sed -i 's/enable true/enable false/g' "$BUILD_GRADLE"
-          fi
-          echo "=== Verifying patch ==="
-          grep -A3 'abiFilters' "$BUILD_GRADLE" || echo "WARNING: abiFilters not found"
-          echo "=== build.gradle ndk section ==="
-          grep -A5 'ndk' "$BUILD_GRADLE" || echo "No ndk block found"
+      - name: Force universal APK (both ABIs)
+        run: bash scripts/force-universal-apk.sh
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
@@ -123,11 +110,15 @@ jobs:
             "$KEY_ALIAS"
           rm /tmp/release.keystore
 
+      - name: Rename APK to aniraku-V5.apk
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/aniraku-V5.apk
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: aniraku-v4.8.2-release
-          path: android/app/build/outputs/apk/release/app-release.apk
+          name: aniraku-v5-release
+          path: android/app/build/outputs/apk/release/aniraku-V5.apk
           retention-days: 30
 
   create-release:
@@ -141,7 +132,7 @@ jobs:
       - name: Download APK
         uses: actions/download-artifact@v4
         with:
-          name: aniraku-v4.8.2-release
+          name: aniraku-v5-release
 
       - name: Get version from tag
         id: version
@@ -151,29 +142,30 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "Aniraku v${{ steps.version.outputs.VERSION }} Stable"
+          name: "Aniraku V5 Stable"
           body: |
-            ## Aniraku v${{ steps.version.outputs.VERSION }}
+            ## Aniraku V5
 
-            ### What's New
+            ### What's New in V5
+            - Full 3D landing page with perspective transforms
             - Auto-playing YouTube trailer on anime detail pages
             - Sleep timer for bedtime viewing
             - Airing schedule countdown
             - Deep link sharing (opens in-app)
             - Built-in legal documents and open source licenses
-            - Light/dark/system theme toggle
             - Push notification support
             - Advanced search filters (genre, status, format, season, year)
             - Continue Watching rail on home screen
             - Double-tap to seek (±10s) in player
+            - Universal APK — works on all ARM devices (32-bit + 64-bit)
 
             ### Install
-            Download the APK below and install on your Android device.
+            Download **aniraku-V5.apk** and install on your Android device.
             Enable "Install from unknown sources" if prompted.
 
             ### Requirements
             - Android 9.0+ (API 28)
-            - ARM64 or ARMv7a
-          files: app-release.apk
+            - ARM64 or ARMv7a (universal build)
+          files: aniraku-V5.apk
           draft: false
           prerelease: false
