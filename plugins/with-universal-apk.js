@@ -2,44 +2,23 @@ const { withAppBuildGradle, withGradleProperties } = require("expo/config-plugin
 
 /**
  * Forces a universal APK with both armeabi-v7a (32-bit) and arm64-v8a (64-bit).
- * Without this, Expo may only ship arm64, which crashes on 32-bit devices
- * like MediaTek Helio G35.
+ * Only injects ndk.abiFilters into defaultConfig — does NOT add splits block
+ * (splits must be inside android {}, appending outside breaks the build).
  */
 module.exports = function withUniversalApk(config) {
   config = withAppBuildGradle(config, (cfg) => {
     let src = cfg.modResults.contents;
 
-    // 1. Inject ndk.abiFilters into defaultConfig
-    if (!src.includes('abiFilters')) {
-      // Match defaultConfig { and inject ndk block right after the opening brace
+    // Remove any existing ndk block to avoid duplicates
+    src = src.replace(/ndk\s*\{[^}]*\}\s*/g, "");
+
+    // Inject ndk block with both ABIs into defaultConfig
+    if (!src.includes("abiFilters")) {
       src = src.replace(
         /(defaultConfig\s*\{)/,
         `$1\n            ndk {\n                abiFilters "armeabi-v7a", "arm64-v8a"\n            }`
       );
     }
-
-    // 2. Remove any splits block that enables ABI splitting
-    src = src.replace(
-      /splits\s*\{[\s\S]*?abi\s*\{[\s\S]*?enable\s+true[\s\S]*?\}[\s\S]*?\}/,
-      `splits {\n        abi {\n            enable false\n            universalApk true\n        }\n    }`
-    );
-
-    // 3. If no splits block exists, add one
-    if (!src.includes('splits')) {
-      src += `
-    splits {
-        abi {
-            enable false
-            universalApk true
-        }
-    }`;
-    }
-
-    // 4. Ensure universalApk is true in any existing abi block
-    src = src.replace(
-      /(abi\s*\{[^}]*enable\s+false[^}]*)/,
-      `$1\n            universalApk true`
-    );
 
     cfg.modResults.contents = src;
     return cfg;
@@ -47,7 +26,6 @@ module.exports = function withUniversalApk(config) {
 
   config = withGradleProperties(config, (cfg) => {
     const props = cfg.modResults;
-    // Remove any property that forces single ABI
     const filtered = props.filter(
       (p) => !(p.type === "property" && p.key === "react.native.archs")
     );
