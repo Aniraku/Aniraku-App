@@ -61,6 +61,22 @@ jobs:
       - name: Generate native android project
         run: pnpm expo prebuild --platform android --clean
 
+      - name: Force universal APK (patch build.gradle for both ABIs)
+        run: |
+          BUILD_GRADLE="android/app/build.gradle"
+          if ! grep -q 'abiFilters' "$BUILD_GRADLE"; then
+            echo "=== Patching build.gradle to include both armeabi-v7a and arm64-v8a ==="
+            sed -i '/defaultConfig {/a\            ndk {\n                abiFilters "armeabi-v7a", "arm64-v8a"\n            }' "$BUILD_GRADLE"
+          fi
+          # Disable ABI splits
+          if grep -q 'splits' "$BUILD_GRADLE"; then
+            sed -i 's/enable true/enable false/g' "$BUILD_GRADLE"
+          fi
+          echo "=== Verifying patch ==="
+          grep -A3 'abiFilters' "$BUILD_GRADLE" || echo "WARNING: abiFilters not found"
+          echo "=== build.gradle ndk section ==="
+          grep -A5 'ndk' "$BUILD_GRADLE" || echo "No ndk block found"
+
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
@@ -71,6 +87,8 @@ jobs:
       - name: Verify universal APK (must contain both 32-bit and 64-bit ABIs)
         run: |
           APK="android/app/build/outputs/apk/release/app-release.apk"
+          echo "=== APK size ==="
+          ls -lh "$APK"
           echo "=== Checking APK for required ABIs ==="
           UNZIP_OUTPUT=$(unzip -l "$APK" 2>/dev/null || true)
           HAS_ARM64=$(echo "$UNZIP_OUTPUT" | grep -c "arm64-v8a" || true)
@@ -78,8 +96,12 @@ jobs:
           echo "arm64-v8a libraries: $HAS_ARM64"
           echo "armeabi-v7a libraries: $HAS_ARMEABI"
           if [ "$HAS_ARM64" -lt 1 ] || [ "$HAS_ARMEABI" -lt 1 ]; then
-            echo "ERROR: APK is missing one or both ABIs. This will crash on 32-bit devices like MediaTek Helio G35."
+            echo ""
+            echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+            echo "ERROR: APK is MISSING one or both ABIs!"
+            echo "This WILL crash on 32-bit devices (MediaTek Helio G35)."
             echo "Required: arm64-v8a (64-bit) AND armeabi-v7a (32-bit)"
+            echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
             exit 1
           fi
           echo "APK is universal — both ABIs present."
