@@ -245,3 +245,89 @@ if ("IntersectionObserver" in window) {
 
   revealElements.forEach((el) => revealObserver.observe(el));
 }
+
+/* ═══ 3D MOUSE PARALLAX ═══ */
+(function () {
+  const hero = document.querySelector(".hero.scene");
+  const phoneWrap = document.querySelector(".hero-phone-wrap .phone-3d");
+  const cubes = document.querySelectorAll(".cube");
+  const orbs = document.querySelectorAll(".orb");
+  if (!hero) return;
+
+  let mouseX = 0, mouseY = 0, targetX = 0, targetY = 0;
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  hero.addEventListener("mousemove", (e) => {
+    const rect = hero.getBoundingClientRect();
+    mouseX = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
+    mouseY = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
+  });
+
+  hero.addEventListener("mouseleave", () => {
+    mouseX = 0;
+    mouseY = 0;
+  });
+
+  function animate() {
+    targetX = lerp(targetX, mouseX, 0.06);
+    targetY = lerp(targetY, mouseY, 0.06);
+
+    if (phoneWrap) {
+      const rotY = -12 + targetX * 8;
+      const rotX = 5 + targetY * -5;
+      phoneWrap.style.transform = `rotateY(${rotY}deg) rotateX(${rotX}deg)`;
+    }
+
+    cubes.forEach((cube, i) => {
+      const depth = (i + 1) * 0.3;
+      const tx = targetX * 15 * depth;
+      const ty = targetY * 10 * depth;
+      cube.style.translate = `${tx}px ${ty}px 0`;
+    });
+
+    orbs.forEach((orb, i) => {
+      const depth = (i + 1) * 0.5;
+      const tx = targetX * 20 * depth;
+      const ty = targetY * 15 * depth;
+      orb.style.translate = `${tx}px ${ty}px`;
+    });
+
+    requestAnimationFrame(animate);
+  }
+  animate();
+})();
+
+/* ═══ 3D CARD TILT ═══ */
+(function () {
+  const cards = document.querySelectorAll(".screen-card");
+  cards.forEach((card) => {
+    card.addEventListener("mousemove", (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width - 0.5;
+      const y = (e.clientY - rect.top) / rect.height - 0.5;
+      card.style.transform = `perspective(600px) rotateX(${-y * 8}deg) rotateY(${x * 8}deg) translateZ(10px)`;
+    });
+    card.addEventListener("mouseleave", () => {
+      card.style.transform = "perspective(600px) rotateX(0deg) rotateY(0deg) translateZ(0)";
+    });
+  });
+})();
+
+/* ═══ SCROLL DEPTH PARALLAX ═══ */
+(function () {
+  const gridFloor = document.querySelector(".grid-floor");
+  const cubes = document.querySelectorAll(".cube");
+  if (!gridFloor) return;
+
+  window.addEventListener("scroll", () => {
+    const scrollY = window.scrollY;
+    const factor = Math.min(scrollY / 800, 1);
+    gridFloor.style.transform = `perspective(500px) rotateX(${65 - factor * 15}deg) translateZ(${-factor * 60}px)`;
+    gridFloor.style.opacity = 0.5 - factor * 0.35;
+
+    cubes.forEach((cube, i) => {
+      const speed = (i + 1) * 0.02;
+      cube.style.transform = `translateY(${-scrollY * speed}px)`;
+    });
+  }, { passive: true });
+})();

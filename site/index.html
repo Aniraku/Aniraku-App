@@ -63,11 +63,40 @@
         >
       </section>
 
-      <section class="hero" id="home" aria-labelledby="hero-title">
+      <section class="hero scene" id="home" aria-labelledby="hero-title">
+        <div class="hero-bg" aria-hidden="true">
+          <div class="hero-bg-layer hero-bg-grid"></div>
+          <div class="grid-floor"></div>
+          <div class="orb orb-1"></div>
+          <div class="orb orb-2"></div>
+          <div class="orb orb-3"></div>
+          <div class="cube-scene">
+            <div class="cube cube-1" aria-hidden="true">
+              <div class="cube-face front"></div><div class="cube-face back"></div>
+              <div class="cube-face left"></div><div class="cube-face right"></div>
+              <div class="cube-face top"></div><div class="cube-face bottom"></div>
+            </div>
+            <div class="cube cube-2" aria-hidden="true">
+              <div class="cube-face front"></div><div class="cube-face back"></div>
+              <div class="cube-face left"></div><div class="cube-face right"></div>
+              <div class="cube-face top"></div><div class="cube-face bottom"></div>
+            </div>
+            <div class="cube cube-3" aria-hidden="true">
+              <div class="cube-face front"></div><div class="cube-face back"></div>
+              <div class="cube-face left"></div><div class="cube-face right"></div>
+              <div class="cube-face top"></div><div class="cube-face bottom"></div>
+            </div>
+            <div class="cube cube-4" aria-hidden="true">
+              <div class="cube-face front"></div><div class="cube-face back"></div>
+              <div class="cube-face left"></div><div class="cube-face right"></div>
+              <div class="cube-face top"></div><div class="cube-face bottom"></div>
+            </div>
+          </div>
+        </div>
         <div class="hero-measure" aria-hidden="true">
           <span>01</span><i></i><span>ANIRAKU / NATIVE</span>
         </div>
-        <div class="hero-copy">
+        <div class="hero-content">
           <p class="eyebrow">
             <span>ANDROID / FOSS / <b data-release-version>V4.6</b></span
             ><i></i> DIRECT DISTRIBUTION
@@ -113,22 +142,20 @@
             </div>
           </dl>
         </div>
-        <figure
-          class="hero-phone"
-          aria-label="Real Aniraku Anime Detail screen"
-        >
-          <div class="device-frame">
-            <span class="frame-label">REAL NATIVE CAPTURE</span>
-            <img
-              src="./assets/screens/details-v411-relations.jpg"
-              alt="Real Aniraku Anime Detail screen showing Attack on Titan, Continue episode, Synopsis, Relationships and episode selection"
-            />
-          </div>
-          <figcaption>
-            <span>CURRENT / DETAILS</span><b>RELATIONSHIP-AWARE</b>
-          </figcaption>
-        </figure>
-        <div class="hero-grid" aria-hidden="true"></div>
+        <div class="hero-phone-wrap">
+          <figure class="phone-3d" aria-label="Real Aniraku Anime Detail screen">
+            <div class="device-frame">
+              <span class="frame-label">REAL NATIVE CAPTURE</span>
+              <img
+                src="./assets/screens/details-v411-relations.jpg"
+                alt="Real Aniraku Anime Detail screen showing Attack on Titan, Continue episode, Synopsis, Relationships and episode selection"
+              />
+            </div>
+            <figcaption>
+              <span>CURRENT / DETAILS</span><b>RELATIONSHIP-AWARE</b>
+            </figcaption>
+          </figure>
+        </div>
       </section>
 
       <section class="proof-strip" aria-label="Aniraku product identifiers">
@@ -321,7 +348,7 @@
         aria-labelledby="detail-title"
       >
         <div class="detail-visual">
-          <figure class="detail-phone">
+          <figure class="detail-phone phone-3d">
             <div class="device-frame">
               <img
                 src="./assets/screens/details-v411-relations.jpg"
@@ -441,12 +468,14 @@
           </p>
         </div>
         <figure class="watch-frame">
-          <div class="device-frame">
-            <img
-              src="./assets/screens/watch-player.jpg"
-              alt="Real Aniraku Watch player with headphones, fullscreen, settings and episode controls"
-              loading="lazy"
-            />
+          <div class="phone-3d">
+            <div class="device-frame">
+              <img
+                src="./assets/screens/watch-player.jpg"
+                alt="Real Aniraku Watch player with headphones, fullscreen, settings and episode controls"
+                loading="lazy"
+              />
+            </div>
           </div>
           <figcaption>
             <span>SCREEN 08 / WATCH</span><b>SUB / ALLY · HLS</b>
