@@ -12,6 +12,8 @@ const releaseApkNameNodes = [
 ];
 const GITHUB_LATEST_RELEASE_API =
   "https://api.github.com/repos/Aniraku/Aniraku-App/releases/latest";
+const GITHUB_RELEASES_API =
+  "https://api.github.com/repos/Aniraku/Aniraku-App/releases";
 
 function formatReleaseTag(tag) {
   const value = String(tag || "").trim();
@@ -49,6 +51,70 @@ fetch(GITHUB_LATEST_RELEASE_API, {
   .then(applyPublishedRelease)
   .catch(() => {});
 
+/* ═══ RELEASE ARCHIVE ═══ */
+function formatDate(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function stripMarkdown(text) {
+  return String(text || "")
+    .replace(/#{1,6}\s*/g, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/`{1,3}[^`]*`{1,3}/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^[-*]\s+/gm, "")
+    .replace(/\n+/g, " ")
+    .trim();
+}
+
+function populateReleaseArchive(releases) {
+  const list = document.getElementById("release-list");
+  const countEl = document.getElementById("release-count");
+  if (!list || !releases?.length) return;
+
+  const count = releases.length;
+  if (countEl) countEl.textContent = `${count} RELEASES PUBLISHED`;
+
+  list.innerHTML = releases
+    .map((release, i) => {
+      const tag = formatReleaseTag(release.tag_name) || release.tag_name;
+      const apk = release.assets?.find((a) => /\.apk$/i.test(a.name || ""));
+      const body = stripMarkdown(release.body);
+      const date = formatDate(release.published_at || release.created_at);
+      const isLatest = i === 0;
+      return `
+      <a class="release-entry" href="${release.html_url}" target="_blank" rel="noreferrer">
+        <span class="release-badge">${isLatest ? "LATEST" : tag}</span>
+        <div class="release-info">
+          <h3>${tag}${apk ? ` — ${apk.name}` : ""}</h3>
+          <p>${body || "No release notes provided."}</p>
+        </div>
+        <div class="release-meta">
+          <span class="release-date">${date}</span>
+          <span class="release-link">VIEW ↗</span>
+        </div>
+      </a>`;
+    })
+    .join("");
+}
+
+fetch(GITHUB_RELEASES_API, {
+  headers: { Accept: "application/vnd.github+json" },
+})
+  .then((r) => (r.ok ? r.json() : null))
+  .then((releases) => {
+    if (Array.isArray(releases)) populateReleaseArchive(releases);
+  })
+  .catch(() => {});
+
+/* ═══ PACKAGE ID COPY ═══ */
 if (packageButton && copyFeedback) {
   packageButton.addEventListener("click", async () => {
     const value = packageButton.dataset.copy;
@@ -68,6 +134,7 @@ if (packageButton && copyFeedback) {
   });
 }
 
+/* ═══ SUPPORT ADDRESS COPY ═══ */
 const supportCopyButtons = [...document.querySelectorAll("[data-copy-support]")];
 supportCopyButtons.forEach((supportCopyButton) => {
   supportCopyButton.addEventListener("click", async () => {
@@ -83,6 +150,7 @@ supportCopyButtons.forEach((supportCopyButton) => {
   });
 });
 
+/* ═══ SUPPORT PROMPT ═══ */
 const SUPPORT_PROMPT_ACTIVE_MS = 30 * 60 * 1000;
 const SUPPORT_PROMPT_DISMISS_MS = 7 * 24 * 60 * 60 * 1000;
 const SUPPORT_PROMPT_DISMISS_KEY = "aniraku.support.dismissed-until";
@@ -118,6 +186,7 @@ if (supportPrompt) {
   evaluateSupportPrompt();
 }
 
+/* ═══ MOBILE DOCK ═══ */
 const dockLinks = [...document.querySelectorAll(".mobile-dock a")];
 const sections = dockLinks
   .map((link) => document.querySelector(link.getAttribute("href")))
@@ -142,6 +211,7 @@ if ("IntersectionObserver" in window && sections.length && dockLinks.length) {
   sections.forEach((section) => observer.observe(section));
 }
 
+/* ═══ FAQ TOGGLES ═══ */
 const faqItems = [...document.querySelectorAll(".faq-item")];
 faqItems.forEach((item) => {
   item.addEventListener("toggle", () => {
@@ -153,3 +223,25 @@ faqItems.forEach((item) => {
       });
   });
 });
+
+/* ═══ SCROLL REVEAL ═══ */
+if ("IntersectionObserver" in window) {
+  const revealElements = document.querySelectorAll(
+    ".screen-card, .detail-stack li, .release-entry, .docs-grid a, .proof-strip div, .install-checklist li"
+  );
+  revealElements.forEach((el) => el.classList.add("reveal"));
+
+  const revealObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("visible");
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.1, rootMargin: "0px 0px -40px 0px" }
+  );
+
+  revealElements.forEach((el) => revealObserver.observe(el));
+}

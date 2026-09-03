@@ -68,6 +68,22 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease
 
+      - name: Verify universal APK (must contain both 32-bit and 64-bit ABIs)
+        run: |
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          echo "=== Checking APK for required ABIs ==="
+          UNZIP_OUTPUT=$(unzip -l "$APK" 2>/dev/null || true)
+          HAS_ARM64=$(echo "$UNZIP_OUTPUT" | grep -c "arm64-v8a" || true)
+          HAS_ARMEABI=$(echo "$UNZIP_OUTPUT" | grep -c "armeabi-v7a" || true)
+          echo "arm64-v8a libraries: $HAS_ARM64"
+          echo "armeabi-v7a libraries: $HAS_ARMEABI"
+          if [ "$HAS_ARM64" -lt 1 ] || [ "$HAS_ARMEABI" -lt 1 ]; then
+            echo "ERROR: APK is missing one or both ABIs. This will crash on 32-bit devices like MediaTek Helio G35."
+            echo "Required: arm64-v8a (64-bit) AND armeabi-v7a (32-bit)"
+            exit 1
+          fi
+          echo "APK is universal — both ABIs present."
+
       - name: Sign APK
         if: env.KEYSTORE_BASE64 != ''
         env:
