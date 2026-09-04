@@ -32,9 +32,11 @@ sed -i "/defaultConfig {/a\\
 GP="android/gradle.properties"
 if [ -f "$GP" ]; then
   sed -i '/reactNativeArchitectures/d' "$GP"
-  echo "reactNativeArchitectures=$ABI" >> "$GP"
+  # Ensure file ends with newline before appending
+  [ -n "$(tail -c1 "$GP")" ] && printf '\n' >> "$GP"
+  printf 'reactNativeArchitectures=%s\n' "$ABI" >> "$GP"
 else
-  echo "reactNativeArchitectures=$ABI" > "$GP"
+  printf 'reactNativeArchitectures=%s\n' "$ABI" > "$GP"
 fi
 
 echo "=== Build configured for: $ABI ==="

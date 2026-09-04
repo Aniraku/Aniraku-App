@@ -1,4 +1,4 @@
-name: Aniraku V5 Stable Release
+name: Aniraku V5.1 Stable Release
 
 on:
   push:
@@ -41,10 +41,10 @@ jobs:
         include:
           - abi: arm64-v8a
             label: arm64
-            artifact: aniraku-V5-arm64.apk
+            artifact: aniraku-V5.1-arm64.apk
           - abi: armeabi-v7a
             label: arm32
-            artifact: aniraku-V5-arm32.apk
+            artifact: aniraku-V5.1-arm32.apk
     env:
       EXPO_PUBLIC_API_BASE_URL: https://api.aniraku.tech
       EXPO_PUBLIC_ANILIST_GRAPHQL_URL: https://graphql.anilist.co
@@ -126,19 +126,19 @@ jobs:
       - name: Download arm64 APK
         uses: actions/download-artifact@v4
         with:
-          name: aniraku-V5-arm64.apk
+          name: aniraku-V5.1-arm64.apk
 
       - name: Download arm32 APK
         uses: actions/download-artifact@v4
         with:
-          name: aniraku-V5-arm32.apk
+          name: aniraku-V5.1-arm32.apk
 
       - name: Move APKs into place
         run: |
-          ls -lh *.apk 2>/dev/null || ls -lh aniraku-V5-arm64.apk/ aniraku-V5-arm32.apk/
+          ls -lh *.apk 2>/dev/null || ls -lh aniraku-V5.1-arm64.apk/ aniraku-V5.1-arm32.apk/
           mkdir -p release
-          cp aniraku-V5-arm64.apk/*.apk release/aniraku-V5-arm64.apk 2>/dev/null || cp aniraku-V5-arm64.apk release/aniraku-V5-arm64.apk 2>/dev/null || true
-          cp aniraku-V5-arm32.apk/*.apk release/aniraku-V5-arm32.apk 2>/dev/null || cp aniraku-V5-arm32.apk release/aniraku-V5-arm32.apk 2>/dev/null || true
+          cp aniraku-V5.1-arm64.apk/*.apk release/aniraku-V5.1-arm64.apk 2>/dev/null || cp aniraku-V5.1-arm64.apk release/aniraku-V5.1-arm64.apk 2>/dev/null || true
+          cp aniraku-V5.1-arm32.apk/*.apk release/aniraku-V5.1-arm32.apk 2>/dev/null || cp aniraku-V5.1-arm32.apk release/aniraku-V5.1-arm32.apk 2>/dev/null || true
           ls -lh release/
 
       - name: Get version from tag
@@ -149,16 +149,16 @@ jobs:
             echo "TAG=${GITHUB_REF#refs/}" >> "$GITHUB_OUTPUT"
           else
             echo "VERSION=5.0.0" >> "$GITHUB_OUTPUT"
-            echo "TAG=v5.0.0" >> "$GITHUB_OUTPUT"
+            echo "TAG=v5.1.0" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.TAG }}
-          name: "Aniraku V5 Stable"
+          name: "Aniraku V5.1 Stable"
           body: |
-            ## Aniraku V5
+            ## Aniraku V5.1
 
             ### What's New in V5
             - Auto-playing YouTube trailer on anime detail pages
@@ -174,14 +174,14 @@ jobs:
             - Custom subtitle overlay with fonts, colors, stroke
 
             ### Install
-            - **`aniraku-V5-arm64.apk`** — for modern 64-bit devices (most phones 2017+)
-            - **`aniraku-V5-arm32.apk`** — for older 32-bit devices (Oppo A16, MediaTek Helio G35, etc.)
+            - **`aniraku-V5.1-arm64.apk`** — for modern 64-bit devices (most phones 2017+)
+            - **`aniraku-V5.1-arm32.apk`** — for older 32-bit devices (Oppo A16, MediaTek Helio G35, etc.)
 
             Enable "Install from unknown sources" if prompted.
 
             ### Requirements
             - Android 9.0+ (API 28)
             - Choose the correct APK for your device architecture
-          files: release/aniraku-V5-arm64.apk,release/aniraku-V5-arm32.apk
+          files: release/aniraku-V5.1-arm64.apk,release/aniraku-V5.1-arm32.apk
           draft: false
           prerelease: false
