@@ -26,7 +26,7 @@
   &nbsp;‧&nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">🌙 App Site</a>
   &nbsp;‧&nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5">☁️ v5 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.1.0">☁️ v5.1 Notes</a>
   &nbsp;‧&nbsp;
   <a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku">🫧 Orion</a>
   &nbsp;‧&nbsp;
@@ -34,6 +34,34 @@
 </div>
 
 <br>
+
+---
+
+<div align="center">
+
+  > *"we're testing something new. be gentle with her."*
+
+  ### ⋆ v5.1.0 is a pre-release ⋆
+
+  this version has two brand new architecture builds —
+  one for modern 64-bit phones and one for older 32-bit devices.
+  everything is new here and we need your eyes on it.
+
+  **if you find something broken, something off, or something that just feels wrong —**
+
+  please email me at **[sho.islam0311@proton.me](mailto:sho.islam0311@proton.me)**
+  and i will fix it. every message matters.
+
+  <br>
+
+  | device type | apk |
+  |:--|:--|
+  | modern phones (2017+) | `aniraku-V5.1-arm64.apk` |
+  | older 32-bit (Oppo A16, Helio G35) | `aniraku-V5.1-arm32.apk` |
+
+  <sub>enable *install from unknown sources* if prompted · android 9.0+</sub>
+
+</div>
 
 ---
 
@@ -121,11 +149,13 @@ Read the full [Support Guide](./SUPPORT.md).
 
 ### ⋆ ˚｡⋆ how to install ⋆ ˚｡⋆
 
-1. Open the [latest release](https://github.com/Aniraku/Aniraku-App/releases/latest)  
-2. Download the universal Android 9+ APK  
-3. Install softly  
+1. Open the [latest release](https://github.com/Aniraku/Aniraku-App/releases/latest)
+2. download the right APK for your device:
+   - **arm64** for modern 64-bit phones
+   - **arm32** for older 32-bit devices
+3. install softly
 
-**tiny note:**  
+**tiny note:**
 If you had an older alpha under `aniraku.anine.app`, please uninstall it first. Android sees them as different apps.
 
 Full soft info lives here → [App Website](https://aniraku.github.io/Aniraku-App/)
