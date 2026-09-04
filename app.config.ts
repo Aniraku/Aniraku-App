@@ -52,7 +52,6 @@ const config: ExpoConfig = {
     ["expo-notifications", { icon: "./assets/images/icon.png", color: "#FF4D4D" }],
     ["expo-splash-screen", { image: "./assets/images/splash-icon.png", imageWidth: 200, resizeMode: "contain", backgroundColor: "#090909", dark: { backgroundColor: "#090909" } }],
     ["expo-build-properties", { android: { buildArchs: ["armeabi-v7a", "arm64-v8a"], minSdkVersion: 28 } }],
-    "./plugins/with-universal-apk",
   ],
   // Keep file-route typing, but remove optional compiler/runtime experiments
   // from the compatibility build's startup path.

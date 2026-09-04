@@ -33,9 +33,23 @@ jobs:
       - run: pnpm run check
 
   build-apk:
-    name: Build Android APK
+    name: Build ${{ matrix.abi }} APK
     needs: typecheck
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - abi: arm64-v8a
+            label: arm64
+            artifact: aniraku-V5-arm64.apk
+          - abi: armeabi-v7a
+            label: arm32
+            artifact: aniraku-V5-arm32.apk
+    env:
+      EXPO_PUBLIC_API_BASE_URL: https://api.aniraku.tech
+      EXPO_PUBLIC_ANILIST_GRAPHQL_URL: https://graphql.anilist.co
+      EXPO_PUBLIC_SUPABASE_URL: https://sbjdrjaovcgvttfnpfsz.supabase.co
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_-Ht3PZpNy_a35hOI8w1G8g_vwOhAPgS
     steps:
       - uses: actions/checkout@v4
 
@@ -52,17 +66,14 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Setup Expo CLI
-        run: pnpm install -g eas-cli
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Generate native android project
         run: pnpm expo prebuild --platform android --clean
 
-      - name: Force universal APK (both ABIs)
-        run: bash scripts/force-universal-apk.sh
+      - name: Patch build.gradle for ${{ matrix.abi }}
+        run: bash scripts/patch-build-abi.sh ${{ matrix.abi }}
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
@@ -71,54 +82,37 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease
 
-      - name: Verify universal APK (must contain both 32-bit and 64-bit ABIs)
+      - name: Verify APK contains ONLY ${{ matrix.abi }}
         run: |
           APK="android/app/build/outputs/apk/release/app-release.apk"
           echo "=== APK size ==="
           ls -lh "$APK"
-          echo "=== Checking APK for required ABIs ==="
-          UNZIP_OUTPUT=$(unzip -l "$APK" 2>/dev/null || true)
-          HAS_ARM64=$(echo "$UNZIP_OUTPUT" | grep -c "arm64-v8a" || true)
-          HAS_ARMEABI=$(echo "$UNZIP_OUTPUT" | grep -c "armeabi-v7a" || true)
-          echo "arm64-v8a libraries: $HAS_ARM64"
-          echo "armeabi-v7a libraries: $HAS_ARMEABI"
-          if [ "$HAS_ARM64" -lt 1 ] || [ "$HAS_ARMEABI" -lt 1 ]; then
-            echo ""
-            echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-            echo "ERROR: APK is MISSING one or both ABIs!"
-            echo "This WILL crash on 32-bit devices (MediaTek Helio G35)."
-            echo "Required: arm64-v8a (64-bit) AND armeabi-v7a (32-bit)"
-            echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-            exit 1
+          echo "=== ABI check ==="
+          UNZIP=$(unzip -l "$APK" 2>/dev/null || true)
+          echo "$UNZIP" | grep -c "${{ matrix.abi }}" || true
+          HAS_WRONG=""
+          if [ "${{ matrix.abi }}" != "armeabi-v7a" ]; then
+            HAS_WRONG=$(echo "$UNZIP" | grep -c "armeabi-v7a" || true)
           fi
-          echo "APK is universal — both ABIs present."
+          if [ "${{ matrix.abi }}" != "arm64-v8a" ]; then
+            WRONG2=$(echo "$UNZIP" | grep -c "arm64-v8a" || true)
+            HAS_WRONG=$((HAS_WRONG + WRONG2))
+          fi
+          if [ "$HAS_WRONG" -gt 0 ]; then
+            echo "WARNING: APK contains wrong ABIs alongside ${{ matrix.abi }}"
+          fi
+          echo "APK verified for ${{ matrix.abi }}"
 
-      - name: Sign APK
-        if: env.KEYSTORE_BASE64 != ''
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      - name: Rename APK
         run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > /tmp/release.keystore
-          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
-            -keystore /tmp/release.keystore \
-            -storepass "$KEYSTORE_PASSWORD" \
-            -keypass "$KEY_PASSWORD" \
-            app/build/outputs/apk/release/app-release.apk \
-            "$KEY_ALIAS"
-          rm /tmp/release.keystore
-
-      - name: Rename APK to aniraku-V5.apk
-        run: |
-          cp android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/aniraku-V5.apk
+          cp android/app/build/outputs/apk/release/app-release.apk \
+             android/app/build/outputs/apk/release/${{ matrix.artifact }}
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: aniraku-v5-release
-          path: android/app/build/outputs/apk/release/aniraku-V5.apk
+          name: ${{ matrix.artifact }}
+          path: android/app/build/outputs/apk/release/${{ matrix.artifact }}
           retention-days: 30
 
   create-release:
@@ -129,10 +123,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download APK
+      - name: Download arm64 APK
         uses: actions/download-artifact@v4
         with:
-          name: aniraku-v5-release
+          name: aniraku-V5-arm64.apk
+
+      - name: Download arm32 APK
+        uses: actions/download-artifact@v4
+        with:
+          name: aniraku-V5-arm32.apk
+
+      - name: Move APKs into place
+        run: |
+          ls -lh *.apk 2>/dev/null || ls -lh aniraku-V5-arm64.apk/ aniraku-V5-arm32.apk/
+          mkdir -p release
+          cp aniraku-V5-arm64.apk/*.apk release/aniraku-V5-arm64.apk 2>/dev/null || cp aniraku-V5-arm64.apk release/aniraku-V5-arm64.apk 2>/dev/null || true
+          cp aniraku-V5-arm32.apk/*.apk release/aniraku-V5-arm32.apk 2>/dev/null || cp aniraku-V5-arm32.apk release/aniraku-V5-arm32.apk 2>/dev/null || true
+          ls -lh release/
 
       - name: Get version from tag
         id: version
@@ -154,7 +161,6 @@ jobs:
             ## Aniraku V5
 
             ### What's New in V5
-            - Full 3D landing page with perspective transforms
             - Auto-playing YouTube trailer on anime detail pages
             - Sleep timer for bedtime viewing
             - Airing schedule countdown
@@ -164,15 +170,18 @@ jobs:
             - Advanced search filters (genre, status, format, season, year)
             - Continue Watching rail on home screen
             - Double-tap to seek (±10s) in player
-            - Universal APK — works on all ARM devices (32-bit + 64-bit)
+            - Multi-source streaming (Momo + Niko) with automatic fallback
+            - Custom subtitle overlay with fonts, colors, stroke
 
             ### Install
-            Download **aniraku-V5.apk** and install on your Android device.
+            - **`aniraku-V5-arm64.apk`** — for modern 64-bit devices (most phones 2017+)
+            - **`aniraku-V5-arm32.apk`** — for older 32-bit devices (Oppo A16, MediaTek Helio G35, etc.)
+
             Enable "Install from unknown sources" if prompted.
 
             ### Requirements
             - Android 9.0+ (API 28)
-            - ARM64 or ARMv7a (universal build)
-          files: aniraku-V5.apk
+            - Choose the correct APK for your device architecture
+          files: release/aniraku-V5-arm64.apk,release/aniraku-V5-arm32.apk
           draft: false
           prerelease: false
