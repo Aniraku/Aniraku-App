@@ -156,32 +156,38 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.TAG }}
-          name: "Aniraku V5.1 Stable"
+          name: ".Restracted ${{ steps.version.outputs.TAG }} — dual architecture"
           body: |
-            ## Aniraku V5.1
+            ## Aniraku ${{ steps.version.outputs.TAG }}
 
-            ### What's New in V5
-            - Auto-playing YouTube trailer on anime detail pages
-            - Sleep timer for bedtime viewing
-            - Airing schedule countdown
-            - Deep link sharing (opens in-app)
-            - Built-in legal documents and open source licenses
-            - Push notification support
-            - Advanced search filters (genre, status, format, season, year)
-            - Continue Watching rail on home screen
-            - Double-tap to seek (±10s) in player
-            - Multi-source streaming (Momo + Niko) with automatic fallback
-            - Custom subtitle overlay with fonts, colors, stroke
+            > *"Every screen deserves to play."*
 
-            ### Install
-            - **`aniraku-V5.1-arm64.apk`** — for modern 64-bit devices (most phones 2017+)
-            - **`aniraku-V5.1-arm32.apk`** — for older 32-bit devices (Oppo A16, MediaTek Helio G35, etc.)
+            a quiet fix for the voices that were silenced.
 
-            Enable "Install from unknown sources" if prompted.
+            ---
 
-            ### Requirements
-            - Android 9.0+ (API 28)
-            - Choose the correct APK for your device architecture
+            ### what changed
+            - env vars restored — Supabase + AniList keys baked into the build
+            - dual architecture builds — arm64 for modern phones, arm32 for older devices
+            - gradle.properties newline fix — silent config corruption resolved
+
+            ### install
+
+            | device type | download |
+            |---|---|
+            | modern phones (2017+) | `aniraku-V5.1-arm64.apk` |
+            | older 32-bit (Oppo A16, Helio G35) | `aniraku-V5.1-arm32.apk` |
+
+            enable **install from unknown sources** if prompted.
+
+            ### requirements
+            - android 9.0+
+            - pick the right APK for your device
+
+            ---
+
+            *not affiliated with any streaming service.*
+            *if it helps, consider supporting development on [Patreon](https://patreon.com/ShoIslam).*
           files: release/aniraku-V5.1-arm64.apk,release/aniraku-V5.1-arm32.apk
           draft: false
-          prerelease: false
+          prerelease: true
