@@ -35,35 +35,22 @@
 
 <br>
 
----
-
-<div align="center">
-
-  > *"we're testing something new. be gentle with her."*
-
-  ### ⋆ v5.1.0 is a pre-release ⋆
-
-  this version has two brand new architecture builds —
-  one for modern 64-bit phones and one for older 32-bit devices.
-  everything is new here and we need your eyes on it.
-
-  **if you find something broken, something off, or something that just feels wrong —**
-
-  please email me at **[sho.islam0311@proton.me](mailto:sho.islam0311@proton.me)**
-  and i will fix it. every message matters.
-
-  <br>
-
-  | device type | apk |
-  |:--|:--|
-  | modern phones (2017+) | `aniraku-V5.1-arm64.apk` |
-  | older 32-bit (Oppo A16, Helio G35) | `aniraku-V5.1-arm32.apk` |
-
-  <sub>enable *install from unknown sources* if prompted · android 9.0+</sub>
-
-</div>
+# ⚠️ Important Notice
 
 ---
+
+**We're currently experiencing technical issues with our Android app.**
+
+If you'd like to continue watching anime during this time, please use our website instead:
+
+### 🌐 [Aniraku](https://www.aniraku.tech)
+
+---
+
+Thank you for your patience and understanding.  
+We'll have the app back to normal as soon as possible.
+
+**Happy watching!** ✨
 
 ### Support Aniraku
 
