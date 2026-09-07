@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { getAnimePage } from "@/lib/anilist";
+import { getMalAnimePage as getAnimePage } from "@/lib/mal-api";
 import { animeTitle } from "@/lib/types";
 import { ErrorState, LoadingState } from "@/components/async-state";
 import { nothing } from "@/components/nothing-ui";

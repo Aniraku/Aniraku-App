@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Haptics from "expo-haptics";
-import { getAnimePage, isAniListRateLimitError } from "@/lib/anilist";
+import { getMalAnimePage as getAnimePage, isMalRateLimitError as isAniListRateLimitError } from "@/lib/mal-api";
 import { AnimeCard } from "@/components/anime-card";
 import { ErrorState, LoadingState, EmptyState } from "@/components/async-state";
 import { AppIcon } from "@/components/app-icon";
@@ -81,7 +81,7 @@ export default function SearchScreen() {
     retryDelay: 1_200,
   });
   const rateLimitError = isAniListRateLimitError(results.error) ? results.error : null;
-  const retryAfterMs = rateLimitError?.retryAfterMs ?? null;
+  const retryAfterMs = rateLimitError ? 60_000 : null;
 
   useEffect(() => {
     if (retryAfterMs === null) {

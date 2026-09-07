@@ -87,9 +87,9 @@ export function AniListDownBanner() {
           <View style={styles.iconWrap}>
             <Ionicons name="cloud-offline-outline" size={28} color={nothing.red} />
           </View>
-          <Text style={styles.title}>AniList is temporarily down</Text>
+          <Text style={styles.title}>Streaming temporarily limited</Text>
           <Text style={styles.body}>
-            {"AniList has disabled their API due to a stability issue on their end. That's not something we can fix — it's on them.\n\nDiscovery and metadata are paused until they're back online. Your account, watch history, and saved data are all safe."}
+            {"AniList's API is currently down, which affects anime streaming. Browsing and discovery work normally via MyAnimeList.\n\nYour account, watch history, and saved data are all safe. Streaming will resume once AniList is back."}
           </Text>
           <View style={styles.divider} />
           <Text style={styles.hint}>No action needed. This banner will clear itself once AniList responds.</Text>

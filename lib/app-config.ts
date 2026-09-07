@@ -38,6 +38,7 @@ export const APP_CONFIG = {
   // deliberately restricts its browser CORS allow-list to trusted web origins.
   apiBaseUrl: previewAnirakuProxy() ?? productionAnirakuApi,
   anilistGraphqlUrl: process.env.EXPO_PUBLIC_ANILIST_GRAPHQL_URL ?? "https://graphql.anilist.co",
+  jikanBaseUrl: process.env.EXPO_PUBLIC_JIKAN_BASE_URL ?? "https://api.jikan.moe/v4",
   metadataResolverUrl,
   // This public URL reaches the website's server-side TMDB resolver. It is not
   // a TMDB API URL and the TMDB read token never enters an Expo environment.

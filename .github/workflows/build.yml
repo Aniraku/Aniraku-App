@@ -48,6 +48,7 @@ jobs:
           EXPO_PUBLIC_ANILIST_GRAPHQL_URL: ${{ secrets.EXPO_PUBLIC_ANILIST_GRAPHQL_URL }}
           EXPO_PUBLIC_API_BASE_URL: ${{ secrets.EXPO_PUBLIC_API_BASE_URL }}
           EXPO_PUBLIC_MAL_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_MAL_CLIENT_ID }}
+          EXPO_PUBLIC_JIKAN_BASE_URL: ${{ secrets.EXPO_PUBLIC_JIKAN_BASE_URL }}
 
       - name: Build APK (${{ matrix.arch }})
         run: |
@@ -63,6 +64,7 @@ jobs:
           EXPO_PUBLIC_ANILIST_GRAPHQL_URL: ${{ secrets.EXPO_PUBLIC_ANILIST_GRAPHQL_URL }}
           EXPO_PUBLIC_API_BASE_URL: ${{ secrets.EXPO_PUBLIC_API_BASE_URL }}
           EXPO_PUBLIC_MAL_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_MAL_CLIENT_ID }}
+          EXPO_PUBLIC_JIKAN_BASE_URL: ${{ secrets.EXPO_PUBLIC_JIKAN_BASE_URL }}
 
       - name: Rename APK
         run: |

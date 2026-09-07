@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
-import { getAnimeById } from "@/lib/anilist";
+import { getMalAnimeById, resolveAniListId } from "@/lib/mal-api";
 import { getEpisodes } from "@/lib/aniraku-api";
 import { enrichEpisodesWithTmdb } from "@/lib/tmdb-episodes";
 import { groupAnimeRelations } from "@/lib/anime-relations";
@@ -26,16 +26,28 @@ export default function AnimeDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const id = Number(params.id);
   const auth = useAnirakuAuth();
-  const anime = useQuery({ queryKey: ["anime", id], queryFn: () => getAnimeById(id), enabled: Number.isFinite(id) });
-  const episodes = useQuery({ queryKey: ["episodes", id], queryFn: () => getEpisodes(id), enabled: Number.isFinite(id) });
+  const anime = useQuery({ queryKey: ["anime", id], queryFn: () => getMalAnimeById(id), enabled: Number.isFinite(id) });
+
+  // Resolve AniList ID in background for streaming (backend requires AniList IDs)
+  const anilistId = useQuery({
+    queryKey: ["anilist-id", id],
+    queryFn: () => resolveAniListId(anime.data!),
+    enabled: anime.isSuccess && !!anime.data,
+    staleTime: 60 * 60_000,
+    retry: false,
+  });
+
+  // Use resolved AniList ID for backend calls (episodes, streaming)
+  const streamingId = anilistId.data ?? id;
+  const episodes = useQuery({ queryKey: ["episodes", streamingId], queryFn: () => getEpisodes(streamingId), enabled: Number.isFinite(streamingId) && streamingId !== id ? anilistId.isSuccess : Number.isFinite(id) });
   const canonicalEpisodeRows = useMemo(() => episodes.data ?? [], [episodes.data]);
   const episodeSignature = useMemo(() => canonicalEpisodeRows.map((item) => `${item.number}:${item.title ?? ""}:${item.thumbnail ?? ""}`).join("|"), [canonicalEpisodeRows]);
   const fallbackThumbnail = anime.data?.bannerImage || anime.data?.coverImage?.extraLarge || anime.data?.coverImage?.large || "";
   const fallbackTitle = anime.data ? animeTitle(anime.data) : "";
   const tmdbEpisodes = useQuery({
-    queryKey: ["tmdb-episode-display", id, episodeSignature, fallbackThumbnail, fallbackTitle, anime.data?.format],
-    queryFn: () => enrichEpisodesWithTmdb(id, canonicalEpisodeRows, { fallbackThumbnail, fallbackTitle, isMovie: anime.data?.format === "MOVIE" }),
-    enabled: Number.isFinite(id) && id > 0 && episodes.isSuccess && canonicalEpisodeRows.length > 0,
+    queryKey: ["tmdb-episode-display", streamingId, episodeSignature, fallbackThumbnail, fallbackTitle, anime.data?.format],
+    queryFn: () => enrichEpisodesWithTmdb(streamingId, canonicalEpisodeRows, { fallbackThumbnail, fallbackTitle, isMovie: anime.data?.format === "MOVIE" }),
+    enabled: Number.isFinite(streamingId) && streamingId > 0 && episodes.isSuccess && canonicalEpisodeRows.length > 0,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -65,7 +77,7 @@ export default function AnimeDetailScreen() {
   if (anime.isError || !anime.data) return <NativeScreen><NativeHeader eyebrow="ANIME" title="Anime" /><ErrorState message={anime.error?.message ?? "We could not load this anime."} onRetry={() => void anime.refetch()} /></NativeScreen>;
   const data = anime.data;
   const title = animeTitle(data);
-  const openEpisode = (episode: number) => router.push({ pathname: "/watch/[id]", params: { id: String(id), episode: String(episode), title, image: data.coverImage?.extraLarge || data.coverImage?.large || "" } } as never);
+  const openEpisode = (episode: number) => router.push({ pathname: "/watch/[id]", params: { id: String(anilistId.data ?? id), episode: String(episode), title, image: data.coverImage?.extraLarge || data.coverImage?.large || "" } } as never);
   const lastAvailableEpisode = episodeRows.at(-1)?.number ?? Math.max(data.episodes ?? 1, 1);
   const displayedResume = Math.min(resumeEpisode, lastAvailableEpisode);
 
@@ -73,7 +85,7 @@ export default function AnimeDetailScreen() {
     <View style={styles.backdrop}><Image source={{ uri: data.bannerImage || data.coverImage?.extraLarge || data.coverImage?.large || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" /><View style={styles.backdropMask} /></View>
     <NativeHeader eyebrow="ANIME" title="Details" />
     <View style={styles.hero}><Image source={{ uri: data.coverImage?.extraLarge || data.coverImage?.large || "" }} style={styles.poster} contentFit="cover" transition={0} cachePolicy="memory-disk" /><View style={styles.titleBlock}><Signal label={data.status || "ANIME"} tone="live" /><Text style={styles.title}>{title}</Text><Text style={styles.meta}>{[data.format, data.episodes ? `${data.episodes} EP` : null, data.averageScore ? `${Math.round(data.averageScore)}% MATCH` : null].filter(Boolean).join(" · ")}</Text></View></View>
-    <View style={styles.actions}><View style={styles.actionCell}><NothingButton label={animeHistory.length ? `Continue episode ${displayedResume}` : "Watch episode 1"} onPress={() => openEpisode(displayedResume)} /></View><Pressable accessibilityRole="button" onPress={() => auth.user ? bookmarks.toggle.mutate(data) : router.push("/auth" as never)} style={({ pressed }) => [styles.bookmark, bookmarks.isBookmarked(id) && styles.bookmarkActive, pressed && styles.pressed]}><Text style={[styles.bookmarkLabel, bookmarks.isBookmarked(id) && styles.bookmarkActiveLabel]}>{bookmarks.isBookmarked(id) ? "SAVED" : "SAVE"}</Text></Pressable><Pressable accessibilityRole="button" onPress={() => { const deepLink = `aniraku://anime/${id}`; const webUrl = `https://aniraku.tech/anime/${id}`; Share.share({ title, message: `Watch ${title} on Aniraku\n${deepLink}`, url: Platform.OS === "ios" ? deepLink : webUrl }).catch(() => {}); }} style={({ pressed }) => [styles.shareBtn, pressed && styles.pressed]}><AppIcon name="share-variant" size={18} color={nothing.white} /></Pressable></View>
+    <View style={styles.actions}><View style={styles.actionCell}><NothingButton label={anilistId.isFetching ? "Resolving streaming..." : anilistId.data === null && anilistId.isSuccess ? "Streaming unavailable (AniList down)" : animeHistory.length ? `Continue episode ${displayedResume}` : "Watch episode 1"} onPress={() => anilistId.data === null && anilistId.isSuccess ? undefined : openEpisode(displayedResume)} /></View><Pressable accessibilityRole="button" onPress={() => auth.user ? bookmarks.toggle.mutate(data) : router.push("/auth" as never)} style={({ pressed }) => [styles.bookmark, bookmarks.isBookmarked(id) && styles.bookmarkActive, pressed && styles.pressed]}><Text style={[styles.bookmarkLabel, bookmarks.isBookmarked(id) && styles.bookmarkActiveLabel]}>{bookmarks.isBookmarked(id) ? "SAVED" : "SAVE"}</Text></Pressable><Pressable accessibilityRole="button" onPress={() => { const deepLink = `aniraku://anime/${id}`; const webUrl = `https://aniraku.tech/anime/${id}`; Share.share({ title, message: `Watch ${title} on Aniraku\n${deepLink}`, url: Platform.OS === "ios" ? deepLink : webUrl }).catch(() => {}); }} style={({ pressed }) => [styles.shareBtn, pressed && styles.pressed]}><AppIcon name="share-variant" size={18} color={nothing.white} /></Pressable></View>
     <AiringSchedule nextAiringEpisode={data.nextAiringEpisode} totalEpisodes={data.episodes} />
     {animeHistory.length ? <NothingCard style={styles.continueCard}><DotLabel tone="live">CONTINUE WATCHING</DotLabel><Text style={styles.continueText}>Pick up from the furthest episode you completed, or carry on from where you paused.</Text></NothingCard> : null}
     <NothingCard style={styles.summary}><DotLabel>Synopsis</DotLabel><Text style={styles.copy}>{(data.description || "No synopsis is currently available.").replace(/<[^>]+>/g, "")}</Text>{data.genres?.length ? <Text style={styles.genre}>{data.genres.join(" · ")}</Text> : null}</NothingCard>

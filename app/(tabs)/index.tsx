@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
-import { getHomeAnime } from "@/lib/anilist";
+import { getMalHomeAnime as getHomeAnime } from "@/lib/mal-api";
 import { animeTitle } from "@/lib/types";
 import { AnimeRail } from "@/components/anime-rail";
 import { ErrorState } from "@/components/async-state";

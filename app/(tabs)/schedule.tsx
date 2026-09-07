@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
-import { getAiringSchedule } from "@/lib/anilist";
+import { getMalAiringSchedule as getAiringSchedule } from "@/lib/mal-api";
 import { animeTitle } from "@/lib/types";
 import type { AiringScheduleItem } from "@/lib/types";
 import { ErrorState, LoadingState } from "@/components/async-state";
@@ -18,7 +18,7 @@ export default function ScheduleScreen() {
     end.setDate(end.getDate() + 7);
     return { startAt: Math.floor(start.getTime() / 1000), endAt: Math.floor(end.getTime() / 1000) };
   }, []);
-  const schedule = useQuery({ queryKey: ["schedule", window.startAt, window.endAt], queryFn: () => getAiringSchedule(1, 100, window) });
+  const schedule = useQuery({ queryKey: ["schedule", window.startAt, window.endAt], queryFn: () => getAiringSchedule() });
   const groups = useMemo(() => {
     const result = new Map<string, AiringScheduleItem[]>();
     schedule.data?.airingSchedules.forEach((item) => { const key = new Date(item.airingAt * 1000).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }); const current = result.get(key) ?? []; result.set(key, [...current, item]); });
