@@ -32,29 +32,16 @@ jobs:
           node-version: 20
           cache: pnpm
 
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
       - run: pnpm install --frozen-lockfile
 
-      - name: Install EAS CLI
-        run: pnpm add -g eas-cli
-
-      - name: Set build arch
-        run: |
-          sed -i 's/\["armeabi-v7a", "arm64-v8a", "x86_64"\]/["${{ matrix.arch }}"]/' app.config.ts
-
-      - name: Build APK
-        id: build
-        run: |
-          eas build --profile preview --platform android --non-interactive --wait --json > eas-output.json || true
-          cat eas-output.json
-          BUILD_ID=$(cat eas-output.json | jq -r '.id // empty')
-          if [ -z "$BUILD_ID" ]; then
-            echo "ERROR: EAS build failed. Output:"
-            cat eas-output.json
-            exit 1
-          fi
-          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+      - name: Prebuild Android project
+        run: npx expo prebuild --platform android --clean
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
           EXPO_PUBLIC_ANILIST_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_ANILIST_CLIENT_ID }}
@@ -62,20 +49,26 @@ jobs:
           EXPO_PUBLIC_API_BASE_URL: ${{ secrets.EXPO_PUBLIC_API_BASE_URL }}
           EXPO_PUBLIC_MAL_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_MAL_CLIENT_ID }}
 
-      - name: Download APK
+      - name: Build APK (${{ matrix.arch }})
         run: |
-          mkdir -p artifacts
-          eas build:download --id ${{ steps.build.outputs.build_id }} --path artifacts/ --platform android
-          APK=$(find artifacts -name "*.apk" | head -1)
-          if [ -z "$APK" ]; then
-            echo "ERROR: No APK found after download"
-            ls -la artifacts/
-            exit 1
-          fi
-          cp "$APK" "aniraku-${{ github.ref_name }}-${{ matrix.label }}.apk"
-          echo "Downloaded: aniraku-${{ github.ref_name }}-${{ matrix.label }}.apk"
+          cd android
+          ./gradlew assembleRelease \
+            -PreactNativeArchitectures=${{ matrix.arch }} \
+            -PnewArchEnabled=false \
+            --no-daemon
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_ANILIST_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_ANILIST_CLIENT_ID }}
+          EXPO_PUBLIC_ANILIST_GRAPHQL_URL: ${{ secrets.EXPO_PUBLIC_ANILIST_GRAPHQL_URL }}
+          EXPO_PUBLIC_API_BASE_URL: ${{ secrets.EXPO_PUBLIC_API_BASE_URL }}
+          EXPO_PUBLIC_MAL_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_MAL_CLIENT_ID }}
+
+      - name: Rename APK
+        run: |
+          APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          cp "$APK" "aniraku-${{ github.ref_name }}-${{ matrix.label }}.apk"
+          echo "Built: aniraku-${{ github.ref_name }}-${{ matrix.label }}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -96,8 +89,8 @@ jobs:
           path: ./artifacts
           merge-multiple: true
 
-      - name: List artifacts
-        run: ls -la ./artifacts/
+      - name: List APKs
+        run: ls -lh ./artifacts/*.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
