@@ -39,7 +39,7 @@ jobs:
 
       - name: Set build arch
         run: |
-          sed -i 's/buildArchs: \[.*\]/buildArchs: ["${{ matrix.arch }}"]/' app.config.ts
+          sed -i 's/\["armeabi-v7a", "arm64-v8a", "x86_64"\]/["${{ matrix.arch }}"]/' app.config.ts
 
       - name: Build APK
         id: build
