@@ -20,8 +20,16 @@ function previewAnirakuProxy() {
   // location object. Guard that distinction before Expo Router loads routes.
   const hostname = typeof window === "undefined" ? undefined : window.location?.hostname;
   if (!hostname) return null;
-  if (!hostname.startsWith("8081-") || !hostname.endsWith(".manus.computer")) return null;
-  return `https://${hostname.replace(/^8081-/, "3000-")}/api/aniraku`;
+  if (hostname.startsWith("8081-") && hostname.endsWith(".manus.computer")) {
+    return `https://${hostname.replace(/^8081-/, "3000-")}/api/aniraku`;
+  }
+  // Local laptop/phone testing (`expo start --web` + dev server on :3000):
+  // same host, port 3000. Native Android never hits this branch.
+  if (hostname === "localhost" || hostname === "127.0.0.1" || /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(hostname)) {
+    const protocol = typeof window !== "undefined" && window.location?.protocol === "https:" ? "https:" : "http:";
+    return `${protocol}//${hostname}:3000/api/aniraku`;
+  }
+  return null;
 }
 
 export const APP_CONFIG = {

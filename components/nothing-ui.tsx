@@ -14,6 +14,9 @@ export const nothing = {
   dim: "#666664",
   red: "#FF4D4D",
   green: "#96D37B",
+  font: "SpaceGrotesk-Regular",
+  fontMedium: "SpaceGrotesk-Medium",
+  fontBold: "SpaceGrotesk-SemiBold",
 } as const;
 
 export function useThemeColors() {

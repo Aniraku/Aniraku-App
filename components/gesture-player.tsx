@@ -1,19 +1,20 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Dimensions,
   PanResponder,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import { AppIcon } from "@/components/app-icon";
 import { nothing } from "@/components/nothing-ui";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SWIPE_THRESHOLD = 40;
 const SWIPE_VERTICAL_THRESHOLD = 30;
 const DOUBLE_TAP_DELAY = 280;
 const SEEK_STEP = 10;
+const HOLD_TO_FAST_FORWARD_MS = 400;
 
 type Props = {
   currentTime: number;
@@ -23,6 +24,11 @@ type Props = {
   onDoubleTapRight?: () => void;
   onBrightnessChange?: (value: number) => void;
   onVolumeChange?: (value: number) => void;
+  brightness?: number;
+  volume?: number;
+  /** th3-anime style: hold anywhere on the video to engage 2x, release to restore. */
+  onHoldStart?: () => void;
+  onHoldEnd?: () => void;
   children: React.ReactNode;
 };
 
@@ -34,15 +40,25 @@ export function GestureLayer({
   onDoubleTapRight,
   onBrightnessChange,
   onVolumeChange,
+  onHoldStart,
+  onHoldEnd,
+  brightness = 1,
+  volume = 1,
   children,
 }: Props) {
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const dimsRef = useRef({ width: screenWidth, height: screenHeight });
+  dimsRef.current = { width: screenWidth, height: screenHeight };
   const startX = useRef(0);
   const startY = useRef(0);
   const seekAccum = useRef(0);
   const lastTapTime = useRef(0);
   const lastTapX = useRef(0);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdEngaged = useRef(false);
+  const moved = useRef(false);
   const [doubleTapSide, setDoubleTapSide] = useState<"left" | "right" | null>(null);
-  const [doubleTapCount, setDoubleTapCount] = useState(0);
+  const [fastForward, setFastForward] = useState(false);
   const doubleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onSeekRef = useRef(onSeek);
@@ -50,29 +66,49 @@ export function GestureLayer({
   const onDoubleTapRightRef = useRef(onDoubleTapRight);
   const onBrightnessChangeRef = useRef(onBrightnessChange);
   const onVolumeChangeRef = useRef(onVolumeChange);
+  const onHoldStartRef = useRef(onHoldStart);
+  const onHoldEndRef = useRef(onHoldEnd);
 
   onSeekRef.current = onSeek;
   onDoubleTapLeftRef.current = onDoubleTapLeft;
   onDoubleTapRightRef.current = onDoubleTapRight;
   onBrightnessChangeRef.current = onBrightnessChange;
   onVolumeChangeRef.current = onVolumeChange;
+  onHoldStartRef.current = onHoldStart;
+  onHoldEndRef.current = onHoldEnd;
+
+  useEffect(() => () => {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    if (doubleTapTimer.current) clearTimeout(doubleTapTimer.current);
+  }, []);
+
+  const cancelHold = useCallback(() => {
+    if (holdTimer.current) {
+      clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+    if (holdEngaged.current) {
+      holdEngaged.current = false;
+      setFastForward(false);
+      onHoldEndRef.current?.();
+    }
+  }, []);
 
   const handleDoubleTap = useCallback(
     (x: number) => {
-      const isLeft = x < SCREEN_WIDTH / 2;
+      // Single call path only — previously this ALSO fired onSeek(±10) and the
+      // screen's onDoubleTap handler fired seek(±10) again (20s jumps).
+      const isLeft = x < dimsRef.current.width / 2;
       setDoubleTapSide(isLeft ? "left" : "right");
-      setDoubleTapCount((c) => c + 1);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       if (isLeft) {
-        onSeekRef.current(-SEEK_STEP);
         onDoubleTapLeftRef.current?.();
       } else {
-        onSeekRef.current(SEEK_STEP);
         onDoubleTapRightRef.current?.();
       }
       if (doubleTapTimer.current) clearTimeout(doubleTapTimer.current);
       doubleTapTimer.current = setTimeout(() => {
         setDoubleTapSide(null);
-        setDoubleTapCount(0);
       }, 600);
     },
     []
@@ -83,7 +119,7 @@ export function GestureLayer({
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
         return (
           Math.abs(gestureState.dx) > 10 ||
@@ -94,12 +130,25 @@ export function GestureLayer({
         startX.current = gestureState.x0;
         startY.current = gestureState.y0;
         seekAccum.current = 0;
+        moved.current = false;
+
+        // Hold-to-2x: fires only if the finger stays put.
+        if (holdTimer.current) clearTimeout(holdTimer.current);
+        holdTimer.current = setTimeout(() => {
+          if (!moved.current) {
+            holdEngaged.current = true;
+            setFastForward(true);
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+            onHoldStartRef.current?.();
+          }
+        }, HOLD_TO_FAST_FORWARD_MS);
 
         const now = Date.now();
         const timeSinceLastTap = now - lastTapTime.current;
         const distFromLastTap = Math.abs(gestureState.x0 - lastTapX.current);
 
         if (timeSinceLastTap < DOUBLE_TAP_DELAY && distFromLastTap < 80) {
+          if (holdTimer.current) clearTimeout(holdTimer.current);
           handleDoubleTapRef.current(gestureState.x0);
           lastTapTime.current = 0;
         } else {
@@ -108,27 +157,60 @@ export function GestureLayer({
         }
       },
       onPanResponderMove: (_, gestureState) => {
+        const { width: liveWidth, height: liveHeight } = dimsRef.current;
         const dx = gestureState.dx;
         const dy = gestureState.dy;
-        const isLeftSide = startX.current < SCREEN_WIDTH / 2;
+        if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+          moved.current = true;
+          if (holdTimer.current && !holdEngaged.current) {
+            clearTimeout(holdTimer.current);
+            holdTimer.current = null;
+          }
+        }
+        if (holdEngaged.current) return;
+        const isLeftSide = startX.current < liveWidth / 2;
 
         if (Math.abs(dx) > SWIPE_THRESHOLD) {
-          const seekDelta = (dx / SCREEN_WIDTH) * 30;
+          const seekDelta = (dx / liveWidth) * 30;
           seekAccum.current = seekDelta;
         }
 
         if (Math.abs(dy) > SWIPE_VERTICAL_THRESHOLD) {
-          const delta = -dy / (SCREEN_HEIGHT * 0.6);
+          const delta = -dy / (liveHeight * 0.6);
           if (isLeftSide && onBrightnessChangeRef.current) {
-            onBrightnessChangeRef.current(Math.max(0, Math.min(1, delta)));
+            const next = Math.max(0, Math.min(1, brightness + delta));
+            onBrightnessChangeRef.current(next);
           } else if (!isLeftSide && onVolumeChangeRef.current) {
-            onVolumeChangeRef.current(Math.max(0, Math.min(1, delta)));
+            const next = Math.max(0, Math.min(1, volume + delta));
+            onVolumeChangeRef.current(next);
           }
         }
       },
       onPanResponderRelease: () => {
-        if (Math.abs(seekAccum.current) > 1) {
+        const wasHold = holdEngaged.current;
+        if (holdTimer.current) {
+          clearTimeout(holdTimer.current);
+          holdTimer.current = null;
+        }
+        if (wasHold) {
+          holdEngaged.current = false;
+          setFastForward(false);
+          onHoldEndRef.current?.();
+        } else if (Math.abs(seekAccum.current) > 1) {
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
           onSeekRef.current(seekAccum.current);
+        }
+        seekAccum.current = 0;
+      },
+      onPanResponderTerminate: () => {
+        if (holdTimer.current) {
+          clearTimeout(holdTimer.current);
+          holdTimer.current = null;
+        }
+        if (holdEngaged.current) {
+          holdEngaged.current = false;
+          setFastForward(false);
+          onHoldEndRef.current?.();
         }
         seekAccum.current = 0;
       },
@@ -151,6 +233,12 @@ export function GestureLayer({
             color={nothing.white}
           />
           <Text style={styles.doubleTapText}>{SEEK_STEP}s</Text>
+        </View>
+      )}
+      {fastForward && (
+        <View pointerEvents="none" style={styles.fastForwardBadge}>
+          <AppIcon name="fast-forward" size={20} color={nothing.black} />
+          <Text style={styles.fastForwardText}>2×</Text>
         </View>
       )}
     </View>
@@ -212,5 +300,22 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "900",
     marginTop: 2,
+  },
+  fastForwardBadge: {
+    position: "absolute",
+    top: 12,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: nothing.white,
+  },
+  fastForwardText: {
+    color: nothing.black,
+    fontFamily: "Caveat-Bold",
+    fontSize: 18,
   },
 });

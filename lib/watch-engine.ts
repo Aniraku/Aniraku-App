@@ -84,6 +84,39 @@ export function isProxySource(source: StreamSource) {
   return verification === "proxy" || type === "proxy";
 }
 
+export function isVerifiedEmbedSource(source: StreamSource) {
+  return getPlaybackType(source) === "embed" && sourceVerification(source) === "embed";
+}
+
+export function embedSources(response: Pick<StreamResponse, "sources">) {
+  const seen = new Set<string>();
+  return (response.sources ?? []).filter(isVerifiedEmbedSource).filter((source) => {
+    if (!source.url || seen.has(source.url)) return false;
+    seen.add(source.url);
+    return true;
+  });
+}
+
+/** Hentai titles have no direct/proxy streams — they play via embedded WebView. */
+export function isHentaiAnime(input: {
+  isAdult?: boolean | null;
+  genres?: string[] | null;
+}) {
+  if (input.isAdult) return true;
+  return (input.genres ?? []).some((genre) => genre.trim().toLowerCase() === "hentai");
+}
+
+export function shouldPreferEmbed(input: {
+  isHentai: boolean;
+  directCount: number;
+  proxyCount: number;
+  embedCount: number;
+}) {
+  if (input.embedCount <= 0) return false;
+  if (input.isHentai && input.directCount === 0 && input.proxyCount === 0) return true;
+  return input.directCount === 0 && input.proxyCount === 0;
+}
+
 function validSources(response: Pick<StreamResponse, "sources">) {
   return (response.sources ?? [])
     .filter((source) => Boolean(source.url) && sourceVerification(source) !== "dead" && !hasExpiredEmbeddedToken(source.url));

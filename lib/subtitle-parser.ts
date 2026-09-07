@@ -39,7 +39,7 @@ function cleanText(raw: string): string {
 
 function parseVTT(content: string): ParsedSubtitle {
   const cues: SubtitleCue[] = [];
-  const blocks = content.replace(/^WEBVTT.*?\n\n/s, "").split(/\n\s*\n/);
+  const blocks = content.replace(/^WEBVTT[^\n]*\n\n/, "").split(/\n\s*\n/);
   let id = 0;
   for (const block of blocks) {
     const lines = block.trim().split("\n");

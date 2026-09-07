@@ -2,17 +2,16 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, AppState, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
-import { AnirakuMark, DotLabel, nothing, Signal } from "@/components/nothing-ui";
+import { nothing } from "@/components/nothing-ui";
 import { checkForAnirakuUpdate, updateDismissalKey, type AppRelease } from "@/lib/app-update";
 import { downloadAndInstallAnirakuUpdate } from "@/lib/android-app-installer";
-import { updatePromptCopy } from "@/lib/update-prompt-copy";
 
 const installedVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || "0.0.0";
 
 export function AppUpdatePrompt() {
   const [release, setRelease] = useState<AppRelease | null>(null);
-  const [opening, setOpening] = useState(false);
-  const [installMessage, setInstallMessage] = useState<string | null>(null);
+  const [installing, setInstalling] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
 
   const check = useCallback(async () => {
     try {
@@ -20,55 +19,74 @@ export function AppUpdatePrompt() {
       if (!result.available || !result.release) return;
       const dismissed = await AsyncStorage.getItem(updateDismissalKey(result.release.version)).catch(() => null);
       if (!dismissed) setRelease(result.release);
-    } catch {
-      // A direct-distribution update check must never delay app startup or show
-      // an offline error. Settings retains a deliberate manual check action.
-    }
+    } catch {}
   }, []);
 
   useEffect(() => {
     void check();
-    const subscription = AppState.addEventListener("change", (state) => { if (state === "active") void check(); });
-    return () => subscription.remove();
+    const sub = AppState.addEventListener("change", (s) => { if (s === "active") void check(); });
+    return () => sub.remove();
   }, [check]);
 
   const dismiss = async () => {
     if (release) await AsyncStorage.setItem(updateDismissalKey(release.version), "1").catch(() => {});
     setRelease(null);
+    setStatus(null);
   };
 
-  const installRelease = async () => {
+  const install = async () => {
     if (!release) return;
-    setOpening(true);
-    setInstallMessage("DOWNLOADING VERIFIED APK");
+    setInstalling(true);
+    setStatus("Downloading...");
     try {
       await downloadAndInstallAnirakuUpdate(release);
-      setInstallMessage("OPENING ANDROID INSTALLER");
-    } catch (error) {
-      setInstallMessage(error instanceof Error ? error.message.toUpperCase() : "THE UPDATE COULD NOT START.");
-    } finally { setOpening(false); }
+      setStatus("Opening installer...");
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Update failed");
+    } finally {
+      setInstalling(false);
+    }
   };
 
-  const copy = release ? updatePromptCopy(installedVersion, release.version) : null;
-
-  return <Modal transparent visible={Boolean(release)} animationType="fade" onRequestClose={() => { void dismiss(); }}>
-    <View style={styles.backdrop}><View style={styles.sheet} accessibilityViewIsModal>
-      <View style={styles.top}><DotLabel tone="signal">{copy?.label || "ANIRAKU / UPDATE READY"}</DotLabel><Signal label="VERIFIED RELEASE" tone="live" /></View>
-      <View style={styles.mark}><AnirakuMark size={38} inverted /></View>
-      <Text style={styles.title}>{copy?.title || "A newer Aniraku build is ready."}</Text>
-      <Text style={styles.copy}>{copy?.body || "Aniraku will download the verified official APK and open Android’s installer directly."}</Text>
-      {installMessage ? <Text style={styles.status}>{installMessage}</Text> : null}
-      <Pressable accessibilityRole="button" disabled={opening} onPress={() => void installRelease()} style={[styles.primary, opening && styles.primaryDisabled]}><Text style={styles.primaryText}>{opening ? "PREPARING INSTALL" : copy?.installLabel || "INSTALL UPDATE"}</Text>{opening ? <ActivityIndicator color={nothing.black} size="small" /> : null}</Pressable>
-      <Pressable accessibilityRole="button" onPress={() => void dismiss()} style={styles.secondary}><Text style={styles.secondaryText}>NOT NOW</Text></Pressable>
-    </View></View>
-  </Modal>;
+  return (
+    <Modal transparent visible={Boolean(release)} animationType="fade" onRequestClose={() => void dismiss()}>
+      <View style={styles.backdrop}>
+        <View style={styles.sheet} accessibilityViewIsModal>
+          <View style={styles.header}>
+            <View style={styles.badge}><Text style={styles.badgeText}>UPDATE</Text></View>
+            <Pressable onPress={() => void dismiss()} style={styles.close}><Text style={styles.closeText}>✕</Text></Pressable>
+          </View>
+          <Text style={styles.title}>{release ? `v${release.version}` : ""}</Text>
+          <Text style={styles.subtitle}>A new version of Aniraku is ready.</Text>
+          {status ? <Text style={styles.status}>{status}</Text> : null}
+          <View style={styles.actions}>
+            <Pressable disabled={installing} onPress={() => void install()} style={[styles.install, installing && { opacity: 0.5 }]}>
+              {installing ? <ActivityIndicator size="small" color={nothing.black} /> : <Text style={styles.installText}>INSTALL</Text>}
+            </Pressable>
+            <Pressable onPress={() => void dismiss()} style={styles.later}>
+              <Text style={styles.laterText}>LATER</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, padding: 20, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.76)" },
-  sheet: { gap: 14, padding: 18, borderRadius: 6, borderWidth: 1, borderColor: nothing.line, borderBottomWidth: 3, borderBottomColor: nothing.red, backgroundColor: nothing.black },
-  top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, mark: { width: 52, height: 52, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.raised },
-  title: { color: nothing.white, fontSize: 27, fontWeight: "900", letterSpacing: -0.8, lineHeight: 31 }, copy: { color: nothing.muted, fontSize: 13, lineHeight: 19 },
-  status: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "800", lineHeight: 14, letterSpacing: 0.3 }, primary: { minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: nothing.white, borderRadius: 4 }, primaryDisabled: { opacity: 0.58 }, primaryText: { color: nothing.black, fontFamily: "monospace", fontSize: 10, fontWeight: "900", letterSpacing: 0.45 },
-  secondary: { minHeight: 42, alignItems: "center", justifyContent: "center" }, secondaryText: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.45 },
+  backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.7)", padding: 16 },
+  sheet: { backgroundColor: nothing.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, gap: 12, borderWidth: 1, borderColor: nothing.line },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  badge: { backgroundColor: nothing.red, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
+  badgeText: { color: nothing.black, fontFamily: "SpaceGrotesk-SemiBold", fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+  close: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
+  closeText: { color: nothing.muted, fontSize: 16 },
+  title: { color: nothing.white, fontFamily: "SpaceGrotesk-SemiBold", fontSize: 22, fontWeight: "800", letterSpacing: -0.5 },
+  subtitle: { color: nothing.muted, fontFamily: "SpaceGrotesk-Regular", fontSize: 13, lineHeight: 18 },
+  status: { color: nothing.dim, fontFamily: "monospace", fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
+  actions: { flexDirection: "row", gap: 10, marginTop: 4 },
+  install: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", backgroundColor: nothing.white, borderRadius: 8 },
+  installText: { color: nothing.black, fontFamily: "SpaceGrotesk-SemiBold", fontSize: 13, fontWeight: "800", letterSpacing: 0.3 },
+  later: { minWidth: 80, minHeight: 44, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 8 },
+  laterText: { color: nothing.muted, fontFamily: "SpaceGrotesk-Medium", fontSize: 12, fontWeight: "700", letterSpacing: 0.3 },
 });

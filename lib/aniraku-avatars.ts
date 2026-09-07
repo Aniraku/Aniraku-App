@@ -1,4 +1,6 @@
-const SUPABASE_URL = "https://sbjdrjaovcgvttfnpfsz.supabase.co";
+import { APP_CONFIG, requirePublicConfig } from "@/lib/app-config";
+
+const supabaseUrl = requirePublicConfig(APP_CONFIG.supabaseUrl, "EXPO_PUBLIC_SUPABASE_URL");
 const BUCKET = "Anixen Avatars";
 
 const FILES = [
@@ -11,7 +13,7 @@ const FILES = [
 ] as const;
 
 function storageUrl(name: string) {
-  return `${SUPABASE_URL}/storage/v1/object/public/${encodeURIComponent(BUCKET)}/${encodeURIComponent(name)}`;
+  return `${supabaseUrl}/storage/v1/object/public/${encodeURIComponent(BUCKET)}/${encodeURIComponent(name)}`;
 }
 
 export const ANIRAKU_AVATARS = FILES.map((name, id) => ({ id, name, url: storageUrl(name) }));

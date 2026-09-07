@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { anirakuProxyUrl, getPlaybackType, hasExpiredEmbeddedToken, nativePlaybackHeaders, normalizeStreamResponse, playableSources } from "../lib/aniraku-api";
 import { getKnownMalId } from "../lib/anilist";
-import { directSources, episodePageCount, episodePageFor, episodePageSlice, FUTURE_RELEASE_MESSAGE, hasConfirmedPlaybackStart, isConfirmedFutureRelease, isProxySource, nativeSources, normalizeAniSkipSegments, proxySources, shouldApplyInitialHistoryResume, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldRetryProxiedSourceAfterDirect } from "../lib/watch-engine";
+import { directSources, embedSources, episodePageCount, episodePageFor, episodePageSlice, FUTURE_RELEASE_MESSAGE, hasConfirmedPlaybackStart, isConfirmedFutureRelease, isHentaiAnime, isProxySource, nativeSources, normalizeAniSkipSegments, proxySources, shouldApplyInitialHistoryResume, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldPreferEmbed, shouldRetryProxiedSourceAfterDirect } from "../lib/watch-engine";
 
 describe("Aniraku native playback coordination", () => {
   it("keeps only Android-safe transport headers for direct media", () => {
-    expect(nativePlaybackHeaders({ Referer: "https://allmanga.to/", "User-Agent": "browser", Origin: "https://example.com", Authorization: "Bearer token" })).toEqual({ Referer: "https://allmanga.to/", Authorization: "Bearer token" });
+    // ExoPlayer forwards User-Agent when present — stripping it caused 403s
+    // on UA-locked CDNs. Only transport-managed headers are blocked now.
+    expect(nativePlaybackHeaders({ Referer: "https://allmanga.to/", "User-Agent": "browser", Origin: "https://example.com", Authorization: "Bearer token", Host: "cdn.example", Connection: "keep-alive" })).toEqual({ Referer: "https://allmanga.to/", "User-Agent": "browser", Origin: "https://example.com", Authorization: "Bearer token" });
   });
 
   it("uses the same Aniraku proxy request contract", () => {
@@ -21,10 +23,32 @@ describe("Aniraku native playback coordination", () => {
     expect(stream.outro).toEqual({ startTime: 1344.9, endTime: 1434.9 });
   });
 
-  it("classifies HLS, DASH, and native media correctly", () => {
+  it("classifies HLS, DASH, native, and embed media correctly", () => {
     expect(getPlaybackType({ url: "https://cdn.example/stream.m3u8" })).toBe("hls");
     expect(getPlaybackType({ url: "https://cdn.example/stream.mpd" })).toBe("dash");
     expect(getPlaybackType({ url: "https://cdn.example/stream.webm" })).toBe("native");
+    expect(getPlaybackType({ url: "https://host.example/frame", type: "embed" })).toBe("embed");
+    expect(getPlaybackType({ url: "https://host.example/watch/episode", type: "page" })).toBe("embed");
+  });
+
+  it("routes embed-only and Hentai titles to the embedded player", () => {
+    const response = {
+      sources: [
+        { url: "https://embed.example/watch", type: "embed", verification: "embed" },
+        { url: "https://page.example/watch", type: "page", Verification: "embed" },
+        { url: "https://embed.example/dead", type: "embed", verification: "dead" },
+      ],
+    };
+    expect(embedSources(response).map((source) => source.url)).toEqual([
+      "https://embed.example/watch",
+      "https://page.example/watch",
+    ]);
+    expect(isHentaiAnime({ isAdult: true, genres: [] })).toBe(true);
+    expect(isHentaiAnime({ isAdult: false, genres: ["Action", "Hentai"] })).toBe(true);
+    expect(isHentaiAnime({ isAdult: false, genres: ["Action"] })).toBe(false);
+    expect(shouldPreferEmbed({ isHentai: true, directCount: 0, proxyCount: 0, embedCount: 2 })).toBe(true);
+    expect(shouldPreferEmbed({ isHentai: false, directCount: 1, proxyCount: 0, embedCount: 2 })).toBe(false);
+    expect(shouldPreferEmbed({ isHentai: false, directCount: 0, proxyCount: 0, embedCount: 0 })).toBe(false);
   });
 
   it("keeps only verified, non-expired sources", () => {

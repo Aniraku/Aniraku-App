@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { router } from "expo-router";
-import { ActivityIndicator, FlatList, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, FlatList, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppIcon } from "@/components/app-icon";
 import { ErrorState, LoadingState } from "@/components/async-state";
 import { DotLabel, NothingButton, NothingCard, nothing } from "@/components/nothing-ui";
@@ -29,6 +29,20 @@ function CommentAuthor({ comment }: { comment: SharedComment }) {
   return <View style={styles.commentAuthor}>{avatar ? <Image source={{ uri: avatar }} style={styles.avatar} /> : <View style={styles.initialAvatar}><Text style={styles.initialAvatarText}>{name.slice(0, 1).toUpperCase()}</Text></View>}<View style={styles.authorCopy}><Text style={styles.authorName} numberOfLines={1}>{name}</Text><Text style={styles.authorMeta}>{comment.episode_number ? `EP ${comment.episode_number} · ` : ""}{elapsedTime(comment.created_at)}</Text></View></View>;
 }
 
+function SpoilerContent({ children }: { children: React.ReactNode }) {
+  const blurAnim = useRef(new Animated.Value(10)).current;
+  useEffect(() => {
+    Animated.timing(blurAnim, { toValue: 0, duration: 500, useNativeDriver: false }).start();
+  }, []);
+  return (
+    <Animated.View style={{ opacity: blurAnim.interpolate({ inputRange: [0, 10], outputRange: [1, 0.6] }) }}>
+      <Animated.View style={{ opacity: blurAnim.interpolate({ inputRange: [0, 10], outputRange: [1, 0.3] }) }}>
+        {children}
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
 export function AnimeComments({ animeId, episodeNumber }: { animeId: number; episodeNumber?: number }) {
   const auth = useAnirakuAuth();
   const comments = useComments(animeId, episodeNumber);
@@ -38,18 +52,48 @@ export function AnimeComments({ animeId, episodeNumber }: { animeId: number; epi
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
+  const [hideAllSpoilers, setHideAllSpoilers] = useState(false);
+  const [sort, setSort] = useState<"popular" | "newest">("newest");
+  const [replyTo, setReplyTo] = useState<SharedComment | null>(null);
   const gifs = useGiphyGifs(pickerOpen, search);
   const canPost = canSubmitSharedComment(content, gifUrl);
   const giphyEnabled = Boolean(APP_CONFIG.giphyApiKey.trim());
+  const sortedComments = useMemo(() => {
+    const rows = [...(comments.comments.data ?? [])];
+    if (sort === "popular") rows.sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0));
+    return rows;
+  }, [comments.comments.data, sort]);
+  const repliesByParent = useMemo(() => {
+    const grouped = new Map<string, typeof sortedComments>();
+    for (const reply of comments.replies.data ?? []) {
+      if (!reply.parent_id) continue;
+      const list = grouped.get(reply.parent_id) ?? [];
+      list.push(reply);
+      grouped.set(reply.parent_id, list);
+    }
+    return grouped;
+  }, [comments.replies.data]);
+  useEffect(() => {
+    if (replyTo && !sortedComments.some((comment) => comment.id === replyTo.id)) setReplyTo(null);
+  }, [replyTo, sortedComments]);
 
-  const post = () => comments.add.mutate({ content, gifUrl, spoiler, episode: episodeNumber }, { onSuccess: () => { setContent(""); setGifUrl(""); setSpoiler(false); } });
+  const post = () => comments.add.mutate({ content, gifUrl, spoiler, episode: episodeNumber, parentId: replyTo?.id ?? null }, { onSuccess: () => { setContent(""); setGifUrl(""); setSpoiler(false); setReplyTo(null); } });
   const chooseGif = (url: string) => { setGifUrl(url); setPickerOpen(false); };
-  const reveal = (id: string) => setRevealed((current) => new Set(current).add(id));
+  const reveal = (id: string) => {
+    Alert.alert("Spoiler Warning", "This comment contains spoilers. Reveal?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Reveal", onPress: () => setRevealed((current) => new Set(current).add(id)) },
+    ]);
+  };
 
   return <View style={styles.section}>
-    <View style={styles.heading}><View><DotLabel>{episodeNumber ? "EPISODE ACTIVITY" : "COMMUNITY"}</DotLabel><Text style={styles.title}>{episodeNumber ? "Episode discussion" : "Comments"}</Text></View><Text style={styles.count}>{String(comments.comments.data?.length ?? 0).padStart(2, "0")}</Text></View>
+    <View style={styles.heading}><View><DotLabel>{episodeNumber ? "EPISODE ACTIVITY" : "COMMUNITY"}</DotLabel><Text style={styles.title}>{episodeNumber ? "Episode discussion" : "Comments"}</Text></View><View style={styles.headingRight}><Pressable accessibilityRole="button" accessibilityLabel={hideAllSpoilers ? "Show all spoilers" : "Hide all spoilers"} accessibilityHint="Toggles visibility of all spoiler comments" onPress={() => setHideAllSpoilers((v) => !v)} style={({ pressed }) => [styles.spoilerToggle, pressed && styles.pressed]}><AppIcon name={hideAllSpoilers ? "eye-off-outline" : "eye-outline"} size={18} color={hideAllSpoilers ? nothing.red : nothing.muted} /></Pressable><Text style={styles.count}>{String(comments.comments.data?.length ?? 0).padStart(2, "0")}</Text></View></View>
+    <View style={styles.sortRow}><Text style={styles.sortLabel}>Sort by</Text>
+      {(["popular", "newest"] as const).map((option) => <Pressable key={option} accessibilityRole="button" onPress={() => setSort(option)} style={[styles.sortPill, sort === option && styles.sortPillActive]}><Text style={[styles.sortPillText, sort === option && styles.sortPillTextActive]}>{option === "popular" ? "Popular" : "Newest"}</Text></Pressable>)}
+    </View>
     {auth.user ? <NothingCard style={styles.composer}>
-      <TextInput value={content} onChangeText={setContent} placeholder="Share a thought" placeholderTextColor={nothing.dim} style={styles.input} multiline maxLength={2000} textAlignVertical="top" />
+      {replyTo ? <View style={styles.replyBar}><Text style={styles.replyBarText} numberOfLines={1}>Replying to {authorName(replyTo)}</Text><Pressable accessibilityRole="button" accessibilityLabel="Cancel reply" onPress={() => setReplyTo(null)} style={styles.replyBarClose}><AppIcon name="close" size={14} color={nothing.muted} /></Pressable></View> : null}
+      <TextInput value={content} onChangeText={setContent} placeholder={replyTo ? "Write a reply" : "Share a thought"} placeholderTextColor={nothing.dim} style={styles.input} multiline maxLength={2000} textAlignVertical="top" />
       {gifUrl ? <View style={styles.selectedGif}><Image source={{ uri: gifUrl }} style={styles.selectedGifImage} /><Pressable accessibilityRole="button" accessibilityLabel="Remove selected GIF" onPress={() => setGifUrl("")} style={({ pressed }) => [styles.removeGif, pressed && styles.pressed]}><AppIcon name="close" size={16} color={nothing.white} /></Pressable></View> : null}
       <View style={styles.composerActions}>
         {giphyEnabled ? <Pressable accessibilityRole="button" accessibilityLabel="Choose GIF" onPress={() => setPickerOpen((open) => !open)} style={({ pressed }) => [styles.tool, pickerOpen && styles.toolActive, pressed && styles.pressed]}><AppIcon name="image-search-outline" size={16} color={pickerOpen ? nothing.red : nothing.white} /><Text style={[styles.toolText, pickerOpen && styles.toolTextActive]}>GIF</Text></Pressable> : null}
@@ -64,16 +108,43 @@ export function AnimeComments({ animeId, episodeNumber }: { animeId: number; epi
       </View> : null}
       {comments.add.isError ? <Text style={styles.error}>{comments.add.error.message}</Text> : null}
     </NothingCard> : <NothingCard style={styles.guest}><Text style={styles.guestText}>Sign in with a verified Aniraku account to join the discussion.</Text><NothingButton label="SIGN IN TO COMMENT" variant="outline" onPress={() => router.push("/auth" as never)} /></NothingCard>}
-    {comments.comments.isPending ? <LoadingState label="Loading community comments" /> : comments.comments.isError ? <ErrorState message="Comments could not load right now." onRetry={() => void comments.comments.refetch()} /> : !comments.comments.data?.length ? <NothingCard style={styles.empty}><Text style={styles.emptyTitle}>No discussion yet</Text><Text style={styles.emptyText}>Start the conversation without spoiling the story for everyone else.</Text></NothingCard> : <FlatList data={comments.comments.data} keyExtractor={(comment) => comment.id} scrollEnabled={false} contentContainerStyle={styles.list} renderItem={({ item: comment }) => { const hidden = comment.is_spoiler && !revealed.has(comment.id); return <NothingCard style={styles.commentCard}><CommentAuthor comment={comment} />{hidden ? <Pressable accessibilityRole="button" accessibilityLabel="Spoiler hidden. Reveal comment." onPress={() => reveal(comment.id)} style={({ pressed }) => [styles.spoilerShield, pressed && styles.pressed]}><AppIcon name="eye-off-outline" size={17} color={nothing.red} /><Text style={styles.spoilerText}>SPOILER HIDDEN · TAP TO REVEAL</Text></Pressable> : <>{comment.is_spoiler ? <Text style={styles.revealed}>SPOILER REVEALED</Text> : null}{comment.content ? <Text style={styles.commentText}>{comment.content}</Text> : null}{comment.gif_url ? <Image source={{ uri: comment.gif_url }} style={styles.commentGif} resizeMode="contain" /> : null}</>}</NothingCard>; }} />}
+    {comments.comments.isPending ? <LoadingState label="Loading community comments" /> : comments.comments.isError ? <ErrorState message="Comments could not load right now." onRetry={() => void comments.comments.refetch()} /> : !sortedComments.length ? <NothingCard style={styles.empty}><Text style={styles.emptyTitle}>No discussion yet</Text><Text style={styles.emptyText}>Start the conversation without spoiling the story for everyone else.</Text></NothingCard> : <FlatList data={sortedComments} keyExtractor={(comment) => comment.id} scrollEnabled={false} contentContainerStyle={styles.list} renderItem={({ item: comment }) => { const hidden = comment.is_spoiler && (hideAllSpoilers || !revealed.has(comment.id)); const isLiked = comments.likedIds.has(comment.id); const isOwn = Boolean(auth.user) && auth.user!.id === comment.user_id; const thread = repliesByParent.get(comment.id) ?? []; return <NothingCard style={styles.commentCard}><CommentAuthor comment={comment} />{hidden ? <Pressable accessibilityRole="button" accessibilityLabel="Spoiler hidden. Reveal comment." onPress={() => reveal(comment.id)} style={({ pressed }) => [styles.spoilerShield, pressed && styles.pressed]}><AppIcon name="eye-off-outline" size={17} color={nothing.red} /><Text style={styles.spoilerText}>SPOILER HIDDEN · TAP TO REVEAL</Text></Pressable> : <>{comment.is_spoiler ? <SpoilerContent><Text style={styles.revealed}>SPOILER REVEALED</Text>{comment.content ? <Text style={styles.commentText}>{comment.content}</Text> : null}{comment.gif_url ? <Image source={{ uri: comment.gif_url }} style={styles.commentGif} resizeMode="contain" /> : null}</SpoilerContent> : <>{comment.content ? <Text style={styles.commentText}>{comment.content}</Text> : null}{comment.gif_url ? <Image source={{ uri: comment.gif_url }} style={styles.commentGif} resizeMode="contain" /> : null}</>}</>}
+      <View style={styles.commentActions}>
+        <Pressable accessibilityRole="button" accessibilityLabel={isLiked ? "Unlike comment" : "Like comment"} disabled={comments.toggleLike.isPending} onPress={() => void comments.toggleLike.mutate(comment)} style={styles.commentAction}><AppIcon name={isLiked ? "heart" : "heart-outline"} size={16} color={isLiked ? nothing.red : nothing.muted} /><Text style={[styles.commentActionText, isLiked && styles.commentActionTextActive]}>{comment.likes ?? 0}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Reply to comment" onPress={() => setReplyTo(comment)} style={styles.commentAction}><AppIcon name="reply-outline" size={16} color={nothing.muted} /><Text style={styles.commentActionText}>Reply</Text></Pressable>
+        {isOwn ? <Pressable accessibilityRole="button" accessibilityLabel="Delete comment" disabled={comments.remove.isPending} onPress={() => void comments.remove.mutate(comment.id)} style={styles.commentAction}><AppIcon name="trash-can-outline" size={16} color={nothing.muted} /></Pressable> : null}
+      </View>
+      {thread.map((reply) => { const replyHidden = reply.is_spoiler && (hideAllSpoilers || !revealed.has(reply.id)); const replyOwn = Boolean(auth.user) && auth.user!.id === reply.user_id; return <View key={reply.id} style={styles.replyRow}><CommentAuthor comment={reply} />{replyHidden ? <Pressable accessibilityRole="button" accessibilityLabel="Spoiler hidden. Reveal reply." onPress={() => reveal(reply.id)} style={({ pressed }) => [styles.spoilerShield, pressed && styles.pressed]}><AppIcon name="eye-off-outline" size={15} color={nothing.red} /><Text style={styles.spoilerText}>SPOILER HIDDEN · TAP TO REVEAL</Text></Pressable> : <>{reply.content ? <Text style={styles.commentText}>{reply.content}</Text> : null}{reply.gif_url ? <Image source={{ uri: reply.gif_url }} style={styles.commentGif} resizeMode="contain" /> : null}</>}
+        <View style={styles.commentActions}>
+          {replyOwn ? <Pressable accessibilityRole="button" accessibilityLabel="Delete reply" disabled={comments.remove.isPending} onPress={() => void comments.remove.mutate(reply.id)} style={styles.commentAction}><AppIcon name="trash-can-outline" size={15} color={nothing.muted} /></Pressable> : null}
+        </View>
+      </View>; })}
+    </NothingCard>; }} />}
   </View>;
 }
 
 const styles = StyleSheet.create({
   section: { gap: 10, marginTop: 4 },
   heading: { alignItems: "flex-end", flexDirection: "row", justifyContent: "space-between" },
+  headingRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  spoilerToggle: { padding: 4 },
+  sortRow: { alignItems: "center", flexDirection: "row", gap: 10, marginTop: 2 },
+  sortLabel: { color: nothing.white, fontSize: 14, fontWeight: "700" },
+  sortPill: { borderColor: nothing.line, borderRadius: 16, borderWidth: 1, minHeight: 32, alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
+  sortPillActive: { borderColor: nothing.red },
+  sortPillText: { color: nothing.muted, fontSize: 13, fontWeight: "700" },
+  sortPillTextActive: { color: nothing.red },
   title: { color: nothing.white, fontSize: 21, fontWeight: "900", marginTop: 4 },
   count: { color: nothing.dim, fontFamily: "monospace", fontSize: 12 },
   composer: { gap: 8, padding: 10 },
+  replyBar: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 7, backgroundColor: "rgba(255,77,77,0.10)", borderWidth: 1, borderColor: "rgba(255,77,77,0.45)" },
+  replyBarText: { flex: 1, color: nothing.white, fontFamily: "Caveat-Bold", fontSize: 17 },
+  replyBarClose: { padding: 4 },
+  commentActions: { flexDirection: "row", alignItems: "center", gap: 14, paddingTop: 2 },
+  commentAction: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 28, paddingHorizontal: 2 },
+  commentActionText: { color: nothing.muted, fontFamily: "monospace", fontSize: 11, fontWeight: "800" },
+  commentActionTextActive: { color: nothing.red },
+  replyRow: { gap: 7, marginTop: 4, marginLeft: 12, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: nothing.line },
   input: { color: nothing.white, fontSize: 14, lineHeight: 20, minHeight: 48, padding: 0 },
   composerActions: { alignItems: "center", borderTopColor: nothing.line, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", gap: 7, paddingTop: 8 },
   tool: { alignItems: "center", borderColor: "transparent", borderRadius: 7, borderWidth: 1, flexDirection: "row", gap: 5, minHeight: 30, paddingHorizontal: 8 },

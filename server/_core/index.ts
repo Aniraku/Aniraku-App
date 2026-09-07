@@ -15,8 +15,16 @@ const PRIVATE_WATCH_TEST_APK = path.resolve(
   "/home/ubuntu/aniraku-private-builds/Aniraku-Watch-Private-Test.apk",
 );
 
+const ALLOWED_ORIGINS = new Set([
+  "https://aniraku.tech",
+  "https://www.aniraku.tech",
+  "https://api.aniraku.tech",
+  process.env.EXPO_WEB_PREVIEW_URL,
+  process.env.EXPO_PACKAGER_PROXY_URL,
+].filter(Boolean));
+
 function isAllowedAnirakuProxyPath(path: string) {
-  return /^\/api\/v1\/(?:health|anime\/\d+\/episodes|servers|stream)$/.test(path);
+  return /^\/api\/v1\/(?:health|anime\/\d+(?:\/episodes)?|servers|stream)$/.test(path);
 }
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -42,10 +50,10 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
 
-  // Enable CORS for all routes - reflect the request origin to support credentials
+  // Enable CORS with strict origin allowlist
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (origin) {
+    if (origin && ALLOWED_ORIGINS.has(origin)) {
       res.header("Access-Control-Allow-Origin", origin);
     }
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -63,8 +71,8 @@ async function startServer() {
     next();
   });
 
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use(express.json({ limit: "1mb" }));
+  app.use(express.urlencoded({ limit: "1mb", extended: true }));
 
   // Temporary device-test handoff: serve the isolated staging build with a
   // literal APK filename because Android download managers can discard names.

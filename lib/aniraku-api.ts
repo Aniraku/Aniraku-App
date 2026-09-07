@@ -30,9 +30,13 @@ async function apiRequest<T>(path: string, init?: RequestInit, timeoutMs: number
   return payload;
 }
 
-export function getPlaybackType(source: StreamSource): "hls" | "dash" | "native" {
+export const CHROME_ANDROID_UA =
+  "Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36";
+
+export function getPlaybackType(source: StreamSource): "hls" | "dash" | "native" | "embed" {
   const raw = `${source.type ?? ""} ${source.mime ?? ""}`.toLowerCase();
-  const url = source.url.toLowerCase();
+  const url = String(source.url ?? "").toLowerCase();
+  if (raw.includes("embed") || raw.includes("iframe") || raw.includes("page")) return "embed";
   if (raw.includes("dash") || /\.mpd(?:$|[?#])/.test(url)) return "dash";
   if (raw.includes("hls") || raw.includes("mpegurl") || /\.m3u8(?:$|[?#])/.test(url)) return "hls";
   return "native";
@@ -57,7 +61,11 @@ export function playableSources(sources: StreamSource[]) {
 }
 
 export function nativePlaybackHeaders(headers?: Record<string, string>) {
-  const blocked = /^(user-agent|host|origin|content-length|connection|accept-encoding)$/i;
+  // ExoPlayer (react-native-video DataSourceUtil) forwards a `User-Agent`
+  // header when present and falls back to its default UA otherwise. Stripping
+  // it caused 403s on UA-locked CDNs, so only transport-managed headers are
+  // blocked now. Referer / Origin / Authorization / User-Agent pass through.
+  const blocked = /^(host|content-length|connection|accept-encoding)$/i;
   const retained = Object.entries(headers ?? {}).filter(([name]) => !blocked.test(name));
   return retained.length ? Object.fromEntries(retained) : undefined;
 }
@@ -107,6 +115,16 @@ export async function getEpisodes(animeId: number): Promise<Episode[]> {
   return normalizeBackendEpisodes(await apiRequest<BackendEpisode[] | { episodes?: BackendEpisode[] }>(`/api/v1/anime/${animeId}/episodes`));
 }
 
+/** Check if dub is available for a specific episode (returns true if servers exist for lang=dub). */
+export async function hasDubForEpisode(animeId: number, episode: number): Promise<boolean> {
+  try {
+    const payload = await apiRequest<any[]>(`/api/v1/servers?animeId=${animeId}&episode=${episode}&lang=dub`, undefined, 15_000);
+    return Array.isArray(payload) && payload.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 const UNSUPPORTED_PROVIDERS = new Set(["flixcloud"]);
 
 /** Anikoto returns Momo and Niko. Both support direct or proxy. Deduplicates by name and filters unsupported. */
@@ -136,12 +154,17 @@ export async function getServers(animeId: number, episode: number, lang: "sub" |
       }
       if (servers.length > 0) return servers;
     }
-  } catch {}
-  // Fallback: Momo and Niko
-  return [
-    { id: `momo:${lang}`, provider: "momo", label: "MOMO", lang },
-    { id: `niko:${lang}`, provider: "niko", label: "NIKO", lang },
-  ];
+    // Backend answered but has nothing for this language (e.g. no DUB exists)
+    // — return empty so the tab stays disabled instead of showing phantom rows.
+    return [];
+  } catch {
+    // Request itself failed: last-resort provider names so /stream can still
+    // be attempted directly by name.
+    return [
+      { id: `momo:${lang}`, provider: "momo", label: "MOMO", lang },
+      { id: `niko:${lang}`, provider: "niko", label: "NIKO", lang },
+    ];
+  }
 }
 
 export async function getStream(input: { animeId: number; episode: number; provider: string; lang: "sub" | "dub"; quality?: string; refresh?: boolean }): Promise<StreamResponse> {

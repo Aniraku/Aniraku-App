@@ -12,7 +12,7 @@ import { Platform } from "react-native";
 import type { Metrics } from "react-native-safe-area-context";
 
 // Debug logging with timestamps
-const DEBUG = true;
+const DEBUG = false;
 const log = (msg: string) => {
   if (!DEBUG) return;
   const ts = new Date().toISOString();
@@ -46,15 +46,19 @@ function isWeb(): boolean {
   return Platform.OS === "web";
 }
 
+const ALLOWED_PARENT_ORIGINS = new Set([
+  "https://aniraku.tech",
+  "https://www.aniraku.tech",
+]);
+
 function sendToParent(type: MessageType, payload: Record<string, unknown> = {}): void {
-  // NOTE: Validate parent origin if we need to transfer sensitive data
   if (!isWeb() || !isInIframe()) return;
 
   const message: SpacePreviewerMessage = {
     type: "SpacePreviewerChannel",
     payload: { type, from: "content", to: "container", payload },
   };
-  window.parent.postMessage(message, "*");
+  window.parent.postMessage(message, window.location.origin);
   log(`Sent to parent: ${type}`);
 }
 
@@ -71,7 +75,7 @@ function isValidInsets(payload: Record<string, unknown>): payload is SafeAreaIns
 }
 
 function handleMessage(event: MessageEvent<unknown>): void {
-  // NOTE: Validate event.origin if we need to transfer sensitive data
+  if (ALLOWED_PARENT_ORIGINS.size > 0 && !ALLOWED_PARENT_ORIGINS.has(event.origin)) return;
   const data = event.data as SpacePreviewerMessage | undefined;
   if (!data || data.type !== "SpacePreviewerChannel") return;
 

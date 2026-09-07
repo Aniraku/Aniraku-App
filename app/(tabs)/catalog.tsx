@@ -1,6 +1,6 @@
 import { useDeferredValue, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { getAnimePage } from "@/lib/anilist";
 import { AnimeCard } from "@/components/anime-card";
 import { ErrorState, LoadingState } from "@/components/async-state";
@@ -26,6 +26,7 @@ export default function CatalogScreen() {
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const search = useDeferredValue(input.trim());
   const hasFilters = selectedGenre || selectedStatus || selectedFormat || selectedSeason || selectedYear;
   const key = useMemo(() => ["catalog", mode, search, selectedGenre, selectedStatus, selectedFormat, selectedSeason, selectedYear], [mode, search, selectedGenre, selectedStatus, selectedFormat, selectedSeason, selectedYear]);
@@ -43,6 +44,12 @@ export default function CatalogScreen() {
     }),
   });
   const activeMode = modes[mode];
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await catalog.refetch();
+    setRefreshing(false);
+  };
 
   const clearFilters = () => {
     setSelectedGenre(null);
@@ -81,7 +88,7 @@ export default function CatalogScreen() {
       {hasFilters ? <Pressable onPress={clearFilters} style={styles.clearFilters}><Text style={styles.clearFiltersText}>CLEAR FILTERS</Text></Pressable> : null}
     </View> : null}
 
-    {catalog.isPending ? <LoadingState label="Loading anime" /> : catalog.isError || !catalog.data ? <ErrorState message={catalog.error?.message ?? "We could not load the catalog."} onRetry={() => void catalog.refetch()} /> : <FlatList data={catalog.data.media} numColumns={2} keyExtractor={(item) => String(item.id)} renderItem={({ item }) => <View style={styles.cell}><AnimeCard anime={item} /></View>} ListHeaderComponent={<View style={styles.listHead}><View><DotLabel tone="live">{activeMode.signal}</DotLabel><Text style={styles.listTitle}>{search ? `Results for "${search}"` : hasFilters ? "Filtered results" : `${activeMode.label} picks for you`}</Text></View><Text style={styles.count}>{String(catalog.data.media.length).padStart(2, "0")}</Text></View>} contentContainerStyle={styles.list} showsVerticalScrollIndicator={false} />}
+    {catalog.isPending ? <LoadingState label="Loading anime" /> : catalog.isError || !catalog.data ? <ErrorState message={catalog.error?.message ?? "We could not load the catalog."} onRetry={() => void catalog.refetch()} /> : <FlatList data={catalog.data.media} numColumns={2} keyExtractor={(item) => String(item.id)} renderItem={({ item }) => <View style={styles.cell}><AnimeCard anime={item} /></View>} ListHeaderComponent={<View style={styles.listHead}><View><DotLabel tone="live">{activeMode.signal}</DotLabel><Text style={styles.listTitle}>{search ? `Results for "${search}"` : hasFilters ? "Filtered results" : `${activeMode.label} picks for you`}</Text></View><Text style={styles.count}>{String(catalog.data.media.length).padStart(2, "0")}</Text></View>} contentContainerStyle={styles.list} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={nothing.red} />} />}
   </NativeScreen>;
 }
 

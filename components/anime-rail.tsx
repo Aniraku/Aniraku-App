@@ -8,7 +8,7 @@ export function AnimeRail({ label, title, items }: { label: string; title: strin
   return <View style={styles.section}>
     <View style={styles.heading}>
       <View style={styles.headingCopy}><Text style={styles.label}>{label}</Text><Text style={styles.title}>{title}</Text></View>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title} catalog`} onPress={() => router.push("/catalog" as never)} style={styles.browse}><Text style={styles.browseText}>VIEW ALL</Text><Text style={styles.browseArrow}>↗</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title} catalog`} accessibilityHint="Double tap to browse the full catalog" onPress={() => router.push("/catalog" as never)} style={styles.browse}><Text style={styles.browseText}>VIEW ALL</Text><Text style={styles.browseArrow}>↗</Text></Pressable>
     </View>
     <FlatList
       horizontal
@@ -21,6 +21,7 @@ export function AnimeRail({ label, title, items }: { label: string; title: strin
       maxToRenderPerBatch={4}
       windowSize={3}
       removeClippedSubviews
+      accessibilityHint="Swipe to see more items"
     />
   </View>;
 }

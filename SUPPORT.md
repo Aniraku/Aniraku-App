@@ -6,6 +6,16 @@ Aniraku is an open-source project. Support is entirely voluntary and helps fund 
 
 The preferred worldwide support route is [Patreon](https://patreon.com/ShoIslam).
 
+## Binance Pay
+
+Send directly via Binance Pay to UID:
+
+```
+1098400042
+```
+
+Open Binance > Pay > Enter UID > Send. No network fees.
+
 ## Optional crypto support
 
 | Item | Value |
@@ -17,3 +27,10 @@ The preferred worldwide support route is [Patreon](https://patreon.com/ShoIslam)
 > **Important:** Send USDT on **BNB Smart Chain (BEP20) only**. Do not use Ethereum, Polygon, Arbitrum, or another network for this address. Verify both the asset and network before sending; crypto transfers cannot be reversed.
 
 ![USDT on BNB Smart Chain (BEP20) support QR code](./site/assets/usdt-bep20-support-qr.png)
+
+## What support funds
+
+- Server hosting for the API and backend
+- Release builds and testing
+- Open-source development and maintenance
+- Domain and infrastructure costs

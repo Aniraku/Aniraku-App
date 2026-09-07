@@ -1,7 +1,7 @@
 import type { StreamResponse, StreamSource } from "@/lib/types";
 import { isAutoQuality } from "@/lib/watch-engine";
 
-const QUALITY_ORDER = ["auto", "1080p", "720p", "480p", "360p"];
+const QUALITY_ORDER = ["auto", "2160p", "1440p", "1080p", "720p", "480p", "360p"];
 
 export type WatchQualityOption = {
   id: string;

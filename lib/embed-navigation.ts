@@ -35,7 +35,7 @@ function hasBlockedHost(hostname: string) {
 export function shouldAllowEmbedNavigation(url: string) {
   try {
     const parsed = new URL(url);
-    const allowed = (parsed.protocol === "https:" || parsed.protocol === "http:") && !hasBlockedHost(parsed.hostname);
+    const allowed = parsed.protocol === "https:" && !hasBlockedHost(parsed.hostname);
     if (!allowed) console.info(`[Aniraku embed] navigation blocked: ${parsed.protocol}//${parsed.hostname || "unknown"}`);
     return allowed;
   } catch {

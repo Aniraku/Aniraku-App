@@ -32,6 +32,8 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
   useEffect(() => {
+    // Push listeners are native-only: on web they warn and do nothing.
+    if (Platform.OS === "web") return;
     registerForPushNotifications().catch(() => {});
 
     notificationListener.current = Notifications.addNotificationReceivedListener((_notification) => {});

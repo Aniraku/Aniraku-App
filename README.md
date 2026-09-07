@@ -3,10 +3,10 @@
 
   <br><br>
 
-  # ✨ Aniraku Android ✨
+  # Aniraku Android
 
   <p>
-    <i>soft little anime companion for your phone</i>
+    <i>A quiet anime companion for your phone</i>
   </p>
 
   <p>
@@ -22,68 +22,101 @@
 
   <br>
 
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/latest">🌸 Download APK</a>
-  &nbsp;‧&nbsp;
-  <a href="https://aniraku.github.io/Aniraku-App/">🌙 App Site</a>
-  &nbsp;‧&nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.1.0">☁️ v5.1 Notes</a>
-  &nbsp;‧&nbsp;
-  <a href="https://rookieenough.github.io/Orion-Data/redirect.html?id=aniraku">🫧 Orion</a>
-  &nbsp;‧&nbsp;
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/latest">Download APK</a>
+  &nbsp;
+  <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
+  &nbsp;
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.2.0">v5.2 Notes</a>
+  &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 
 <br>
 
-# ⚠️ Important Notice
-
 ---
 
-**We're currently experiencing technical issues with our Android app.**
+<div align="center">
 
-If you'd like to continue watching anime during this time, please use our website instead:
+  ### v5.2.0 is out
 
-### 🌐 [Aniraku](https://www.aniraku.tech)
+  Three architecture builds for full device coverage. Chapter navigation, trending discovery,
+  random anime with genre filters, spoiler tags, skeleton loading, swipe between episodes,
+  pull to refresh, landscape auto-rotate, quick actions, performance monitoring, and more.
+
+  | Device Type | APK |
+  |:--|:--|
+  | Modern phones (2017+) | `aniraku-v5.2.0-arm64.apk` |
+  | Older 32-bit (Oppo A16, Helio G35) | `aniraku-v5.2.0-arm32.apk` |
+  | Emulators / Chromebooks | `aniraku-v5.2.0-x86_64.apk` |
+
+  <sub>Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
+
+</div>
 
 ---
-
-Thank you for your patience and understanding.  
-We'll have the app back to normal as soon as possible.
-
-**Happy watching!** ✨
 
 ### Support Aniraku
 
 Aniraku is open source. Voluntary support helps fund **hosting, releases, and open-source development** and never changes access to app features.
 
-## Sponsor☕💘
-
-<a href="https://patreon.com/ShoIslam"><img src="https://user-images.githubusercontent.com/61944859/180249027-678b01b8-c336-451e-b147-6d84a5b9d0e7.png" width="250"/></a>
-| Optional crypto support | Value |
+| Option | Details |
 |:--|:--|
-| Asset | USDT |
-| Network | **BNB Smart Chain (BEP20) only** |
-| Address | `0x0dc085fc880f2f67b4e200f125bc0de352da904e` |
+| Patreon | [patreon.com/ShoIslam](https://patreon.com/ShoIslam) |
+| Binance | UID `1098400042` (Binance Pay) |
+| USDT (BEP20) | `0x0dc085fc880f2f67b4e200f125bc0de352da904e` |
 
-> **Send USDT on BNB Smart Chain (BEP20) only.** Do not use Ethereum, Polygon, Arbitrum, or another network. Verify both the asset and network before sending because crypto transfers cannot be reversed.
-
-<img src="./site/assets/usdt-bep20-support-qr.png" width="180" alt="USDT on BNB Smart Chain BEP20 support QR code" />
+> Send USDT on **BNB Smart Chain (BEP20) only**. Do not use Ethereum, Polygon, Arbitrum, or another network. Verify both the asset and network before sending because crypto transfers cannot be reversed.
 
 Read the full [Support Guide](./SUPPORT.md).
 
 ---
 
-<div align="center">
-  <h2>˚₊‧ soft little world ‧₊˚</h2>
-  <p>
-    Aniraku is a gentle native Android client made for discovering, watching,<br>
-    and collecting anime — with a calm player, cozy library, and quiet care.
-  </p>
-</div>
+### What's new in v5.2
+
+**Player**
+- Chapter navigation with intro/outro markers on the timeline
+- Swipe between episodes with spring-back gesture
+- Landscape auto-rotate with manual toggle
+- Player lock to prevent accidental touches
+- Resume from last position with confirmation pill
+- Playback speed control (0.5x to 3x)
+- Subtitle language selection
+- Picture-in-Picture support
+- Download support when source allows
+- Volume and brightness gesture controls
+- Double-tap seek with visual feedback
+- 2x hold-speed with HUD indicator
+
+**Discovery**
+- Trending Now section on home with rank badges
+- Random Anime with 13 genre filters and fade transitions
+- Quick actions on long-press (Add to Library, Mark Watched, Share, Open in Browser)
+- Search history with timestamps and individual delete
+
+**Library & History**
+- Continue Watching with relative timestamps and progress badges
+- Watch history real-time sync with Supabase (SYNCED badge)
+- Notification preferences (episode alerts, comment replies, system announcements)
+
+**Quality**
+- Skeleton loading placeholders across all screens
+- Pull to refresh on home and catalog
+- Performance monitor (FPS counter, slow frame detection) in dev
+- Image optimization with AniList CDN resizing
+- Cache strategy with 5min stale time and 30min garbage collection
+- Spoiler tags with global toggle and blur animation
+
+**Privacy & Security**
+- Provider secrets never live inside the APK
+- CORS allowlist on API
+- PostMessage origin validation
+- HTTPS-only WebView
+- Android backup disabled
+- No console.log in production
 
 ---
 
-### ⋆ ˚｡⋆ screens ⋆ ˚｡⋆
+### Screenshots
 
 <p align="center">
   <img src="./site/assets/screens/home.jpg" width="29%" style="border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" />
@@ -93,63 +126,24 @@ Read the full [Support Guide](./SUPPORT.md).
   <img src="./site/assets/screens/watch.jpg" width="29%" style="border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" />
 </p>
 
-<p align="center">
-  <img src="./site/assets/screens/random.jpg" width="29%" style="border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" />
-  &nbsp;
-  <img src="./site/assets/screens/profile.jpg" width="29%" style="border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" />
-  &nbsp;
-  <img src="./site/assets/screens/alerts-preview.png" width="29%" style="border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" />
-</p>
-
-<p align="center">
-  <sub>more soft screens live in <code>site/assets/screens/</code></sub>
-</p>
-
 ---
 
-### ⋆ ˚｡⋆ little features ⋆ ˚｡⋆
-
-**Player**
-- gentle watch-history recovery after rebuffering  
-- soft persistent cache with time-priority reserve  
-- direct downloads when the source allows  
-- provider & audio controls  
-- direct / proxy / verified-embed recovery  
-- AniSkip support  
-- fullscreen + list sync  
-- AniList & MyAnimeList linking (protected flow)
-
-**Library & Discovery**
-- calm anime discovery  
-- relationships between shows  
-- watch history that remembers you  
-- random & schedule views  
-- provider controls
-
-**Quiet Privacy**
-- provider secrets never live inside the APK  
-- open source so you can see everything  
-
-> Adaptive / DRM / non-HTTPS sources stay streaming-only ♡
-
----
-
-### ⋆ ˚｡⋆ how to install ⋆ ˚｡⋆
+### How to install
 
 1. Open the [latest release](https://github.com/Aniraku/Aniraku-App/releases/latest)
-2. download the right APK for your device:
+2. Download the right APK for your device:
    - **arm64** for modern 64-bit phones
    - **arm32** for older 32-bit devices
-3. install softly
+   - **x86_64** for emulators and Chromebooks
+3. Install
 
-**tiny note:**
-If you had an older alpha under `aniraku.anine.app`, please uninstall it first. Android sees them as different apps.
+**Note:** If you had an older alpha under `aniraku.anine.app`, please uninstall it first. Android sees them as different apps.
 
-Full soft info lives here → [App Website](https://aniraku.github.io/Aniraku-App/)
+Full info at [aniraku.github.io/Aniraku-App](https://aniraku.github.io/Aniraku-App/)
 
 ---
 
-### ⋆ ˚｡⋆ for the builders ⋆ ˚｡⋆
+### For builders
 
 Expo + React Native with a native playback layer.
 
@@ -158,23 +152,29 @@ pnpm install
 pnpm start
 ```
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.  
-Design thoughts → [`design.md`](design.md)
+Build the server:
+```bash
+pnpm build
+pnpm start
+```
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
+Design notes in [`design.md`](design.md).
 
 ---
 
-### ⋆ ˚｡⋆ gentle notes ⋆ ˚｡⋆
+### Gentle notes
 
-- Backend lives on a free cloud instance, so discovery can be a little slower during busy hours  
-- Providers can come and go  
-- Only use media you are allowed to watch  
-- Please read [TERMS.md](TERMS.md) · [PRIVACY.md](PRIVACY.md) · [SECURITY.md](SECURITY.md)
+- Backend runs on a free cloud instance, so discovery can be slower during busy hours
+- Providers can come and go
+- Only use media you are allowed to watch
+- Read [TERMS.md](TERMS.md) | [PRIVACY.md](PRIVACY.md) | [SECURITY.md](SECURITY.md)
 
 <br>
 
 <div align="center">
   <sub>
-    made with soft care · Android 9+ · open source<br>
-    <i>Aniraku · a quiet place for anime</i>
+    Made with care &middot; Android 9+ &middot; Open source<br>
+    <i>Aniraku &middot; a quiet place for anime</i>
   </sub>
 </div>
