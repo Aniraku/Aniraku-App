@@ -275,9 +275,9 @@ function adaptAnime(j: JikanAnime): Anime {
 
 export async function getMalHomeAnime(): Promise<{ trending: Anime[]; popular: Anime[]; upcoming: Anime[] }> {
   const [trending, popular, upcoming] = await Promise.all([
-    jikanFetch<JikanAnime[]>("/v4/top/anime?filter=bypopularity&limit=12", STATIC_CACHE_TTL_MS),
-    jikanFetch<JikanAnime[]>("/v4/top/anime?filter=bypopularity&limit=12&page=2", STATIC_CACHE_TTL_MS),
-    jikanFetch<JikanAnime[]>("/v4/top/anime?filter=upcoming&limit=12", STATIC_CACHE_TTL_MS),
+    jikanFetch<JikanAnime[]>("/v4/top/anime?limit=12", STATIC_CACHE_TTL_MS),
+    jikanFetch<JikanAnime[]>("/v4/top/anime?limit=12&page=2", STATIC_CACHE_TTL_MS),
+    jikanFetch<JikanAnime[]>("/v4/top/anime?limit=12&page=3", STATIC_CACHE_TTL_MS).catch(() => [] as JikanAnime[]),
   ]);
   return {
     trending: (trending || []).map(adaptAnime),
@@ -389,7 +389,17 @@ export async function getMalAnimeById(id: number): Promise<Anime> {
 }
 
 export async function getMalAiringSchedule(): Promise<{ pageInfo: { currentPage: number; hasNextPage: boolean; total: number | null }; airingSchedules: { media: Anime; episode: number; airingAt: number }[] }> {
-  const data = await jikanFetch<JikanAnime[]>(`/v4/schedules?limit=25&rf=true`, STATIC_CACHE_TTL_MS);
+  let data: JikanAnime[];
+  try {
+    data = await jikanFetch<JikanAnime[]>(`/v4/schedules?limit=25&rf=true`, STATIC_CACHE_TTL_MS);
+  } catch {
+    // Fallback: use top airing anime when schedules endpoint is down
+    try {
+      data = await jikanFetch<JikanAnime[]>(`/v4/top/anime?limit=25`, STATIC_CACHE_TTL_MS);
+    } catch {
+      return { pageInfo: { currentPage: 1, hasNextPage: false, total: 0 }, airingSchedules: [] };
+    }
+  }
   // Jikan schedules return currently airing anime with broadcast info
   // We approximate the next episode time from broadcast data
   const now = Date.now();
