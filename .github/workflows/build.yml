@@ -44,15 +44,15 @@ jobs:
       - name: Build APK
         id: build
         run: |
-          BUILD_OUTPUT=$(eas build --profile preview --platform android --non-interactive --wait 2>&1)
-          echo "$BUILD_OUTPUT"
-          # Extract artifact URL from EAS output
-          APK_URL=$(echo "$BUILD_OUTPUT" | grep -oP 'https://[^ ]+\.apk' | head -1)
-          if [ -z "$APK_URL" ]; then
-            echo "ERROR: Could not find APK URL in EAS output"
+          eas build --profile preview --platform android --non-interactive --wait --json > eas-output.json || true
+          cat eas-output.json
+          BUILD_ID=$(cat eas-output.json | jq -r '.id // empty')
+          if [ -z "$BUILD_ID" ]; then
+            echo "ERROR: EAS build failed. Output:"
+            cat eas-output.json
             exit 1
           fi
-          echo "apk_url=$APK_URL" >> "$GITHUB_OUTPUT"
+          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
@@ -65,7 +65,17 @@ jobs:
       - name: Download APK
         run: |
           mkdir -p artifacts
-          curl -L -o "aniraku-${{ github.ref_name }}-${{ matrix.label }}.apk" "${{ steps.build.outputs.apk_url }}"
+          eas build:download --id ${{ steps.build.outputs.build_id }} --path artifacts/ --platform android
+          APK=$(find artifacts -name "*.apk" | head -1)
+          if [ -z "$APK" ]; then
+            echo "ERROR: No APK found after download"
+            ls -la artifacts/
+            exit 1
+          fi
+          cp "$APK" "aniraku-${{ github.ref_name }}-${{ matrix.label }}.apk"
+          echo "Downloaded: aniraku-${{ github.ref_name }}-${{ matrix.label }}.apk"
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -85,6 +95,9 @@ jobs:
         with:
           path: ./artifacts
           merge-multiple: true
+
+      - name: List artifacts
+        run: ls -la ./artifacts/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
