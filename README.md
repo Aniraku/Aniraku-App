@@ -63,10 +63,6 @@ Aniraku is open source. Voluntary support helps fund **hosting, releases, and op
 |:--|:--|
 | Patreon | [patreon.com/ShoIslam](https://patreon.com/ShoIslam) |
 | Binance | UID `1098400042` (Binance Pay) |
-| USDT (BEP20) | `0x0dc085fc880f2f67b4e200f125bc0de352da904e` |
-
-> Send USDT on **BNB Smart Chain (BEP20) only**. Do not use Ethereum, Polygon, Arbitrum, or another network. Verify both the asset and network before sending because crypto transfers cannot be reversed.
-
 Read the full [Support Guide](./SUPPORT.md).
 
 ---
