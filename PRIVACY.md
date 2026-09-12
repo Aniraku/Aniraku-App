@@ -1,7 +1,3 @@
-![Aniraku documentation signal](./assets/readme/documentation-signal.svg)
-
-`ANIRAKU / YOUR DATA, IN CONTEXT`
-
 # Privacy Notice
 
 **Effective date: August 16, 2026**
@@ -24,7 +20,7 @@ You can sign out from Settings, clear watch history and bookmarks, remove indivi
 
 Aniraku uses AniList for public anime metadata, the Aniraku API for source coordination, and Supabase for authentication and account-scoped synchronization. Each service processes requests needed for its own function. Review their independent notices for details about their respective practices.
 
-For privacy questions or account-data requests, contact **privacy@aniraku.tech**. This notice will be revised when the application’s data practices materially change.
+For privacy questions or account-data requests, contact **[Showaib-Mail](mailto:sho.islam0311@proton.me)**. This notice will be revised when the application’s data practices materially change.
 
 ---
 
