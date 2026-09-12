@@ -20,6 +20,6 @@ Questions about these terms may be sent to **[Aniraku@terms](mailto:sho.islam031
 
 ---
 
-`SIGNAL / RESPECT THE SOURCE`
+`Other Docs you should aware of!`
 
 [README](./README.md) · [Privacy](./PRIVACY.md) · [DMCA](./DMCA.md) · [MIT License](./LICENSE)
