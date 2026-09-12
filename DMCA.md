@@ -1,10 +1,6 @@
-![Aniraku documentation signal](./assets/readme/documentation-signal.svg)
-
-`ANIRAKU / COPYRIGHT NOTICE PATH`
-
 # Copyright and DMCA Procedure
 
-Aniraku respects intellectual-property rights and responds to valid copyright notices. If a rights holder believes material accessible through an Aniraku service infringes copyright, the rights holder or an authorized representative may write to **dmca@aniraku.tech**.
+Aniraku respects intellectual-property rights and responds to valid copyright notices. If a rights holder believes material accessible through an Aniraku service infringes copyright, the rights holder or an authorized representative may write to **[Aniraku@dmca](mailto:sho.islam0311@proton.me)**.
 
 | `INCLUDE` | `DETAIL` |
 | --- | --- |
@@ -19,6 +15,6 @@ Aniraku may remove or disable access to material when appropriate and may apply 
 
 ---
 
-`SIGNAL / SPECIFIC, PRIVATE, GOOD-FAITH`
+`Other Docs we need you look at`
 
 [README](./README.md) · [Terms](./TERMS.md) · [Privacy](./PRIVACY.md) · [Security](./SECURITY.md)
