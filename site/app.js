@@ -93,12 +93,41 @@ async function loadReleases() {
           month: "short",
           day: "numeric",
         });
-        const asset = r.assets?.find((a) => a.name.endsWith(".apk"));
-        const url = asset?.browser_download_url || r.html_url;
+        const apks = (r.assets || []).filter((a) => a.name.endsWith(".apk"));
+        const totalDl = apks.reduce((n, a) => n + (a.download_count || 0), 0);
         const badge = i === 0 ? "LATEST" : r.tag_name;
         const desc = r.body
           ? r.body.split("\n").find((l) => l.trim() && !l.startsWith("#"))?.trim() || r.name
           : r.name;
+        // Latest release: one row per APK with size + download counts.
+        if (i === 0 && apks.length > 1) {
+          const rows = apks
+            .map((a) => `
+            <a href="${a.browser_download_url}" class="asset-row" rel="noopener">
+              <span class="asset-tag">${archTag(a.name)}</span>
+              <span class="asset-name">${a.name}</span>
+              <span class="asset-meta">${fmtSize(a.size)}${a.download_count ? ` · ${fmtCount(a.download_count)}` : ""}</span>
+              <span class="asset-dl">↓</span>
+            </a>`)
+            .join("");
+          return `
+          <div class="release-latest">
+            <a href="${apks[0].browser_download_url}" class="release-entry" rel="noopener">
+              <span class="release-badge">${badge}</span>
+              <div class="release-info">
+                <h3>${r.name || r.tag_name}</h3>
+                <p>${esc(desc)}</p>
+              </div>
+              <div class="release-meta">
+                <span class="release-date">${date}${totalDl ? ` · ${fmtCount(totalDl)}` : ""}</span>
+                <span class="release-link">Get the APKs ↓</span>
+              </div>
+            </a>
+            <div class="asset-rows">${rows}</div>
+          </div>`;
+        }
+        const asset = apks[0];
+        const url = asset?.browser_download_url || r.html_url;
         return `
           <a href="${url}" class="release-entry" target="_blank" rel="noopener">
             <span class="release-badge">${badge}</span>
@@ -107,7 +136,7 @@ async function loadReleases() {
               <p>${esc(desc)}</p>
             </div>
             <div class="release-meta">
-              <span class="release-date">${date}</span>
+              <span class="release-date">${date}${asset?.size ? ` · ${fmtSize(asset.size)}` : ""}${totalDl ? ` · ${fmtCount(totalDl)}` : ""}</span>
               <span class="release-link">${asset ? "Download APK →" : "View Release →"}</span>
             </div>
           </a>`;
@@ -117,6 +146,26 @@ async function loadReleases() {
     list.innerHTML = `<div class="release-loading">Failed to load releases — <a href="https://github.com/${REPO}/releases" target="_blank" style="color:var(--red)">view on GitHub</a></div>`;
     console.error("Release load error:", e);
   }
+}
+
+function fmtSize(bytes) {
+  if (!bytes && bytes !== 0) return "";
+  const mb = bytes / 1048576;
+  return mb >= 10 ? `${Math.round(mb)} MB` : `${mb.toFixed(1)} MB`;
+}
+
+function fmtCount(n) {
+  if (n === undefined || n === null) return "";
+  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k downloads`;
+  return `${n} download${n === 1 ? "" : "s"}`;
+}
+
+function archTag(name) {
+  const n = name.toLowerCase();
+  if (n.includes("universal")) return "UNIVERSAL";
+  if (n.includes("arm64")) return "ARM64";
+  if (n.includes("arm32") || n.includes("armeabi")) return "ARM32";
+  return "APK";
 }
 
 function esc(s) {
