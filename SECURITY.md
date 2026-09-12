@@ -1,14 +1,10 @@
-![Aniraku documentation signal](./assets/readme/documentation-signal.svg)
-
-`ANIRAKU / RESPONSIBLE DISCLOSURE`
-
 # Security
 
 If you find a vulnerability, report it privately before publishing details. Good reports help protect people’s accounts, watch history, and devices.
 
 ## Report a concern
 
-Send a concise report to **security@aniraku.tech**. Include the affected version or endpoint, a clear description, reproduction steps, impact, and a safe proof of concept where possible. Do not include credentials, access tokens, private keys, user data, or destructive payloads.
+Send a concise report to **[Aniraku@Security](mailto:sho.islam0311@proton.me)**. Include the affected version or endpoint, a clear description, reproduction steps, impact, and a safe proof of concept where possible. Do not include credentials, access tokens, private keys, user data, or destructive payloads.
 
 | `SUPPORTED LINE` | `TRIAGE` | `DISCLOSURE` |
 | --- | --- | --- |
@@ -20,6 +16,6 @@ The native app includes only public client configuration. It must never ship Sup
 
 ---
 
-`SIGNAL / PROTECT THE LIBRARY`
+`Other Docs we need you to know`
 
 [README](./README.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Contributing](./CONTRIBUTING.md)
