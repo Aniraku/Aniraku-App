@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
   count: { color: nothing.dim, fontFamily: "monospace", fontSize: 12 },
   composer: { gap: 8, padding: 10 },
   replyBar: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 7, backgroundColor: "rgba(255,77,77,0.10)", borderWidth: 1, borderColor: "rgba(255,77,77,0.45)" },
-  replyBarText: { flex: 1, color: nothing.white, fontFamily: "Caveat-Bold", fontSize: 17 },
+  replyBarText: { flex: 1, color: nothing.white, fontSize: 14, fontWeight: "700" },
   replyBarClose: { padding: 4 },
   commentActions: { flexDirection: "row", alignItems: "center", gap: 14, paddingTop: 2 },
   commentAction: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 28, paddingHorizontal: 2 },

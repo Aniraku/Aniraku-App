@@ -70,7 +70,17 @@ export function nativePlaybackHeaders(headers?: Record<string, string>) {
   return retained.length ? Object.fromEntries(retained) : undefined;
 }
 
+export function isAnirakuProxyUrl(url: string) {
+  return String(url ?? "").includes("/api/v1/proxy?");
+}
+
 export function anirakuProxyUrl(url: string, headers?: Record<string, string>) {
+  // The backend now returns pre-proxied stream URLs (verification: "proxy",
+  // url already points at /api/v1/proxy?...). Re-wrapping them produces a
+  // proxy-of-proxy URL that the backend rejects with
+  // {"error":"proxy target not allowed"} → HTTP 403 → ExoPlayer
+  // ERROR_CODE_IO_BAD_HTTP_STATUS. Play those URLs as-is.
+  if (isAnirakuProxyUrl(url)) return url;
   const parameters = new URLSearchParams({ url, rn: `${Date.now()}-${Math.random().toString(36).slice(2)}` });
   if (headers && Object.keys(headers).length) parameters.set("headers", JSON.stringify(headers));
   return `${APP_CONFIG.apiBaseUrl}/api/v1/proxy?${parameters.toString()}`;

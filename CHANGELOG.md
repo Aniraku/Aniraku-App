@@ -6,6 +6,17 @@
 
 This is the public record of meaningful native Android releases. For the currently installable build, open [GitHub Releases](https://github.com/Aniraku/Aniraku-App/releases/latest).
 
+## v5.4.0 — Watch playback fix + font unification
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- Fixes `PLAYER · ExoPlaybackException: ERROR_CODE_IO_BAD_HTTP_STATUS` on `SERVER · MOMO · PROXY`.
+- Root cause: the backend now returns pre-proxied stream URLs (`/api/v1/proxy?...`, `verification: "proxy"`) and the client wrapped them a second time. The backend rejects proxy-of-proxy targets with `403 {"error":"proxy target not allowed"}`. `lib/aniraku-api.ts` now detects already-proxied URLs (`isAnirakuProxyUrl`) and plays them as-is; `app/watch/[id].tsx` applies the same guard for the video source and headers.
+- TRY AGAIN / SWITCH SERVER now recover instead of replaying the same 403: Momo and Niko resolve to the same upstream, so the fix is at URL construction, not provider hopping.
+- Unifies the Watch page typography with the rest of the app: removes `Caveat-Bold` / `HennyPenny-Regular` headings on Watch (`You are watching`, `List of episodes`, player title, skip pill, quality/source rows) in favor of the standard SpaceGrotesk sizes (`21 / 900` section headings, `14 / 700` player title, `13 / 900` pills) plus monospace eyebrows — matching Anime-detail and other screens. Sleep-timer heading/pill and comment reply bar updated to match.
+- Ships three builds: `arm64`, `arm32`, and `universal` (universal contains all architectures).
+- Bumps the Android versionCode to 51.
+
 ## v5.3.0 — Minor bug fixes
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`

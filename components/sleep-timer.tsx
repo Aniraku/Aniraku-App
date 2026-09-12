@@ -76,7 +76,7 @@ export function SleepTimerPill({ remaining, onPress }: { remaining: number; onPr
 const styles = StyleSheet.create({
   container: { gap: 8 },
   header: { flexDirection: "row", alignItems: "center", gap: 6 },
-  heading: { color: nothing.white, fontFamily: "Caveat-Bold", fontSize: 17, letterSpacing: 0.3 },
+  heading: { color: nothing.white, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
   presets: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   presetBtn: { minWidth: 50, minHeight: 32, alignItems: "center", justifyContent: "center", paddingHorizontal: 10, borderWidth: 1, borderColor: nothing.line, borderRadius: 8 },
   presetText: { color: nothing.white, fontFamily: "monospace", fontWeight: "900", fontSize: 9, letterSpacing: 0.3 },
@@ -85,5 +85,5 @@ const styles = StyleSheet.create({
   timerText: { color: nothing.red, fontFamily: "monospace", fontWeight: "900", fontSize: 14, letterSpacing: 0.5, flex: 1 },
   cancelBtn: { padding: 4 },
   pill: { position: "absolute", zIndex: 4, top: 52, left: 12, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: nothing.white },
-  pillText: { color: nothing.black, fontFamily: "Caveat-Bold", fontSize: 16 },
+  pillText: { color: nothing.black, fontFamily: "monospace", fontSize: 12, fontWeight: "900", letterSpacing: 0.3 },
 });

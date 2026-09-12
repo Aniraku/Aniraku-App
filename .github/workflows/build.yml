@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.3.0"
+        default: "v5.4.0"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -115,16 +115,16 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.3.0 — Minor bug fixes
+            ## v5.4.0 — Watch playback fix + font unification
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.3.0-arm64.apk`
-            - `aniraku-v5.3.0-arm32.apk`
-            - `aniraku-v5.3.0-universal.apk`
+            - `aniraku-v5.4.0-arm64.apk`
+            - `aniraku-v5.4.0-arm32.apk`
+            - `aniraku-v5.4.0-universal.apk`
 
-            - Fixed the `cannot add 'postgres_changes' callbacks for realtime:watch-history … after 'subscribe()'` crash that forced the "Aniraku needs to restart this screen" state on the Anime-detail / Watch screens.
-            - Removed the unused GIF picker and Giphy API integration from comments (comments are text-only now).
+            - Fixed `PLAYER · ExoPlaybackException: ERROR_CODE_IO_BAD_HTTP_STATUS` on `SERVER · MOMO · PROXY` (backend now returns pre-proxied URLs — the client no longer double-wraps them into a rejected proxy-of-proxy 403).
+            - Unified Watch page fonts/sizes with the rest of the app (SpaceGrotesk + monospace, no more Caveat/HennyPenny headings).
             - Minor bug fixes and stability improvements.
 
             Download the APK, install, and allow *install from unknown sources* if prompted.

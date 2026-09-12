@@ -13,7 +13,7 @@ import * as IntentLauncher from "expo-intent-launcher";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
-import { anirakuDownloadUrl, anirakuProxyUrl, getAnimeMetadata, getEpisodes, getServers, getStream, getPlaybackType, nativePlaybackHeaders, hasDubForEpisode } from "@/lib/aniraku-api";
+import { anirakuDownloadUrl, anirakuProxyUrl, getAnimeMetadata, getEpisodes, getServers, getStream, getPlaybackType, isAnirakuProxyUrl, nativePlaybackHeaders, hasDubForEpisode } from "@/lib/aniraku-api";
 import { getAnimeById, getKnownMalId, getMalIdByAnimeId } from "@/lib/anilist";
 import { enrichEpisodesWithTmdb } from "@/lib/tmdb-episodes";
 import {
@@ -812,8 +812,12 @@ export default function WatchScreen() {
   }, [skipKind, skipSegments, autoSkip]);
 
   // ── Video source URL ──
+  // Backend stream URLs are already proxied (/api/v1/proxy?...). Those must
+  // play as-is — re-wrapping yields a proxy-of-proxy URL the backend rejects
+  // with 403 ("proxy target not allowed") → Exo BAD_HTTP_STATUS.
   const videoSourceUri = useMemo(() => {
     if (!source) return undefined;
+    if (isAnirakuProxyUrl(source.url)) return source.url;
     const directHeaders = nativePlaybackHeaders(playbackHeaders);
     if (useSourceProxy) return anirakuProxyUrl(source.url, directHeaders);
     return source.url;
@@ -821,8 +825,9 @@ export default function WatchScreen() {
 
   const videoSourceHeaders = useMemo(() => {
     if (useSourceProxy) return undefined;
+    if (source && isAnirakuProxyUrl(source.url)) return undefined;
     return nativePlaybackHeaders(playbackHeaders);
-  }, [useSourceProxy, playbackHeaders]);
+  }, [useSourceProxy, playbackHeaders, source?.url]);
 
   const videoContentType = useMemo(() => {
     if (!source) return undefined;
@@ -1591,7 +1596,7 @@ const ps = StyleSheet.create({
   qualityChoices: { borderTopWidth: 1, borderTopColor: nothing.line },
   qualityChoice: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, borderBottomWidth: 1, borderBottomColor: nothing.line },
   qualityChoiceActive: { borderBottomColor: nothing.red, backgroundColor: "rgba(255,77,77,0.06)" },
-  qualityChoiceText: { color: nothing.white, fontFamily: "Caveat-Bold", fontSize: 18 },
+  qualityChoiceText: { color: nothing.white, fontSize: 14, fontWeight: "800", letterSpacing: -0.2 },
   qualityChoiceTextActive: { color: nothing.red },
   qualityChoiceState: { color: nothing.dim, fontFamily: "monospace", fontSize: 8, fontWeight: "800" },
   qualityChoiceStateActive: { color: nothing.red },
@@ -1601,7 +1606,7 @@ const ps = StyleSheet.create({
   sourceItemName: { flexDirection: "row", alignItems: "center", gap: 8 },
   sourceSignal: { width: 7, height: 7, borderRadius: 99, backgroundColor: nothing.dim },
   sourceSignalActive: { backgroundColor: nothing.red },
-  sourceItemText: { color: nothing.white, fontFamily: "Caveat-Bold", fontSize: 18 },
+  sourceItemText: { color: nothing.white, fontSize: 14, fontWeight: "800", letterSpacing: -0.2 },
   sourceItemTextActive: { color: nothing.red },
   sourceItemState: { color: nothing.dim, fontFamily: "monospace", fontSize: 8, fontWeight: "800" },
   settingsOverlay: { position: "absolute", zIndex: 4, top: 8, right: 8, bottom: 8, width: "78%", maxWidth: 370, borderWidth: 1, borderColor: "rgba(246,246,242,0.3)", borderRadius: 5, backgroundColor: "rgba(9,9,9,0.96)" },
@@ -1626,14 +1631,14 @@ const styles = StyleSheet.create({
   top: { minHeight: 62, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 12 },
   closeButton: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 6 },
   topCopy: { flex: 1, gap: 2 },
-  title: { color: nothing.white, fontFamily: "Caveat-Bold", fontSize: 24, lineHeight: 26 },
-  episodeLabel: { color: nothing.muted, fontFamily: "HennyPenny-Regular", fontSize: 12, letterSpacing: 0.5 },
+  title: { color: nothing.white, fontSize: 22, fontWeight: "900", lineHeight: 26, letterSpacing: -0.6 },
+  episodeLabel: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
   videoShell: { width: "100%", aspectRatio: 16 / 9, backgroundColor: "#000000", overflow: "hidden", position: "relative" },
   video: { flex: 1 },
   subtitleWrapper: { ...StyleSheet.absoluteFillObject, justifyContent: "flex-end", alignItems: "center", paddingBottom: 60 },
   controlsBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: 3, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
   topBar: { flexDirection: "row", alignItems: "center" },
-  playerTitle: { flex: 1, color: "#FFF", fontSize: 14, fontWeight: "700", fontFamily: "Caveat-Bold", marginLeft: 12, marginRight: 8 },
+  playerTitle: { flex: 1, color: "#FFF", fontSize: 14, fontWeight: "700", letterSpacing: -0.2, marginLeft: 12, marginRight: 8 },
   topRightRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   iconButton: { padding: 6, justifyContent: "center", alignItems: "center" },
   iconButtonActive: { backgroundColor: "rgba(255,77,77,0.15)", borderRadius: 6 },
@@ -1706,7 +1711,7 @@ const styles = StyleSheet.create({
   pointerNone: { pointerEvents: "none" },
   th3Top: { flexDirection: "row", alignItems: "center", gap: 8 },
   th3Back: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  th3Title: { flex: 1, color: nothing.white, fontFamily: "Caveat-Bold", fontSize: 19, lineHeight: 22 },
+  th3Title: { flex: 1, color: nothing.white, fontSize: 18, fontWeight: "800", lineHeight: 22, letterSpacing: -0.4 },
   th3TopIcons: { flexDirection: "row", alignItems: "center", gap: 8 },
   th3Icon: { minWidth: 32, minHeight: 32, alignItems: "center", justifyContent: "center" },
   th3Pill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: nothing.red },
@@ -1724,9 +1729,9 @@ const styles = StyleSheet.create({
   th3Fab: { width: 50, height: 50, alignItems: "center", justifyContent: "center", backgroundColor: nothing.white, borderRadius: 25, marginHorizontal: 4 },
   th3Disabled: { opacity: 0.3 },
   th3Section: { gap: 14 },
-  th3Watching: { fontSize: 16, fontWeight: "800" },
-  th3WatchingGreen: { color: nothing.red, fontFamily: "Caveat-Bold", fontSize: 22 },
-  th3WatchingWhite: { color: nothing.white, fontFamily: "Caveat-Bold", fontSize: 22 },
+  th3Watching: { fontSize: 21, fontWeight: "900", letterSpacing: -0.5 },
+  th3WatchingGreen: { color: nothing.red, fontSize: 21, fontWeight: "900", letterSpacing: -0.5 },
+  th3WatchingWhite: { color: nothing.white, fontSize: 21, fontWeight: "900", letterSpacing: -0.5 },
   th3Tabs: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: nothing.line },
   th3Tab: { flex: 1, alignItems: "center", paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: "transparent" },
   th3TabActive: { borderBottomColor: nothing.red },
@@ -1740,7 +1745,7 @@ const styles = StyleSheet.create({
   th3ServerPillTextActive: { color: nothing.black, fontSize: 14, fontWeight: "900" },
   th3ServerPillTextIdle: { color: nothing.muted, fontSize: 14, fontWeight: "700" },
   th3EpHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  th3EpTitle: { color: nothing.white, fontFamily: "Caveat-Bold", fontSize: 24 },
+  th3EpTitle: { color: nothing.white, fontSize: 21, fontWeight: "900", letterSpacing: -0.5 },
   th3EpSearch: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 38, minWidth: 130, borderWidth: 1, borderColor: nothing.line, borderRadius: 10, backgroundColor: nothing.surface },
   th3EpSearchInput: { flex: 1, color: nothing.white, fontSize: 13, paddingVertical: 0 },
   th3EpsRow: { flexDirection: "row", alignItems: "center", gap: 6 },
@@ -1763,7 +1768,7 @@ const styles = StyleSheet.create({
   resumeBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, backgroundColor: "rgba(9,9,9,0.8)" },
   resumeBtnText: { color: nothing.white, fontFamily: "monospace", fontSize: 9, fontWeight: "900" },
   skipBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 4, backgroundColor: nothing.red },
-  skipBtnText: { color: nothing.white, fontFamily: "Caveat-Bold", fontSize: 19, letterSpacing: 0.3 },
+  skipBtnText: { color: nothing.white, fontSize: 13, fontWeight: "900", letterSpacing: 0.3 },
   lockedRow: { flex: 1, alignItems: "flex-end", justifyContent: "center" },
   errorBtnRow: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
   timelineBlock: { gap: 6, paddingTop: 3 },

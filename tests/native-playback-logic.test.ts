@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anirakuProxyUrl, getPlaybackType, hasExpiredEmbeddedToken, nativePlaybackHeaders, normalizeStreamResponse, playableSources } from "../lib/aniraku-api";
+import { anirakuProxyUrl, getPlaybackType, hasExpiredEmbeddedToken, isAnirakuProxyUrl, nativePlaybackHeaders, normalizeStreamResponse, playableSources } from "../lib/aniraku-api";
 import { getKnownMalId } from "../lib/anilist";
 import { directSources, embedSources, episodePageCount, episodePageFor, episodePageSlice, FUTURE_RELEASE_MESSAGE, hasConfirmedPlaybackStart, isConfirmedFutureRelease, isHentaiAnime, isProxySource, nativeSources, normalizeAniSkipSegments, proxySources, shouldApplyInitialHistoryResume, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldPreferEmbed, shouldRetryProxiedSourceAfterDirect } from "../lib/watch-engine";
 
@@ -15,6 +15,14 @@ describe("Aniraku native playback coordination", () => {
     expect(proxied).toContain("https://api.aniraku.tech/api/v1/proxy?");
     expect(decodeURIComponent(proxied)).toContain("url=https://cdn.example/episode.m3u8");
     expect(decodeURIComponent(proxied)).toContain('headers={"Referer":"https://provider.example/","User-Agent":"browser"}');
+  });
+
+  it("never double-wraps backend pre-proxied stream URLs (403 BAD_HTTP_STATUS fix)", () => {
+    const preProxied = "https://api.aniraku.tech/api/v1/proxy?url=https%3A%2F%2Fmegap.mikora.top%2Fabc%2Fmaster.m3u8&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fmegaplay.buzz%2F%22%7D";
+    expect(isAnirakuProxyUrl(preProxied)).toBe(true);
+    expect(isAnirakuProxyUrl("https://cdn.example/episode.m3u8")).toBe(false);
+    // Must play as-is, otherwise backend rejects with "proxy target not allowed".
+    expect(anirakuProxyUrl(preProxied, { Referer: "https://megaplay.buzz/" })).toBe(preProxied);
   });
 
   it("normalizes the deployed backend skip segment fields", () => {
