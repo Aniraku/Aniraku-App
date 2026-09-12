@@ -16,7 +16,7 @@ Language tracks, stream quality, subtitles, schedules, metadata, and provider av
 
 The software is provided **“as is”** and **“as available.”** To the maximum extent permitted by law, Aniraku disclaims warranties of uninterrupted availability, error-free operation, merchantability, fitness for a particular purpose, and non-infringement. Nothing here limits rights that cannot legally be limited.
 
-Questions about these terms may be sent to **legal@aniraku.tech**.
+Questions about these terms may be sent to **[Showaib-Mail](mailto:sho.islam0311@proton.me)**.
 
 ---
 
