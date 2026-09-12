@@ -6,6 +6,14 @@
 
 This is the public record of meaningful native Android releases. For the currently installable build, open [GitHub Releases](https://github.com/Aniraku/Aniraku-App/releases/latest).
 
+## v5.4.1 — Subtitle cue fix
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- Fixes subtitles never showing on Watch: the VTT parser dropped every cue when the timestamp line uses the standard ` --> ` separator with spaces (end-time split produced an empty string → `NaN`). `lib/subtitle-parser.ts` now trims before splitting; verified live against a real proxied `eng-2.vtt` (304 cues parsed, correct active cue at 43s, empty at 10s, `enabled:false` stays hidden).
+- Ships three builds: `arm64`, `arm32`, and `universal` (universal contains all architectures).
+- Bumps the Android versionCode to 52.
+
 ## v5.4.0 — Watch playback fix + font unification
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`

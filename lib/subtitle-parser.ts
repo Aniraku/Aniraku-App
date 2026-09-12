@@ -50,7 +50,7 @@ function parseVTT(content: string): ParsedSubtitle {
     const timeParts = timeLine.split("-->");
     if (timeParts.length < 2) continue;
     const startTime = timestampToSeconds(timeParts[0]);
-    const endTime = timestampToSeconds(timeParts[1].split(/[\s{]/)[0]);
+    const endTime = timestampToSeconds(timeParts[1].trim().split(/[\s{]/)[0]);
     if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) continue;
     const text = cleanText(lines.slice(timeLineIdx + 1).join("\n"));
     if (!text) continue;
