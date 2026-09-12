@@ -46,7 +46,6 @@ export const APP_CONFIG = {
   malClientId: process.env.EXPO_PUBLIC_MAL_CLIENT_ID ?? "",
   supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
   supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
-  giphyApiKey: process.env.EXPO_PUBLIC_GIPHY_API_KEY ?? "",
   deepLinkScheme: "aniraku",
 } as const;
 

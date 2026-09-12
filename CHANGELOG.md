@@ -6,6 +6,17 @@
 
 This is the public record of meaningful native Android releases. For the currently installable build, open [GitHub Releases](https://github.com/Aniraku/Aniraku-App/releases/latest).
 
+## v5.3.0 — Minor bug fixes
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- Fixes the `cannot add 'postgres_changes' callbacks for realtime:watch-history … after 'subscribe()'` crash that forced the "Aniraku needs to restart this screen" state.
+- Root cause was in `useWatchHistory` (shared by Anime-detail `app/anime/[id].tsx` and Watch `app/watch/[id].tsx`): both screens stay mounted in the router stack and opened the same realtime topic, so the second subscription threw. Each screen now uses its own realtime topic and realtime failures degrade gracefully instead of crashing.
+- Ships three builds: `arm64`, `arm32`, and `universal` (universal contains all architectures).
+- Removes the unused GIF picker and Giphy API integration from comments (comments are text-only now).
+- Minor bug fixes and stability improvements.
+- Bumps the Android versionCode to 50.
+
 ## v4.8.1 — Niko and Momo Provider Support
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM32 + ARM64`

@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { router } from "expo-router";
-import { ActivityIndicator, Alert, Animated, FlatList, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppIcon } from "@/components/app-icon";
 import { ErrorState, LoadingState } from "@/components/async-state";
 import { DotLabel, NothingButton, NothingCard, nothing } from "@/components/nothing-ui";
 import { useComments, type SharedComment } from "@/hooks/use-comments";
-import { useGiphyGifs } from "@/hooks/use-giphy-gifs";
-import { APP_CONFIG } from "@/lib/app-config";
 import { avatarUrl } from "@/lib/aniraku-avatars";
 import { canSubmitSharedComment, commentAuthorLabel } from "@/lib/comment-content";
 import { useAnirakuAuth } from "@/providers/auth-provider";
@@ -47,17 +45,12 @@ export function AnimeComments({ animeId, episodeNumber }: { animeId: number; epi
   const auth = useAnirakuAuth();
   const comments = useComments(animeId, episodeNumber);
   const [content, setContent] = useState("");
-  const [gifUrl, setGifUrl] = useState("");
   const [spoiler, setSpoiler] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [search, setSearch] = useState("");
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [hideAllSpoilers, setHideAllSpoilers] = useState(false);
   const [sort, setSort] = useState<"popular" | "newest">("newest");
   const [replyTo, setReplyTo] = useState<SharedComment | null>(null);
-  const gifs = useGiphyGifs(pickerOpen, search);
-  const canPost = canSubmitSharedComment(content, gifUrl);
-  const giphyEnabled = Boolean(APP_CONFIG.giphyApiKey.trim());
+  const canPost = canSubmitSharedComment(content);
   const sortedComments = useMemo(() => {
     const rows = [...(comments.comments.data ?? [])];
     if (sort === "popular") rows.sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0));
@@ -77,8 +70,7 @@ export function AnimeComments({ animeId, episodeNumber }: { animeId: number; epi
     if (replyTo && !sortedComments.some((comment) => comment.id === replyTo.id)) setReplyTo(null);
   }, [replyTo, sortedComments]);
 
-  const post = () => comments.add.mutate({ content, gifUrl, spoiler, episode: episodeNumber, parentId: replyTo?.id ?? null }, { onSuccess: () => { setContent(""); setGifUrl(""); setSpoiler(false); setReplyTo(null); } });
-  const chooseGif = (url: string) => { setGifUrl(url); setPickerOpen(false); };
+  const post = () => comments.add.mutate({ content, spoiler, episode: episodeNumber, parentId: replyTo?.id ?? null }, { onSuccess: () => { setContent(""); setSpoiler(false); setReplyTo(null); } });
   const reveal = (id: string) => {
     Alert.alert("Spoiler Warning", "This comment contains spoilers. Reveal?", [
       { text: "Cancel", style: "cancel" },
@@ -94,18 +86,10 @@ export function AnimeComments({ animeId, episodeNumber }: { animeId: number; epi
     {auth.user ? <NothingCard style={styles.composer}>
       {replyTo ? <View style={styles.replyBar}><Text style={styles.replyBarText} numberOfLines={1}>Replying to {authorName(replyTo)}</Text><Pressable accessibilityRole="button" accessibilityLabel="Cancel reply" onPress={() => setReplyTo(null)} style={styles.replyBarClose}><AppIcon name="close" size={14} color={nothing.muted} /></Pressable></View> : null}
       <TextInput value={content} onChangeText={setContent} placeholder={replyTo ? "Write a reply" : "Share a thought"} placeholderTextColor={nothing.dim} style={styles.input} multiline maxLength={2000} textAlignVertical="top" />
-      {gifUrl ? <View style={styles.selectedGif}><Image source={{ uri: gifUrl }} style={styles.selectedGifImage} /><Pressable accessibilityRole="button" accessibilityLabel="Remove selected GIF" onPress={() => setGifUrl("")} style={({ pressed }) => [styles.removeGif, pressed && styles.pressed]}><AppIcon name="close" size={16} color={nothing.white} /></Pressable></View> : null}
       <View style={styles.composerActions}>
-        {giphyEnabled ? <Pressable accessibilityRole="button" accessibilityLabel="Choose GIF" onPress={() => setPickerOpen((open) => !open)} style={({ pressed }) => [styles.tool, pickerOpen && styles.toolActive, pressed && styles.pressed]}><AppIcon name="image-search-outline" size={16} color={pickerOpen ? nothing.red : nothing.white} /><Text style={[styles.toolText, pickerOpen && styles.toolTextActive]}>GIF</Text></Pressable> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={spoiler ? "Spoiler protection enabled" : "Mark comment as a spoiler"} accessibilityState={{ selected: spoiler }} onPress={() => setSpoiler((value) => !value)} style={({ pressed }) => [styles.tool, spoiler && styles.toolActive, pressed && styles.pressed]}><AppIcon name="eye-off-outline" size={16} color={spoiler ? nothing.red : nothing.white} /><Text style={[styles.toolText, spoiler && styles.toolTextActive]}>SPOILER</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Post comment" disabled={!canPost || comments.add.isPending} onPress={post} style={({ pressed }) => [styles.send, (!canPost || comments.add.isPending) && styles.sendDisabled, pressed && styles.pressed]}>{comments.add.isPending ? <ActivityIndicator size="small" color={nothing.black} /> : <AppIcon name="send" size={16} color={nothing.black} />}</Pressable>
       </View>
-      {pickerOpen ? <View style={styles.picker} accessibilityLabel="GIF picker">
-        <View style={styles.pickerHead}><Text style={styles.pickerTitle}>REACTION GIFS</Text><Pressable accessibilityRole="button" accessibilityLabel="Close GIF picker" onPress={() => setPickerOpen(false)} style={styles.pickerClose}><AppIcon name="close" size={16} color={nothing.muted} /></Pressable></View>
-        <TextInput value={search} onChangeText={setSearch} placeholder="Search reactions" placeholderTextColor={nothing.dim} style={styles.search} returnKeyType="search" />
-        {gifs.isPending ? <View style={styles.gifStatus}><ActivityIndicator size="small" color={nothing.red} /><Text style={styles.gifStatusText}>Loading GIFs</Text></View> : gifs.isError ? <Text style={styles.gifStatusText}>GIFs are unavailable. Try again.</Text> : gifs.data?.length ? <ScrollView style={styles.gifResults} contentContainerStyle={styles.gifGrid} nestedScrollEnabled showsVerticalScrollIndicator>{gifs.data.map((gif) => <Pressable key={gif.id} accessibilityRole="button" accessibilityLabel={`Use GIF ${gif.label}`} accessibilityHint="Adds this reaction GIF to your comment" onPress={() => chooseGif(gif.url)} style={({ pressed }) => [styles.gifTile, { aspectRatio: gif.aspectRatio }, pressed && styles.pressed]}><Image source={{ uri: gif.previewUrl, width: gif.width ?? undefined, height: gif.height ?? undefined }} style={styles.gifImage} resizeMode="contain" /></Pressable>)}</ScrollView> : <Text style={styles.gifStatusText}>No G-rated GIFs found.</Text>}
-        <Text style={styles.attribution}>POWERED BY GIPHY</Text>
-      </View> : null}
       {comments.add.isError ? <Text style={styles.error}>{comments.add.error.message}</Text> : null}
     </NothingCard> : <NothingCard style={styles.guest}><Text style={styles.guestText}>Sign in with a verified Aniraku account to join the discussion.</Text><NothingButton label="SIGN IN TO COMMENT" variant="outline" onPress={() => router.push("/auth" as never)} /></NothingCard>}
     {comments.comments.isPending ? <LoadingState label="Loading community comments" /> : comments.comments.isError ? <ErrorState message="Comments could not load right now." onRetry={() => void comments.comments.refetch()} /> : !sortedComments.length ? <NothingCard style={styles.empty}><Text style={styles.emptyTitle}>No discussion yet</Text><Text style={styles.emptyText}>Start the conversation without spoiling the story for everyone else.</Text></NothingCard> : <FlatList data={sortedComments} keyExtractor={(comment) => comment.id} scrollEnabled={false} contentContainerStyle={styles.list} renderItem={({ item: comment }) => { const hidden = comment.is_spoiler && (hideAllSpoilers || !revealed.has(comment.id)); const isLiked = comments.likedIds.has(comment.id); const isOwn = Boolean(auth.user) && auth.user!.id === comment.user_id; const thread = repliesByParent.get(comment.id) ?? []; return <NothingCard style={styles.commentCard}><CommentAuthor comment={comment} />{hidden ? <Pressable accessibilityRole="button" accessibilityLabel="Spoiler hidden. Reveal comment." onPress={() => reveal(comment.id)} style={({ pressed }) => [styles.spoilerShield, pressed && styles.pressed]}><AppIcon name="eye-off-outline" size={17} color={nothing.red} /><Text style={styles.spoilerText}>SPOILER HIDDEN · TAP TO REVEAL</Text></Pressable> : <>{comment.is_spoiler ? <SpoilerContent><Text style={styles.revealed}>SPOILER REVEALED</Text>{comment.content ? <Text style={styles.commentText}>{comment.content}</Text> : null}{comment.gif_url ? <Image source={{ uri: comment.gif_url }} style={styles.commentGif} resizeMode="contain" /> : null}</SpoilerContent> : <>{comment.content ? <Text style={styles.commentText}>{comment.content}</Text> : null}{comment.gif_url ? <Image source={{ uri: comment.gif_url }} style={styles.commentGif} resizeMode="contain" /> : null}</>}</>}
@@ -154,21 +138,6 @@ const styles = StyleSheet.create({
   send: { alignItems: "center", backgroundColor: nothing.white, borderRadius: 7, height: 30, justifyContent: "center", marginLeft: "auto", width: 34 },
   sendDisabled: { opacity: 0.4 },
   pressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
-  selectedGif: { alignItems: "center", alignSelf: "flex-start", borderColor: nothing.line, borderRadius: 7, borderWidth: 1, flexDirection: "row", gap: 5, overflow: "hidden", padding: 4 },
-  selectedGifImage: { borderRadius: 4, height: 46, width: 80 },
-  removeGif: { alignItems: "center", height: 28, justifyContent: "center", width: 26 },
-  picker: { backgroundColor: nothing.raised, borderColor: nothing.line, borderRadius: 8, borderWidth: 1, gap: 7, padding: 8 },
-  pickerHead: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
-  pickerTitle: { color: nothing.white, fontFamily: "monospace", fontSize: 10, fontWeight: "900", letterSpacing: 0.6 },
-  pickerClose: { alignItems: "center", height: 28, justifyContent: "center", width: 28 },
-  search: { backgroundColor: nothing.surface, borderColor: nothing.line, borderRadius: 6, borderWidth: 1, color: nothing.white, fontSize: 13, height: 34, paddingHorizontal: 9 },
-  gifResults: { maxHeight: 360 },
-  gifGrid: { gap: 8 },
-  gifTile: { alignItems: "center", backgroundColor: nothing.surface, borderRadius: 5, justifyContent: "center", minHeight: 124, overflow: "hidden", width: "100%" },
-  gifImage: { height: "100%", width: "100%" },
-  gifStatus: { alignItems: "center", flexDirection: "row", gap: 7, minHeight: 62, justifyContent: "center" },
-  gifStatusText: { color: nothing.muted, fontSize: 12, textAlign: "center" },
-  attribution: { alignSelf: "flex-end", color: nothing.dim, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.5 },
   error: { color: nothing.red, fontSize: 12, lineHeight: 17 },
   guest: { gap: 10, padding: 14 },
   guestText: { color: nothing.muted, fontSize: 13, lineHeight: 19 },

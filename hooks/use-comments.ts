@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAnirakuAuth } from "@/providers/auth-provider";
-import { canSubmitSharedComment, cleanCommentContent, isTrustedGiphyGifUrl } from "@/lib/comment-content";
+import { canSubmitSharedComment, cleanCommentContent } from "@/lib/comment-content";
 
 export type SharedComment = {
   id: string;
@@ -58,13 +58,11 @@ export function useComments(animeId?: number, episodeNumber?: number) {
     void queryClient.invalidateQueries({ queryKey: repliesKey });
     void queryClient.invalidateQueries({ queryKey: likesKey });
   };
-  const add = useMutation({ mutationFn: async (input: { content?: string; gifUrl?: string | null; spoiler?: boolean; episode?: number | null; parentId?: string | null }) => {
+  const add = useMutation({ mutationFn: async (input: { content?: string; spoiler?: boolean; episode?: number | null; parentId?: string | null }) => {
     if (!user || !animeId) throw new Error("Sign in to post a comment.");
     const content = cleanCommentContent(input.content);
-    const gifUrl = input.gifUrl && isTrustedGiphyGifUrl(input.gifUrl) ? input.gifUrl : null;
-    if (!canSubmitSharedComment(content, gifUrl)) throw new Error("Add a comment or a GIF before posting.");
-    if (input.gifUrl && !gifUrl) throw new Error("Only GIFs selected from the Aniraku picker can be attached.");
-    const { error } = await supabase.from("comments").insert({ user_id: user.id, anime_id: animeId, episode_number: input.episode ?? episodeNumber ?? null, parent_id: input.parentId ?? null, content, gif_url: gifUrl, is_spoiler: Boolean(input.spoiler) });
+    if (!canSubmitSharedComment(content)) throw new Error("Write a comment before posting.");
+    const { error } = await supabase.from("comments").insert({ user_id: user.id, anime_id: animeId, episode_number: input.episode ?? episodeNumber ?? null, parent_id: input.parentId ?? null, content, gif_url: null, is_spoiler: Boolean(input.spoiler) });
     if (error) throw error;
   }, onSuccess: refresh });
   const toggleLike = useMutation({ mutationFn: async (comment: SharedComment) => {

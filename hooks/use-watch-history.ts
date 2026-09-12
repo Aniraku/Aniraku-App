@@ -14,26 +14,48 @@ export function useWatchHistory() {
 
   const history = useQuery({ queryKey, enabled: Boolean(user), queryFn: async () => { const { data, error } = await supabase.from("watch_history").select("*").eq("user_id", user!.id).order("updated_at", { ascending: false }); if (error) throw error; return data ?? []; } });
 
+  // Each mounted screen (Home, Anime-detail, Watch, Library, Settings) runs
+  // this hook. They can all be alive at once in the router stack, so sharing
+  // one static topic (`watch-history:<uid>`) makes supabase-js throw:
+  // "cannot add `postgres_changes` callbacks ... after `subscribe()`".
+  // Give every hook instance its own topic and never let a realtime failure
+  // crash the screen ErrorBoundary — history queries still work without it.
+  const instanceId = useRef(`${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`);
+
   useEffect(() => {
-    if (!user) return;
-    const channel = supabase
-      .channel(`watch-history:${user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "watch_history", filter: `user_id=eq.${user.id}` },
-        () => {
-          void queryClient.invalidateQueries({ queryKey });
-          setSynced(true);
-          if (syncedTimer.current) clearTimeout(syncedTimer.current);
-          syncedTimer.current = setTimeout(() => setSynced(false), 2000);
-        }
-      )
-      .subscribe();
+    if (!user?.id) return;
+    const userId = user.id;
+    const effectQueryKey = ["watch-history", userId] as const;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
+    try {
+      channel = supabase
+        .channel(`watch-history:${userId}:${instanceId.current}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "watch_history", filter: `user_id=eq.${userId}` },
+          () => {
+            if (cancelled) return;
+            void queryClient.invalidateQueries({ queryKey: effectQueryKey });
+            setSynced(true);
+            if (syncedTimer.current) clearTimeout(syncedTimer.current);
+            syncedTimer.current = setTimeout(() => setSynced(false), 2000);
+          }
+        )
+        .subscribe();
+    } catch {
+      // Realtime is best-effort only; history list + mutations keep working.
+      channel = null;
+    }
     return () => {
+      cancelled = true;
       if (syncedTimer.current) clearTimeout(syncedTimer.current);
-      void supabase.removeChannel(channel);
+      if (channel) void supabase.removeChannel(channel).catch(() => {});
     };
-  }, [user?.id, queryKey, queryClient]);
+    // Intentionally depend only on the stable user id: queryKey is derived
+    // from it, and including the array identity would resubscribe needlessly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, queryClient]);
 
   const save = useMutation({ mutationFn: async (input: HistoryInput) => {
     if (!user) throw new Error("Sign in to synchronize your history.");

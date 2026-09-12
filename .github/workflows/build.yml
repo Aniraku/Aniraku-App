@@ -4,14 +4,23 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build (must match the version in app.config.ts)"
+        required: false
+        default: "v5.3.0"
+
+env:
+  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
 concurrency:
-  group: release-${{ github.ref_name }}
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   build:
-    name: Build ${{ matrix.arch }}
+    name: Build ${{ matrix.label }} APK (${{ github.event.inputs.tag || github.ref_name }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -20,10 +29,16 @@ jobs:
             label: arm64
           - arch: armeabi-v7a
             label: arm32
-          - arch: x86_64
-            label: x86_64
+          - arch: armeabi-v7a,arm64-v8a,x86_64
+            label: universal
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify release tag matches app version
+        run: |
+          APP_VERSION=$(grep -oE 'version: "[0-9]+\.[0-9]+\.[0-9]+"' app.config.ts | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "App version: $APP_VERSION | Release tag: $RELEASE_TAG"
+          test "v$APP_VERSION" = "$RELEASE_TAG" || { echo "ERROR: tag $RELEASE_TAG does not match app version $APP_VERSION in app.config.ts"; exit 1; }
 
       - uses: pnpm/action-setup@v4
 
@@ -49,7 +64,7 @@ jobs:
           EXPO_PUBLIC_API_BASE_URL: ${{ secrets.EXPO_PUBLIC_API_BASE_URL }}
           EXPO_PUBLIC_MAL_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_MAL_CLIENT_ID }}
 
-      - name: Build APK (${{ matrix.arch }})
+      - name: Build APK (${{ matrix.label }})
         run: |
           cd android
           ./gradlew assembleRelease \
@@ -67,13 +82,13 @@ jobs:
       - name: Rename APK
         run: |
           APK=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
-          cp "$APK" "aniraku-${{ github.ref_name }}-${{ matrix.label }}.apk"
-          echo "Built: aniraku-${{ github.ref_name }}-${{ matrix.label }}.apk"
+          cp "$APK" "aniraku-${RELEASE_TAG}-${{ matrix.label }}.apk"
+          echo "Built: aniraku-${RELEASE_TAG}-${{ matrix.label }}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
           name: aniraku-${{ matrix.label }}
-          path: aniraku-${{ github.ref_name }}-${{ matrix.label }}.apk
+          path: aniraku-${{ env.RELEASE_TAG }}-${{ matrix.label }}.apk
 
   release:
     name: Create Release
@@ -95,11 +110,24 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Aniraku ${{ github.ref_name }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Aniraku ${{ env.RELEASE_TAG }}
           draft: false
           prerelease: false
-          generate_release_notes: true
+          body: |
+            ## v5.3.0 — Minor bug fixes
+
+            Three builds for full coverage (Android 9+). The universal APK contains all architectures.
+
+            - `aniraku-v5.3.0-arm64.apk`
+            - `aniraku-v5.3.0-arm32.apk`
+            - `aniraku-v5.3.0-universal.apk`
+
+            - Fixed the `cannot add 'postgres_changes' callbacks for realtime:watch-history … after 'subscribe()'` crash that forced the "Aniraku needs to restart this screen" state on the Anime-detail / Watch screens.
+            - Removed the unused GIF picker and Giphy API integration from comments (comments are text-only now).
+            - Minor bug fixes and stability improvements.
+
+            Download the APK, install, and allow *install from unknown sources* if prompted.
           files: ./artifacts/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

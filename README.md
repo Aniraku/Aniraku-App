@@ -26,7 +26,7 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.2.0">v5.2 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.3.0">v5.3 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
@@ -37,19 +37,20 @@
 
 <div align="center">
 
-  ### v5.2.0 is out
+  ### v5.3.0 is out
 
-  Three architecture builds for full device coverage. Chapter navigation, trending discovery,
+  Minor bug fixes, including the watch-history realtime crash fix on Anime-detail / Watch screens.
+  Three builds for full coverage. Chapter navigation, trending discovery,
   random anime with genre filters, spoiler tags, skeleton loading, swipe between episodes,
   pull to refresh, landscape auto-rotate, quick actions, performance monitoring, and more.
 
-  | Device Type | APK |
-  |:--|:--|
-  | Modern phones (2017+) | `aniraku-v5.2.0-arm64.apk` |
-  | Older 32-bit (Oppo A16, Helio G35) | `aniraku-v5.2.0-arm32.apk` |
-  | Emulators / Chromebooks | `aniraku-v5.2.0-x86_64.apk` |
+  | APK |
+  |:--|
+  | `aniraku-v5.3.0-arm64.apk` |
+  | `aniraku-v5.3.0-arm32.apk` |
+  | `aniraku-v5.3.0-universal.apk` |
 
-  <sub>Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
+  <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 
 </div>
 
@@ -66,6 +67,12 @@ Aniraku is open source. Voluntary support helps fund **hosting, releases, and op
 Read the full [Support Guide](./SUPPORT.md).
 
 ---
+
+### What's new in v5.3
+
+- Fixed `cannot add 'postgres_changes' callbacks for realtime:watch-history … after 'subscribe()'` crash (Anime-detail + Watch screens now use isolated realtime topics, failures no longer restart the screen)
+- Removed the unused GIF picker and Giphy API integration from comments (comments are text-only now)
+- Minor bug fixes and stability improvements
 
 ### What's new in v5.2
 
@@ -127,10 +134,7 @@ Read the full [Support Guide](./SUPPORT.md).
 ### How to install
 
 1. Open the [latest release](https://github.com/Aniraku/Aniraku-App/releases/latest)
-2. Download the right APK for your device:
-   - **arm64** for modern 64-bit phones
-   - **arm32** for older 32-bit devices
-   - **x86_64** for emulators and Chromebooks
+2. Download the APK (`arm64`, `arm32`, or `universal` — universal contains all architectures).
 3. Install
 
 **Note:** If you had an older alpha under `aniraku.anine.app`, please uninstall it first. Android sees them as different apps.
