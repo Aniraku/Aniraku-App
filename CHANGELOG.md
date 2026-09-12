@@ -1,10 +1,8 @@
-![Aniraku documentation signal](./assets/readme/documentation-signal.svg)
-
 `ANIRAKU / RELEASE SIGNAL`
 
 # Changelog
 
-This is the public record of meaningful native Android releases. For the currently installable build, open [GitHub Releases](https://github.com/Aniraku/Aniraku-App/releases/latest).
+This is the public record of meaningful native Android releases. For the currently installable build, open [GitHub Releases](https://github.com/Aniraku/Aniraku-app/releases/latest).
 
 ## v5.4.1 — Subtitle cue fix
 
@@ -109,4 +107,4 @@ This is the public record of meaningful native Android releases. For the current
 
 `SIGNAL / CURRENT BUILD FIRST`
 
-[README](./README.md) · [Latest release](https://github.com/Aniraku/Aniraku-App/releases/latest) · [Security](./SECURITY.md) · [Contributing](./CONTRIBUTING.md)
+[README](./README.md) · [Latest release](https://github.com/Aniraku/Aniraku-app/releases/latest) · [Security](./SECURITY.md) · [Contributing](./CONTRIBUTING.md)

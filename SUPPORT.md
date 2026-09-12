@@ -22,3 +22,9 @@ Open Binance > Pay > Enter UID > Send. No network fees.
 - Release builds and testing
 - Open-source development and maintenance
 - Domain and infrastructure costs
+
+---
+
+`See also`
+
+[README](./README.md) · [Contributing](./CONTRIBUTING.md)

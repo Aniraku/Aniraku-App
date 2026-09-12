@@ -1,13 +1,31 @@
 # Screenshot QA
 
-## Native mobile captures — 2026-08-16
+Living checklist for the public capture gallery in `site/assets/screens/` (served by `site/index.html`).
 
-The Android portrait Profile capture is a genuine signed-in app screen and is eligible for the public gallery with a truthful **Profile / synced library** caption.
+## Current gallery
 
-The v2.1 release changed the unauthenticated `/library?tab=alerts` route into a genuine guest Alerts preview. v2.5 retains that implemented state while adding maximum-quality eligible direct downloads and protected native AniList/MyAnimeList linking. The Alerts screen itself still clearly states that alerts are synchronized after sign-in and that no alerts are invented for guest sessions. The public `alerts-preview.png` asset is an actual Expo render of that native screen, captured on 2026-08-16. It must be captioned as **Alerts / guest preview**, not as an authenticated notification feed.
+| File                         | Caption                    | Status                                                  |
+| ---------------------------- | -------------------------- | ------------------------------------------------------- |
+| `home.jpg`                   | Home / continue + discover | Live — genuine Home render, also used by `README.md`    |
+| `catalog.jpg`                | Catalog / poster gallery   | Live — genuine Catalog render, also used by `README.md` |
+| `watch.jpg`                  | Watch / media plane        | Live                                                    |
+| `watch-player.jpg`           | Watch / player console     | Live                                                    |
+| `random.jpg`                 | Random / one-pick sleeve   | Live                                                    |
+| `details-v411-relations.jpg` | Anime detail / relations   | Live                                                    |
 
-The inspected user-provided device capture `Screenshot_20260816_083907_Aniraku.jpg` is a genuine Aniraku Home screen. It is not a Profile or Notifications capture and will not be relabeled for the new gallery entries.
+Additional committed captures (`alerts-preview.png`, `catalog-explore.jpg`, `home-feature.jpg`, `profile.jpg`, `profile-space.jpg`, `random-pick.jpg`, `schedule.jpg`) are verified real renders kept in reserve. Wire one into `index.html` only with a truthful caption, then move it to the table above.
 
-The inspected user-provided device capture `Screenshot_20260816_083941_Aniraku.jpg` is a genuine signed-in Aniraku Profile screen. It is eligible for the public gallery as **Profile / synced library**. The capture sheet contains real Home, Catalog, Schedule, Explore, Profile, Library, Settings, Detail, and Watch screens; it contains no real Notifications or Alerts screen. The public gallery will not invent or relabel one.
+## Caption rules
 
-The v2.1 gallery added only two assets: `profile.jpg`, copied from the verified signed-in device capture above, and `alerts-preview.png`, captured from the implemented guest Alerts interface. v2.5 retains the same truthful gallery: neither is generated imagery nor a mislabeled authenticated notification state. The current gallery does not claim to show a downloaded media file or a linked provider state until a corresponding real native capture is verified.
+- Caption what the capture **is**, never what it resembles: a guest Alerts preview is captioned **Alerts / guest preview**, never as an authenticated notification feed.
+- A signed-out screen is never captioned as signed-in, and vice versa.
+- The gallery must not claim to show a downloaded media file or a linked provider state until a real native capture of that state is verified.
+- `README.md` screenshots (`home.jpg`, `catalog.jpg`) must stay in sync with the files the site serves — same asset, same screen.
+
+## Adding a capture
+
+1. Capture from a real device or a real Expo render of the implemented screen. No mockups, no generated imagery, no relabeling of another screen.
+2. Save under `site/assets/screens/` with a descriptive lowercase name (e.g. `schedule.jpg`).
+3. Reference it in `site/index.html` with a truthful caption.
+4. Record it in the table above with its status.
+5. Re-check `site/DESIGN.md` content-integrity rules before publishing.

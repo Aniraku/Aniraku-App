@@ -15,6 +15,6 @@ Aniraku may remove or disable access to material when appropriate and may apply 
 
 ---
 
-`Other Docs we need you look at`
+`See also`
 
-[README](./README.md) · [Terms](./TERMS.md) · [Privacy](./PRIVACY.md) · [Security](./SECURITY.md)
+[README](./README.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) · [DMCA](./DMCA.md) · [Contributing](./CONTRIBUTING.md)

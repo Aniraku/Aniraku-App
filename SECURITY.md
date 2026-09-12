@@ -16,6 +16,6 @@ The native app includes only public client configuration. It must never ship Sup
 
 ---
 
-`Other Docs we need you to know`
+`See also`
 
-[README](./README.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Contributing](./CONTRIBUTING.md)
+[README](./README.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) · [DMCA](./DMCA.md) · [Contributing](./CONTRIBUTING.md)

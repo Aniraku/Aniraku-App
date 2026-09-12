@@ -24,6 +24,6 @@ For privacy questions or account-data requests, contact **[Aniraku@privacy](mail
 
 ---
 
-`Other docs we need you to be aware of`
+`See also`
 
-[README](./README.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) · [DMCA](./DMCA.md)
+[README](./README.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) · [DMCA](./DMCA.md) · [Contributing](./CONTRIBUTING.md)

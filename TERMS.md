@@ -20,6 +20,6 @@ Questions about these terms may be sent to **[Aniraku@terms](mailto:sho.islam031
 
 ---
 
-`Other Docs you should aware of!`
+`See also`
 
-[README](./README.md) · [Privacy](./PRIVACY.md) · [DMCA](./DMCA.md) · [MIT License](./LICENSE)
+[README](./README.md) · [Privacy](./PRIVACY.md) · [Terms](./TERMS.md) · [Security](./SECURITY.md) · [DMCA](./DMCA.md) · [Contributing](./CONTRIBUTING.md)
