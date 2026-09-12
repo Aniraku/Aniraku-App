@@ -19,14 +19,12 @@
     <img src="https://img.shields.io/badge/Android-9%2B-a5b4fc?style=for-the-badge&logo=android&logoColor=white&labelColor=1e1b4b" />
     <img src="https://img.shields.io/badge/Open%20Source-c4b5fd?style=for-the-badge&labelColor=1e1b4b" />
   </p>
-
   <br>
-
   <a href="https://github.com/Aniraku/Aniraku-App/releases/latest">Download APK</a>
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.4.0">v5.4 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.4.1">v5.4.1 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
@@ -37,18 +35,15 @@
 
 <div align="center">
 
-  ### v5.4.0 is out
+  ### v5.4.1 is out
 
-  Minor bug fixes, including the double proxy wrapping problem for the app.
-  Three builds for full coverage. Chapter navigation, trending discovery,
-  random anime with genre filters, spoiler tags, skeleton loading, swipe between episodes,
-  pull to refresh, landscape auto-rotate, quick actions, performance monitoring, and more.
+  Minor bug fixes, including the Fixed subtitles never showing on Watch (VTT parser dropped every cue on standard --> timestamp lines).Three builds for full coverage. Chapter navigation, trending discovery,random anime with genre filters, spoiler tags, skeleton loading, swipe between episodes,pull to refresh, landscape auto-rotate, quick actions, performance monitoring, and more.
 
   | APK |
   |:--|
-  | `aniraku-v5.3.0-arm64.apk` |
-  | `aniraku-v5.3.0-arm32.apk` |
-  | `aniraku-v5.3.0-universal.apk` |
+  | [Aniraku-v5.4.1-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.4.1/aniraku-v5.4.1-arm64.apk) |
+  | [Aniraku-v5.4.1-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.4.1/aniraku-v5.4.1-arm32.apk) |
+  | [Aniraku-v5.4.1-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.4.1/aniraku-v5.4.1-universal.apk) |
 
   <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 
@@ -62,7 +57,7 @@ Aniraku is open source. Voluntary support helps fund **hosting, releases, and op
 
 | Option | Details |
 |:--|:--|
-| Patreon | [patreon.com/ShoIslam](https://patreon.com/ShoIslam) |
+| Patreon | [ShoIslam](https://patreon.com/ShoIslam) |
 | Binance | UID `1098400042` (Binance Pay) |
 Read the full [Support Guide](./SUPPORT.md).
 
@@ -73,7 +68,6 @@ Read the full [Support Guide](./SUPPORT.md).
   &nbsp;
   <img src="./site/assets/screens/catalog.jpg" width="29%" style="border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" />
   &nbsp;
-  <img src="./site/assets/screens/watch.jpg" width="29%" style="border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" />
 </p>
 
 ---
@@ -86,7 +80,7 @@ Read the full [Support Guide](./SUPPORT.md).
 
 **Note:** If you had an older alpha under `aniraku.anine.app`, please uninstall it first. Android sees them as different apps.
 
-Full info at [aniraku.github.io/Aniraku-App](https://aniraku.github.io/Aniraku-App/)
+Full info at [Aniraku-App](https://aniraku.github.io/Aniraku-App/)
 
 ---
 
