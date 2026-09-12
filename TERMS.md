@@ -1,7 +1,3 @@
-![Aniraku documentation signal](./assets/readme/documentation-signal.svg)
-
-`ANIRAKU / USE THE SIGNAL RESPONSIBLY`
-
 # Terms of Use
 
 **Effective date: August 16, 2026**
