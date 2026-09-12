@@ -37,9 +37,9 @@
 
 <div align="center">
 
-  ### v5.3.0 is out
+  ### v5.4.0 is out
 
-  Minor bug fixes, including the watch-history realtime crash fix on Anime-detail / Watch screens.
+  Minor bug fixes, including the double proxy wrapping problem for the app.
   Three builds for full coverage. Chapter navigation, trending discovery,
   random anime with genre filters, spoiler tags, skeleton loading, swipe between episodes,
   pull to refresh, landscape auto-rotate, quick actions, performance monitoring, and more.
@@ -65,59 +65,6 @@ Aniraku is open source. Voluntary support helps fund **hosting, releases, and op
 | Patreon | [patreon.com/ShoIslam](https://patreon.com/ShoIslam) |
 | Binance | UID `1098400042` (Binance Pay) |
 Read the full [Support Guide](./SUPPORT.md).
-
----
-
-### What's new in v5.3
-
-- Fixed `cannot add 'postgres_changes' callbacks for realtime:watch-history … after 'subscribe()'` crash (Anime-detail + Watch screens now use isolated realtime topics, failures no longer restart the screen)
-- Removed the unused GIF picker and Giphy API integration from comments (comments are text-only now)
-- Minor bug fixes and stability improvements
-
-### What's new in v5.2
-
-**Player**
-- Chapter navigation with intro/outro markers on the timeline
-- Swipe between episodes with spring-back gesture
-- Landscape auto-rotate with manual toggle
-- Player lock to prevent accidental touches
-- Resume from last position with confirmation pill
-- Playback speed control (0.5x to 3x)
-- Subtitle language selection
-- Picture-in-Picture support
-- Download support when source allows
-- Volume and brightness gesture controls
-- Double-tap seek with visual feedback
-- 2x hold-speed with HUD indicator
-
-**Discovery**
-- Trending Now section on home with rank badges
-- Random Anime with 13 genre filters and fade transitions
-- Quick actions on long-press (Add to Library, Mark Watched, Share, Open in Browser)
-- Search history with timestamps and individual delete
-
-**Library & History**
-- Continue Watching with relative timestamps and progress badges
-- Watch history real-time sync with Supabase (SYNCED badge)
-- Notification preferences (episode alerts, comment replies, system announcements)
-
-**Quality**
-- Skeleton loading placeholders across all screens
-- Pull to refresh on home and catalog
-- Performance monitor (FPS counter, slow frame detection) in dev
-- Image optimization with AniList CDN resizing
-- Cache strategy with 5min stale time and 30min garbage collection
-- Spoiler tags with global toggle and blur animation
-
-**Privacy & Security**
-- Provider secrets never live inside the APK
-- CORS allowlist on API
-- PostMessage origin validation
-- HTTPS-only WebView
-- Android backup disabled
-- No console.log in production
-
----
 
 ### Screenshots
 
