@@ -180,6 +180,13 @@ code{font-family:var(--mono)}
 .asset-name{color:var(--white);font:400 .62rem/1.4 var(--mono);overflow-wrap:anywhere}
 .asset-meta{color:var(--dim);font:400 .5rem/1 var(--mono);white-space:nowrap}
 .asset-dl{color:var(--red);font:700 .8rem/1 var(--mono)}
+.release-badge-old{background:transparent!important;border:1px solid var(--line);color:var(--muted)}
+.archive-older{display:none}
+.archive-older.open{display:block}
+.archive-toggle{display:flex;justify-content:center;width:100%;padding:1rem;background:transparent;border:none;border-top:1px solid var(--line);color:var(--muted);font:700 .55rem/1 var(--mono);letter-spacing:.1em;cursor:pointer;transition:color .2s var(--ease),background .2s var(--ease)}
+.archive-toggle:hover{color:var(--red);background:rgba(246,246,242,.02)}
+.release-foot{display:flex;justify-content:space-between;align-items:center;padding:1rem 1.4rem;border-top:1px solid var(--line);color:var(--dim);font:700 .55rem/1 var(--mono);letter-spacing:.1em;transition:color .2s var(--ease),background .2s var(--ease)}
+.release-foot:hover{color:var(--red);background:rgba(246,246,242,.02)}
 .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--red);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:.6rem}
 
 /* ═══ SUPPORT ═══ */

@@ -10,21 +10,21 @@
   </p>
 
   <p>
-    <a href="https://github.com/Aniraku/Aniraku-app/releases/latest">
-      <img src="https://img.shields.io/github/downloads/Aniraku/Aniraku-app/total?style=for-the-badge&logo=github&label=Downloads&color=c4b5fd&labelColor=1e1b4b" />
+    <a href="https://github.com/Aniraku/Aniraku-App/releases/latest">
+      <img src="https://img.shields.io/github/downloads/Aniraku/Aniraku-App/total?style=for-the-badge&logo=github&label=Downloads&color=c4b5fd&labelColor=1e1b4b" />
     </a>
-    <a href="https://github.com/Aniraku/Aniraku-app/releases/latest">
-      <img src="https://img.shields.io/github/v/release/Aniraku/Aniraku-app?style=for-the-badge&color=a78bfa&labelColor=1e1b4b" />
+    <a href="https://github.com/Aniraku/Aniraku-App/releases/latest">
+      <img src="https://img.shields.io/github/v/release/Aniraku/Aniraku-App?style=for-the-badge&color=a78bfa&labelColor=1e1b4b" />
     </a>
     <img src="https://img.shields.io/badge/Android-9%2B-a5b4fc?style=for-the-badge&logo=android&logoColor=white&labelColor=1e1b4b" />
     <img src="https://img.shields.io/badge/Open%20Source-c4b5fd?style=for-the-badge&labelColor=1e1b4b" />
   </p>
   <br>
-  <a href="https://github.com/Aniraku/Aniraku-app/releases/latest">Download APK</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/latest">Download APK</a>
   &nbsp;
-  <a href="https://aniraku.github.io/Aniraku-app/">App Site</a>
+  <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-app/releases/tag/v5.4.1">v5.4.1 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.4.1">v5.4.1 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
@@ -41,9 +41,9 @@
 
   | APK |
   |:--|
-  | [Aniraku-v5.4.1-arm64.apk](https://github.com/Aniraku/Aniraku-app/releases/download/v5.4.1/aniraku-v5.4.1-arm64.apk) |
-  | [Aniraku-v5.4.1-arm32.apk](https://github.com/Aniraku/Aniraku-app/releases/download/v5.4.1/aniraku-v5.4.1-arm32.apk) |
-  | [Aniraku-v5.4.1-universal.apk](https://github.com/Aniraku/Aniraku-app/releases/download/v5.4.1/aniraku-v5.4.1-universal.apk) |
+  | [Aniraku-v5.4.1-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.4.1/aniraku-v5.4.1-arm64.apk) |
+  | [Aniraku-v5.4.1-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.4.1/aniraku-v5.4.1-arm32.apk) |
+  | [Aniraku-v5.4.1-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.4.1/aniraku-v5.4.1-universal.apk) |
 
   <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 
@@ -74,13 +74,13 @@ Read the full [Support Guide](./SUPPORT.md).
 
 ### How to install
 
-1. Open the [latest release](https://github.com/Aniraku/Aniraku-app/releases/latest)
+1. Open the [latest release](https://github.com/Aniraku/Aniraku-App/releases/latest)
 2. Download the APK (`arm64`, `arm32`, or `universal` — universal contains all architectures).
 3. Install
 
 **Note:** If you had an older alpha under `aniraku.anine.app`, please uninstall it first. Android sees them as different apps.
 
-Full info at [Aniraku-App](https://aniraku.github.io/Aniraku-app/)
+Full info at [Aniraku-App](https://aniraku.github.io/Aniraku-App/)
 
 ---
 

@@ -16,8 +16,8 @@ Contributions should make the native product more trustworthy, not merely more c
 ## Quick start
 
 ```bash
-git clone https://github.com/Aniraku/Aniraku-app.git
-cd Aniraku-app
+git clone https://github.com/Aniraku/Aniraku-App.git
+cd Aniraku-App
 pnpm install --frozen-lockfile
 ```
 

@@ -3,6 +3,9 @@
 const REPO = "Aniraku/Aniraku-App";
 const api = "https://api.github.com/repos";
 const FALLBACK_TAG = "v5.4.1";
+// Archive: latest release expanded + this many compact rows visible;
+// anything older hides behind the "show all" toggle.
+const ARCHIVE_VISIBLE = 4;
 
 // Support-prompt cadence: auto-show 30 min after first visit,
 // "ask again" snoozes for 7 days.
@@ -86,62 +89,93 @@ async function loadReleases() {
     if (arm32) setArchHref("arch-arm32", arm32, "");
     if (best && heroDl) heroDl.href = best.url;
 
-    list.innerHTML = releases
-      .map((r, i) => {
-        const date = new Date(r.published_at).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        });
-        const apks = (r.assets || []).filter((a) => a.name.endsWith(".apk"));
-        const totalDl = apks.reduce((n, a) => n + (a.download_count || 0), 0);
-        const badge = i === 0 ? "LATEST" : r.tag_name;
-        const desc = r.body
-          ? r.body.split("\n").find((l) => l.trim() && !l.startsWith("#"))?.trim() || r.name
-          : r.name;
-        // Latest release: one row per APK with size + download counts.
-        if (i === 0 && apks.length > 1) {
-          const rows = apks
-            .map((a) => `
-            <a href="${a.browser_download_url}" class="asset-row" rel="noopener">
-              <span class="asset-tag">${archTag(a.name)}</span>
-              <span class="asset-name">${a.name}</span>
-              <span class="asset-meta">${fmtSize(a.size)}${a.download_count ? ` · ${fmtCount(a.download_count)}` : ""}</span>
-              <span class="asset-dl">↓</span>
-            </a>`)
-            .join("");
-          return `
-          <div class="release-latest">
-            <a href="${apks[0].browser_download_url}" class="release-entry" rel="noopener">
-              <span class="release-badge">${badge}</span>
-              <div class="release-info">
-                <h3>${r.name || r.tag_name}</h3>
-                <p>${esc(desc)}</p>
-              </div>
-              <div class="release-meta">
-                <span class="release-date">${date}${totalDl ? ` · ${fmtCount(totalDl)}` : ""}</span>
-                <span class="release-link">Get the APKs ↓</span>
-              </div>
-            </a>
-            <div class="asset-rows">${rows}</div>
-          </div>`;
-        }
-        const asset = apks[0];
-        const url = asset?.browser_download_url || r.html_url;
-        return `
-          <a href="${url}" class="release-entry" target="_blank" rel="noopener">
-            <span class="release-badge">${badge}</span>
-            <div class="release-info">
-              <h3>${r.name || r.tag_name}</h3>
-              <p>${esc(desc)}</p>
-            </div>
-            <div class="release-meta">
-              <span class="release-date">${date}${asset?.size ? ` · ${fmtSize(asset.size)}` : ""}${totalDl ? ` · ${fmtCount(totalDl)}` : ""}</span>
-              <span class="release-link">${asset ? "Download APK →" : "View Release →"}</span>
-            </div>
-          </a>`;
-      })
+    const fmtDate = (iso) => new Date(iso).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+    const apkStats = (r) => {
+      const apks = (r.assets || []).filter((a) => a.name.endsWith(".apk"));
+      return {
+        apks,
+        totalDl: apks.reduce((n, a) => n + (a.download_count || 0), 0),
+        totalSize: apks.reduce((n, a) => n + (a.size || 0), 0),
+      };
+    };
+    const describe = (r) => r.body
+      ? r.body.split("\n").find((l) => l.trim() && !l.startsWith("#"))?.trim() || r.name
+      : r.name;
+
+    // ── Latest release: expanded card, one row per APK ──
+    const { apks: latestApks, totalDl: latestDl } = apkStats(latest);
+    const latestRows = latestApks
+      .map((a) => `
+      <a href="${a.browser_download_url}" class="asset-row" rel="noopener">
+        <span class="asset-tag">${archTag(a.name)}</span>
+        <span class="asset-name">${esc(a.name)}</span>
+        <span class="asset-meta">${fmtSize(a.size)}${a.download_count ? ` · ${fmtCount(a.download_count)}` : ""}</span>
+        <span class="asset-dl">↓</span>
+      </a>`)
       .join("");
+    const latestHtml = `
+      <div class="release-latest">
+        <a href="${latest.html_url}" class="release-entry" target="_blank" rel="noopener">
+          <span class="release-badge">LATEST</span>
+          <div class="release-info">
+            <h3>${esc(latest.name || latest.tag_name)}</h3>
+            <p>${esc(describe(latest))}</p>
+          </div>
+          <div class="release-meta">
+            <span class="release-date">${fmtDate(latest.published_at)}${latestDl ? ` · ${fmtCount(latestDl)}` : ""}</span>
+            <span class="release-link">Get the APKs ↓</span>
+          </div>
+        </a>
+        ${latestRows ? `<div class="asset-rows">${latestRows}</div>` : ""}
+      </div>`;
+
+    // ── Older releases: compact rows to the release page ──
+    const compactEntry = (r) => {
+      const { apks, totalDl, totalSize } = apkStats(r);
+      const meta = [fmtDate(r.published_at)];
+      if (apks.length > 1) meta.push(`${apks.length} APKs`);
+      if (totalSize) meta.push(fmtSize(totalSize));
+      if (totalDl) meta.push(fmtCount(totalDl));
+      return `
+      <a href="${r.html_url}" class="release-entry" target="_blank" rel="noopener">
+        <span class="release-badge release-badge-old">${esc(r.tag_name)}</span>
+        <div class="release-info">
+          <h3>${esc(r.name || r.tag_name)}</h3>
+          <p>${esc(describe(r))}</p>
+        </div>
+        <div class="release-meta">
+          <span class="release-date">${meta.join(" · ")}</span>
+          <span class="release-link">${apks.length ? "Release Notes →" : "View Release →"}</span>
+        </div>
+      </a>`;
+    };
+
+    const older = releases.slice(1);
+    const visible = older.slice(0, ARCHIVE_VISIBLE);
+    const hidden = older.slice(ARCHIVE_VISIBLE);
+    list.innerHTML =
+      latestHtml +
+      visible.map(compactEntry).join("") +
+      (hidden.length
+        ? `<div class="archive-older">${hidden.map(compactEntry).join("")}</div>
+           <button class="archive-toggle" type="button" data-archive-toggle><span>SHOW ALL ${older.length} RELEASES +</span></button>`
+        : "") +
+      `<a href="https://github.com/${REPO}/releases" class="release-foot" target="_blank" rel="noopener"><span>EVERYTHING ON GITHUB</span><span>→</span></a>`;
+
+    const toggle = list.querySelector("[data-archive-toggle]");
+    if (toggle) {
+      toggle.addEventListener("click", () => {
+        const box = list.querySelector(".archive-older");
+        const open = box.classList.toggle("open");
+        toggle.querySelector("span").textContent = open
+          ? "SHOW FEWER −"
+          : `SHOW ALL ${older.length} RELEASES +`;
+      });
+    }
   } catch (e) {
     list.innerHTML = `<div class="release-loading">Failed to load releases — <a href="https://github.com/${REPO}/releases" target="_blank" style="color:var(--red)">view on GitHub</a></div>`;
     console.error("Release load error:", e);
