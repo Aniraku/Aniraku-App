@@ -2,7 +2,7 @@
 
 const REPO = "Aniraku/Aniraku-App";
 const api = "https://api.github.com/repos";
-const FALLBACK_TAG = "v5.4.1";
+const FALLBACK_TAG = "v5.4.2";
 // Archive: latest release expanded + this many compact rows visible;
 // anything older hides behind the "show all" toggle.
 const ARCHIVE_VISIBLE = 4;

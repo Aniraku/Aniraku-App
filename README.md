@@ -24,7 +24,7 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.4.1">v5.4.1 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.4.2">v5.4.2 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
@@ -35,15 +35,15 @@
 
 <div align="center">
 
-  ### v5.4.1 is out
+  ### v5.4.2 is out
 
-  Minor bug fixes, including the Fixed subtitles never showing on Watch (VTT parser dropped every cue on standard --> timestamp lines).Three builds for full coverage. Chapter navigation, trending discovery,random anime with genre filters, spoiler tags, skeleton loading, swipe between episodes,pull to refresh, landscape auto-rotate, quick actions, performance monitoring, and more.
+  Minor bug fixes, including the Fixed Watch player controls never showing inline and taps jumping to a control-less fullscreen.Three builds for full coverage. Chapter navigation, trending discovery,random anime with genre filters, spoiler tags, skeleton loading, swipe between episodes,pull to refresh, landscape auto-rotate, quick actions, performance monitoring, and more.
 
   | APK |
   |:--|
-  | [Aniraku-v5.4.1-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.4.1/aniraku-v5.4.1-arm64.apk) |
-  | [Aniraku-v5.4.1-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.4.1/aniraku-v5.4.1-arm32.apk) |
-  | [Aniraku-v5.4.1-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.4.1/aniraku-v5.4.1-universal.apk) |
+  | [Aniraku-v5.4.2-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.4.2/aniraku-v5.4.2-arm64.apk) |
+  | [Aniraku-v5.4.2-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.4.2/aniraku-v5.4.2-arm32.apk) |
+  | [Aniraku-v5.4.2-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.4.2/aniraku-v5.4.2-universal.apk) |
 
   <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 

@@ -4,6 +4,14 @@
 
 This is the public record of meaningful native Android releases. For the currently installable build, open [GitHub Releases](https://github.com/Aniraku/Aniraku-App/releases/latest).
 
+## v5.4.2 — Player controls fix
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- Fixes Watch player controls never showing inline and taps jumping to a control-less fullscreen: controls now auto-show on load with a persistent mini progress bar, taps are caught by a sibling gesture overlay above the native video (no longer eaten by the SurfaceView or stolen from buttons by the parent responder), embed fallback always shows back + title + EMBED chrome, and video no longer force-locks to landscape on first frame — fullscreen is explicit via the fullscreen button only. Subtitle on/off + track selection, speed, quality, sleep timer, and the red Aniraku chrome are unchanged; no Chromecast icon.
+- Ships three builds: `arm64`, `arm32`, and `universal` (universal contains all architectures).
+- Bumps the Android versionCode to 53.
+
 ## v5.4.1 — Subtitle cue fix
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`

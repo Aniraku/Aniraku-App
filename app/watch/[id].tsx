@@ -191,7 +191,7 @@ export default function WatchScreen() {
   const [autoSkip, setAutoSkip] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [preferencesReady, setPreferencesReady] = useState(false);
-  const [showControls, setShowControls] = useState(false);
+  const [showControls, setShowControls] = useState(true);
   const [showSourcePicker, setShowSourcePicker] = useState(false);
   const [showQualityPicker, setShowQualityPicker] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -235,9 +235,12 @@ export default function WatchScreen() {
   const markedComplete = useRef(false);
   const sleepFired = useRef(false);
 
-  // Smart landscape auto-rotate: lock to landscape when video loads, restore portrait on unmount
-  const videoLoadedRef = useRef(false);
-  useEffect(() => () => { if (Platform.OS !== "web") void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT).catch(() => {}); }, []);
+  // Do NOT force landscape on load — the inline player must stay inline until
+  // the user taps fullscreen. Forcing LANDSCAPE here rotated the whole
+  // activity on first frame, which looked like "tap opens fullscreen with no UI"
+  // (controls start hidden, so the rotated video showed nothing).
+  // Fullscreen is entered explicitly via enterFullscreen() only.
+  useEffect(() => () => { if (Platform.OS !== "web") void ScreenOrientation.unlockAsync().catch(() => {}); }, []);
 
   const toggleOrientationLock = useCallback(() => {
     setOrientationLocked((prev) => {
@@ -1266,12 +1269,15 @@ export default function WatchScreen() {
     <StatusBar hidden={manualFullscreen} />
 
     {/* ── Video Container + Gesture Layer ── */}
-    <View style={[styles.videoShell, manualFullscreen && ps.videoShellFullscreen]} {...(source ? panResponder.panHandlers : {})}>
+    {/* NOTE: panHandlers live on the sibling overlay below, NOT on this parent.
+        Parent-level onStartShouldSetPanResponder stole Pressable touches and the
+        native Video SurfaceView eats touches aimed behind it. */}
+    <View style={[styles.videoShell, manualFullscreen && ps.videoShellFullscreen]}>
       {embedSource && !source ? <EmbedPlayer uri={embedSource.url} headers={nativePlaybackHeaders(playbackHeaders)} onError={() => handleProviderBlockedRef.current("player")} /> : null}
       {source ? <Video ref={videoRef} style={StyleSheet.absoluteFill} source={{ uri: videoSourceUri, headers: videoSourceHeaders, type: videoContentType, bufferConfig: videoBufferConfig }}
         paused={!isPlaying} rate={is2xSeeking ? 2.0 : speed} resizeMode="contain" muted={muted} volume={volume}
         maxBitRate={adaptiveBitrateCap ?? undefined} selectedAudioTrack={selectedAudioTrack as any}
-        onLoad={(data: OnLoadData) => { setDuration(data.duration); sourceFirstFrame.current = true; sourceStarted.current = true; setPlayerStatus("playing"); setIsPlaying(true); setLastPlayerError(null); if (!videoLoadedRef.current && Platform.OS !== "web") { videoLoadedRef.current = true; void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {}); } }}
+        onLoad={(data: OnLoadData) => { setDuration(data.duration); sourceFirstFrame.current = true; sourceStarted.current = true; setPlayerStatus("playing"); setIsPlaying(true); setLastPlayerError(null); setShowControls(true); }}
         onProgress={(data: OnProgressData) => { setCurrentTime(data.currentTime); setPlayableDuration(data.playableDuration); }}
         onBuffer={(data: OnBufferData) => { setBuffering(data.isBuffering); }}
         onVideoTracks={(event: any) => setVideoTracks(event?.videoTracks ?? [])}
@@ -1288,6 +1294,38 @@ export default function WatchScreen() {
 
       {/* ── Subtitle Layer ── */}
       {subtitlePrefs ? <View style={styles.subtitleWrapper} pointerEvents="none"><SubtitleRenderer cues={activeSubtitles} preferences={subtitlePrefs} /></View> : null}
+
+      {/* ── Gesture overlay: sits ABOVE native Video, BELOW chrome.
+          This is what makes tap-to-toggle reliable — touches no longer have to
+          bubble through the ExoPlayer SurfaceView to the parent. Sibling
+          chrome above (zIndex 3) still wins hit-test on buttons. */}
+      {source && !playerLocked ? <View style={styles.gestureOverlay} {...panResponder.panHandlers} /> : null}
+
+      {/* ── Embed chrome: WebView has its own internal controls, but we always
+          show back + title + EMBED badge so it never looks like "no UI". */}
+      {embedSource && !source ? (
+        <View style={styles.embedChrome} pointerEvents="box-none">
+          <Pressable onPress={() => { if (manualFullscreen) exitFullscreen(); else router.back(); }} accessibilityRole="button" accessibilityLabel="Go back" style={styles.iconButton} hitSlop={10}>
+            <Ionicons name="arrow-back" size={22} color="#FFF" />
+          </Pressable>
+          <Text style={styles.playerTitle} numberOfLines={1}>{`${title} - Episode ${episode}`}</Text>
+          <View style={styles.subPillBadge}>
+            <Text style={styles.subPillBadgeText}>EMBED</Text>
+          </View>
+          <Pressable onPress={manualFullscreen ? exitFullscreen : enterFullscreen} accessibilityRole="button" accessibilityLabel={manualFullscreen ? "Exit fullscreen" : "Enter fullscreen"} style={styles.iconButton} hitSlop={8}>
+            <Ionicons name={manualFullscreen ? "contract" : "expand"} size={20} color="#FFF" />
+          </Pressable>
+        </View>
+      ) : null}
+
+      {/* ── Mini progress: always visible when chrome is hidden, so inline
+          never looks dead and matches the reference layout's timeline. */}
+      {source && !showControls && !playerLocked && duration > 0 ? (
+        <View style={styles.miniProgress} pointerEvents="none">
+          <View style={[styles.miniProgressBuffered, { width: `${bufferPct}%` }]} />
+          <View style={[styles.miniProgressPlayed, { width: `${progressPct}%` }]} />
+        </View>
+      ) : null}
 
       {/* ── PLAYER CHROME (1:1 layout) ── */}
 
@@ -1635,6 +1673,11 @@ const styles = StyleSheet.create({
   episodeLabel: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
   videoShell: { width: "100%", aspectRatio: 16 / 9, backgroundColor: "#000000", overflow: "hidden", position: "relative" },
   video: { flex: 1 },
+  gestureOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 2 },
+  embedChrome: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 5, flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "rgba(0,0,0,0.55)" },
+  miniProgress: { position: "absolute", left: 0, right: 0, bottom: 0, height: 3, backgroundColor: "rgba(255,255,255,0.22)", zIndex: 2 },
+  miniProgressBuffered: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.35)" },
+  miniProgressPlayed: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "#FF4D4D" },
   subtitleWrapper: { ...StyleSheet.absoluteFillObject, justifyContent: "flex-end", alignItems: "center", paddingBottom: 60 },
   controlsBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: 3, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
   topBar: { flexDirection: "row", alignItems: "center" },

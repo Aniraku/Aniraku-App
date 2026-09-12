@@ -148,7 +148,7 @@ Found a vulnerability? Do **not** open a public issue. Email `sho.islam0311@prot
 
 Releases ship from tags via [`.github/workflows/build.yml`](.github/workflows/build.yml). Contributors do not need to cut releases, but should know the contract:
 
-1. Bump `version` and `versionCode` in [`app.config.ts`](./app.config.ts) (current: `5.4.1` / `52`).
+1. Bump `version` and `versionCode` in [`app.config.ts`](./app.config.ts) (current: `5.4.2` / `53`).
 2. Add a `CHANGELOG.md` entry describing the user-facing change and root cause.
 3. Update `README.md` download table and version links.
 4. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.

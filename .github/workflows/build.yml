@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.4.1"
+        default: "v5.4.2"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -115,15 +115,16 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.4.1 — Subtitle cue fix
+            ## v5.4.2 — Player controls fix
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.4.1-arm64.apk`
-            - `aniraku-v5.4.1-arm32.apk`
-            - `aniraku-v5.4.1-universal.apk`
+            - `aniraku-v5.4.2-arm64.apk`
+            - `aniraku-v5.4.2-arm32.apk`
+            - `aniraku-v5.4.2-universal.apk`
 
-            - Fixed subtitles never showing on Watch (VTT parser dropped every cue on standard ` --> ` timestamp lines).
+            - Fixed Watch player controls never showing inline and taps jumping to a control-less fullscreen (controls auto-show, gesture overlay, embed chrome, no forced landscape).
+            - Subtitle on/off + track selection, speed, quality, sleep timer unchanged.
             - Minor bug fixes and stability improvements.
 
             Download the APK, install, and allow *install from unknown sources* if prompted.
