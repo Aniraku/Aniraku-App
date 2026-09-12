@@ -1,6 +1,6 @@
 # Terms of Use
 
-**Effective date: August 16, 2026**
+**Effective date: September 12th of 2026**
 
 By using Aniraku Native Android, you agree to use the service lawfully, responsibly, and in accordance with applicable law. The app is an interface for anime discovery, personal organization, and playback coordination; it does not grant rights in third-party content, marks, metadata, artwork, or external provider services.
 
@@ -16,7 +16,7 @@ Language tracks, stream quality, subtitles, schedules, metadata, and provider av
 
 The software is provided **“as is”** and **“as available.”** To the maximum extent permitted by law, Aniraku disclaims warranties of uninterrupted availability, error-free operation, merchantability, fitness for a particular purpose, and non-infringement. Nothing here limits rights that cannot legally be limited.
 
-Questions about these terms may be sent to **[Showaib-Mail](mailto:sho.islam0311@proton.me)**.
+Questions about these terms may be sent to **[Aniraku@terms](mailto:sho.islam0311@proton.me)**.
 
 ---
 
