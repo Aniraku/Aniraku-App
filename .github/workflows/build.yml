@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.4.0"
+        default: "v5.4.1"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -115,16 +115,15 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.4.0 — Watch playback fix + font unification
+            ## v5.4.1 — Subtitle cue fix
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.4.0-arm64.apk`
-            - `aniraku-v5.4.0-arm32.apk`
-            - `aniraku-v5.4.0-universal.apk`
+            - `aniraku-v5.4.1-arm64.apk`
+            - `aniraku-v5.4.1-arm32.apk`
+            - `aniraku-v5.4.1-universal.apk`
 
-            - Fixed `PLAYER · ExoPlaybackException: ERROR_CODE_IO_BAD_HTTP_STATUS` on `SERVER · MOMO · PROXY` (backend now returns pre-proxied URLs — the client no longer double-wraps them into a rejected proxy-of-proxy 403).
-            - Unified Watch page fonts/sizes with the rest of the app (SpaceGrotesk + monospace, no more Caveat/HennyPenny headings).
+            - Fixed subtitles never showing on Watch (VTT parser dropped every cue on standard ` --> ` timestamp lines).
             - Minor bug fixes and stability improvements.
 
             Download the APK, install, and allow *install from unknown sources* if prompted.
