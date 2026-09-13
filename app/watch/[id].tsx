@@ -218,7 +218,6 @@ export default function WatchScreen() {
   const [sleepRemaining, setSleepRemaining] = useState<number | null>(null);
   const [showSpeedModal, setShowSpeedModal] = useState(false);
   const [showSubtitleModal, setShowSubtitleModal] = useState(false);
-  const [showQualityModal, setShowQualityModal] = useState(false);
   const [showServerModal, setShowServerModal] = useState(false);
   const [showChapterList, setShowChapterList] = useState(false);
   const [is2xSeeking, setIs2xSeeking] = useState(false);
@@ -959,7 +958,6 @@ export default function WatchScreen() {
     setPlaybackHeaders(stream?.headers ?? activeProvider?.headers);
     setRequestedQuality(isAutoQuality(next) ? "auto" : next.quality || "auto");
     setShowQualityPicker(false);
-    setShowQualityModal(false);
     setShowSettings(false);
   };
 
@@ -970,12 +968,11 @@ export default function WatchScreen() {
       setAdaptiveBitrateCap(choice.maxVideoBitrate ?? null);
       setRequestedQuality("auto");
       setShowQualityPicker(false);
-      setShowQualityModal(false);
       setShowSettings(false);
       return;
     }
     if (choice.source) { selectQuality(choice.source); return; }
-    if (choice.requestQuality === "auto" && isAutoQuality(source)) { setRequestedQuality("auto"); setShowQualityPicker(false); setShowQualityModal(false); setShowSettings(false); return; }
+    if (choice.requestQuality === "auto" && isAutoQuality(source)) { setRequestedQuality("auto"); setShowQualityPicker(false); setShowSettings(false); return; }
     try {
       setLoadingStream(true);
       const response = await getStream({ animeId, episode, provider: activeProvider.provider, lang: language, quality: choice.requestQuality });
@@ -1281,7 +1278,6 @@ export default function WatchScreen() {
     setShowSettings(false);
     setShowSpeedModal(false);
     setShowSubtitleModal(false);
-    setShowQualityModal(false);
     setShowServerModal(false);
     setShowChapterList(false);
     setShowSourcePicker(false);
@@ -1414,11 +1410,17 @@ export default function WatchScreen() {
             </Pressable>
             <Text style={styles.playerTitle} numberOfLines={1} ellipsizeMode="tail">{`${title} - Episode ${episode}`}</Text>
             <View style={styles.topRightRow}>
+              <Pressable onPress={() => setShowSpeedModal(true)} accessibilityRole="button" accessibilityLabel="Playback speed" style={styles.iconButton} hitSlop={8}>
+                <Ionicons name="speedometer" size={16} color="#FFF" />
+              </Pressable>
+              <Pressable onPress={() => setShowSubtitleModal(true)} accessibilityRole="button" accessibilityLabel="Subtitles" style={styles.iconButton} hitSlop={8}>
+                <MaterialCommunityIcons name="subtitles" size={16} color="#FFF" />
+              </Pressable>
               <Pressable onPress={() => setShowServerModal(true)} accessibilityRole="button" accessibilityLabel="Select server" style={styles.subPillBadge} hitSlop={8}>
                 <Text style={styles.subPillBadgeText}>{`${language.toUpperCase()} • ${activeProvider?.label || "S1"}`}</Text>
               </Pressable>
-              <Pressable onPress={() => setShowSettings(true)} accessibilityRole="button" accessibilityLabel="Settings" style={styles.iconButton} hitSlop={8}>
-                <Ionicons name="settings-sharp" size={18} color="#FFF" />
+              <Pressable onPress={() => setShowSettings(true)} accessibilityRole="button" accessibilityLabel="Quality" style={styles.iconButton} hitSlop={8}>
+                <Ionicons name="settings-sharp" size={16} color="#FFF" />
               </Pressable>
             </View>
           </View>
@@ -1460,10 +1462,10 @@ export default function WatchScreen() {
             <View style={styles.actionRail}>
               <View style={styles.railSide}>
                 <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setMuted((m) => !m); }} accessibilityRole="button" style={styles.iconButton} hitSlop={8}>
-                  <Ionicons name={muted ? "volume-mute" : "volume-high"} size={18} color="#FFF" />
+                  <Ionicons name={muted ? "volume-mute" : "volume-high"} size={16} color="#FFF" />
                 </Pressable>
                 <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); seekBy(-10); }} accessibilityRole="button" style={styles.iconButton} hitSlop={8}>
-                  <MaterialCommunityIcons name="rewind-10" size={22} color="#FFF" />
+                  <Ionicons name="play-back" size={18} color="#FFF" />
                 </Pressable>
               </View>
               <View style={styles.railCenter}>
@@ -1479,10 +1481,10 @@ export default function WatchScreen() {
               </View>
               <View style={styles.railSideRight}>
                 <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); seekBy(10); }} accessibilityRole="button" style={styles.iconButton} hitSlop={8}>
-                  <MaterialCommunityIcons name="fast-forward-10" size={22} color="#FFF" />
+                  <Ionicons name="play-forward" size={18} color="#FFF" />
                 </Pressable>
                 <Pressable onPress={manualFullscreen ? exitFullscreen : enterFullscreen} accessibilityRole="button" style={styles.iconButton} hitSlop={8}>
-                  <Ionicons name={manualFullscreen ? "contract" : "expand"} size={18} color="#FFF" />
+                  <Ionicons name={manualFullscreen ? "contract" : "expand"} size={16} color="#FFF" />
                 </Pressable>
               </View>
             </View>
@@ -1538,64 +1540,19 @@ export default function WatchScreen() {
         </View>
       ) : null}
 
-      {/* ── Settings panel ── */}
+      {/* ── Settings panel — Quality only ── */}
       {source && showSettings ? <View style={ps.settingsOverlay}>
         <ScrollView contentContainerStyle={ps.settingsContent} showsVerticalScrollIndicator={false}>
-          <View style={ps.settingsHeading}><DotLabel>SETTINGS</DotLabel><Pressable onPress={() => setShowSettings(false)}><AppIcon name="close" size={18} color={nothing.muted} /></Pressable></View>
-
-          {/* Quality / Server — top-level buttons */}
+          <View style={ps.settingsHeading}><DotLabel>QUALITY</DotLabel><Pressable onPress={() => setShowSettings(false)}><AppIcon name="close" size={16} color={nothing.muted} /></Pressable></View>
           <View style={ps.settingsSection}>
-            <View style={{ flexDirection: "row", gap: 6 }}>
-              {displayedQualityOptions.length > 1 ? <Pressable onPress={() => { setShowSettings(false); setShowQualityModal(true); }} style={[ps.settingsBtn]}><Ionicons name="film" size={15} color={nothing.white} /><Text style={ps.settingsBtnText}>{displayedQuality.toUpperCase()}</Text></Pressable> : null}
-              {activeProviders.length > 1 ? <Pressable onPress={() => { setShowSettings(false); setShowServerModal(true); }} style={[ps.settingsBtn]}><Ionicons name="server" size={15} color={nothing.white} /><Text style={ps.settingsBtnText}>{(activeProvider?.label || "S1").toUpperCase()}</Text></Pressable> : null}
-              <Pressable onPress={() => setShowSubtitleModal(true)} style={[ps.settingsBtn]}><MaterialCommunityIcons name="subtitles" size={15} color={nothing.white} /><Text style={ps.settingsBtnText}>SUB</Text></Pressable>
-            </View>
+            {displayedQualityOptions.length ? displayedQualityOptions.map((item: WatchQualityOption) => {
+              const selected = source ? displayedQuality.toLowerCase() === item.label.toLowerCase() : false;
+              return <Pressable key={item.id} onPress={() => { if (source) void selectAdaptiveQuality(item); else if (item.source) selectQuality(item.source); setShowSettings(false); }} style={[styles.quality, selected && styles.qualityActive]}><Text style={[styles.qualityText, selected && styles.qualityTextActive]}>{item.label.toUpperCase()}</Text>{selected && <Ionicons name="checkmark" size={14} color={nothing.red} />}</Pressable>;
+            }) : <Text style={styles.qualityText}>No quality options</Text>}
           </View>
-
-          {/* Speed */}
           <View style={ps.settingsSection}>
-            <DotLabel>SPEED</DotLabel>
-            <View style={styles.speedRow}>{[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((value) => <Pressable key={value} onPress={() => { setSpeed(value); lockedSpeed.current = value; }} style={[styles.speed, speed === value && styles.speedActive]}><Text style={[styles.speedText, speed === value && styles.speedTextActive]}>{value}×</Text></Pressable>)}</View>
+            <Text style={ps.diagnosticLine}>{`${activeProvider?.label || "—"} · ${embedSource ? "EMBED" : useSourceProxy ? "PROXY" : "DIRECT"}`}</Text>
           </View>
-
-          {/* Toggles */}
-          <View style={ps.settingsSection}>
-            <DotLabel>PLAYBACK</DotLabel>
-            <View style={styles.toggleRow}>
-              <Pressable onPress={() => setAutoNext((v) => !v)} style={[styles.toggle, autoNext && styles.toggleOn]}><Text style={[styles.toggleText, autoNext && styles.toggleTextOn]}>AUTO NEXT</Text></Pressable>
-              <Pressable onPress={() => setAutoSkip((v) => !v)} style={[styles.toggle, autoSkip && styles.toggleOn]}><Text style={[styles.toggleText, autoSkip && styles.toggleTextOn]}>AUTO SKIP</Text></Pressable>
-              <Pressable onPress={() => { setRotationLocked((v) => !v); if (!rotationLocked) void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {}); else void ScreenOrientation.unlockAsync().catch(() => {}); }} style={[styles.toggle, rotationLocked && styles.toggleOn]}><Text style={[styles.toggleText, rotationLocked && styles.toggleTextOn]}>{rotationLocked ? "LOCKED" : "ROTATION"}</Text></Pressable>
-            </View>
-          </View>
-
-          {/* Audio */}
-          {audioTracks.length > 1 ? <View style={ps.settingsSection}>
-            <DotLabel>AUDIO</DotLabel>
-            <View style={styles.qualityRow}>
-              <Pressable onPress={() => setSelectedAudioTrack(undefined)} style={[styles.quality, !selectedAudioTrack && styles.qualityActive]}><Text style={[styles.qualityText, !selectedAudioTrack && styles.qualityTextActive]}>AUTO</Text></Pressable>
-              {audioTracks.map((track: any, index: number) => { const trackId = track?.index ?? track?.id ?? index; const label = String(track?.title || track?.language || `T${index + 1}`).toUpperCase(); const active = selectedAudioTrack?.value === trackId; return <Pressable key={String(trackId)} onPress={() => setSelectedAudioTrack({ type: "index", value: trackId })} style={[styles.quality, active && styles.qualityActive]}><Text style={[styles.qualityText, active && styles.qualityTextActive]}>{label}</Text></Pressable>; })}
-            </View>
-          </View> : null}
-
-          {/* Subtitle visual customization */}
-          {source?.subtitles?.length && subtitlePrefs?.enabled ? <View style={ps.settingsSection}>
-            <DotLabel>SUB STYLE</DotLabel>
-            <View style={{ gap: 6 }}>
-              <View style={ps.settingsRow}><Text style={ps.settingsRowLabel}>Size</Text><View style={{ flexDirection: "row", gap: 4 }}>{FONT_SIZE_PRESETS.map((size) => <Pressable key={size} onPress={() => updateSubtitlePrefs({ fontSize: size })} style={[ps.settingsPill, subtitlePrefs.fontSize === size && ps.settingsPillActive]}><Text style={[ps.settingsPillText, subtitlePrefs.fontSize === size && ps.settingsPillTextActive]}>{size}</Text></Pressable>)}</View></View>
-              <View style={ps.settingsRow}><Text style={ps.settingsRowLabel}>BG</Text><View style={{ flexDirection: "row", gap: 4 }}>{BG_OPACITY_PRESETS.map((op) => <Pressable key={op} onPress={() => updateSubtitlePrefs({ bgOpacity: op })} style={[ps.settingsPill, subtitlePrefs.bgOpacity === op && ps.settingsPillActive]}><Text style={[ps.settingsPillText, subtitlePrefs.bgOpacity === op && ps.settingsPillTextActive]}>{op === 0 ? "OFF" : `${Math.round(op * 100)}%`}</Text></Pressable>)}</View></View>
-              <View style={ps.settingsRow}><Text style={ps.settingsRowLabel}>Stroke</Text><View style={{ flexDirection: "row", gap: 4 }}>{OUTLINE_PRESETS.map((o) => <Pressable key={o} onPress={() => updateSubtitlePrefs({ outlineThickness: o })} style={[ps.settingsPill, subtitlePrefs.outlineThickness === o && ps.settingsPillActive]}><Text style={[ps.settingsPillText, subtitlePrefs.outlineThickness === o && ps.settingsPillTextActive]}>{o === 0 ? "OFF" : `${o}`}</Text></Pressable>)}</View></View>
-              <View style={ps.settingsRow}><Text style={ps.settingsRowLabel}>Font</Text><View style={{ flexDirection: "row", gap: 4 }}>{SUBTITLE_FONTS.map((f) => <Pressable key={f.id} onPress={() => updateSubtitlePrefs({ fontFamily: f.id })} style={[ps.settingsPill, subtitlePrefs.fontFamily === f.id && ps.settingsPillActive]}><Text style={[ps.settingsPillText, subtitlePrefs.fontFamily === f.id && ps.settingsPillTextActive, { fontFamily: f.family !== "System" ? f.family : undefined }]}>{f.label}</Text></Pressable>)}</View></View>
-            </View>
-          </View> : null}
-
-          {/* Status — compact one-liner */}
-          <View style={ps.settingsSection}>
-            <Text style={ps.diagnosticLine}>{`${activeProvider?.label || "—"} · ${embedSource ? "EMBED" : useSourceProxy ? "PROXY" : "DIRECT"} · ${displayedQuality.toUpperCase()}`}</Text>
-            {lastPlayerError ? <Text style={[ps.diagnosticLine, { color: nothing.red }]}>{lastPlayerError}</Text> : null}
-          </View>
-
-          {/* Sleep timer */}
-          <View style={ps.settingsSection}><SleepTimer remaining={sleepRemaining} onSetRemaining={setSleepRemaining} onClear={() => {}} /></View>
         </ScrollView>
       </View> : null}
 
@@ -1642,8 +1599,6 @@ export default function WatchScreen() {
       <Pressable style={[styles.modalItem, subtitlePrefs && !subtitlePrefs.enabled && styles.modalItemActive]} onPress={() => { updateSubtitlePrefs({ enabled: false }); setShowSubtitleModal(false); }}><Text style={[styles.modalItemText, subtitlePrefs && !subtitlePrefs.enabled && styles.modalItemTextActive]}>Off</Text>{subtitlePrefs && !subtitlePrefs.enabled && <Ionicons name="checkmark" size={20} color={nothing.red} />}</Pressable>
       {source.subtitles.map((sub) => { const active = subtitlePrefs?.enabled && selectedSubtitleUrl === sub.url; return <Pressable key={sub.url} style={[styles.modalItem, active && styles.modalItemActive]} onPress={() => { updateSubtitlePrefs({ enabled: true, preferredLanguage: sub.lang || sub.label || "en" }); setShowSubtitleModal(false); }}><Text style={[styles.modalItemText, active && styles.modalItemTextActive]}>{sub.label || sub.lang || "Track"}</Text>{active && <Ionicons name="checkmark" size={20} color={nothing.red} />}</Pressable>; })}
     </> : <Text style={styles.modalItemText}>No subtitles available</Text>}</View></Pressable></Modal>
-
-    <Modal visible={showQualityModal} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setShowQualityModal(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Quality</Text>{displayedQualityOptions.length ? displayedQualityOptions.map((item: WatchQualityOption) => { const selected = source ? displayedQuality.toLowerCase() === item.label.toLowerCase() : false; return <Pressable key={item.id} onPress={() => { if (source) void selectAdaptiveQuality(item); else if (item.source) selectQuality(item.source); setShowQualityModal(false); }} style={[styles.modalItem, selected && styles.modalItemActive]}><Text style={[styles.modalItemText, selected && styles.modalItemTextActive]}>{item.label.toUpperCase()}</Text>{selected && <Ionicons name="checkmark" size={20} color={nothing.red} />}</Pressable>; }) : <Text style={styles.modalItemText}>No quality options available</Text>}</View></Pressable></Modal>
 
     <Modal visible={showServerModal} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setShowServerModal(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Select Server</Text><View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} onPress={() => selectLanguage(item)} disabled={!providers[item].length} style={[styles.language, language === item && styles.languageActive, !providers[item].length && styles.languageDisabled]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${providers.sub.length}` : `DUB · ${providers.dub.length}`}</Text></Pressable>)}</View>
       {activeProviders.map((provider, index) => <Pressable key={provider.id} onPress={() => { selectServer(index); setShowServerModal(false); }} style={[styles.modalItem, index === serverIndex && styles.modalItemActive]}><Text style={[styles.modalItemText, index === serverIndex && styles.modalItemTextActive]}>{provider.label}</Text>{index === serverIndex && <Ionicons name="checkmark" size={20} color={nothing.red} />}</Pressable>)}</View></Pressable></Modal>
@@ -1773,7 +1728,7 @@ const styles = StyleSheet.create({
   hudText: { color: "#FFF", fontSize: 12, fontWeight: "700" },
   doubleTapOverlay: { position: "absolute", top: "32%", alignItems: "center", justifyContent: "center", zIndex: 12 },
   doubleTapText: { color: "#FFF", fontSize: 11, fontWeight: "800", marginTop: 3 },
-  chapterMarker: { position: "absolute", height: 2, backgroundColor: "rgba(255,255,255,0.55)", borderRadius: 1, top: 7 },
+  chapterMarker: { position: "absolute", height: 2, backgroundColor: "#FFD600", borderRadius: 1, top: 7 },
   skipButtonOverlay: { position: "absolute", bottom: 84, right: 12, backgroundColor: nothing.red, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, flexDirection: "row", alignItems: "center", gap: 5, zIndex: 15, elevation: 6 },
   skipButtonText: { color: "#FFF", fontSize: 11, fontWeight: "700" },
   lockedPill: { position: "absolute", bottom: 32, alignSelf: "center", backgroundColor: "rgba(0,0,0,0.8)", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)", zIndex: 15 },
