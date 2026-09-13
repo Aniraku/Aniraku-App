@@ -59,7 +59,7 @@ import { SubtitleRenderer } from "@/components/subtitle-renderer";
 import { SleepTimer, SleepTimerPill } from "@/components/sleep-timer";
 import { chrome } from "@/components/player/chrome-styles";
 import { parseSubtitle, detectSubtitleFormat, detectSubtitleFormatFromContent, findActiveCues, matchSubtitleTrack, type SubtitleCue } from "@/lib/subtitle-parser";
-import { loadSubtitlePreferences, saveSubtitlePreferences, type SubtitlePreferences } from "@/lib/subtitle-preferences";
+import { loadSubtitlePreferences, saveSubtitlePreferences, type SubtitlePreferences, SUBTITLE_FONTS, FONT_SIZE_PRESETS, BG_OPACITY_PRESETS, OUTLINE_PRESETS } from "@/lib/subtitle-preferences";
 
 const EPISODE_PAGE_SIZE = 50;
 const RESUME_MIN_TIME = 30;
@@ -309,7 +309,15 @@ export default function WatchScreen() {
 
   const updateSubtitlePrefs = useCallback((patch: Partial<SubtitlePreferences>) => {
     setSubtitlePrefs((prev) => {
-      const next = { enabled: prev?.enabled ?? true, preferredLanguage: prev?.preferredLanguage ?? "en", ...patch };
+      const next: SubtitlePreferences = {
+        enabled: prev?.enabled ?? true,
+        preferredLanguage: prev?.preferredLanguage ?? "en",
+        fontSize: prev?.fontSize ?? 14,
+        bgOpacity: prev?.bgOpacity ?? 0.55,
+        outlineThickness: prev?.outlineThickness ?? 2,
+        fontFamily: prev?.fontFamily ?? "default",
+        ...patch,
+      };
       void saveSubtitlePreferences(next).catch(() => {});
       return next;
     });
@@ -1386,12 +1394,12 @@ export default function WatchScreen() {
         </View>
       ) : null}
 
-      {/* ── PLAYER CHROME (1:1 layout) ── */}
+      {/* ── PLAYER CHROME ── */}
 
       {/* Double-tap feedback */}
       {doubleTapSide ? (
         <Animated.View style={[styles.doubleTapOverlay, { left: doubleTapSide === "left" ? "12%" : undefined, right: doubleTapSide === "right" ? "12%" : undefined, opacity: doubleTapAnim }]} pointerEvents="none">
-          <MaterialCommunityIcons name={doubleTapSide === "left" ? "rewind-10" : "fast-forward-10"} size={42} color="#FFF" />
+          <MaterialCommunityIcons name={doubleTapSide === "left" ? "rewind-10" : "fast-forward-10"} size={36} color="#FFF" />
           <Text style={styles.doubleTapText}>{doubleTapSide === "left" ? "-10s" : "+10s"}</Text>
         </Animated.View>
       ) : null}
@@ -1399,37 +1407,17 @@ export default function WatchScreen() {
       {/* Main controls */}
       {showControls && !playerLocked ? (
         <View style={[styles.controlsBackdrop, manualFullscreen && styles.controlsBackdropFullscreen]} pointerEvents="box-none">
-          {/* TOP BAR — compact inline to avoid overflow on ~360dp widths;
-              full rail in fullscreen where there is room. */}
+          {/* TOP BAR */}
           <View style={styles.topBar}>
-            <Pressable onPress={() => { if (manualFullscreen) exitFullscreen(); else router.back(); }} accessibilityRole="button" accessibilityLabel="Go back" accessibilityHint="Returns to the previous screen" style={styles.iconButton} hitSlop={10}>
+            <Pressable onPress={() => { if (manualFullscreen) exitFullscreen(); else router.back(); }} accessibilityRole="button" accessibilityLabel="Go back" style={styles.iconButton} hitSlop={10}>
               <Ionicons name="arrow-back" size={20} color="#FFF" />
             </Pressable>
             <Text style={styles.playerTitle} numberOfLines={1} ellipsizeMode="tail">{`${title} - Episode ${episode}`}</Text>
             <View style={styles.topRightRow}>
-              {orientationLocked ? <View style={styles.orientationBadge}><Text style={styles.orientationBadgeText}>LANDSCAPE</Text></View> : null}
-              {(skipSegments.intro || skipSegments.outro) ? (
-                <Pressable onPress={() => setShowChapterList(true)} accessibilityRole="button" accessibilityLabel="Chapter list" accessibilityHint="Opens the list of chapters and segments" style={styles.iconButton} hitSlop={8}>
-                  <Ionicons name="book" size={18} color="#FFF" />
-                </Pressable>
-              ) : null}
-              {manualFullscreen ? (
-                <Pressable onPress={() => setShowSpeedModal(true)} accessibilityRole="button" accessibilityLabel="Playback speed" accessibilityHint="Opens speed selection menu" style={styles.iconButton} hitSlop={8}>
-                  <MaterialCommunityIcons name="speedometer" size={18} color="#FFF" />
-                </Pressable>
-              ) : null}
-              <Pressable onPress={() => setShowSubtitleModal(true)} accessibilityRole="button" accessibilityLabel="Subtitles" accessibilityHint="Opens subtitle language selection" style={styles.iconButton} hitSlop={8}>
-                <MaterialCommunityIcons name="subtitles" size={18} color="#FFF" />
-              </Pressable>
-              {manualFullscreen ? (
-                <Pressable onPress={enterPiP} accessibilityRole="button" accessibilityLabel="Picture in Picture" accessibilityHint="Opens video in a floating window" style={styles.iconButton} hitSlop={8}>
-                  <Ionicons name="videocam" size={18} color="#FFF" />
-                </Pressable>
-              ) : null}
-              <Pressable onPress={() => setShowServerModal(true)} accessibilityRole="button" accessibilityLabel="Select server" accessibilityHint="Opens server and language selection" style={styles.subPillBadge} hitSlop={8}>
+              <Pressable onPress={() => setShowServerModal(true)} accessibilityRole="button" accessibilityLabel="Select server" style={styles.subPillBadge} hitSlop={8}>
                 <Text style={styles.subPillBadgeText}>{`${language.toUpperCase()} • ${activeProvider?.label || "S1"}`}</Text>
               </Pressable>
-              <Pressable onPress={() => setShowSettings(true)} accessibilityRole="button" accessibilityLabel="Settings" accessibilityHint="Opens player settings panel" style={styles.iconButton} hitSlop={8}>
+              <Pressable onPress={() => setShowSettings(true)} accessibilityRole="button" accessibilityLabel="Settings" style={styles.iconButton} hitSlop={8}>
                 <Ionicons name="settings-sharp" size={18} color="#FFF" />
               </Pressable>
             </View>
@@ -1441,26 +1429,25 @@ export default function WatchScreen() {
             {(resumePosition || skipKind) ? (
               <View style={styles.contextActions}>
                 {resumePosition ? (
-                  <Pressable onPress={() => { pendingResume.current = resumePosition; videoRef.current?.seek(resumePosition); setResumePosition(null); }} accessibilityRole="button" accessibilityLabel={`Resume from ${formatTime(resumePosition)}`} accessibilityHint="Jumps to the saved playback position" style={styles.resumeBtn}>
-                    <MaterialCommunityIcons name="play" size={14} color="#FFF" />
+                  <Pressable onPress={() => { pendingResume.current = resumePosition; videoRef.current?.seek(resumePosition); setResumePosition(null); }} accessibilityRole="button" style={styles.resumeBtn}>
+                    <MaterialCommunityIcons name="play" size={12} color="#FFF" />
                     <Text style={styles.resumeBtnText}>{`RESUME ${formatTime(resumePosition)}`}</Text>
                   </Pressable>
                 ) : null}
                 {skipKind ? (
-                  <Pressable onPress={() => skip(skipKind)} accessibilityRole="button" accessibilityLabel={`Skip ${skipKind}`} accessibilityHint={`Skips the ${skipKind} section`} style={styles.skipBtn}>
+                  <Pressable onPress={() => skip(skipKind)} accessibilityRole="button" style={styles.skipBtn}>
                     <Text style={styles.skipBtnText}>{`SKIP ${skipKind.toUpperCase()}`}</Text>
                   </Pressable>
                 ) : null}
               </View>
             ) : null}
 
-            {/* Timeline with chapter markers */}
+            {/* Timeline */}
             <View style={styles.timelineRow}>
               <Text style={styles.timeLabel}>{formatTime(currentTime)}</Text>
-              <View style={styles.progressBarTrack} onLayout={onProgressLayout} onTouchStart={onBarTouchStart} onTouchMove={onBarTouchMove} onTouchEnd={seekFromBar} accessibilityRole="adjustable" accessibilityLabel="Seek bar" accessibilityHint="Drag to seek through the video">
+              <View style={styles.progressBarTrack} onLayout={onProgressLayout} onTouchStart={onBarTouchStart} onTouchMove={onBarTouchMove} onTouchEnd={seekFromBar} accessibilityRole="adjustable" accessibilityLabel="Seek bar">
                 <View style={[styles.progressBuffered, { width: `${bufferPct}%` }]} />
                 <View style={[styles.progressPlayed, { width: `${dragPct !== null ? dragPct : progressPct}%` }]} />
-                {/* Chapter markers */}
                 {skipSegments.intro && duration > 0 ? <View style={[styles.chapterMarker, { left: `${(skipSegments.intro.startTime / duration) * 100}%`, width: `${((skipSegments.intro.endTime - skipSegments.intro.startTime) / duration) * 100}%` }]} /> : null}
                 {skipSegments.outro && duration > 0 ? <View style={[styles.chapterMarker, { left: `${(skipSegments.outro.startTime / duration) * 100}%`, width: `${((skipSegments.outro.endTime - skipSegments.outro.startTime) / duration) * 100}%` }]} /> : null}
                 <View style={[styles.scrubberKnob, { left: `${dragPct !== null ? dragPct : progressPct}%` }]} />
@@ -1469,47 +1456,32 @@ export default function WatchScreen() {
               <Text style={styles.timeLabel}>{formatTime(duration)}</Text>
             </View>
 
-            {/* Action rail — inline hides orientation + download (both live in
-                fullscreen and in Settings) so all 8 remaining buttons fit a
-                ~340dp wide inline player without overflowing. */}
+            {/* Action rail — essentials only */}
             <View style={styles.actionRail}>
               <View style={styles.railSide}>
-                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); setPlayerLocked(true); }} accessibilityRole="button" accessibilityLabel="Lock player" accessibilityHint="Locks the player controls to prevent accidental touches" style={styles.iconButton} hitSlop={8}>
-                  <Ionicons name="lock-open-outline" size={18} color="#FFF" />
-                </Pressable>
-                {manualFullscreen ? (
-                  <Pressable onPress={toggleOrientationLock} accessibilityRole="button" accessibilityLabel={orientationLocked ? "Unlock orientation" : "Lock to landscape"} accessibilityHint="Toggles between landscape-locked and free rotation" style={[styles.iconButton, orientationLocked && styles.iconButtonActive]} hitSlop={8}>
-                    <Ionicons name={orientationLocked ? "phone-landscape" : "phone-portrait-outline"} size={18} color={orientationLocked ? "#FF4D4D" : "#FFF"} />
-                  </Pressable>
-                ) : null}
-                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setMuted((m) => !m); }} accessibilityRole="button" accessibilityLabel={muted ? "Unmute" : "Mute"} accessibilityHint="Toggles audio mute state" style={styles.iconButton} hitSlop={8}>
+                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setMuted((m) => !m); }} accessibilityRole="button" style={styles.iconButton} hitSlop={8}>
                   <Ionicons name={muted ? "volume-mute" : "volume-high"} size={18} color="#FFF" />
+                </Pressable>
+                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); seekBy(-10); }} accessibilityRole="button" style={styles.iconButton} hitSlop={8}>
+                  <MaterialCommunityIcons name="rewind-10" size={22} color="#FFF" />
                 </Pressable>
               </View>
               <View style={styles.railCenter}>
-                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); seekBy(-10); }} accessibilityRole="button" accessibilityLabel="Rewind 10 seconds" accessibilityHint="Seeks backward 10 seconds in the video" style={styles.iconButton} hitSlop={8}>
-                  <MaterialCommunityIcons name="rewind-10" size={24} color="#FFF" />
+                <Pressable disabled={!previousKnownEpisode} onPress={() => previousKnownEpisode && goToEpisode(previousKnownEpisode)} accessibilityRole="button" style={[styles.iconButton, !previousKnownEpisode && { opacity: 0.35 }]} hitSlop={8}>
+                  <Ionicons name="play-skip-back" size={20} color="#FFF" />
                 </Pressable>
-                <Pressable disabled={!previousKnownEpisode} onPress={() => previousKnownEpisode && goToEpisode(previousKnownEpisode)} accessibilityRole="button" accessibilityLabel="Previous episode" accessibilityHint="Navigates to the previous episode" style={[styles.iconButton, !previousKnownEpisode && { opacity: 0.35 }]} hitSlop={8}>
-                  <Ionicons name="play-skip-back" size={22} color="#FFF" />
+                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setIsPlaying((p) => !p); }} onLongPress={beginHoldSpeed} onPressOut={endHoldSpeed} delayLongPress={400} accessibilityRole="button" style={styles.bigPlayButton}>
+                  {buffering ? <ActivityIndicator color={nothing.black} /> : <Ionicons name={isPlaying ? "pause" : "play"} size={24} color="#000" style={!isPlaying ? { marginLeft: 2 } : undefined} />}
                 </Pressable>
-                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setIsPlaying((p) => !p); }} onLongPress={beginHoldSpeed} onPressOut={endHoldSpeed} delayLongPress={400} accessibilityRole="button" accessibilityLabel={isPlaying ? "Pause" : "Play"} accessibilityHint="Toggles video playback" style={styles.bigPlayButton}>
-                  {buffering ? <ActivityIndicator color={nothing.black} /> : <Ionicons name={isPlaying ? "pause" : "play"} size={26} color="#000" style={!isPlaying ? { marginLeft: 2 } : undefined} />}
-                </Pressable>
-                <Pressable disabled={!nextKnownEpisode} onPress={nextEpisode} accessibilityRole="button" accessibilityLabel="Next episode" accessibilityHint="Navigates to the next episode" style={[styles.iconButton, !nextKnownEpisode && { opacity: 0.35 }]} hitSlop={8}>
-                  <Ionicons name="play-skip-forward" size={22} color="#FFF" />
-                </Pressable>
-                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); seekBy(10); }} accessibilityRole="button" accessibilityLabel="Forward 10 seconds" accessibilityHint="Seeks forward 10 seconds in the video" style={styles.iconButton} hitSlop={8}>
-                  <MaterialCommunityIcons name="fast-forward-10" size={24} color="#FFF" />
+                <Pressable disabled={!nextKnownEpisode} onPress={nextEpisode} accessibilityRole="button" style={[styles.iconButton, !nextKnownEpisode && { opacity: 0.35 }]} hitSlop={8}>
+                  <Ionicons name="play-skip-forward" size={20} color="#FFF" />
                 </Pressable>
               </View>
               <View style={styles.railSideRight}>
-                {manualFullscreen ? (
-                  <Pressable disabled={!maximumDownloadSource} onPress={() => void startDownload()} accessibilityRole="button" accessibilityLabel="Download episode" accessibilityHint="Saves the current episode for offline viewing" style={[styles.iconButton, !maximumDownloadSource && { opacity: 0.35 }]} hitSlop={8}>
-                    <Ionicons name="download-outline" size={18} color="#FFF" />
-                  </Pressable>
-                ) : null}
-                <Pressable onPress={manualFullscreen ? exitFullscreen : enterFullscreen} accessibilityRole="button" accessibilityLabel={manualFullscreen ? "Exit fullscreen" : "Enter fullscreen"} accessibilityHint="Toggles fullscreen video mode" style={styles.iconButton} hitSlop={8}>
+                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); seekBy(10); }} accessibilityRole="button" style={styles.iconButton} hitSlop={8}>
+                  <MaterialCommunityIcons name="fast-forward-10" size={22} color="#FFF" />
+                </Pressable>
+                <Pressable onPress={manualFullscreen ? exitFullscreen : enterFullscreen} accessibilityRole="button" style={styles.iconButton} hitSlop={8}>
                   <Ionicons name={manualFullscreen ? "contract" : "expand"} size={18} color="#FFF" />
                 </Pressable>
               </View>
@@ -1566,42 +1538,63 @@ export default function WatchScreen() {
         </View>
       ) : null}
 
-      {/* ── Settings panel (kept as overlay for advanced options) ── */}
+      {/* ── Settings panel ── */}
       {source && showSettings ? <View style={ps.settingsOverlay}>
         <ScrollView contentContainerStyle={ps.settingsContent} showsVerticalScrollIndicator={false}>
           <View style={ps.settingsHeading}><DotLabel>SETTINGS</DotLabel><Pressable onPress={() => setShowSettings(false)}><AppIcon name="close" size={18} color={nothing.muted} /></Pressable></View>
-          <View style={ps.settingsSection}><DotLabel>PLAYBACK</DotLabel><View style={styles.toggleRow}><Pressable onPress={() => setAutoNext((v) => !v)} style={[styles.toggle, autoNext && styles.toggleOn]}><Text style={[styles.toggleText, autoNext && styles.toggleTextOn]}>AUTO NEXT {autoNext ? "ON" : "OFF"}</Text></Pressable><Pressable onPress={() => setAutoSkip((v) => !v)} style={[styles.toggle, autoSkip && styles.toggleOn]}><Text style={[styles.toggleText, autoSkip && styles.toggleTextOn]}>AUTO SKIP {autoSkip ? "ON" : "OFF"}</Text></Pressable><Pressable onPress={() => { setRotationLocked((v) => !v); if (!rotationLocked) void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {}); else void ScreenOrientation.unlockAsync().catch(() => {}); }} style={[styles.toggle, rotationLocked && styles.toggleOn]}><Text style={[styles.toggleText, rotationLocked && styles.toggleTextOn]}>ROTATION {rotationLocked ? "LOCKED" : "FREE"}</Text></Pressable></View>
+
+          {/* Quality / Server — top-level buttons */}
+          <View style={ps.settingsSection}>
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              {displayedQualityOptions.length > 1 ? <Pressable onPress={() => { setShowSettings(false); setShowQualityModal(true); }} style={[ps.settingsBtn]}><Ionicons name="film" size={15} color={nothing.white} /><Text style={ps.settingsBtnText}>{displayedQuality.toUpperCase()}</Text></Pressable> : null}
+              {activeProviders.length > 1 ? <Pressable onPress={() => { setShowSettings(false); setShowServerModal(true); }} style={[ps.settingsBtn]}><Ionicons name="server" size={15} color={nothing.white} /><Text style={ps.settingsBtnText}>{(activeProvider?.label || "S1").toUpperCase()}</Text></Pressable> : null}
+              <Pressable onPress={() => setShowSubtitleModal(true)} style={[ps.settingsBtn]}><MaterialCommunityIcons name="subtitles" size={15} color={nothing.white} /><Text style={ps.settingsBtnText}>SUB</Text></Pressable>
+            </View>
+          </View>
+
+          {/* Speed */}
+          <View style={ps.settingsSection}>
+            <DotLabel>SPEED</DotLabel>
             <View style={styles.speedRow}>{[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((value) => <Pressable key={value} onPress={() => { setSpeed(value); lockedSpeed.current = value; }} style={[styles.speed, speed === value && styles.speedActive]}><Text style={[styles.speedText, speed === value && styles.speedTextActive]}>{value}×</Text></Pressable>)}</View>
-            {displayedQualityOptions.length > 1 ? <Pressable onPress={() => { setShowSettings(false); setShowQualityModal(true); }} style={[ps.downloadBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: nothing.line }]}><Text style={[ps.downloadBtnText, { color: nothing.white }]}>{`QUALITY · ${displayedQuality.toUpperCase()}`}</Text></Pressable> : null}
-            {activeProviders.length > 1 ? <Pressable onPress={() => { setShowSettings(false); setShowServerModal(true); }} style={[ps.downloadBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: nothing.line }]}><Text style={[ps.downloadBtnText, { color: nothing.white }]}>{`SERVER · ${(activeProvider?.label || "S1").toUpperCase()}`}</Text></Pressable> : null}</View>
-          {audioTracks.length > 1 ? <View style={ps.settingsSection}><DotLabel>AUDIO TRACK</DotLabel>
+          </View>
+
+          {/* Toggles */}
+          <View style={ps.settingsSection}>
+            <DotLabel>PLAYBACK</DotLabel>
+            <View style={styles.toggleRow}>
+              <Pressable onPress={() => setAutoNext((v) => !v)} style={[styles.toggle, autoNext && styles.toggleOn]}><Text style={[styles.toggleText, autoNext && styles.toggleTextOn]}>AUTO NEXT</Text></Pressable>
+              <Pressable onPress={() => setAutoSkip((v) => !v)} style={[styles.toggle, autoSkip && styles.toggleOn]}><Text style={[styles.toggleText, autoSkip && styles.toggleTextOn]}>AUTO SKIP</Text></Pressable>
+              <Pressable onPress={() => { setRotationLocked((v) => !v); if (!rotationLocked) void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {}); else void ScreenOrientation.unlockAsync().catch(() => {}); }} style={[styles.toggle, rotationLocked && styles.toggleOn]}><Text style={[styles.toggleText, rotationLocked && styles.toggleTextOn]}>{rotationLocked ? "LOCKED" : "ROTATION"}</Text></Pressable>
+            </View>
+          </View>
+
+          {/* Audio */}
+          {audioTracks.length > 1 ? <View style={ps.settingsSection}>
+            <DotLabel>AUDIO</DotLabel>
             <View style={styles.qualityRow}>
               <Pressable onPress={() => setSelectedAudioTrack(undefined)} style={[styles.quality, !selectedAudioTrack && styles.qualityActive]}><Text style={[styles.qualityText, !selectedAudioTrack && styles.qualityTextActive]}>AUTO</Text></Pressable>
-              {audioTracks.map((track: any, index: number) => { const trackId = track?.index ?? track?.id ?? index; const label = String(track?.title || track?.language || `TRACK ${index + 1}`).toUpperCase(); const active = selectedAudioTrack?.value === trackId; return <Pressable key={String(trackId)} onPress={() => setSelectedAudioTrack({ type: "index", value: trackId })} style={[styles.quality, active && styles.qualityActive]}><Text style={[styles.qualityText, active && styles.qualityTextActive]}>{label}</Text></Pressable>; })}
+              {audioTracks.map((track: any, index: number) => { const trackId = track?.index ?? track?.id ?? index; const label = String(track?.title || track?.language || `T${index + 1}`).toUpperCase(); const active = selectedAudioTrack?.value === trackId; return <Pressable key={String(trackId)} onPress={() => setSelectedAudioTrack({ type: "index", value: trackId })} style={[styles.quality, active && styles.qualityActive]}><Text style={[styles.qualityText, active && styles.qualityTextActive]}>{label}</Text></Pressable>; })}
             </View>
           </View> : null}
-          <View style={ps.settingsSection}><DotLabel>STATUS</DotLabel>
-            <Text style={ps.diagnosticLine}>{`SERVER · ${activeProvider?.label || "UNKNOWN"}`}</Text>
-            <Text style={ps.diagnosticLine}>{`DELIVERY · ${embedSource ? "EMBED" : useSourceProxy ? "PROXY" : "DIRECT"}`}</Text>
-            <Text style={ps.diagnosticLine}>{`QUALITY · ${displayedQuality.toUpperCase()}`}</Text>
-            {lastPlayerError ? <Text style={ps.diagnosticLine}>{`PLAYER · ${lastPlayerError}`}</Text> : null}
-          </View>
-          <View style={ps.settingsSection}><DotLabel>OFFLINE</DotLabel>
-            {offlineDownload ? <View style={ps.offlineBlock}><Text style={ps.offlineCopy}>{`${offlineDownload.quality} SAVED · ${Math.max(1, Math.round(offlineDownload.size / 1024 / 1024))} MB`}</Text>
-              <View style={ps.offlineActions}><Pressable onPress={playOffline} style={ps.offlinePrimary}><AppIcon name="play" size={15} color={nothing.black} /><Text style={ps.offlinePrimaryText}>PLAY SAVED</Text></Pressable>
-                <Pressable onPress={openDownloadLink} style={ps.offlineAction}><Text style={ps.offlineActionText}>DOWNLOAD</Text></Pressable>
-                <Pressable onPress={() => void shareOfflineDownload(offlineDownload).catch((c) => setDownloadMessage(c instanceof Error ? c.message.toUpperCase() : "SHARE FAILED."))} style={ps.offlineAction}><Text style={ps.offlineActionText}>SHARE</Text></Pressable>
-                <Pressable onPress={() => void removeDownload()} style={ps.offlineAction}><Text style={[ps.offlineActionText, { color: nothing.red }]}>REMOVE</Text></Pressable></View>
-            </View> : <><Pressable disabled={downloadProgress !== null || !maximumDownloadSource} onPress={() => void startDownload()} style={[ps.downloadBtn, (!maximumDownloadSource || downloadProgress !== null) && { opacity: 0.38 }]}>
-              <AppIcon name="download" size={17} color={nothing.black} /><Text style={ps.downloadBtnText}>{downloadProgress !== null ? `SAVING ${Math.round(downloadProgress * 100)}%` : maximumDownloadSource ? `SAVE ${downloadLabel(maximumDownloadSource)}` : "DIRECT SOURCE REQUIRED"}</Text></Pressable>
-              {maximumDownloadSource ? <Pressable onPress={openDownloadLink} style={[ps.downloadBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: nothing.line }]}><Text style={[ps.downloadBtnText, { color: nothing.white }]}>OPEN DOWNLOAD LINK</Text></Pressable> : null}</>}
-            {backendDownloads.length > 0 ? <View style={{ gap: 6, marginTop: 8 }}><Text style={ps.offlineCopy}>EXTERNAL DOWNLOADS</Text>{backendDownloads.map((dl) => <Pressable key={dl.url} onPress={() => { if (Platform.OS === "android") IntentLauncher.startActivityAsync("android.intent.action.VIEW", { data: dl.url }).catch(() => {}); }} style={[ps.downloadBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: nothing.line }]}><Text style={[ps.downloadBtnText, { color: nothing.white }]}>{`DOWNLOAD ${dl.label || "LINK"}`}</Text></Pressable>)}</View> : null}
-            {downloadMessage ? <Text style={ps.downloadMessage}>{downloadMessage}</Text> : null}
-          </View>
-          {source?.subtitles?.length ? <View style={ps.settingsSection}><DotLabel>SUBTITLES</DotLabel>
-            <View style={styles.qualityRow}><Pressable onPress={() => updateSubtitlePrefs({ enabled: false })} style={[styles.quality, subtitlePrefs && !subtitlePrefs.enabled && styles.qualityActive]}><Text style={[styles.qualityText, subtitlePrefs && !subtitlePrefs.enabled && styles.qualityTextActive]}>OFF</Text></Pressable>
-              {source.subtitles.map((sub) => { const active = subtitlePrefs?.enabled && selectedSubtitleUrl === sub.url; return <Pressable key={sub.url} onPress={() => updateSubtitlePrefs({ enabled: true, preferredLanguage: sub.lang || sub.label || "en" })} style={[styles.quality, active && styles.qualityActive]}><Text style={[styles.qualityText, active && styles.qualityTextActive]}>{sub.label || sub.lang || "Track"}</Text></Pressable>; })}</View>
+
+          {/* Subtitle visual customization */}
+          {source?.subtitles?.length && subtitlePrefs?.enabled ? <View style={ps.settingsSection}>
+            <DotLabel>SUB STYLE</DotLabel>
+            <View style={{ gap: 6 }}>
+              <View style={ps.settingsRow}><Text style={ps.settingsRowLabel}>Size</Text><View style={{ flexDirection: "row", gap: 4 }}>{FONT_SIZE_PRESETS.map((size) => <Pressable key={size} onPress={() => updateSubtitlePrefs({ fontSize: size })} style={[ps.settingsPill, subtitlePrefs.fontSize === size && ps.settingsPillActive]}><Text style={[ps.settingsPillText, subtitlePrefs.fontSize === size && ps.settingsPillTextActive]}>{size}</Text></Pressable>)}</View></View>
+              <View style={ps.settingsRow}><Text style={ps.settingsRowLabel}>BG</Text><View style={{ flexDirection: "row", gap: 4 }}>{BG_OPACITY_PRESETS.map((op) => <Pressable key={op} onPress={() => updateSubtitlePrefs({ bgOpacity: op })} style={[ps.settingsPill, subtitlePrefs.bgOpacity === op && ps.settingsPillActive]}><Text style={[ps.settingsPillText, subtitlePrefs.bgOpacity === op && ps.settingsPillTextActive]}>{op === 0 ? "OFF" : `${Math.round(op * 100)}%`}</Text></Pressable>)}</View></View>
+              <View style={ps.settingsRow}><Text style={ps.settingsRowLabel}>Stroke</Text><View style={{ flexDirection: "row", gap: 4 }}>{OUTLINE_PRESETS.map((o) => <Pressable key={o} onPress={() => updateSubtitlePrefs({ outlineThickness: o })} style={[ps.settingsPill, subtitlePrefs.outlineThickness === o && ps.settingsPillActive]}><Text style={[ps.settingsPillText, subtitlePrefs.outlineThickness === o && ps.settingsPillTextActive]}>{o === 0 ? "OFF" : `${o}`}</Text></Pressable>)}</View></View>
+              <View style={ps.settingsRow}><Text style={ps.settingsRowLabel}>Font</Text><View style={{ flexDirection: "row", gap: 4 }}>{SUBTITLE_FONTS.map((f) => <Pressable key={f.id} onPress={() => updateSubtitlePrefs({ fontFamily: f.id })} style={[ps.settingsPill, subtitlePrefs.fontFamily === f.id && ps.settingsPillActive]}><Text style={[ps.settingsPillText, subtitlePrefs.fontFamily === f.id && ps.settingsPillTextActive, { fontFamily: f.family !== "System" ? f.family : undefined }]}>{f.label}</Text></Pressable>)}</View></View>
+            </View>
           </View> : null}
+
+          {/* Status — compact one-liner */}
+          <View style={ps.settingsSection}>
+            <Text style={ps.diagnosticLine}>{`${activeProvider?.label || "—"} · ${embedSource ? "EMBED" : useSourceProxy ? "PROXY" : "DIRECT"} · ${displayedQuality.toUpperCase()}`}</Text>
+            {lastPlayerError ? <Text style={[ps.diagnosticLine, { color: nothing.red }]}>{lastPlayerError}</Text> : null}
+          </View>
+
+          {/* Sleep timer */}
           <View style={ps.settingsSection}><SleepTimer remaining={sleepRemaining} onSetRemaining={setSleepRemaining} onClear={() => {}} /></View>
         </ScrollView>
       </View> : null}
@@ -1700,257 +1693,255 @@ const wp = StyleSheet.create({
 
 const ps = StyleSheet.create({
   videoShellFullscreen: { position: "absolute", zIndex: 50, elevation: 50, top: 0, right: 0, bottom: 0, left: 0, width: "100%", height: "100%", aspectRatio: undefined, backgroundColor: "#000000", justifyContent: "center" },
-  qualityOverlay: { position: "absolute", zIndex: 5, top: 56, right: 8, width: 212, gap: 9, padding: 12, borderWidth: 1, borderColor: "rgba(246,246,242,0.3)", borderRadius: 5, backgroundColor: "rgba(9,9,9,0.97)" },
+  qualityOverlay: { position: "absolute", zIndex: 5, top: 56, right: 8, width: 180, gap: 9, padding: 12, borderWidth: 1, borderColor: "rgba(246,246,242,0.3)", borderRadius: 5, backgroundColor: "rgba(9,9,9,0.97)" },
   qualityHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   qualityChoices: { borderTopWidth: 1, borderTopColor: nothing.line },
-  qualityChoice: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, borderBottomWidth: 1, borderBottomColor: nothing.line },
+  qualityChoice: { minHeight: 38, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, borderBottomWidth: 1, borderBottomColor: nothing.line },
   qualityChoiceActive: { borderBottomColor: nothing.red, backgroundColor: "rgba(255,77,77,0.06)" },
-  qualityChoiceText: { color: nothing.white, fontSize: 14, fontWeight: "800", letterSpacing: -0.2 },
+  qualityChoiceText: { color: nothing.white, fontSize: 13, fontWeight: "800", letterSpacing: -0.2 },
   qualityChoiceTextActive: { color: nothing.red },
   qualityChoiceState: { color: nothing.dim, fontFamily: "monospace", fontSize: 8, fontWeight: "800" },
   qualityChoiceStateActive: { color: nothing.red },
-  sourceOverlay: { position: "absolute", zIndex: 6, left: 8, right: 8, bottom: 8, maxHeight: "65%", gap: 10, padding: 12, borderWidth: 1, borderColor: "rgba(246,246,242,0.3)", borderTopLeftRadius: 12, borderTopRightRadius: 12, borderBottomLeftRadius: 5, borderBottomRightRadius: 5, backgroundColor: "rgba(9,9,9,0.97)" },
-  sourceItem: { minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, borderBottomWidth: 1, borderBottomColor: nothing.line },
+  sourceOverlay: { position: "absolute", zIndex: 6, left: 8, right: 8, bottom: 8, maxHeight: "55%", gap: 10, padding: 12, borderWidth: 1, borderColor: "rgba(246,246,242,0.3)", borderTopLeftRadius: 12, borderTopRightRadius: 12, borderBottomLeftRadius: 5, borderBottomRightRadius: 5, backgroundColor: "rgba(9,9,9,0.97)" },
+  sourceItem: { minHeight: 38, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, borderBottomWidth: 1, borderBottomColor: nothing.line },
   sourceItemActive: { borderBottomColor: nothing.red, backgroundColor: "rgba(255,77,77,0.06)" },
   sourceItemName: { flexDirection: "row", alignItems: "center", gap: 8 },
-  sourceSignal: { width: 7, height: 7, borderRadius: 99, backgroundColor: nothing.dim },
+  sourceSignal: { width: 6, height: 6, borderRadius: 3, backgroundColor: nothing.dim },
   sourceSignalActive: { backgroundColor: nothing.red },
-  sourceItemText: { color: nothing.white, fontSize: 14, fontWeight: "800", letterSpacing: -0.2 },
+  sourceItemText: { color: nothing.white, fontSize: 13, fontWeight: "800", letterSpacing: -0.2 },
   sourceItemTextActive: { color: nothing.red },
   sourceItemState: { color: nothing.dim, fontFamily: "monospace", fontSize: 8, fontWeight: "800" },
-  settingsOverlay: { position: "absolute", zIndex: 4, top: 8, right: 8, bottom: 8, width: "78%", maxWidth: 370, borderWidth: 1, borderColor: "rgba(246,246,242,0.3)", borderRadius: 5, backgroundColor: "rgba(9,9,9,0.96)" },
-  settingsContent: { padding: 12, gap: 10 },
+  settingsOverlay: { position: "absolute", zIndex: 4, top: 6, right: 6, bottom: 6, width: "72%", maxWidth: 300, borderWidth: 1, borderColor: "rgba(246,246,242,0.25)", borderRadius: 8, backgroundColor: "rgba(12,12,12,0.97)" },
+  settingsContent: { padding: 10, gap: 8 },
   settingsHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingBottom: 2 },
-  settingsSection: { gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: nothing.line },
-  diagnosticLine: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.25, lineHeight: 14 },
-  offlineBlock: { gap: 8 },
-  offlineCopy: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.25 },
-  offlineActions: { flexDirection: "row", gap: 6 },
-  offlinePrimary: { flex: 1.3, minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: 4, backgroundColor: nothing.white },
-  offlinePrimaryText: { color: nothing.black, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.2 },
-  offlineAction: { flex: 1, minHeight: 36, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
-  offlineActionText: { color: nothing.white, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.2 },
-  downloadBtn: { minHeight: 40, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 10, borderRadius: 4, backgroundColor: nothing.white },
-  downloadBtnText: { color: nothing.black, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.3 },
-  downloadMessage: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.25, lineHeight: 13 },
+  settingsSection: { gap: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: "rgba(246,246,242,0.08)" },
+  settingsBtn: { flex: 1, minHeight: 34, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: 6, backgroundColor: "rgba(246,246,242,0.08)", borderWidth: 1, borderColor: "rgba(246,246,242,0.12)" },
+  settingsBtnText: { color: nothing.white, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.4 },
+  settingsRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  settingsRowLabel: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "800", letterSpacing: 0.3, minWidth: 40 },
+  settingsPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, backgroundColor: "rgba(246,246,242,0.06)", borderWidth: 1, borderColor: "rgba(246,246,242,0.1)" },
+  settingsPillActive: { backgroundColor: "rgba(255,77,77,0.12)", borderColor: nothing.red },
+  settingsPillText: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "800" },
+  settingsPillTextActive: { color: nothing.red },
+  diagnosticLine: { color: nothing.dim, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.25, lineHeight: 13 },
 });
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  top: { minHeight: 62, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 12 },
-  closeButton: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 6 },
+  top: { minHeight: 52, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 10 },
+  closeButton: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 6 },
   topCopy: { flex: 1, gap: 2 },
-  title: { color: nothing.white, fontSize: 22, fontWeight: "900", lineHeight: 26, letterSpacing: -0.6 },
+  title: { color: nothing.white, fontSize: 18, fontWeight: "900", lineHeight: 22, letterSpacing: -0.5 },
   episodeLabel: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
   videoShell: { width: "100%", aspectRatio: 16 / 9, backgroundColor: "#000000", overflow: "hidden", position: "relative" },
   video: { flex: 1 },
   gestureOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 2 },
-  embedChrome: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 5, flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "rgba(0,0,0,0.55)" },
-  miniProgress: { position: "absolute", left: 0, right: 0, bottom: 0, height: 3, backgroundColor: "rgba(255,255,255,0.22)", zIndex: 2 },
+  embedChrome: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 5, flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 8, backgroundColor: "rgba(0,0,0,0.55)" },
+  miniProgress: { position: "absolute", left: 0, right: 0, bottom: 0, height: 2, backgroundColor: "rgba(255,255,255,0.22)", zIndex: 2 },
   miniProgressBuffered: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.35)" },
   miniProgressPlayed: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "#FF4D4D" },
-  subtitleWrapper: { ...StyleSheet.absoluteFillObject, justifyContent: "flex-end", alignItems: "center", paddingBottom: 76, zIndex: 1 },
-  subtitleWrapperWithControls: { paddingBottom: 148 },
-  subtitleWrapperFullscreen: { paddingBottom: 28 },
-  controlsBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: 3, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "space-between", paddingHorizontal: 10, paddingVertical: 8 },
-  controlsBackdropFullscreen: { paddingHorizontal: 18, paddingVertical: 10 },
+  subtitleWrapper: { ...StyleSheet.absoluteFillObject, justifyContent: "flex-end", alignItems: "center", paddingBottom: 68, zIndex: 1 },
+  subtitleWrapperWithControls: { paddingBottom: 132 },
+  subtitleWrapperFullscreen: { paddingBottom: 24 },
+  controlsBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: 3, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 6 },
+  controlsBackdropFullscreen: { paddingHorizontal: 16, paddingVertical: 8 },
   topBar: { flexDirection: "row", alignItems: "center", flexWrap: "nowrap", width: "100%" },
-  playerTitle: { flex: 1, flexShrink: 1, color: "#FFF", fontSize: 13, fontWeight: "700", letterSpacing: -0.2, marginLeft: 8, marginRight: 6 },
+  playerTitle: { flex: 1, flexShrink: 1, color: "#FFF", fontSize: 12, fontWeight: "700", letterSpacing: -0.2, marginLeft: 6, marginRight: 4 },
   topRightRow: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
-  iconButton: { width: 32, height: 32, padding: 4, justifyContent: "center", alignItems: "center", flexShrink: 0 },
-  iconButtonActive: { backgroundColor: "rgba(255,77,77,0.15)", borderRadius: 6 },
-  orientationBadge: { backgroundColor: "rgba(255,77,77,0.85)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
-  orientationBadgeText: { color: nothing.white, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.6 },
-  subPillBadge: { backgroundColor: nothing.red, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 6, flexShrink: 0 },
-  subPillBadgeText: { color: nothing.black, fontSize: 9, fontWeight: "900", fontFamily: "monospace", letterSpacing: 0.4 },
-  bottomDeck: { gap: 4, width: "100%" },
-  timelineRow: { flexDirection: "row", alignItems: "center", gap: 6, width: "100%" },
-  timeLabel: { color: "#FFF", fontSize: 10, fontWeight: "600", fontFamily: "monospace", minWidth: 34, textAlign: "center", flexShrink: 0 },
-  progressBarTrack: { flex: 1, height: 18, justifyContent: "center" },
-  progressBuffered: { position: "absolute", height: 3, backgroundColor: "rgba(255,255,255,0.45)", borderRadius: 2 },
-  progressPlayed: { position: "absolute", height: 3, backgroundColor: nothing.red, borderRadius: 2 },
-  scrubberKnob: { position: "absolute", width: 12, height: 12, borderRadius: 6, backgroundColor: "#FFF", marginLeft: -6, top: 3, elevation: 3 },
-  dragPreview: { position: "absolute", top: -28, marginLeft: -24, backgroundColor: "rgba(0,0,0,0.8)", borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  dragPreviewText: { color: nothing.white, fontFamily: "monospace", fontSize: 10, fontWeight: "700" },
+  iconButton: { width: 28, height: 28, padding: 2, justifyContent: "center", alignItems: "center", flexShrink: 0 },
+  iconButtonActive: { backgroundColor: "rgba(255,77,77,0.15)", borderRadius: 4 },
+  orientationBadge: { backgroundColor: "rgba(255,77,77,0.85)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 3 },
+  orientationBadgeText: { color: nothing.white, fontFamily: "monospace", fontSize: 7, fontWeight: "900", letterSpacing: 0.5 },
+  subPillBadge: { backgroundColor: nothing.red, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4, flexShrink: 0 },
+  subPillBadgeText: { color: nothing.black, fontSize: 8, fontWeight: "900", fontFamily: "monospace", letterSpacing: 0.3 },
+  bottomDeck: { gap: 3, width: "100%" },
+  timelineRow: { flexDirection: "row", alignItems: "center", gap: 4, width: "100%" },
+  timeLabel: { color: "#FFF", fontSize: 9, fontWeight: "600", fontFamily: "monospace", minWidth: 30, textAlign: "center", flexShrink: 0 },
+  progressBarTrack: { flex: 1, height: 16, justifyContent: "center" },
+  progressBuffered: { position: "absolute", height: 2, backgroundColor: "rgba(255,255,255,0.45)", borderRadius: 1 },
+  progressPlayed: { position: "absolute", height: 2, backgroundColor: nothing.red, borderRadius: 1 },
+  scrubberKnob: { position: "absolute", width: 10, height: 10, borderRadius: 5, backgroundColor: "#FFF", marginLeft: -5, top: 3, elevation: 3 },
+  dragPreview: { position: "absolute", top: -26, marginLeft: -22, backgroundColor: "rgba(0,0,0,0.85)", borderRadius: 3, paddingHorizontal: 5, paddingVertical: 2 },
+  dragPreviewText: { color: nothing.white, fontFamily: "monospace", fontSize: 9, fontWeight: "700" },
   actionRail: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "nowrap", width: "100%" },
   railSide: { flexDirection: "row", alignItems: "center", gap: 0, flexShrink: 0 },
   railSideRight: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 0, flexShrink: 0 },
-  railCenter: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 1, justifyContent: "center" },
-  bigPlayButton: { width: 46, height: 46, borderRadius: 23, backgroundColor: "#FFF", justifyContent: "center", alignItems: "center", flexShrink: 0, marginHorizontal: 2 },
-  hudBadge: { position: "absolute", top: 24, alignSelf: "center", backgroundColor: "rgba(0,0,0,0.75)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, flexDirection: "row", alignItems: "center", gap: 6, zIndex: 10 },
-  hudPill: { position: "absolute", alignSelf: "center", backgroundColor: "rgba(0,0,0,0.8)", paddingHorizontal: 18, paddingVertical: 12, borderRadius: 24, flexDirection: "row", alignItems: "center", gap: 10, zIndex: 10 },
-  hudText: { color: "#FFF", fontSize: 13, fontWeight: "700" },
+  railCenter: { flexDirection: "row", alignItems: "center", gap: 0, flexShrink: 1, justifyContent: "center" },
+  bigPlayButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: "#FFF", justifyContent: "center", alignItems: "center", flexShrink: 0, marginHorizontal: 2 },
+  hudBadge: { position: "absolute", top: 20, alignSelf: "center", backgroundColor: "rgba(0,0,0,0.75)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 14, flexDirection: "row", alignItems: "center", gap: 5, zIndex: 10 },
+  hudPill: { position: "absolute", alignSelf: "center", backgroundColor: "rgba(0,0,0,0.8)", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, flexDirection: "row", alignItems: "center", gap: 8, zIndex: 10 },
+  hudText: { color: "#FFF", fontSize: 12, fontWeight: "700" },
   doubleTapOverlay: { position: "absolute", top: "32%", alignItems: "center", justifyContent: "center", zIndex: 12 },
-  doubleTapText: { color: "#FFF", fontSize: 13, fontWeight: "800", marginTop: 4 },
-  chapterMarker: { position: "absolute", height: 3, backgroundColor: "rgba(255,255,255,0.55)", borderRadius: 1, top: 7.5 },
-  skipButtonOverlay: { position: "absolute", bottom: 96, right: 16, backgroundColor: nothing.red, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, flexDirection: "row", alignItems: "center", gap: 6, zIndex: 15, elevation: 6 },
-  skipButtonText: { color: "#FFF", fontSize: 13, fontWeight: "700" },
-  lockedPill: { position: "absolute", bottom: 36, alignSelf: "center", backgroundColor: "rgba(0,0,0,0.8)", paddingHorizontal: 16, paddingVertical: 9, borderRadius: 22, flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)", zIndex: 15 },
-  lockedText: { color: "#FFF", fontSize: 13, fontWeight: "600" },
+  doubleTapText: { color: "#FFF", fontSize: 11, fontWeight: "800", marginTop: 3 },
+  chapterMarker: { position: "absolute", height: 2, backgroundColor: "rgba(255,255,255,0.55)", borderRadius: 1, top: 7 },
+  skipButtonOverlay: { position: "absolute", bottom: 84, right: 12, backgroundColor: nothing.red, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, flexDirection: "row", alignItems: "center", gap: 5, zIndex: 15, elevation: 6 },
+  skipButtonText: { color: "#FFF", fontSize: 11, fontWeight: "700" },
+  lockedPill: { position: "absolute", bottom: 32, alignSelf: "center", backgroundColor: "rgba(0,0,0,0.8)", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)", zIndex: 15 },
+  lockedText: { color: "#FFF", fontSize: 11, fontWeight: "600" },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" },
-  modalSheet: { backgroundColor: "#161B26", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 20, gap: 4 },
-  modalTitle: { color: "#FFF", fontSize: 16, fontWeight: "800", marginBottom: 8 },
-  modalItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" },
+  modalSheet: { backgroundColor: "#161B26", borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: 16, gap: 2 },
+  modalTitle: { color: "#FFF", fontSize: 14, fontWeight: "800", marginBottom: 6 },
+  modalItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" },
   modalItemActive: { backgroundColor: "rgba(255,77,77,0.08)" },
-  modalItemText: { color: "#FFF", fontSize: 14, fontWeight: "600" },
+  modalItemText: { color: "#FFF", fontSize: 13, fontWeight: "600" },
   modalItemTextActive: { color: nothing.red, fontWeight: "700" },
-  chapterModalSheet: { backgroundColor: "#161B26", borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 20, gap: 8, maxHeight: "70%" },
-  chapterList: { gap: 6 },
-  chapterItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", backgroundColor: "rgba(255,255,255,0.02)" },
+  chapterModalSheet: { backgroundColor: "#161B26", borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: 16, gap: 6, maxHeight: "70%" },
+  chapterList: { gap: 4 },
+  chapterItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", backgroundColor: "rgba(255,255,255,0.02)" },
   chapterItemActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.08)" },
   chapterItemPast: { opacity: 0.5 },
-  chapterItemLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
-  chapterDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: nothing.dim },
+  chapterItemLeft: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
+  chapterDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: nothing.dim },
   chapterDotActive: { backgroundColor: nothing.red },
   chapterDotPast: { backgroundColor: nothing.green },
-  chapterInfo: { gap: 2 },
-  chapterName: { color: nothing.white, fontSize: 14, fontWeight: "700" },
+  chapterInfo: { gap: 1 },
+  chapterName: { color: nothing.white, fontSize: 12, fontWeight: "700" },
   chapterNameActive: { color: nothing.red },
-  chapterTimestamp: { color: nothing.muted, fontFamily: "monospace", fontSize: 10, fontWeight: "700" },
-  chapterItemRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  chapterDuration: { color: nothing.dim, fontFamily: "monospace", fontSize: 10, fontWeight: "800" },
-  chapterEmptyText: { color: nothing.muted, fontSize: 13, textAlign: "center", paddingVertical: 18 },
-  contextActions: { alignSelf: "flex-end", alignItems: "flex-end", gap: 6 },
-  videoPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 11, backgroundColor: "#090909" },
+  chapterTimestamp: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "700" },
+  chapterItemRight: { flexDirection: "row", alignItems: "center", gap: 6 },
+  chapterDuration: { color: nothing.dim, fontFamily: "monospace", fontSize: 9, fontWeight: "800" },
+  chapterEmptyText: { color: nothing.muted, fontSize: 12, textAlign: "center", paddingVertical: 14 },
+  contextActions: { alignSelf: "flex-end", alignItems: "flex-end", gap: 4 },
+  videoPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: "#090909" },
   thumbnailLoading: { ...StyleSheet.absoluteFillObject, overflow: "hidden", justifyContent: "flex-end", backgroundColor: "#090909" },
   thumbnailLoadingShade: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.52)" },
-  thumbnailLoadingContent: { zIndex: 1, gap: 7, padding: 18, paddingTop: 56, backgroundColor: "rgba(9,9,9,0.68)" },
-  thumbnailPlay: { width: 38, height: 38, alignItems: "center", justifyContent: "center", backgroundColor: nothing.white, borderRadius: 4 },
+  thumbnailLoadingContent: { zIndex: 1, gap: 6, padding: 14, paddingTop: 48, backgroundColor: "rgba(9,9,9,0.68)" },
+  thumbnailPlay: { width: 34, height: 34, alignItems: "center", justifyContent: "center", backgroundColor: nothing.white, borderRadius: 4 },
   thumbnailEpisode: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.6 },
-  thumbnailTitle: { color: nothing.white, fontSize: 16, lineHeight: 20, fontWeight: "900" },
-  thumbnailProgress: { height: 3, marginTop: 5, backgroundColor: "rgba(246,246,242,0.24)", overflow: "hidden" },
+  thumbnailTitle: { color: nothing.white, fontSize: 14, lineHeight: 18, fontWeight: "900" },
+  thumbnailProgress: { height: 2, marginTop: 4, backgroundColor: "rgba(246,246,242,0.24)", overflow: "hidden" },
   thumbnailProgressFill: { width: "36%", height: "100%", backgroundColor: nothing.red },
   thumbnailStatus: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.55 },
-  placeholderText: { color: nothing.muted, fontFamily: "monospace", fontSize: 10, fontWeight: "900", letterSpacing: 1.1 },
-  errorText: { color: nothing.red, fontFamily: "monospace", fontSize: 10, fontWeight: "900", letterSpacing: 0.5, textAlign: "center", paddingHorizontal: 24 },
-  playerOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 3, justifyContent: "space-between", padding: 10 },
+  placeholderText: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 1.1 },
+  errorText: { color: nothing.red, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.5, textAlign: "center", paddingHorizontal: 20 },
+  playerOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 3, justifyContent: "space-between", padding: 8 },
   pointerBoxNone: { pointerEvents: "box-none" },
   pointerNone: { pointerEvents: "none" },
-  th3Top: { flexDirection: "row", alignItems: "center", gap: 8 },
-  th3Back: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  th3Title: { flex: 1, color: nothing.white, fontSize: 18, fontWeight: "800", lineHeight: 22, letterSpacing: -0.4 },
-  th3TopIcons: { flexDirection: "row", alignItems: "center", gap: 8 },
-  th3Icon: { minWidth: 32, minHeight: 32, alignItems: "center", justifyContent: "center" },
-  th3Pill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: nothing.red },
-  th3PillText: { color: nothing.black, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.3 },
-  th3SeekRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 0 },
-  th3Time: { minWidth: 40, color: nothing.white, fontFamily: "monospace", fontSize: 10, fontWeight: "700", textAlign: "center" },
-  th3Timeline: { flex: 1, height: 14, justifyContent: "center" },
-  th3Track: { position: "absolute", left: 0, right: 0, height: 3, borderRadius: 2, backgroundColor: "rgba(246,246,242,0.22)" },
-  th3Buffered: { position: "absolute", left: 0, height: 3, borderRadius: 2, backgroundColor: "rgba(255,77,77,0.45)" },
-  th3TimelinePlayed: { position: "absolute", left: 0, height: 3, borderRadius: 2, backgroundColor: nothing.red },
-  th3Knob: { position: "absolute", top: 2, width: 10, height: 10, marginLeft: -5, borderRadius: 5, backgroundColor: nothing.white },
+  th3Top: { flexDirection: "row", alignItems: "center", gap: 6 },
+  th3Back: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
+  th3Title: { flex: 1, color: nothing.white, fontSize: 16, fontWeight: "800", lineHeight: 20, letterSpacing: -0.4 },
+  th3TopIcons: { flexDirection: "row", alignItems: "center", gap: 6 },
+  th3Icon: { minWidth: 28, minHeight: 28, alignItems: "center", justifyContent: "center" },
+  th3Pill: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4, backgroundColor: nothing.red },
+  th3PillText: { color: nothing.black, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.3 },
+  th3SeekRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 0 },
+  th3Time: { minWidth: 36, color: nothing.white, fontFamily: "monospace", fontSize: 9, fontWeight: "700", textAlign: "center" },
+  th3Timeline: { flex: 1, height: 12, justifyContent: "center" },
+  th3Track: { position: "absolute", left: 0, right: 0, height: 2, borderRadius: 1, backgroundColor: "rgba(246,246,242,0.22)" },
+  th3Buffered: { position: "absolute", left: 0, height: 2, borderRadius: 1, backgroundColor: "rgba(255,77,77,0.45)" },
+  th3TimelinePlayed: { position: "absolute", left: 0, height: 2, borderRadius: 1, backgroundColor: nothing.red },
+  th3Knob: { position: "absolute", top: 2, width: 8, height: 8, marginLeft: -4, borderRadius: 4, backgroundColor: nothing.white },
   th3Rail: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 0 },
-  th3RailSide: { flexDirection: "row", alignItems: "center", gap: 2, minWidth: 72 },
+  th3RailSide: { flexDirection: "row", alignItems: "center", gap: 2, minWidth: 64 },
   th3Cluster: { flexDirection: "row", alignItems: "center", gap: 2 },
-  th3Fab: { width: 50, height: 50, alignItems: "center", justifyContent: "center", backgroundColor: nothing.white, borderRadius: 25, marginHorizontal: 4 },
+  th3Fab: { width: 40, height: 40, alignItems: "center", justifyContent: "center", backgroundColor: nothing.white, borderRadius: 20, marginHorizontal: 4 },
   th3Disabled: { opacity: 0.3 },
-  th3Section: { gap: 14 },
-  th3Watching: { fontSize: 21, fontWeight: "900", letterSpacing: -0.5 },
-  th3WatchingGreen: { color: nothing.red, fontSize: 21, fontWeight: "900", letterSpacing: -0.5 },
-  th3WatchingWhite: { color: nothing.white, fontSize: 21, fontWeight: "900", letterSpacing: -0.5 },
+  th3Section: { gap: 10 },
+  th3Watching: { fontSize: 18, fontWeight: "900", letterSpacing: -0.5 },
+  th3WatchingGreen: { color: nothing.red, fontSize: 18, fontWeight: "900", letterSpacing: -0.5 },
+  th3WatchingWhite: { color: nothing.white, fontSize: 18, fontWeight: "900", letterSpacing: -0.5 },
   th3Tabs: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: nothing.line },
-  th3Tab: { flex: 1, alignItems: "center", paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: "transparent" },
+  th3Tab: { flex: 1, alignItems: "center", paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: "transparent" },
   th3TabActive: { borderBottomColor: nothing.red },
-  th3TabText: { color: nothing.white, fontSize: 17, fontWeight: "700" },
+  th3TabText: { color: nothing.white, fontSize: 14, fontWeight: "700" },
   th3TabTextActive: { color: nothing.red },
   th3TabTextEmpty: { color: nothing.dim },
-  th3Servers: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  th3ServerPill: { minWidth: 110, minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 18, borderRadius: 22, borderWidth: 1 },
+  th3Servers: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  th3ServerPill: { minWidth: 96, minHeight: 38, alignItems: "center", justifyContent: "center", paddingHorizontal: 14, borderRadius: 19, borderWidth: 1 },
   th3ServerPillActive: { backgroundColor: nothing.red, borderColor: nothing.red },
   th3ServerPillIdle: { backgroundColor: nothing.raised, borderColor: nothing.line },
-  th3ServerPillTextActive: { color: nothing.black, fontSize: 14, fontWeight: "900" },
-  th3ServerPillTextIdle: { color: nothing.muted, fontSize: 14, fontWeight: "700" },
-  th3EpHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  th3EpTitle: { color: nothing.white, fontSize: 21, fontWeight: "900", letterSpacing: -0.5 },
-  th3EpSearch: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 38, minWidth: 130, borderWidth: 1, borderColor: nothing.line, borderRadius: 10, backgroundColor: nothing.surface },
-  th3EpSearchInput: { flex: 1, color: nothing.white, fontSize: 13, paddingVertical: 0 },
-  th3EpsRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  th3EpsText: { color: nothing.red, fontFamily: "monospace", fontSize: 12, fontWeight: "900", letterSpacing: 0.4 },
-  th3Grid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  th3EpBtn: { width: 56, height: 52, alignItems: "center", justifyContent: "center", borderRadius: 10, backgroundColor: nothing.raised },
+  th3ServerPillTextActive: { color: nothing.black, fontSize: 12, fontWeight: "900" },
+  th3ServerPillTextIdle: { color: nothing.muted, fontSize: 12, fontWeight: "700" },
+  th3EpHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  th3EpTitle: { color: nothing.white, fontSize: 18, fontWeight: "900", letterSpacing: -0.5 },
+  th3EpSearch: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, height: 34, minWidth: 110, borderWidth: 1, borderColor: nothing.line, borderRadius: 8, backgroundColor: nothing.surface },
+  th3EpSearchInput: { flex: 1, color: nothing.white, fontSize: 12, paddingVertical: 0 },
+  th3EpsRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  th3EpsText: { color: nothing.red, fontFamily: "monospace", fontSize: 11, fontWeight: "900", letterSpacing: 0.4 },
+  th3Grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  th3EpBtn: { width: 48, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: nothing.raised },
   th3EpBtnActive: { backgroundColor: nothing.red },
-  th3EpBtnText: { color: nothing.white, fontSize: 16, fontWeight: "800" },
+  th3EpBtnText: { color: nothing.white, fontSize: 14, fontWeight: "800" },
   th3EpBtnTextActive: { color: nothing.black, fontWeight: "900" },
   th3EpBtnFiller: { color: nothing.red },
   overlayTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  sourcePill: { flexDirection: "row", alignItems: "center", gap: 7 },
-  overlayActions: { flexDirection: "row", alignItems: "center", gap: 6 },
-  overlayBtn: { minWidth: 36, height: 36, alignItems: "center", justifyContent: "center", paddingHorizontal: 7, borderRadius: 4, backgroundColor: "rgba(9,9,9,0.74)", borderWidth: 1, borderColor: "rgba(246,246,242,0.35)" },
+  sourcePill: { flexDirection: "row", alignItems: "center", gap: 6 },
+  overlayActions: { flexDirection: "row", alignItems: "center", gap: 5 },
+  overlayBtn: { minWidth: 32, height: 32, alignItems: "center", justifyContent: "center", paddingHorizontal: 6, borderRadius: 4, backgroundColor: "rgba(9,9,9,0.74)", borderWidth: 1, borderColor: "rgba(246,246,242,0.35)" },
   overlayBtnActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.15)" },
-  overlayBtnText: { color: nothing.white, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.25 },
-  centerControls: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 40 },
-  seekBtn: { width: 50, height: 50, alignItems: "center", justifyContent: "center" },
-  overlayBottom: { gap: 8 },
-  resumeBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, backgroundColor: "rgba(9,9,9,0.8)" },
-  resumeBtnText: { color: nothing.white, fontFamily: "monospace", fontSize: 9, fontWeight: "900" },
-  skipBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 4, backgroundColor: nothing.red },
-  skipBtnText: { color: nothing.white, fontSize: 13, fontWeight: "900", letterSpacing: 0.3 },
+  overlayBtnText: { color: nothing.white, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.25 },
+  centerControls: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 32 },
+  seekBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  overlayBottom: { gap: 6 },
+  resumeBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 3, backgroundColor: "rgba(9,9,9,0.8)" },
+  resumeBtnText: { color: nothing.white, fontFamily: "monospace", fontSize: 8, fontWeight: "900" },
+  skipBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 3, backgroundColor: nothing.red },
+  skipBtnText: { color: nothing.white, fontSize: 11, fontWeight: "900", letterSpacing: 0.3 },
   lockedRow: { flex: 1, alignItems: "flex-end", justifyContent: "center" },
-  errorBtnRow: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
-  timelineBlock: { gap: 6, paddingTop: 3 },
-  timeline: { height: 4, backgroundColor: "rgba(246,246,242,0.2)", borderRadius: 2, overflow: "hidden" },
+  errorBtnRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  timelineBlock: { gap: 4, paddingTop: 2 },
+  timeline: { height: 3, backgroundColor: "rgba(246,246,242,0.2)", borderRadius: 2, overflow: "hidden" },
   timelineBuffered: { position: "absolute", top: 0, left: 0, height: "100%", backgroundColor: "rgba(246,246,242,0.3)" },
   timelinePlayed: { position: "absolute", top: 0, left: 0, height: "100%", backgroundColor: nothing.red },
   timeRow: { flexDirection: "row", justifyContent: "space-between" },
-  timeText: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "900" },
-  timeMeta: { color: nothing.dim, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.4 },
-  errorAction: { paddingHorizontal: 16, paddingTop: 12 },
-  errorCard: { gap: 8, padding: 14 },
-  errorCopy: { color: nothing.muted, fontSize: 13, lineHeight: 18 },
-  scroll: { padding: 16, gap: 14 },
-  episodeLoading: { minHeight: 86, alignItems: "center", justifyContent: "center", gap: 9, borderTopWidth: 1, borderTopColor: nothing.line },
-  episodeLoadingText: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.7 },
+  timeText: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900" },
+  timeMeta: { color: nothing.dim, fontFamily: "monospace", fontSize: 7, fontWeight: "800", letterSpacing: 0.4 },
+  errorAction: { paddingHorizontal: 12, paddingTop: 10 },
+  errorCard: { gap: 6, padding: 12 },
+  errorCopy: { color: nothing.muted, fontSize: 12, lineHeight: 16 },
+  scroll: { padding: 14, gap: 12 },
+  episodeLoading: { minHeight: 72, alignItems: "center", justifyContent: "center", gap: 7, borderTopWidth: 1, borderTopColor: nothing.line },
+  episodeLoadingText: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.7 },
   episodeGrid: { gap: 0, borderTopWidth: 1, borderTopColor: nothing.line },
-  episodeInfoBar: { minHeight: 38, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  episodePageMeta: { flex: 1, color: nothing.dim, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.3 },
-  episodePager: { flexDirection: "row", gap: 7 },
-  episodePagerButton: { flex: 1, minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
+  episodeInfoBar: { minHeight: 34, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 7 },
+  episodePageMeta: { flex: 1, color: nothing.dim, fontFamily: "monospace", fontSize: 7, fontWeight: "800", letterSpacing: 0.3 },
+  episodePager: { flexDirection: "row", gap: 6 },
+  episodePagerButton: { flex: 1, minHeight: 32, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
   episodePagerDisabled: { opacity: 0.3 },
-  episodePagerText: { color: nothing.white, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.3 },
-  episodeChoice: { minHeight: 52, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 2, borderBottomWidth: 1, borderBottomColor: nothing.line },
+  episodePagerText: { color: nothing.white, fontFamily: "monospace", fontSize: 7, fontWeight: "900", letterSpacing: 0.3 },
+  episodeChoice: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 2, borderBottomWidth: 1, borderBottomColor: nothing.line },
   episodeChoiceActive: { borderBottomColor: nothing.red, backgroundColor: "rgba(255,77,77,0.05)" },
-  episodeChoiceNumber: { width: 30, color: nothing.dim, fontFamily: "monospace", fontSize: 12, fontWeight: "900" },
-  episodeChoiceTitle: { flex: 1, color: nothing.white, fontSize: 13, fontWeight: "700" },
-  episodeChoiceState: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.4 },
+  episodeChoiceNumber: { width: 26, color: nothing.dim, fontFamily: "monospace", fontSize: 11, fontWeight: "900" },
+  episodeChoiceTitle: { flex: 1, color: nothing.white, fontSize: 12, fontWeight: "700" },
+  episodeChoiceState: { color: nothing.muted, fontFamily: "monospace", fontSize: 7, fontWeight: "800", letterSpacing: 0.4 },
   episodeChoiceTextActive: { color: nothing.red },
-  emptyEpisodeText: { color: nothing.muted, paddingVertical: 18, textAlign: "center", fontSize: 13 },
-  swipeHintRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 2 },
-  swipeHintText: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "700", letterSpacing: 0.3 },
+  emptyEpisodeText: { color: nothing.muted, paddingVertical: 14, textAlign: "center", fontSize: 12 },
+  swipeHintRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 2 },
+  swipeHintText: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "700", letterSpacing: 0.3 },
   episodeSwipeContainer: { overflow: "hidden" },
-  watchCommunitySection: { gap: 13, paddingTop: 3 },
-  ratingRow: { gap: 8, paddingVertical: 13, borderTopWidth: 1, borderBottomWidth: 1, borderColor: nothing.line },
-  ratingPrompt: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.4 },
-  ratingChoices: { flexDirection: "row", gap: 5 },
-  ratingChoice: { flex: 1, height: 30, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 3 },
+  watchCommunitySection: { gap: 10, paddingTop: 2 },
+  ratingRow: { gap: 6, paddingVertical: 10, borderTopWidth: 1, borderBottomWidth: 1, borderColor: nothing.line },
+  ratingPrompt: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.4 },
+  ratingChoices: { flexDirection: "row", gap: 4 },
+  ratingChoice: { flex: 1, height: 26, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 3 },
   ratingChoiceActive: { backgroundColor: nothing.white, borderColor: nothing.white },
-  ratingChoiceText: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "900" },
+  ratingChoiceText: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900" },
   ratingChoiceTextActive: { color: nothing.black },
-  languageRow: { flexDirection: "row", gap: 7 },
-  language: { minWidth: 56, minHeight: 36, alignItems: "center", justifyContent: "center", paddingHorizontal: 10, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
+  languageRow: { flexDirection: "row", gap: 6 },
+  language: { minWidth: 50, minHeight: 32, alignItems: "center", justifyContent: "center", paddingHorizontal: 8, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
   languageActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.08)" },
   languageDisabled: { opacity: 0.32 },
-  languageText: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.2 },
+  languageText: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.2 },
   languageTextActive: { color: nothing.red },
-  toggleRow: { flexDirection: "row", gap: 7 },
-  toggle: { minHeight: 36, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", borderRadius: 4, borderWidth: 1, borderColor: nothing.line },
+  toggleRow: { flexDirection: "row", gap: 5 },
+  toggle: { minHeight: 30, paddingHorizontal: 8, alignItems: "center", justifyContent: "center", borderRadius: 4, borderWidth: 1, borderColor: nothing.line },
   toggleOn: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.08)" },
-  toggleText: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900" },
+  toggleText: { color: nothing.muted, fontFamily: "monospace", fontSize: 7, fontWeight: "900" },
   toggleTextOn: { color: nothing.red },
-  speedRow: { flexDirection: "row", gap: 5 },
-  speed: { minWidth: 40, minHeight: 32, alignItems: "center", justifyContent: "center", paddingHorizontal: 8, borderRadius: 4, borderWidth: 1, borderColor: nothing.line },
+  speedRow: { flexDirection: "row", gap: 4 },
+  speed: { minWidth: 36, minHeight: 28, alignItems: "center", justifyContent: "center", paddingHorizontal: 6, borderRadius: 4, borderWidth: 1, borderColor: nothing.line },
   speedActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.08)" },
-  speedText: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "900" },
+  speedText: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900" },
   speedTextActive: { color: nothing.red },
-  qualityRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  quality: { minWidth: 44, minHeight: 32, alignItems: "center", justifyContent: "center", paddingHorizontal: 10, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
+  qualityRow: { flexDirection: "row", flexWrap: "wrap", gap: 5 },
+  quality: { minWidth: 40, minHeight: 28, alignItems: "center", justifyContent: "center", paddingHorizontal: 8, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
   qualityActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.1)" },
-  qualityText: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "900" },
+  qualityText: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900" },
   qualityTextActive: { color: nothing.red },
-  providerDiscovery: { width: "100%", maxWidth: 280, alignItems: "center", gap: 12 },
-  providerDiscoveryCopy: { alignItems: "center", gap: 4 },
-  providerDiscoveryTitle: { color: nothing.white, fontFamily: "monospace", fontSize: 10, fontWeight: "900", letterSpacing: 1.1 },
-  providerDiscoveryDetail: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.6 },
+  providerDiscovery: { width: "100%", maxWidth: 260, alignItems: "center", gap: 10 },
+  providerDiscoveryCopy: { alignItems: "center", gap: 3 },
+  providerDiscoveryTitle: { color: nothing.white, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 1.1 },
+  providerDiscoveryDetail: { color: nothing.muted, fontFamily: "monospace", fontSize: 7, fontWeight: "800", letterSpacing: 0.6 },
 });
 
 const EpisodeChoice = memo(function EpisodeChoice({ item, selected, onSelect, onInfo }: { item: Episode; selected: boolean; onSelect: (n: number) => void; onInfo: (n: number) => void }) {
