@@ -4,13 +4,20 @@
 
 This is the public record of meaningful native Android releases. For the currently installable build, open [GitHub Releases](https://github.com/Aniraku/Aniraku-App/releases/latest).
 
-## v5.4.2 — Player controls fix
+## v5.4.3 — Subtitle & fullscreen overhaul
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
 
-- Fixes Watch player controls never showing inline and taps jumping to a control-less fullscreen: controls now auto-show on load with a persistent mini progress bar, taps are caught by a sibling gesture overlay above the native video (no longer eaten by the SurfaceView or stolen from buttons by the parent responder), embed fallback always shows back + title + EMBED chrome, and video no longer force-locks to landscape on first frame — fullscreen is explicit via the fullscreen button only. Subtitle on/off + track selection, speed, quality, sleep timer, and the red Aniraku chrome are unchanged; no Chromecast icon.
+- Fixed subtitle parser: accepts VTT/SRT/ASS timestamp formats (`hh:mm:ss`, `mm:ss`, `ss.mmm`), proxied URL format detection (decodes `%2F` paths), content-sniffing fallback when URL detection fails, language normalization (`english` → `en`, `en-US` → `en`), cue text cleaning (HTML entities, style tags).
+- Fixed subtitle loading: HTTP status check before parsing, fetch headers for CORS, proxy URL detection, `matchSubtitleTrack` for language matching, subtitle preferences now persist via `saveSubtitlePreferences`, subtitle wrapper positioned above timeline in fullscreen.
+- Fixed fullscreen: `enterFullscreen()` closes all modals and forces controls visible, back button exits fullscreen first before leaving screen, fullscreen shell gets `zIndex: 50` + black background, landscape padding wider, auto-hide reset includes fullscreen toggle.
+- Fixed dead controls: SUB pill badge opens server modal, Settings QUALITY button opens quality modal, Settings SERVER button opens server modal, selections close modals properly.
+- Server list accepts all servers from the backend (Momo, Niko, Ally, Pewe, etc.); only Flixcloud filtered out; deduplicates by display name.
+- Embed player mounts only as last resort after ALL servers return no direct/proxy sources.
+- Controls overflow fixed: top bar compact inline (speed/PiP only in fullscreen), gaps 10→2, buttons 36→32dp, title shrinks, bottom rail reduced, orientation-lock/download hidden in inline mode.
+- Watch preferences (autoNext, autoSkip, speed) now persist correctly (autoSkip was missing from save dependency array).
 - Ships three builds: `arm64`, `arm32`, and `universal` (universal contains all architectures).
-- Bumps the Android versionCode to 53.
+- Bumps the Android versionCode to 54.
 
 ## v5.4.1 — Subtitle cue fix
 

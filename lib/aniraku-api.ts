@@ -137,7 +137,9 @@ export async function hasDubForEpisode(animeId: number, episode: number): Promis
 
 const UNSUPPORTED_PROVIDERS = new Set(["flixcloud"]);
 
-/** Anikoto returns Momo and Niko. Both support direct or proxy. Deduplicates by name and filters unsupported. */
+/** Accept every server the backend returns. Only truly broken providers
+ *  (flixcloud) are filtered. Deduplicates by display name so the UI never
+ *  shows the same provider twice. */
 export async function getServers(animeId: number, episode: number, lang: "sub" | "dub"): Promise<Server[]> {
   try {
     const payload = await apiRequest<any[]>(`/api/v1/servers?animeId=${animeId}&episode=${episode}&lang=${lang}`, undefined, 30_000);

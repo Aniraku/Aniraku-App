@@ -58,8 +58,8 @@ import { NativeScreen } from "@/components/screen";
 import { SubtitleRenderer } from "@/components/subtitle-renderer";
 import { SleepTimer, SleepTimerPill } from "@/components/sleep-timer";
 import { chrome } from "@/components/player/chrome-styles";
-import { parseSubtitle, detectSubtitleFormat, findActiveCues, type SubtitleCue } from "@/lib/subtitle-parser";
-import { loadSubtitlePreferences, type SubtitlePreferences } from "@/lib/subtitle-preferences";
+import { parseSubtitle, detectSubtitleFormat, detectSubtitleFormatFromContent, findActiveCues, matchSubtitleTrack, type SubtitleCue } from "@/lib/subtitle-parser";
+import { loadSubtitlePreferences, saveSubtitlePreferences, type SubtitlePreferences } from "@/lib/subtitle-preferences";
 
 const EPISODE_PAGE_SIZE = 50;
 const RESUME_MIN_TIME = 30;
@@ -304,27 +304,49 @@ export default function WatchScreen() {
   useEffect(() => { loadSubtitlePreferences().then(setSubtitlePrefs).catch(() => {}); }, []);
 
   const parsedCuesRef = useRef<SubtitleCue[]>([]);
+  const currentTimeRef = useRef(0);
+  currentTimeRef.current = currentTime;
+
+  const updateSubtitlePrefs = useCallback((patch: Partial<SubtitlePreferences>) => {
+    setSubtitlePrefs((prev) => {
+      const next = { enabled: prev?.enabled ?? true, preferredLanguage: prev?.preferredLanguage ?? "en", ...patch };
+      void saveSubtitlePreferences(next).catch(() => {});
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (!source?.subtitles?.length || !subtitlePrefs) { parsedCuesRef.current = []; setActiveSubtitles([]); return; }
-    const preferred = source.subtitles.find((s) => s.lang?.startsWith(subtitlePrefs.preferredLanguage)) ?? source.subtitles[0];
+    const preferred = matchSubtitleTrack(source.subtitles, subtitlePrefs.preferredLanguage) ?? source.subtitles[0];
     if (!preferred?.url) { parsedCuesRef.current = []; setActiveSubtitles([]); return; }
-    const format = detectSubtitleFormat(preferred.url);
-    if (!format) { parsedCuesRef.current = []; setActiveSubtitles([]); return; }
+    const urlFormat = detectSubtitleFormat(preferred.url);
     const subtitleUrl = preferred.url.includes("/api/v1/proxy?") ? preferred.url : anirakuProxyUrl(preferred.url, nativePlaybackHeaders(playbackHeaders));
     let cancelled = false;
-    fetch(subtitleUrl).then((r) => r.text()).then((text) => {
-      if (cancelled) return;
-      const parsed = parseSubtitle(text, format);
-      parsedCuesRef.current = parsed.cues;
-      setActiveSubtitles(findActiveCues(parsed.cues, currentTime));
-    }).catch(() => { if (!cancelled) { parsedCuesRef.current = []; setActiveSubtitles([]); } });
+    const directHeaders = nativePlaybackHeaders(playbackHeaders);
+    fetch(subtitleUrl, directHeaders && !preferred.url.includes("/api/v1/proxy?") ? { headers: { ...directHeaders, Accept: "*/*" } } : undefined)
+      .then((r) => {
+        if (!r.ok) throw new Error(`subtitle ${r.status}`);
+        return r.text();
+      })
+      .then((text) => {
+        if (cancelled || !text.trim()) {
+          if (!cancelled) { parsedCuesRef.current = []; setActiveSubtitles([]); }
+          return;
+        }
+        const format = urlFormat ?? detectSubtitleFormatFromContent(text);
+        const parsed = parseSubtitle(text, format);
+        if (cancelled) return;
+        parsedCuesRef.current = parsed.cues;
+        setActiveSubtitles(findActiveCues(parsed.cues, currentTimeRef.current));
+      }).catch(() => { if (!cancelled) { parsedCuesRef.current = []; setActiveSubtitles([]); } });
     return () => { cancelled = true; };
   }, [source?.url, source?.subtitles, subtitlePrefs?.preferredLanguage, playbackHeaders]);
 
   useEffect(() => {
     if (parsedCuesRef.current.length) {
       setActiveSubtitles(findActiveCues(parsedCuesRef.current, currentTime));
+    } else if (currentTimeRef.current !== currentTime) {
+      // Keep ref in sync even before cues load.
     }
   }, [currentTime]);
 
@@ -402,8 +424,19 @@ export default function WatchScreen() {
       setRefreshNonce((value) => value + 1);
       return;
     }
-    // Embedded escape hatch (Hentai + native-exhausted providers): mount the
-    // first verified embed before giving up or hopping providers.
+    // No direct / proxy sources from this provider — try the next server.
+    blockedProviders.current.add(current.id);
+    const next = activeProviders.findIndex((p, i) => i !== serverIndex && !blockedProviders.current.has(p.id));
+    if (next >= 0) {
+      sourceStarted.current = false;
+      sourceFirstFrame.current = false;
+      sourceMounted.current = false;
+      sourceFailureHandled.current = null;
+      setLoadingStream(true);
+      setServerIndex(next);
+      return;
+    }
+    // ALL servers exhausted — mount the first verified embed, if any.
     if (!embedSource) {
       const fallbackEmbed = embedSources(stream ?? { sources: current.sources ?? [] })[0];
       if (fallbackEmbed) {
@@ -417,18 +450,6 @@ export default function WatchScreen() {
         setShowSourcePicker(false);
         return;
       }
-    }
-    // Try next provider (Momo ↔ Niko)
-    blockedProviders.current.add(current.id);
-    const next = activeProviders.findIndex((p, i) => i !== serverIndex && !blockedProviders.current.has(p.id));
-    if (next >= 0) {
-      sourceStarted.current = false;
-      sourceFirstFrame.current = false;
-      sourceMounted.current = false;
-      sourceFailureHandled.current = null;
-      setLoadingStream(true);
-      setServerIndex(next);
-      return;
     }
     setLoadingStream(false);
     setError(
@@ -458,7 +479,7 @@ export default function WatchScreen() {
   useEffect(() => {
     if (!preferencesReady) return;
       void AsyncStorage.setItem("aniraku.watch.preferences", JSON.stringify({ autoNext, autoSkip, speed })).catch(() => {});
-  }, [autoNext, preferencesReady, speed]);
+  }, [autoNext, autoSkip, preferencesReady, speed]);
 
   // ── Server discovery ──
   useEffect(() => {
@@ -514,11 +535,16 @@ export default function WatchScreen() {
     });
 
     setError(null);
-    if ((hasInitial || preferEmbed) && !alreadyMounted && !forceThisRequest) {
+    // Embed mounts immediately only for Hentai. For normal titles the embed
+    // player is the last resort after ALL servers return null, so a
+    // native-less first provider must not stick an embed before other
+    // servers are even tried.
+    const mountEmbedImmediately = preferEmbed && initialEmbeds.length > 0 && isHentai;
+    if ((hasInitial || mountEmbedImmediately) && !alreadyMounted && !forceThisRequest) {
       setStream(initial);
       setPlaybackHeaders(activeProvider.headers);
-      // Direct → proxy → embed fallback (embed first for Hentai / native-less)
-      if (preferEmbed && initialEmbeds.length) {
+      // Direct → proxy → embed fallback (embed immediately for Hentai only)
+      if (mountEmbedImmediately) {
         sourceMounted.current = true;
         setSource(null);
         setEmbedSource(initialEmbeds[0]);
@@ -536,7 +562,7 @@ export default function WatchScreen() {
       }
       applySkipSegments(providerSkipSegments(initial));
       setLoadingStream(false);
-    } else if (!hasInitial && !preferEmbed) {
+    } else if (!hasInitial && !mountEmbedImmediately) {
       setLoadingStream(true);
     }
 
@@ -552,10 +578,13 @@ export default function WatchScreen() {
         proxyCount: cachedProxies.length,
         embedCount: cachedEmbeds.length,
       });
-      if (!alreadyMounted && (cachedDirect.length || cachedProxies.length || preferCachedEmbed)) {
+      const mountCachedEmbed = preferCachedEmbed && cachedEmbeds.length > 0 && isHentai;
+      if (!alreadyMounted && (cachedDirect.length || cachedProxies.length || mountCachedEmbed)) {
         setStream(cached.data);
         setPlaybackHeaders(cached.data.headers ?? activeProvider.headers);
-        if (preferCachedEmbed && cachedEmbeds.length) {
+        // Embed from cache mounts only for Hentai. For normal titles the next
+        // server is tried first via handleProviderBlocked.
+        if (mountCachedEmbed) {
           sourceMounted.current = true;
           setSource(null);
           setEmbedSource(cachedEmbeds[0]);
@@ -588,8 +617,11 @@ export default function WatchScreen() {
           proxyCount: refreshedProxies.length,
           embedCount: refreshedEmbeds.length,
         });
-        if (!refreshedDirect.length && !refreshedProxies.length && !preferRefreshedEmbed) {
-          if (!hasInitial || forceThisRequest) handleProviderBlockedRef.current("stream");
+        const hasNative = refreshedDirect.length > 0 || refreshedProxies.length > 0;
+        if (!hasNative) {
+          // No direct/proxy from this provider — try the next server.
+          // Embed mounts only after ALL servers are exhausted (via handleProviderBlocked).
+          handleProviderBlockedRef.current("stream");
           return;
         }
         streamCache.current.set(cacheKey, { savedAt: Date.now(), data: response });
@@ -598,10 +630,7 @@ export default function WatchScreen() {
         if (shouldMountReplacementSource(sourceMounted.current, forceThisRequest)) {
           sourceMounted.current = true;
           setPlaybackHeaders(response.headers ?? activeProvider.headers);
-          if (preferRefreshedEmbed && refreshedEmbeds.length) {
-            setSource(null);
-            setEmbedSource(refreshedEmbeds[0]);
-          } else if (refreshedDirect.length) {
+          if (refreshedDirect.length) {
             setSource(refreshedDirect[0]);
             setUseSourceProxy(false);
           } else {
@@ -617,7 +646,7 @@ export default function WatchScreen() {
         if (!hasInitial || forceThisRequest) handleProviderBlockedRef.current("stream");
       });
     return () => { cancelled = true; };
-  }, [activeProvider, animeId, applySkipSegments, episode, futureRelease, language, refreshNonce]);
+  }, [activeProvider, animeId, applySkipSegments, episode, futureRelease, isHentai, language, refreshNonce]);
 
   // ── Source loading with direct → proxy fallback ──
   useEffect(() => {
@@ -895,6 +924,7 @@ export default function WatchScreen() {
     setAdaptiveBitrateCap(null);
     setLoadingStream(true);
     setShowSourcePicker(false);
+    setShowServerModal(false);
     setShowSettings(false);
     if (index === serverIndex) {
       forceRefresh.current = true;
@@ -915,6 +945,8 @@ export default function WatchScreen() {
     setPlaybackHeaders(stream?.headers ?? activeProvider?.headers);
     setRequestedQuality(isAutoQuality(next) ? "auto" : next.quality || "auto");
     setShowQualityPicker(false);
+    setShowQualityModal(false);
+    setShowSettings(false);
   };
 
   const selectAdaptiveQuality = async (choice: WatchQualityOption) => {
@@ -924,10 +956,12 @@ export default function WatchScreen() {
       setAdaptiveBitrateCap(choice.maxVideoBitrate ?? null);
       setRequestedQuality("auto");
       setShowQualityPicker(false);
+      setShowQualityModal(false);
+      setShowSettings(false);
       return;
     }
     if (choice.source) { selectQuality(choice.source); return; }
-    if (choice.requestQuality === "auto" && isAutoQuality(source)) { setRequestedQuality("auto"); setShowQualityPicker(false); return; }
+    if (choice.requestQuality === "auto" && isAutoQuality(source)) { setRequestedQuality("auto"); setShowQualityPicker(false); setShowQualityModal(false); setShowSettings(false); return; }
     try {
       setLoadingStream(true);
       const response = await getStream({ animeId, episode, provider: activeProvider.provider, lang: language, quality: choice.requestQuality });
@@ -1226,16 +1260,29 @@ export default function WatchScreen() {
 
   const onBarTouchStart = () => { setDragPct(progressPct); };
 
-  const enterFullscreen = () => {
+  const enterFullscreen = useCallback(() => {
+    // Close every overlay so fullscreen never opens with a hidden-behind-modal
+    // state, and force chrome visible — opening with showControls=false looked
+    // like "fullscreen has no controls".
     setShowSettings(false);
+    setShowSpeedModal(false);
+    setShowSubtitleModal(false);
+    setShowQualityModal(false);
+    setShowServerModal(false);
+    setShowChapterList(false);
+    setShowSourcePicker(false);
+    setShowQualityPicker(false);
+    setShowControls(true);
     setManualFullscreen(true);
     if (Platform.OS !== "web") void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
-  };
+  }, []);
 
-  const exitFullscreen = () => {
+  const exitFullscreen = useCallback(() => {
     setManualFullscreen(false);
+    // Keep chrome visible on exit so the inline player never looks dead.
+    setShowControls(true);
     if (Platform.OS !== "web") void ScreenOrientation.unlockAsync().catch(() => {});
-  };
+  }, []);
 
   const enterPiP = useCallback(() => {
     if (Platform.OS === "web") return;
@@ -1246,13 +1293,13 @@ export default function WatchScreen() {
     if (!manualFullscreen || Platform.OS === "web") return;
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => { exitFullscreen(); return true; });
     return () => subscription.remove();
-  }, [manualFullscreen]);
+  }, [manualFullscreen, exitFullscreen]);
 
   useEffect(() => {
     if (!source || !showControls || showSettings || showSourcePicker || showQualityPicker) return;
-    const timer = setTimeout(() => setShowControls(false), 3_000);
+    const timer = setTimeout(() => setShowControls(false), 3_500);
     return () => clearTimeout(timer);
-  }, [showControls, showSettings, showSourcePicker, showQualityPicker, source?.url]);
+  }, [showControls, showSettings, showSourcePicker, showQualityPicker, manualFullscreen, currentTime, source?.url]);
 
   const onProgressLayout = (event: LayoutChangeEvent) => setProgressWidth(event.nativeEvent.layout.width);
   const progress = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
@@ -1261,6 +1308,11 @@ export default function WatchScreen() {
   const displayedQualityOptions: WatchQualityOption[] = source
     ? (adaptiveCapOptions.length ? adaptiveCapOptions : sourceQualityOptions)
     : sourceQualityOptions.map((item) => ({ id: item.id, label: item.label, requestQuality: item.requestQuality, source: item.source }));
+
+  const selectedSubtitleUrl = useMemo(
+    () => (source?.subtitles?.length && subtitlePrefs?.enabled ? matchSubtitleTrack(source.subtitles, subtitlePrefs.preferredLanguage)?.url ?? null : null),
+    [source?.subtitles, subtitlePrefs?.enabled, subtitlePrefs?.preferredLanguage],
+  );
 
   const progressPct = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
   const bufferPct = duration > 0 && playableDuration > 0 ? Math.min(100, (playableDuration / duration) * 100) : 0;
@@ -1292,8 +1344,9 @@ export default function WatchScreen() {
         </View> : error ? <Text style={styles.errorText}>{error}</Text> : <Text style={styles.placeholderText}>PREPARING VIDEO</Text>}
       </View>}
 
-      {/* ── Subtitle Layer ── */}
-      {subtitlePrefs ? <View style={styles.subtitleWrapper} pointerEvents="none"><SubtitleRenderer cues={activeSubtitles} preferences={subtitlePrefs} /></View> : null}
+      {/* ── Subtitle Layer (lifts above the bottom deck while chrome is
+          visible so cues are never hidden behind the timeline). ── */}
+      {subtitlePrefs ? <View style={[styles.subtitleWrapper, showControls && !playerLocked ? styles.subtitleWrapperWithControls : manualFullscreen ? styles.subtitleWrapperFullscreen : null]} pointerEvents="none"><SubtitleRenderer cues={activeSubtitles} preferences={subtitlePrefs} /></View> : null}
 
       {/* ── Gesture overlay: sits ABOVE native Video, BELOW chrome.
           This is what makes tap-to-toggle reliable — touches no longer have to
@@ -1339,34 +1392,39 @@ export default function WatchScreen() {
 
       {/* Main controls */}
       {showControls && !playerLocked ? (
-        <View style={styles.controlsBackdrop} pointerEvents="box-none">
-          {/* TOP BAR */}
+        <View style={[styles.controlsBackdrop, manualFullscreen && styles.controlsBackdropFullscreen]} pointerEvents="box-none">
+          {/* TOP BAR — compact inline to avoid overflow on ~360dp widths;
+              full rail in fullscreen where there is room. */}
           <View style={styles.topBar}>
             <Pressable onPress={() => { if (manualFullscreen) exitFullscreen(); else router.back(); }} accessibilityRole="button" accessibilityLabel="Go back" accessibilityHint="Returns to the previous screen" style={styles.iconButton} hitSlop={10}>
-              <Ionicons name="arrow-back" size={22} color="#FFF" />
+              <Ionicons name="arrow-back" size={20} color="#FFF" />
             </Pressable>
-            <Text style={styles.playerTitle} numberOfLines={1}>{`${title} - Episode ${episode}`}</Text>
+            <Text style={styles.playerTitle} numberOfLines={1} ellipsizeMode="tail">{`${title} - Episode ${episode}`}</Text>
             <View style={styles.topRightRow}>
               {orientationLocked ? <View style={styles.orientationBadge}><Text style={styles.orientationBadgeText}>LANDSCAPE</Text></View> : null}
               {(skipSegments.intro || skipSegments.outro) ? (
                 <Pressable onPress={() => setShowChapterList(true)} accessibilityRole="button" accessibilityLabel="Chapter list" accessibilityHint="Opens the list of chapters and segments" style={styles.iconButton} hitSlop={8}>
-                  <Ionicons name="book" size={20} color="#FFF" />
+                  <Ionicons name="book" size={18} color="#FFF" />
                 </Pressable>
               ) : null}
-              <Pressable onPress={() => setShowSpeedModal(true)} accessibilityRole="button" accessibilityLabel="Playback speed" accessibilityHint="Opens speed selection menu" style={styles.iconButton} hitSlop={8}>
-                <MaterialCommunityIcons name="speedometer" size={20} color="#FFF" />
-              </Pressable>
+              {manualFullscreen ? (
+                <Pressable onPress={() => setShowSpeedModal(true)} accessibilityRole="button" accessibilityLabel="Playback speed" accessibilityHint="Opens speed selection menu" style={styles.iconButton} hitSlop={8}>
+                  <MaterialCommunityIcons name="speedometer" size={18} color="#FFF" />
+                </Pressable>
+              ) : null}
               <Pressable onPress={() => setShowSubtitleModal(true)} accessibilityRole="button" accessibilityLabel="Subtitles" accessibilityHint="Opens subtitle language selection" style={styles.iconButton} hitSlop={8}>
-                <MaterialCommunityIcons name="subtitles" size={20} color="#FFF" />
+                <MaterialCommunityIcons name="subtitles" size={18} color="#FFF" />
               </Pressable>
-              <Pressable onPress={enterPiP} accessibilityRole="button" accessibilityLabel="Picture in Picture" accessibilityHint="Opens video in a floating window" style={styles.iconButton} hitSlop={8}>
-                <Ionicons name="videocam" size={20} color="#FFF" />
-              </Pressable>
-              <View style={styles.subPillBadge}>
+              {manualFullscreen ? (
+                <Pressable onPress={enterPiP} accessibilityRole="button" accessibilityLabel="Picture in Picture" accessibilityHint="Opens video in a floating window" style={styles.iconButton} hitSlop={8}>
+                  <Ionicons name="videocam" size={18} color="#FFF" />
+                </Pressable>
+              ) : null}
+              <Pressable onPress={() => setShowServerModal(true)} accessibilityRole="button" accessibilityLabel="Select server" accessibilityHint="Opens server and language selection" style={styles.subPillBadge} hitSlop={8}>
                 <Text style={styles.subPillBadgeText}>{`${language.toUpperCase()} • ${activeProvider?.label || "S1"}`}</Text>
-              </View>
+              </Pressable>
               <Pressable onPress={() => setShowSettings(true)} accessibilityRole="button" accessibilityLabel="Settings" accessibilityHint="Opens player settings panel" style={styles.iconButton} hitSlop={8}>
-                <Ionicons name="settings-sharp" size={19} color="#FFF" />
+                <Ionicons name="settings-sharp" size={18} color="#FFF" />
               </Pressable>
             </View>
           </View>
@@ -1405,42 +1463,48 @@ export default function WatchScreen() {
               <Text style={styles.timeLabel}>{formatTime(duration)}</Text>
             </View>
 
-            {/* Action rail */}
+            {/* Action rail — inline hides orientation + download (both live in
+                fullscreen and in Settings) so all 8 remaining buttons fit a
+                ~340dp wide inline player without overflowing. */}
             <View style={styles.actionRail}>
               <View style={styles.railSide}>
                 <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); setPlayerLocked(true); }} accessibilityRole="button" accessibilityLabel="Lock player" accessibilityHint="Locks the player controls to prevent accidental touches" style={styles.iconButton} hitSlop={8}>
-                  <Ionicons name="lock-open-outline" size={20} color="#FFF" />
+                  <Ionicons name="lock-open-outline" size={18} color="#FFF" />
                 </Pressable>
-                <Pressable onPress={toggleOrientationLock} accessibilityRole="button" accessibilityLabel={orientationLocked ? "Unlock orientation" : "Lock to landscape"} accessibilityHint="Toggles between landscape-locked and free rotation" style={[styles.iconButton, orientationLocked && styles.iconButtonActive]} hitSlop={8}>
-                  <Ionicons name={orientationLocked ? "phone-landscape" : "phone-portrait-outline"} size={20} color={orientationLocked ? "#FF4D4D" : "#FFF"} />
-                </Pressable>
+                {manualFullscreen ? (
+                  <Pressable onPress={toggleOrientationLock} accessibilityRole="button" accessibilityLabel={orientationLocked ? "Unlock orientation" : "Lock to landscape"} accessibilityHint="Toggles between landscape-locked and free rotation" style={[styles.iconButton, orientationLocked && styles.iconButtonActive]} hitSlop={8}>
+                    <Ionicons name={orientationLocked ? "phone-landscape" : "phone-portrait-outline"} size={18} color={orientationLocked ? "#FF4D4D" : "#FFF"} />
+                  </Pressable>
+                ) : null}
                 <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setMuted((m) => !m); }} accessibilityRole="button" accessibilityLabel={muted ? "Unmute" : "Mute"} accessibilityHint="Toggles audio mute state" style={styles.iconButton} hitSlop={8}>
-                  <Ionicons name={muted ? "volume-mute" : "volume-high"} size={20} color="#FFF" />
+                  <Ionicons name={muted ? "volume-mute" : "volume-high"} size={18} color="#FFF" />
                 </Pressable>
               </View>
               <View style={styles.railCenter}>
                 <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); seekBy(-10); }} accessibilityRole="button" accessibilityLabel="Rewind 10 seconds" accessibilityHint="Seeks backward 10 seconds in the video" style={styles.iconButton} hitSlop={8}>
-                  <MaterialCommunityIcons name="rewind-10" size={26} color="#FFF" />
+                  <MaterialCommunityIcons name="rewind-10" size={24} color="#FFF" />
                 </Pressable>
                 <Pressable disabled={!previousKnownEpisode} onPress={() => previousKnownEpisode && goToEpisode(previousKnownEpisode)} accessibilityRole="button" accessibilityLabel="Previous episode" accessibilityHint="Navigates to the previous episode" style={[styles.iconButton, !previousKnownEpisode && { opacity: 0.35 }]} hitSlop={8}>
-                  <Ionicons name="play-skip-back" size={24} color="#FFF" />
+                  <Ionicons name="play-skip-back" size={22} color="#FFF" />
                 </Pressable>
                 <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setIsPlaying((p) => !p); }} onLongPress={beginHoldSpeed} onPressOut={endHoldSpeed} delayLongPress={400} accessibilityRole="button" accessibilityLabel={isPlaying ? "Pause" : "Play"} accessibilityHint="Toggles video playback" style={styles.bigPlayButton}>
-                  {buffering ? <ActivityIndicator color={nothing.black} /> : <Ionicons name={isPlaying ? "pause" : "play"} size={28} color="#000" style={!isPlaying ? { marginLeft: 2 } : undefined} />}
+                  {buffering ? <ActivityIndicator color={nothing.black} /> : <Ionicons name={isPlaying ? "pause" : "play"} size={26} color="#000" style={!isPlaying ? { marginLeft: 2 } : undefined} />}
                 </Pressable>
                 <Pressable disabled={!nextKnownEpisode} onPress={nextEpisode} accessibilityRole="button" accessibilityLabel="Next episode" accessibilityHint="Navigates to the next episode" style={[styles.iconButton, !nextKnownEpisode && { opacity: 0.35 }]} hitSlop={8}>
-                  <Ionicons name="play-skip-forward" size={24} color="#FFF" />
+                  <Ionicons name="play-skip-forward" size={22} color="#FFF" />
                 </Pressable>
                 <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); seekBy(10); }} accessibilityRole="button" accessibilityLabel="Forward 10 seconds" accessibilityHint="Seeks forward 10 seconds in the video" style={styles.iconButton} hitSlop={8}>
-                  <MaterialCommunityIcons name="fast-forward-10" size={26} color="#FFF" />
+                  <MaterialCommunityIcons name="fast-forward-10" size={24} color="#FFF" />
                 </Pressable>
               </View>
               <View style={styles.railSideRight}>
-                <Pressable disabled={!maximumDownloadSource} onPress={() => void startDownload()} accessibilityRole="button" accessibilityLabel="Download episode" accessibilityHint="Saves the current episode for offline viewing" style={[styles.iconButton, !maximumDownloadSource && { opacity: 0.35 }]} hitSlop={8}>
-                  <Ionicons name="download-outline" size={20} color="#FFF" />
-                </Pressable>
+                {manualFullscreen ? (
+                  <Pressable disabled={!maximumDownloadSource} onPress={() => void startDownload()} accessibilityRole="button" accessibilityLabel="Download episode" accessibilityHint="Saves the current episode for offline viewing" style={[styles.iconButton, !maximumDownloadSource && { opacity: 0.35 }]} hitSlop={8}>
+                    <Ionicons name="download-outline" size={18} color="#FFF" />
+                  </Pressable>
+                ) : null}
                 <Pressable onPress={manualFullscreen ? exitFullscreen : enterFullscreen} accessibilityRole="button" accessibilityLabel={manualFullscreen ? "Exit fullscreen" : "Enter fullscreen"} accessibilityHint="Toggles fullscreen video mode" style={styles.iconButton} hitSlop={8}>
-                  <Ionicons name={manualFullscreen ? "contract" : "expand"} size={20} color="#FFF" />
+                  <Ionicons name={manualFullscreen ? "contract" : "expand"} size={18} color="#FFF" />
                 </Pressable>
               </View>
             </View>
@@ -1502,7 +1566,8 @@ export default function WatchScreen() {
           <View style={ps.settingsHeading}><DotLabel>SETTINGS</DotLabel><Pressable onPress={() => setShowSettings(false)}><AppIcon name="close" size={18} color={nothing.muted} /></Pressable></View>
           <View style={ps.settingsSection}><DotLabel>PLAYBACK</DotLabel><View style={styles.toggleRow}><Pressable onPress={() => setAutoNext((v) => !v)} style={[styles.toggle, autoNext && styles.toggleOn]}><Text style={[styles.toggleText, autoNext && styles.toggleTextOn]}>AUTO NEXT {autoNext ? "ON" : "OFF"}</Text></Pressable><Pressable onPress={() => setAutoSkip((v) => !v)} style={[styles.toggle, autoSkip && styles.toggleOn]}><Text style={[styles.toggleText, autoSkip && styles.toggleTextOn]}>AUTO SKIP {autoSkip ? "ON" : "OFF"}</Text></Pressable><Pressable onPress={() => { setRotationLocked((v) => !v); if (!rotationLocked) void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {}); else void ScreenOrientation.unlockAsync().catch(() => {}); }} style={[styles.toggle, rotationLocked && styles.toggleOn]}><Text style={[styles.toggleText, rotationLocked && styles.toggleTextOn]}>ROTATION {rotationLocked ? "LOCKED" : "FREE"}</Text></Pressable></View>
             <View style={styles.speedRow}>{[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((value) => <Pressable key={value} onPress={() => { setSpeed(value); lockedSpeed.current = value; }} style={[styles.speed, speed === value && styles.speedActive]}><Text style={[styles.speedText, speed === value && styles.speedTextActive]}>{value}×</Text></Pressable>)}</View>
-            {displayedQualityOptions.length > 1 ? <Pressable onPress={() => { setShowSettings(false); setShowQualityPicker(true); }} style={[ps.downloadBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: nothing.line }]}><Text style={[ps.downloadBtnText, { color: nothing.white }]}>{`QUALITY · ${displayedQuality.toUpperCase()}`}</Text></Pressable> : null}</View>
+            {displayedQualityOptions.length > 1 ? <Pressable onPress={() => { setShowSettings(false); setShowQualityModal(true); }} style={[ps.downloadBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: nothing.line }]}><Text style={[ps.downloadBtnText, { color: nothing.white }]}>{`QUALITY · ${displayedQuality.toUpperCase()}`}</Text></Pressable> : null}
+            {activeProviders.length > 1 ? <Pressable onPress={() => { setShowSettings(false); setShowServerModal(true); }} style={[ps.downloadBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: nothing.line }]}><Text style={[ps.downloadBtnText, { color: nothing.white }]}>{`SERVER · ${(activeProvider?.label || "S1").toUpperCase()}`}</Text></Pressable> : null}</View>
           {audioTracks.length > 1 ? <View style={ps.settingsSection}><DotLabel>AUDIO TRACK</DotLabel>
             <View style={styles.qualityRow}>
               <Pressable onPress={() => setSelectedAudioTrack(undefined)} style={[styles.quality, !selectedAudioTrack && styles.qualityActive]}><Text style={[styles.qualityText, !selectedAudioTrack && styles.qualityTextActive]}>AUTO</Text></Pressable>
@@ -1528,8 +1593,8 @@ export default function WatchScreen() {
             {downloadMessage ? <Text style={ps.downloadMessage}>{downloadMessage}</Text> : null}
           </View>
           {source?.subtitles?.length ? <View style={ps.settingsSection}><DotLabel>SUBTITLES</DotLabel>
-            <View style={styles.qualityRow}><Pressable onPress={() => setSubtitlePrefs((p) => p ? { ...p, enabled: false } : p)} style={[styles.quality, subtitlePrefs && !subtitlePrefs.enabled && styles.qualityActive]}><Text style={[styles.qualityText, subtitlePrefs && !subtitlePrefs.enabled && styles.qualityTextActive]}>OFF</Text></Pressable>
-              {source.subtitles.map((sub) => <Pressable key={sub.url} onPress={() => setSubtitlePrefs((p) => p ? { ...p, enabled: true, preferredLanguage: sub.lang || "en" } : p)} style={[styles.quality, subtitlePrefs?.enabled && subtitlePrefs.preferredLanguage === sub.lang && styles.qualityActive]}><Text style={[styles.qualityText, subtitlePrefs?.enabled && subtitlePrefs.preferredLanguage === sub.lang && styles.qualityTextActive]}>{sub.label || sub.lang || "Track"}</Text></Pressable>)}</View>
+            <View style={styles.qualityRow}><Pressable onPress={() => updateSubtitlePrefs({ enabled: false })} style={[styles.quality, subtitlePrefs && !subtitlePrefs.enabled && styles.qualityActive]}><Text style={[styles.qualityText, subtitlePrefs && !subtitlePrefs.enabled && styles.qualityTextActive]}>OFF</Text></Pressable>
+              {source.subtitles.map((sub) => { const active = subtitlePrefs?.enabled && selectedSubtitleUrl === sub.url; return <Pressable key={sub.url} onPress={() => updateSubtitlePrefs({ enabled: true, preferredLanguage: sub.lang || sub.label || "en" })} style={[styles.quality, active && styles.qualityActive]}><Text style={[styles.qualityText, active && styles.qualityTextActive]}>{sub.label || sub.lang || "Track"}</Text></Pressable>; })}</View>
           </View> : null}
           <View style={ps.settingsSection}><SleepTimer remaining={sleepRemaining} onSetRemaining={setSleepRemaining} onClear={() => {}} /></View>
         </ScrollView>
@@ -1575,11 +1640,11 @@ export default function WatchScreen() {
     <Modal visible={showSpeedModal} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setShowSpeedModal(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Playback Speed</Text>{[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map((val) => <Pressable key={val} style={[styles.modalItem, speed === val && styles.modalItemActive]} onPress={() => { setSpeed(val); lockedSpeed.current = val; setShowSpeedModal(false); }}><Text style={[styles.modalItemText, speed === val && styles.modalItemTextActive]}>{val === 1.0 ? "1.0x (Normal)" : `${val}x`}</Text>{speed === val && <Ionicons name="checkmark" size={20} color={nothing.red} />}</Pressable>)}</View></Pressable></Modal>
 
     <Modal visible={showSubtitleModal} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setShowSubtitleModal(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Subtitles</Text>{source?.subtitles?.length ? <>
-      <Pressable style={[styles.modalItem, subtitlePrefs && !subtitlePrefs.enabled && styles.modalItemActive]} onPress={() => { setSubtitlePrefs((p) => p ? { ...p, enabled: false } : p); setShowSubtitleModal(false); }}><Text style={[styles.modalItemText, subtitlePrefs && !subtitlePrefs.enabled && styles.modalItemTextActive]}>Off</Text>{subtitlePrefs && !subtitlePrefs.enabled && <Ionicons name="checkmark" size={20} color={nothing.red} />}</Pressable>
-      {source.subtitles.map((sub) => <Pressable key={sub.url} style={[styles.modalItem, subtitlePrefs?.enabled && subtitlePrefs.preferredLanguage === sub.lang && styles.modalItemActive]} onPress={() => { setSubtitlePrefs((p) => p ? { ...p, enabled: true, preferredLanguage: sub.lang || "en" } : p); setShowSubtitleModal(false); }}><Text style={[styles.modalItemText, subtitlePrefs?.enabled && subtitlePrefs.preferredLanguage === sub.lang && styles.modalItemTextActive]}>{sub.label || sub.lang || "Track"}</Text>{subtitlePrefs?.enabled && subtitlePrefs.preferredLanguage === sub.lang && <Ionicons name="checkmark" size={20} color={nothing.red} />}</Pressable>)}
+      <Pressable style={[styles.modalItem, subtitlePrefs && !subtitlePrefs.enabled && styles.modalItemActive]} onPress={() => { updateSubtitlePrefs({ enabled: false }); setShowSubtitleModal(false); }}><Text style={[styles.modalItemText, subtitlePrefs && !subtitlePrefs.enabled && styles.modalItemTextActive]}>Off</Text>{subtitlePrefs && !subtitlePrefs.enabled && <Ionicons name="checkmark" size={20} color={nothing.red} />}</Pressable>
+      {source.subtitles.map((sub) => { const active = subtitlePrefs?.enabled && selectedSubtitleUrl === sub.url; return <Pressable key={sub.url} style={[styles.modalItem, active && styles.modalItemActive]} onPress={() => { updateSubtitlePrefs({ enabled: true, preferredLanguage: sub.lang || sub.label || "en" }); setShowSubtitleModal(false); }}><Text style={[styles.modalItemText, active && styles.modalItemTextActive]}>{sub.label || sub.lang || "Track"}</Text>{active && <Ionicons name="checkmark" size={20} color={nothing.red} />}</Pressable>; })}
     </> : <Text style={styles.modalItemText}>No subtitles available</Text>}</View></Pressable></Modal>
 
-    <Modal visible={showQualityModal} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setShowQualityModal(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Quality</Text>{displayedQualityOptions.map((item: WatchQualityOption) => { const selected = source ? displayedQuality.toLowerCase() === item.label.toLowerCase() : false; return <Pressable key={item.id} onPress={() => { source ? void selectAdaptiveQuality(item) : item.source && selectQuality(item.source); setShowQualityModal(false); }} style={[styles.modalItem, selected && styles.modalItemActive]}><Text style={[styles.modalItemText, selected && styles.modalItemTextActive]}>{item.label.toUpperCase()}</Text>{selected && <Ionicons name="checkmark" size={20} color={nothing.red} />}</Pressable>; })}</View></Pressable></Modal>
+    <Modal visible={showQualityModal} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setShowQualityModal(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Quality</Text>{displayedQualityOptions.length ? displayedQualityOptions.map((item: WatchQualityOption) => { const selected = source ? displayedQuality.toLowerCase() === item.label.toLowerCase() : false; return <Pressable key={item.id} onPress={() => { if (source) void selectAdaptiveQuality(item); else if (item.source) selectQuality(item.source); setShowQualityModal(false); }} style={[styles.modalItem, selected && styles.modalItemActive]}><Text style={[styles.modalItemText, selected && styles.modalItemTextActive]}>{item.label.toUpperCase()}</Text>{selected && <Ionicons name="checkmark" size={20} color={nothing.red} />}</Pressable>; }) : <Text style={styles.modalItemText}>No quality options available</Text>}</View></Pressable></Modal>
 
     <Modal visible={showServerModal} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setShowServerModal(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Select Server</Text><View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} onPress={() => selectLanguage(item)} disabled={!providers[item].length} style={[styles.language, language === item && styles.languageActive, !providers[item].length && styles.languageDisabled]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${providers.sub.length}` : `DUB · ${providers.dub.length}`}</Text></Pressable>)}</View>
       {activeProviders.map((provider, index) => <Pressable key={provider.id} onPress={() => { selectServer(index); setShowServerModal(false); }} style={[styles.modalItem, index === serverIndex && styles.modalItemActive]}><Text style={[styles.modalItemText, index === serverIndex && styles.modalItemTextActive]}>{provider.label}</Text>{index === serverIndex && <Ionicons name="checkmark" size={20} color={nothing.red} />}</Pressable>)}</View></Pressable></Modal>
@@ -1628,7 +1693,7 @@ const wp = StyleSheet.create({
 });
 
 const ps = StyleSheet.create({
-  videoShellFullscreen: { position: "absolute", zIndex: 20, top: 0, right: 0, bottom: 0, left: 0, width: "100%", height: "100%", aspectRatio: undefined },
+  videoShellFullscreen: { position: "absolute", zIndex: 50, elevation: 50, top: 0, right: 0, bottom: 0, left: 0, width: "100%", height: "100%", aspectRatio: undefined, backgroundColor: "#000000", justifyContent: "center" },
   qualityOverlay: { position: "absolute", zIndex: 5, top: 56, right: 8, width: 212, gap: 9, padding: 12, borderWidth: 1, borderColor: "rgba(246,246,242,0.3)", borderRadius: 5, backgroundColor: "rgba(9,9,9,0.97)" },
   qualityHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   qualityChoices: { borderTopWidth: 1, borderTopColor: nothing.line },
@@ -1678,31 +1743,34 @@ const styles = StyleSheet.create({
   miniProgress: { position: "absolute", left: 0, right: 0, bottom: 0, height: 3, backgroundColor: "rgba(255,255,255,0.22)", zIndex: 2 },
   miniProgressBuffered: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.35)" },
   miniProgressPlayed: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "#FF4D4D" },
-  subtitleWrapper: { ...StyleSheet.absoluteFillObject, justifyContent: "flex-end", alignItems: "center", paddingBottom: 60 },
-  controlsBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: 3, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
-  topBar: { flexDirection: "row", alignItems: "center" },
-  playerTitle: { flex: 1, color: "#FFF", fontSize: 14, fontWeight: "700", letterSpacing: -0.2, marginLeft: 12, marginRight: 8 },
-  topRightRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  iconButton: { padding: 6, justifyContent: "center", alignItems: "center" },
+  subtitleWrapper: { ...StyleSheet.absoluteFillObject, justifyContent: "flex-end", alignItems: "center", paddingBottom: 76, zIndex: 1 },
+  subtitleWrapperWithControls: { paddingBottom: 148 },
+  subtitleWrapperFullscreen: { paddingBottom: 28 },
+  controlsBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: 3, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "space-between", paddingHorizontal: 10, paddingVertical: 8 },
+  controlsBackdropFullscreen: { paddingHorizontal: 18, paddingVertical: 10 },
+  topBar: { flexDirection: "row", alignItems: "center", flexWrap: "nowrap", width: "100%" },
+  playerTitle: { flex: 1, flexShrink: 1, color: "#FFF", fontSize: 13, fontWeight: "700", letterSpacing: -0.2, marginLeft: 8, marginRight: 6 },
+  topRightRow: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
+  iconButton: { width: 32, height: 32, padding: 4, justifyContent: "center", alignItems: "center", flexShrink: 0 },
   iconButtonActive: { backgroundColor: "rgba(255,77,77,0.15)", borderRadius: 6 },
   orientationBadge: { backgroundColor: "rgba(255,77,77,0.85)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
   orientationBadgeText: { color: nothing.white, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.6 },
-  subPillBadge: { backgroundColor: nothing.red, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  subPillBadgeText: { color: nothing.black, fontSize: 10, fontWeight: "900", fontFamily: "monospace", letterSpacing: 0.5 },
-  bottomDeck: { gap: 6 },
-  timelineRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  timeLabel: { color: "#FFF", fontSize: 11, fontWeight: "600", fontFamily: "monospace", minWidth: 40, textAlign: "center" },
+  subPillBadge: { backgroundColor: nothing.red, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 6, flexShrink: 0 },
+  subPillBadgeText: { color: nothing.black, fontSize: 9, fontWeight: "900", fontFamily: "monospace", letterSpacing: 0.4 },
+  bottomDeck: { gap: 4, width: "100%" },
+  timelineRow: { flexDirection: "row", alignItems: "center", gap: 6, width: "100%" },
+  timeLabel: { color: "#FFF", fontSize: 10, fontWeight: "600", fontFamily: "monospace", minWidth: 34, textAlign: "center", flexShrink: 0 },
   progressBarTrack: { flex: 1, height: 18, justifyContent: "center" },
   progressBuffered: { position: "absolute", height: 3, backgroundColor: "rgba(255,255,255,0.45)", borderRadius: 2 },
   progressPlayed: { position: "absolute", height: 3, backgroundColor: nothing.red, borderRadius: 2 },
   scrubberKnob: { position: "absolute", width: 12, height: 12, borderRadius: 6, backgroundColor: "#FFF", marginLeft: -6, top: 3, elevation: 3 },
   dragPreview: { position: "absolute", top: -28, marginLeft: -24, backgroundColor: "rgba(0,0,0,0.8)", borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
   dragPreviewText: { color: nothing.white, fontFamily: "monospace", fontSize: 10, fontWeight: "700" },
-  actionRail: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  railSide: { flexDirection: "row", alignItems: "center", gap: 4, minWidth: 72 },
-  railSideRight: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4, minWidth: 72 },
-  railCenter: { flexDirection: "row", alignItems: "center", gap: 10 },
-  bigPlayButton: { width: 50, height: 50, borderRadius: 25, backgroundColor: "#FFF", justifyContent: "center", alignItems: "center" },
+  actionRail: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "nowrap", width: "100%" },
+  railSide: { flexDirection: "row", alignItems: "center", gap: 0, flexShrink: 0 },
+  railSideRight: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 0, flexShrink: 0 },
+  railCenter: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 1, justifyContent: "center" },
+  bigPlayButton: { width: 46, height: 46, borderRadius: 23, backgroundColor: "#FFF", justifyContent: "center", alignItems: "center", flexShrink: 0, marginHorizontal: 2 },
   hudBadge: { position: "absolute", top: 24, alignSelf: "center", backgroundColor: "rgba(0,0,0,0.75)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, flexDirection: "row", alignItems: "center", gap: 6, zIndex: 10 },
   hudPill: { position: "absolute", alignSelf: "center", backgroundColor: "rgba(0,0,0,0.8)", paddingHorizontal: 18, paddingVertical: 12, borderRadius: 24, flexDirection: "row", alignItems: "center", gap: 10, zIndex: 10 },
   hudText: { color: "#FFF", fontSize: 13, fontWeight: "700" },

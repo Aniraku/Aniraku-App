@@ -44,16 +44,50 @@ describe("Aniraku episode contract", () => {
     expect(fetchMock.mock.calls[0][0]).toContain("https://api.aniraku.tech/api/v1/anime/16498/episodes");
   });
 
-  it("maps real Aniraku public server names instead of exposing a duplicate adapter label", async () => {
+  it("returns all servers from the backend (Momo, Niko, Ally, Pewe, etc.)", async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify([
       { name: "ally", provider: "miruro", lang: "sub" },
       { name: "pewe", provider: "miruro", lang: "sub" },
+      { name: "momo", provider: "momo", lang: "sub" },
+      { name: "niko", provider: "niko", lang: "sub" },
     ]) }) as typeof fetch;
 
     await expect(getServers(16498, 1, "sub")).resolves.toEqual([
-      { id: "sub:ally", provider: "ally", label: "ALLY", lang: "sub", verification: undefined, type: undefined },
-      { id: "sub:pewe", provider: "pewe", label: "PEWE", lang: "sub", verification: undefined, type: undefined },
+      { id: "ally:sub:0", provider: "miruro", label: "ALLY", lang: "sub", sources: undefined, headers: undefined, downloads: undefined, subtitles: undefined },
+      { id: "pewe:sub:1", provider: "miruro", label: "PEWE", lang: "sub", sources: undefined, headers: undefined, downloads: undefined, subtitles: undefined },
+      { id: "momo:sub:2", provider: "momo", label: "MOMO", lang: "sub", sources: undefined, headers: undefined, downloads: undefined, subtitles: undefined },
+      { id: "niko:sub:3", provider: "niko", label: "NIKO", lang: "sub", sources: undefined, headers: undefined, downloads: undefined, subtitles: undefined },
     ]);
+  });
+
+  it("deduplicates servers by display name", async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify([
+      { name: "momo", provider: "momo", lang: "sub" },
+      { name: "momo", provider: "momo", lang: "sub" },
+    ]) }) as typeof fetch;
+
+    const result = await getServers(16498, 1, "sub");
+    expect(result).toHaveLength(1);
+    expect(result[0].provider).toBe("momo");
+  });
+
+  it("filters out flixcloud as unsupported", async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify([
+      { name: "flixcloud", provider: "flixcloud", lang: "sub" },
+      { name: "momo", provider: "momo", lang: "sub" },
+    ]) }) as typeof fetch;
+
+    const result = await getServers(16498, 1, "sub");
+    expect(result).toHaveLength(1);
+    expect(result[0].provider).toBe("momo");
+  });
+
+  it("returns empty when the backend only lists flixcloud", async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify([
+      { name: "flixcloud", provider: "flixcloud", lang: "sub" },
+    ]) }) as typeof fetch;
+
+    await expect(getServers(16498, 1, "sub")).resolves.toEqual([]);
   });
 
   it("returns no providers for an out-of-range episode without fabricating a stream", async () => {

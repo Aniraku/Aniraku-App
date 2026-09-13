@@ -9,7 +9,7 @@ type Props = {
 };
 
 export function SubtitleRenderer({ cues, preferences }: Props) {
-  const activeCues = useMemo(() => cues.slice(0, 3), [cues]);
+  const activeCues = useMemo(() => cues.slice(0, 2), [cues]);
 
   if (!preferences.enabled || activeCues.length === 0) return null;
 
@@ -27,7 +27,10 @@ export function SubtitleRenderer({ cues, preferences }: Props) {
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    bottom: 60,
+    // Sits just above the timeline/mini-progress. The parent wrapper already
+    // reserves bottom space, so keep this offset small to avoid pushing cues
+    // behind the top bar on short inline players.
+    bottom: 8,
     left: 16,
     right: 16,
     alignItems: "center",
@@ -35,15 +38,19 @@ const styles = StyleSheet.create({
   },
   cueWrapper: {
     maxWidth: "95%",
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
   },
   cueText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: 15,
     textAlign: "center",
     fontWeight: "700",
-    lineHeight: 24,
-    textShadowColor: "rgba(0,0,0,0.7)",
+    lineHeight: 22,
+    textShadowColor: "rgba(0,0,0,0.85)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 4,
   },
 });
