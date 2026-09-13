@@ -12,7 +12,13 @@ import * as Brightness from "expo-brightness";
 import * as IntentLauncher from "expo-intent-launcher";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
-import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import {
+  ArrowLeft, Gear, Speedometer, Subtitles, SpeakerHigh, SpeakerNone,
+  SkipBack, SkipForward, Play, Pause, ArrowsOut, ArrowsIn, Check, X,
+  Lock, Rewind, FastForward, Download, VideoCamera, CaretLeft, CaretRight,
+  Eye, EyeSlash, Lightning, LightningSlash, Moon, Sun,
+  ListPlus, TextAa, Timer, BookmarkSimple, Queue
+} from "phosphor-react-native";
 import { anirakuDownloadUrl, anirakuProxyUrl, getAnimeMetadata, getEpisodes, getServers, getStream, getPlaybackType, isAnirakuProxyUrl, nativePlaybackHeaders, hasDubForEpisode } from "@/lib/aniraku-api";
 import { getAnimeById, getKnownMalId, getMalIdByAnimeId } from "@/lib/anilist";
 import { enrichEpisodesWithTmdb } from "@/lib/tmdb-episodes";
@@ -1350,7 +1356,7 @@ export default function WatchScreen() {
         {loadingServers ? <ProviderDiscoveryLoader attempt={serverAttempt} /> : loadingStream ? <View style={styles.thumbnailLoading}>
           <Image source={{ uri: selectedEpisode?.thumbnail || watchBackdrop || image || "" }} style={StyleSheet.absoluteFillObject} contentFit="cover" cachePolicy="memory-disk" />
           <View style={styles.thumbnailLoadingShade} />
-          <View style={styles.thumbnailLoadingContent}><View style={styles.thumbnailPlay}><MaterialCommunityIcons name="play" size={18} color={nothing.black} /></View><Text style={styles.thumbnailEpisode}>EPISODE {episode}</Text><Text numberOfLines={2} style={styles.thumbnailTitle}>{selectedEpisode?.title || title}</Text><View style={styles.thumbnailProgress}><View style={styles.thumbnailProgressFill} /></View><Text style={styles.thumbnailStatus}>STARTING VIDEO</Text></View>
+          <View style={styles.thumbnailLoadingContent}><View style={styles.thumbnailPlay}><Play size={18} color={nothing.black} weight="fill" /></View><Text style={styles.thumbnailEpisode}>EPISODE {episode}</Text><Text numberOfLines={2} style={styles.thumbnailTitle}>{selectedEpisode?.title || title}</Text><View style={styles.thumbnailProgress}><View style={styles.thumbnailProgressFill} /></View><Text style={styles.thumbnailStatus}>STARTING VIDEO</Text></View>
         </View> : error ? <Text style={styles.errorText}>{error}</Text> : <Text style={styles.placeholderText}>PREPARING VIDEO</Text>}
       </View>}
 
@@ -1369,14 +1375,14 @@ export default function WatchScreen() {
       {embedSource && !source ? (
         <View style={styles.embedChrome} pointerEvents="box-none">
           <Pressable onPress={() => { if (manualFullscreen) exitFullscreen(); else router.back(); }} accessibilityRole="button" accessibilityLabel="Go back" style={styles.iconButton} hitSlop={10}>
-            <Ionicons name="arrow-back" size={22} color="#FFF" />
+            <ArrowLeft size={22} color="#FFF" weight="bold" />
           </Pressable>
           <Text style={styles.playerTitle} numberOfLines={1}>{`${title} - Episode ${episode}`}</Text>
           <View style={styles.subPillBadge}>
             <Text style={styles.subPillBadgeText}>EMBED</Text>
           </View>
           <Pressable onPress={manualFullscreen ? exitFullscreen : enterFullscreen} accessibilityRole="button" accessibilityLabel={manualFullscreen ? "Exit fullscreen" : "Enter fullscreen"} style={styles.iconButton} hitSlop={8}>
-            <Ionicons name={manualFullscreen ? "contract" : "expand"} size={20} color="#FFF" />
+            {manualFullscreen ? <ArrowsIn size={20} color="#FFF" weight="bold" /> : <ArrowsOut size={20} color="#FFF" weight="bold" />}
           </Pressable>
         </View>
       ) : null}
@@ -1395,7 +1401,7 @@ export default function WatchScreen() {
       {/* Double-tap feedback */}
       {doubleTapSide ? (
         <Animated.View style={[styles.doubleTapOverlay, { left: doubleTapSide === "left" ? "12%" : undefined, right: doubleTapSide === "right" ? "12%" : undefined, opacity: doubleTapAnim }]} pointerEvents="none">
-          <MaterialCommunityIcons name={doubleTapSide === "left" ? "rewind-10" : "fast-forward-10"} size={36} color="#FFF" />
+          {doubleTapSide === "left" ? <Rewind size={36} color="#FFF" weight="bold" /> : <FastForward size={36} color="#FFF" weight="bold" />}
           <Text style={styles.doubleTapText}>{doubleTapSide === "left" ? "-10s" : "+10s"}</Text>
         </Animated.View>
       ) : null}
@@ -1406,21 +1412,21 @@ export default function WatchScreen() {
           {/* TOP BAR */}
           <View style={styles.topBar}>
             <Pressable onPress={() => { if (manualFullscreen) exitFullscreen(); else router.back(); }} accessibilityRole="button" accessibilityLabel="Go back" style={styles.iconButton} hitSlop={10}>
-              <Ionicons name="arrow-back" size={20} color="#FFF" />
+              <ArrowLeft size={20} color="#FFF" weight="bold" />
             </Pressable>
             <Text style={styles.playerTitle} numberOfLines={1} ellipsizeMode="tail">{`${title} - Episode ${episode}`}</Text>
             <View style={styles.topRightRow}>
               <Pressable onPress={() => setShowSpeedModal(true)} accessibilityRole="button" accessibilityLabel="Playback speed" style={styles.iconButton} hitSlop={8}>
-                <Ionicons name="speedometer" size={16} color="#FFF" />
+                <Speedometer size={16} color="#FFF" weight="bold" />
               </Pressable>
               <Pressable onPress={() => setShowSubtitleModal(true)} accessibilityRole="button" accessibilityLabel="Subtitles" style={styles.iconButton} hitSlop={8}>
-                <MaterialCommunityIcons name="subtitles" size={16} color="#FFF" />
+                <Subtitles size={16} color="#FFF" weight="bold" />
               </Pressable>
               <Pressable onPress={() => setShowServerModal(true)} accessibilityRole="button" accessibilityLabel="Select server" style={styles.subPillBadge} hitSlop={8}>
                 <Text style={styles.subPillBadgeText}>{`${language.toUpperCase()} • ${activeProvider?.label || "S1"}`}</Text>
               </Pressable>
               <Pressable onPress={() => setShowSettings(true)} accessibilityRole="button" accessibilityLabel="Quality" style={styles.iconButton} hitSlop={8}>
-                <Ionicons name="settings-sharp" size={16} color="#FFF" />
+                <Gear size={16} color="#FFF" weight="bold" />
               </Pressable>
             </View>
           </View>
@@ -1432,7 +1438,7 @@ export default function WatchScreen() {
               <View style={styles.contextActions}>
                 {resumePosition ? (
                   <Pressable onPress={() => { pendingResume.current = resumePosition; videoRef.current?.seek(resumePosition); setResumePosition(null); }} accessibilityRole="button" style={styles.resumeBtn}>
-                    <MaterialCommunityIcons name="play" size={12} color="#FFF" />
+                    <Play size={12} color="#FFF" weight="fill" />
                     <Text style={styles.resumeBtnText}>{`RESUME ${formatTime(resumePosition)}`}</Text>
                   </Pressable>
                 ) : null}
@@ -1462,29 +1468,29 @@ export default function WatchScreen() {
             <View style={styles.actionRail}>
               <View style={styles.railSide}>
                 <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setMuted((m) => !m); }} accessibilityRole="button" style={styles.iconButton} hitSlop={8}>
-                  <Ionicons name={muted ? "volume-mute" : "volume-high"} size={16} color="#FFF" />
+                  {muted ? <SpeakerNone size={16} color="#FFF" weight="bold" /> : <SpeakerHigh size={16} color="#FFF" weight="bold" />}
                 </Pressable>
                 <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); seekBy(-10); }} accessibilityRole="button" style={styles.iconButton} hitSlop={8}>
-                  <Ionicons name="play-back" size={18} color="#FFF" />
+                  <SkipBack size={18} color="#FFF" weight="bold" />
                 </Pressable>
               </View>
               <View style={styles.railCenter}>
                 <Pressable disabled={!previousKnownEpisode} onPress={() => previousKnownEpisode && goToEpisode(previousKnownEpisode)} accessibilityRole="button" style={[styles.iconButton, !previousKnownEpisode && { opacity: 0.35 }]} hitSlop={8}>
-                  <Ionicons name="play-skip-back" size={20} color="#FFF" />
+                  <SkipBack size={20} color="#FFF" weight="fill" />
                 </Pressable>
                 <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setIsPlaying((p) => !p); }} onLongPress={beginHoldSpeed} onPressOut={endHoldSpeed} delayLongPress={400} accessibilityRole="button" style={styles.bigPlayButton}>
-                  {buffering ? <ActivityIndicator color={nothing.black} /> : <Ionicons name={isPlaying ? "pause" : "play"} size={24} color="#000" style={!isPlaying ? { marginLeft: 2 } : undefined} />}
+                  {buffering ? <ActivityIndicator color={nothing.black} /> : isPlaying ? <Pause size={24} color="#000" weight="fill" /> : <Play size={24} color="#000" weight="fill" style={{ marginLeft: 2 }} />}
                 </Pressable>
                 <Pressable disabled={!nextKnownEpisode} onPress={nextEpisode} accessibilityRole="button" style={[styles.iconButton, !nextKnownEpisode && { opacity: 0.35 }]} hitSlop={8}>
-                  <Ionicons name="play-skip-forward" size={20} color="#FFF" />
+                  <SkipForward size={20} color="#FFF" weight="fill" />
                 </Pressable>
               </View>
               <View style={styles.railSideRight}>
                 <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); seekBy(10); }} accessibilityRole="button" style={styles.iconButton} hitSlop={8}>
-                  <Ionicons name="play-forward" size={18} color="#FFF" />
+                  <SkipForward size={18} color="#FFF" weight="bold" />
                 </Pressable>
                 <Pressable onPress={manualFullscreen ? exitFullscreen : enterFullscreen} accessibilityRole="button" style={styles.iconButton} hitSlop={8}>
-                  <Ionicons name={manualFullscreen ? "contract" : "expand"} size={16} color="#FFF" />
+                  {manualFullscreen ? <ArrowsIn size={16} color="#FFF" weight="bold" /> : <ArrowsOut size={16} color="#FFF" weight="bold" />}
                 </Pressable>
               </View>
             </View>
@@ -1495,13 +1501,13 @@ export default function WatchScreen() {
       {/* Skip Intro/Outro (positioned bottom-right) */}
       {skipKind === "intro" && !playerLocked ? (
         <Pressable style={styles.skipButtonOverlay} onPress={() => skip("intro")} accessibilityRole="button" accessibilityLabel="Skip intro" accessibilityHint="Skips the opening sequence">
-          <MaterialCommunityIcons name="skip-forward" size={16} color="#FFF" />
+          <SkipForward size={16} color="#FFF" weight="bold" />
           <Text style={styles.skipButtonText}>Skip Intro</Text>
         </Pressable>
       ) : null}
       {skipKind === "outro" && !playerLocked ? (
         <Pressable style={styles.skipButtonOverlay} onPress={() => skip("outro")} accessibilityRole="button" accessibilityLabel="Skip outro" accessibilityHint="Skips the ending sequence">
-          <MaterialCommunityIcons name="skip-forward" size={16} color="#FFF" />
+          <SkipForward size={16} color="#FFF" weight="bold" />
           <Text style={styles.skipButtonText}>Skip Outro</Text>
         </Pressable>
       ) : null}
@@ -1509,7 +1515,7 @@ export default function WatchScreen() {
       {/* Locked state */}
       {playerLocked ? (
         <Pressable style={styles.lockedPill} onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); setPlayerLocked(false); }} accessibilityRole="button" accessibilityLabel="Unlock player" accessibilityHint="Unlocks player controls to resume interaction">
-          <Ionicons name="lock-closed" size={16} color="#FFF" />
+          <Lock size={16} color="#FFF" weight="bold" />
           <Text style={styles.lockedText}>Tap to unlock</Text>
         </Pressable>
       ) : null}
@@ -1517,7 +1523,7 @@ export default function WatchScreen() {
       {/* Gesture HUD overlays */}
       {is2xSeeking ? (
         <View style={chrome.badge2x} pointerEvents="none">
-          <MaterialCommunityIcons name="fast-forward" size={16} color="#FFF" />
+          <FastForward size={16} color="#FFF" weight="bold" />
           <Text style={chrome.badge2xText}>2X SPEED</Text>
         </View>
       ) : null}
@@ -1525,7 +1531,7 @@ export default function WatchScreen() {
         <View style={chrome.verticalBarWrap} pointerEvents="none">
           <View style={chrome.verticalBarBg}><View style={[chrome.verticalBarFill, { height: `${volumeHud}%` }]} /></View>
           <View style={chrome.verticalBarLabel}>
-            <MaterialCommunityIcons name={volumeHud === 0 ? "volume-mute" : "volume-high"} size={14} color="#FFF" />
+            {volumeHud === 0 ? <SpeakerNone size={14} color="#FFF" weight="bold" /> : <SpeakerHigh size={14} color="#FFF" weight="bold" />}
             <Text style={chrome.verticalBarText}>{volumeHud}%</Text>
           </View>
         </View>
@@ -1534,7 +1540,7 @@ export default function WatchScreen() {
         <View style={chrome.verticalBarWrapLeft} pointerEvents="none">
           <View style={chrome.verticalBarBg}><View style={[chrome.verticalBarFillBright, { height: `${brightnessHud}%` }]} /></View>
           <View style={chrome.verticalBarLabel}>
-            <MaterialCommunityIcons name="white-balance-sunny" size={14} color="#FFF" />
+            <Sun size={14} color="#FFF" weight="bold" />
             <Text style={chrome.verticalBarText}>{brightnessHud}%</Text>
           </View>
         </View>
@@ -1547,7 +1553,7 @@ export default function WatchScreen() {
           <View style={ps.settingsSection}>
             {displayedQualityOptions.length ? displayedQualityOptions.map((item: WatchQualityOption) => {
               const selected = source ? displayedQuality.toLowerCase() === item.label.toLowerCase() : false;
-              return <Pressable key={item.id} onPress={() => { if (source) void selectAdaptiveQuality(item); else if (item.source) selectQuality(item.source); setShowSettings(false); }} style={[styles.quality, selected && styles.qualityActive]}><Text style={[styles.qualityText, selected && styles.qualityTextActive]}>{item.label.toUpperCase()}</Text>{selected && <Ionicons name="checkmark" size={14} color={nothing.red} />}</Pressable>;
+              return <Pressable key={item.id} onPress={() => { if (source) void selectAdaptiveQuality(item); else if (item.source) selectQuality(item.source); setShowSettings(false); }} style={[styles.quality, selected && styles.qualityActive]}><Text style={[styles.qualityText, selected && styles.qualityTextActive]}>{item.label.toUpperCase()}</Text>{selected && <Check size={14} color={nothing.red} weight="bold" />}</Pressable>;
             }) : <Text style={styles.qualityText}>No quality options</Text>}
           </View>
           <View style={ps.settingsSection}>
@@ -1593,19 +1599,19 @@ export default function WatchScreen() {
     </ScrollView> : null}
 
     {/* ── Modal Pickers ── */}
-    <Modal visible={showSpeedModal} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setShowSpeedModal(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Playback Speed</Text>{[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map((val) => <Pressable key={val} style={[styles.modalItem, speed === val && styles.modalItemActive]} onPress={() => { setSpeed(val); lockedSpeed.current = val; setShowSpeedModal(false); }}><Text style={[styles.modalItemText, speed === val && styles.modalItemTextActive]}>{val === 1.0 ? "1.0x (Normal)" : `${val}x`}</Text>{speed === val && <Ionicons name="checkmark" size={20} color={nothing.red} />}</Pressable>)}</View></Pressable></Modal>
+    <Modal visible={showSpeedModal} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setShowSpeedModal(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Playback Speed</Text>{[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map((val) => <Pressable key={val} style={[styles.modalItem, speed === val && styles.modalItemActive]} onPress={() => { setSpeed(val); lockedSpeed.current = val; setShowSpeedModal(false); }}><Text style={[styles.modalItemText, speed === val && styles.modalItemTextActive]}>{val === 1.0 ? "1.0x (Normal)" : `${val}x`}</Text>{speed === val && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
 
     <Modal visible={showSubtitleModal} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setShowSubtitleModal(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Subtitles</Text>{source?.subtitles?.length ? <>
-      <Pressable style={[styles.modalItem, subtitlePrefs && !subtitlePrefs.enabled && styles.modalItemActive]} onPress={() => { updateSubtitlePrefs({ enabled: false }); setShowSubtitleModal(false); }}><Text style={[styles.modalItemText, subtitlePrefs && !subtitlePrefs.enabled && styles.modalItemTextActive]}>Off</Text>{subtitlePrefs && !subtitlePrefs.enabled && <Ionicons name="checkmark" size={20} color={nothing.red} />}</Pressable>
-      {source.subtitles.map((sub) => { const active = subtitlePrefs?.enabled && selectedSubtitleUrl === sub.url; return <Pressable key={sub.url} style={[styles.modalItem, active && styles.modalItemActive]} onPress={() => { updateSubtitlePrefs({ enabled: true, preferredLanguage: sub.lang || sub.label || "en" }); setShowSubtitleModal(false); }}><Text style={[styles.modalItemText, active && styles.modalItemTextActive]}>{sub.label || sub.lang || "Track"}</Text>{active && <Ionicons name="checkmark" size={20} color={nothing.red} />}</Pressable>; })}
+      <Pressable style={[styles.modalItem, subtitlePrefs && !subtitlePrefs.enabled && styles.modalItemActive]} onPress={() => { updateSubtitlePrefs({ enabled: false }); setShowSubtitleModal(false); }}><Text style={[styles.modalItemText, subtitlePrefs && !subtitlePrefs.enabled && styles.modalItemTextActive]}>Off</Text>{subtitlePrefs && !subtitlePrefs.enabled && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>
+      {source.subtitles.map((sub) => { const active = subtitlePrefs?.enabled && selectedSubtitleUrl === sub.url; return <Pressable key={sub.url} style={[styles.modalItem, active && styles.modalItemActive]} onPress={() => { updateSubtitlePrefs({ enabled: true, preferredLanguage: sub.lang || sub.label || "en" }); setShowSubtitleModal(false); }}><Text style={[styles.modalItemText, active && styles.modalItemTextActive]}>{sub.label || sub.lang || "Track"}</Text>{active && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>; })}
     </> : <Text style={styles.modalItemText}>No subtitles available</Text>}</View></Pressable></Modal>
 
     <Modal visible={showServerModal} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setShowServerModal(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Select Server</Text><View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} onPress={() => selectLanguage(item)} disabled={!providers[item].length} style={[styles.language, language === item && styles.languageActive, !providers[item].length && styles.languageDisabled]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${providers.sub.length}` : `DUB · ${providers.dub.length}`}</Text></Pressable>)}</View>
-      {activeProviders.map((provider, index) => <Pressable key={provider.id} onPress={() => { selectServer(index); setShowServerModal(false); }} style={[styles.modalItem, index === serverIndex && styles.modalItemActive]}><Text style={[styles.modalItemText, index === serverIndex && styles.modalItemTextActive]}>{provider.label}</Text>{index === serverIndex && <Ionicons name="checkmark" size={20} color={nothing.red} />}</Pressable>)}</View></Pressable></Modal>
+      {activeProviders.map((provider, index) => <Pressable key={provider.id} onPress={() => { selectServer(index); setShowServerModal(false); }} style={[styles.modalItem, index === serverIndex && styles.modalItemActive]}><Text style={[styles.modalItemText, index === serverIndex && styles.modalItemTextActive]}>{provider.label}</Text>{index === serverIndex && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
 
     {/* Chapter List Modal */}
     <Modal visible={showChapterList} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setShowChapterList(false)}><View style={styles.chapterModalSheet}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={styles.modalTitle}>CHAPTERS</Text><Pressable onPress={() => setShowChapterList(false)}><Ionicons name="close" size={20} color={nothing.muted} /></Pressable></View>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={styles.modalTitle}>CHAPTERS</Text><Pressable onPress={() => setShowChapterList(false)}><X size={20} color={nothing.muted} weight="bold" /></Pressable></View>
       {duration <= 0 ? <Text style={styles.chapterEmptyText}>No duration data available yet.</Text> : (
         <View style={styles.chapterList}>
           {(() => {
@@ -1628,7 +1634,7 @@ export default function WatchScreen() {
                   </View>
                   <View style={styles.chapterItemRight}>
                     <Text style={styles.chapterDuration}>{formatTime(durationSec)}</Text>
-                    {isActive ? <MaterialCommunityIcons name="play" size={16} color={nothing.red} /> : isPast ? <Ionicons name="checkmark" size={16} color={nothing.dim} /> : <Ionicons name="chevron-forward" size={16} color={nothing.muted} />}
+                    {isActive ? <Play size={16} color={nothing.red} weight="fill" /> : isPast ? <Check size={16} color={nothing.dim} weight="bold" /> : <CaretRight size={16} color={nothing.muted} weight="bold" />}
                   </View>
                 </Pressable>
               );
