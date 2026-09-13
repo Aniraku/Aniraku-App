@@ -438,7 +438,11 @@ export default function WatchScreen() {
     }
     // ALL servers exhausted — mount the first verified embed, if any.
     if (!embedSource) {
-      const fallbackEmbed = embedSources(stream ?? { sources: current.sources ?? [] })[0];
+      // Check both the stream response (which has enriched sources) and the
+      // provider's initial sources from getServers (which may already carry
+      // embed sources from the backend).
+      const embedCandidates = embedSources(stream ?? { sources: current.sources ?? [] });
+      const fallbackEmbed = embedCandidates[0] ?? embedSources({ sources: current.sources ?? [] })[0];
       if (fallbackEmbed) {
         videoRef.current?.pause();
         sourceStarted.current = false;
@@ -619,8 +623,10 @@ export default function WatchScreen() {
         });
         const hasNative = refreshedDirect.length > 0 || refreshedProxies.length > 0;
         if (!hasNative) {
-          // No direct/proxy from this provider — try the next server.
-          // Embed mounts only after ALL servers are exhausted (via handleProviderBlocked).
+          // No direct/proxy from this provider — cache the response so
+          // handleProviderBlocked can read embed sources from `stream`.
+          streamCache.current.set(cacheKey, { savedAt: Date.now(), data: response });
+          setStream(response);
           handleProviderBlockedRef.current("stream");
           return;
         }

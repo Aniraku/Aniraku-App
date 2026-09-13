@@ -85,13 +85,18 @@ export function isProxySource(source: StreamSource) {
 }
 
 export function isVerifiedEmbedSource(source: StreamSource) {
-  return getPlaybackType(source) === "embed" && sourceVerification(source) === "embed";
+  const playbackType = getPlaybackType(source);
+  const verification = sourceVerification(source);
+  // Accept embed if EITHER the type indicates embed OR the verification field does.
+  // Some providers only set one of these.
+  return playbackType === "embed" || verification === "embed";
 }
 
 export function embedSources(response: Pick<StreamResponse, "sources">) {
   const seen = new Set<string>();
   return (response.sources ?? []).filter(isVerifiedEmbedSource).filter((source) => {
     if (!source.url || seen.has(source.url)) return false;
+    if (sourceVerification(source) === "dead") return false;
     seen.add(source.url);
     return true;
   });
