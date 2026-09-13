@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.4.3"
+        default: "v5.4.4"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -115,13 +115,13 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.4.3 — Subtitle & fullscreen overhaul
+            ## v5.4.4 — Subtitle & fullscreen overhaul
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.4.3-arm64.apk`
-            - `aniraku-v5.4.3-arm32.apk`
-            - `aniraku-v5.4.3-universal.apk`
+            - `aniraku-v5.4.4-arm64.apk`
+            - `aniraku-v5.4.4-arm32.apk`
+            - `aniraku-v5.4.4-universal.apk`
 
             - Fixed subtitle parser: VTT/SRT/ASS timestamp formats, proxied URL detection, language matching, persistence.
             - Fixed fullscreen: controls visible on entry, back button exits fullscreen first, landscape padding, z-index layering.

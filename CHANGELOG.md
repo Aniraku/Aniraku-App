@@ -4,6 +4,20 @@
 
 This is the public record of meaningful native Android releases. For the currently installable build, open [GitHub Releases](https://github.com/Aniraku/Aniraku-App/releases/latest).
 
+## v5.4.4 — Phosphor icons + compact player redesign
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- Replaced all Ionicons/MaterialCommunityIcons in the player with Phosphor Icons for a polished, consistent look.
+- Top bar: back, title, speed icon, subtitle icon, server pill, settings gear.
+- Settings panel stripped to quality selection only — inline list, no modal.
+- Speed and subtitle selection moved to top bar icon buttons.
+- Action rail: volume, skip-10, prev-ep, play/pause, next-ep, skip-10, fullscreen.
+- Chapter markers now yellow (#FFD600) for intro/outro.
+- Backward/forward seek buttons: thin SkipBack/SkipForward icons.
+- All control sizes trimmed ~15-20% for compact inline player.
+- Bumps the Android versionCode to 55.
+
 ## v5.4.3 — Subtitle & fullscreen overhaul
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
