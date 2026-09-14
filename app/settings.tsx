@@ -14,6 +14,7 @@ import { deleteCurrentAccount } from "@/lib/account";
 import { checkForAnirakuUpdate, type AppRelease } from "@/lib/app-update";
 import { downloadAndInstallAnirakuUpdate } from "@/lib/android-app-installer";
 import { AppIcon } from "@/components/app-icon";
+import { Toggle } from "@/components/toggle";
 import { PROVIDER_LABELS, ProviderMark, type SyncProvider } from "@/components/provider-mark";
 import { useNsfwPreference } from "@/lib/nsfw-preference";
 import { DotLabel, NothingButton, nothing, Signal } from "@/components/nothing-ui";
@@ -170,7 +171,7 @@ export default function SettingsScreen() {
         <Text style={styles.rowLabel}>{t("settings.nsfwContent")}</Text>
         <Text style={styles.rowMeta}>{t("settings.nsfwContentDetail")}</Text>
       </View>
-      <View style={[styles.toggleTrack, nsfw.enabled && styles.toggleTrackOn]}><View style={[styles.toggleThumb, nsfw.enabled && styles.toggleThumbOn]} /></View>
+      <Toggle enabled={nsfw.enabled} onToggle={nsfw.toggle} label={t("settings.nsfwContent")} />
     </Pressable>
     {nsfw.enabled ? <View style={styles.row}><View style={styles.rowIcon} /><Text style={styles.nsfwWarning}>{t("settings.nsfwWarning")}</Text></View> : null}
 
@@ -182,7 +183,7 @@ export default function SettingsScreen() {
         <Text style={styles.rowLabel}>{t("settings.newEpisodes")}</Text>
         <Text style={styles.rowMeta}>{t("settings.newEpisodesDetail")}</Text>
       </View>
-      <View style={[styles.toggleTrack, notifPrefs.newEpisodes && styles.toggleTrackOn]}><View style={[styles.toggleThumb, notifPrefs.newEpisodes && styles.toggleThumbOn]} /></View>
+      <Toggle enabled={notifPrefs.newEpisodes} onToggle={() => toggleNotifPref("newEpisodes")} label={t("settings.newEpisodes")} />
     </Pressable>
     <Pressable accessibilityRole="button" onPress={() => toggleNotifPref("commentReplies")} style={styles.row}>
       <View style={styles.rowIcon}><AppIcon name="reply" size={18} color={notifPrefs.commentReplies ? nothing.red : nothing.muted} /></View>
@@ -190,7 +191,7 @@ export default function SettingsScreen() {
         <Text style={styles.rowLabel}>{t("settings.commentReplies")}</Text>
         <Text style={styles.rowMeta}>{t("settings.commentRepliesDetail")}</Text>
       </View>
-      <View style={[styles.toggleTrack, notifPrefs.commentReplies && styles.toggleTrackOn]}><View style={[styles.toggleThumb, notifPrefs.commentReplies && styles.toggleThumbOn]} /></View>
+      <Toggle enabled={notifPrefs.commentReplies} onToggle={() => toggleNotifPref("commentReplies")} label={t("settings.commentReplies")} />
     </Pressable>
     <Pressable accessibilityRole="button" onPress={() => toggleNotifPref("systemAnnouncements")} style={styles.row}>
       <View style={styles.rowIcon}><AppIcon name="information" size={18} color={notifPrefs.systemAnnouncements ? nothing.red : nothing.muted} /></View>
@@ -198,7 +199,7 @@ export default function SettingsScreen() {
         <Text style={styles.rowLabel}>{t("settings.systemAnnouncements")}</Text>
         <Text style={styles.rowMeta}>{t("settings.systemAnnouncementsDetail")}</Text>
       </View>
-      <View style={[styles.toggleTrack, notifPrefs.systemAnnouncements && styles.toggleTrackOn]}><View style={[styles.toggleThumb, notifPrefs.systemAnnouncements && styles.toggleThumbOn]} /></View>
+      <Toggle enabled={notifPrefs.systemAnnouncements} onToggle={() => toggleNotifPref("systemAnnouncements")} label={t("settings.systemAnnouncements")} />
     </Pressable>
 
     {/* ── Library sync ── */}
@@ -343,14 +344,4 @@ const styles = StyleSheet.create({
   syncError: { color: nothing.red, fontWeight: "800", fontSize: 10, lineHeight: 14, letterSpacing: 0.3, paddingHorizontal: 4, paddingVertical: 4 },
 
   nsfwWarning: { flex: 1, color: nothing.red, fontSize: 11, lineHeight: 16, fontWeight: "700" },
-
-  toggleTrack: {
-    width: 44, height: 26, borderRadius: 13,
-    borderWidth: 1, borderColor: nothing.line,
-    backgroundColor: nothing.surface,
-    alignItems: "center", justifyContent: "center",
-  },
-  toggleTrackOn: { borderColor: nothing.white, backgroundColor: nothing.white },
-  toggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: nothing.muted },
-  toggleThumbOn: { backgroundColor: nothing.black },
 });

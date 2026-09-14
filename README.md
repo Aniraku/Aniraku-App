@@ -33,21 +33,57 @@
 
 ---
 
-<div align="center">
+### How Aniraku Compares
 
-  ### v5.6.0 is out
+| Feature | Aniraku | Old Anilab | Th3-Anime | AniStream | Animyx |
+|:--|:--:|:--:|:--:|:--:|:--:|
+| **Open Source** | Yes | No | No | No | No |
+| **Multi-Provider** | Yes | Yes | Yes | Limited | Yes |
+| **Skip Intro/Outro** | Yes (AniSkip) | Yes | No | No | No |
+| **Quality Selection** | Auto + Manual | Auto only | Manual | Manual | Auto |
+| **Subtitle Customization** | Font, Size, BG, Outline | Basic | Basic | None | Basic |
+| **Download/Offline** | Yes | Yes | No | No | Yes |
+| **PiP (Picture-in-Picture)** | Yes | Yes | No | No | No |
+| **Sleep Timer** | Yes | No | No | No | No |
+| **Volume/Brightness Gestures** | Yes | Yes | No | No | Partial |
+| **Hold for 2x Speed** | Yes | No | No | No | No |
+| **Server Fallback Chain** | Yes (4-layer) | No | No | No | No |
+| **Episode Notifications** | Yes (stream-verified) | Yes | No | No | Partial |
+| **MAL/AniList Sync** | Yes | Yes | No | No | No |
+| **Watch Statistics** | Yes | No | No | No | No |
+| **Recommendations** | Yes | No | No | No | Partial |
+| **Notify Me (per-anime)** | Yes | No | No | No | No |
+| **Onboarding Flow** | Yes | No | No | No | No |
+| **NSFW Toggle** | Yes | Yes | No | No | No |
+| **Episode Thumbnails** | Yes (TMDB) | Yes | No | No | Partial |
+| **Comments/Ratings** | Yes | No | No | No | No |
+| **Bookmark Sync** | Yes (cloud) | Local only | No | No | Local |
+| **Design System** | "Nothing" (custom) | Material | Basic | Basic | Material |
 
-  Subtitle parser overhaul, fullscreen controls fix, dead control buttons restored, all servers accepted from backend, embed only as last resort. Three builds for full coverage. Chapter navigation, trending discovery, random anime with genre filters, spoiler tags, skeleton loading, swipe between episodes, pull to refresh, landscape auto-rotate, quick actions, performance monitoring, and more.
+---
 
-  | APK |
-  |:--|
-  | [Aniraku-v5.6.0-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.0-arm64.apk) |
-  | [Aniraku-v5.6.0-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.0-arm32.apk) |
-  | [Aniraku-v5.6.0-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.0-universal.apk) |
+### v5.6.0 is out
 
-  <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
+Subtitle parser overhaul, fullscreen controls fix, dead control buttons restored, all servers accepted from backend, embed only as last resort. Three builds for full coverage. Chapter navigation, trending discovery, random anime with genre filters, spoiler tags, skeleton loading, swipe between episodes, pull to refresh, landscape auto-rotate, quick actions, performance monitoring, and more.
 
-</div>
+| APK |
+|:--|
+| [Aniraku-v5.6.0-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.0-arm64.apk) |
+| [Aniraku-v5.6.0-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.0-arm32.apk) |
+| [Aniraku-v5.6.0-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.0-universal.apk) |
+
+<sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
+
+---
+
+### Coming Soon
+
+| Feature | Status | Notes |
+|:--|:--|:--|
+| **Watch Party** | Planned | Social co-watching with synced playback. Requires backend infrastructure and real-time sync layer. |
+| **Chromecast/Casting** | Planned | Google Cast SDK integration for TV playback. |
+| **Background Audio** | Planned | Listen to anime audio while the app is backgrounded. |
+| **Light Theme** | Planned | Full light mode with the same "Nothing" design language. |
 
 ---
 

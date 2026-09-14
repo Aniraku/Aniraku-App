@@ -6,7 +6,7 @@ import { resolveMaxHistoryProgress } from "@/lib/watch-engine";
 import { LOCAL_WATCH_KEY_PREFIX, parseLocalWatchEntry, type LocalWatchEntry } from "@/lib/watch-progress";
 import { useAnirakuAuth } from "@/providers/auth-provider";
 
-export type HistoryInput = { animeId: number; animeTitle: string; animeImage?: string | null; episode: number; episodeTitle?: string | null; progress: number; duration: number };
+export type HistoryInput = { animeId: number; animeTitle: string; animeImage?: string | null; episode: number; episodeTitle?: string | null; episodeThumbnail?: string | null; progress: number; duration: number };
 
 const HISTORY_CACHE_PREFIX = "aniraku.history-cache.v1:";
 
@@ -132,7 +132,7 @@ export function useWatchHistory() {
     } catch {
       // Best-effort only; fall back to the incoming progress.
     }
-    const { error } = await supabase.from("watch_history").upsert({ user_id: user.id, anime_id: input.animeId, anime_title: input.animeTitle, anime_image: cover, episode_number: input.episode, episode_title: input.episodeTitle ?? null, timestamp: Date.now(), progress, duration: input.duration }, { onConflict: "user_id,anime_id,episode_number" });
+    const { error } = await supabase.from("watch_history").upsert({ user_id: user.id, anime_id: input.animeId, anime_title: input.animeTitle, anime_image: cover, episode_number: input.episode, episode_title: input.episodeTitle ?? null, episode_thumbnail: input.episodeThumbnail ?? null, timestamp: Date.now(), progress, duration: input.duration }, { onConflict: "user_id,anime_id,episode_number" });
     if (error) throw error;
   }, onSuccess: () => void queryClient.invalidateQueries({ queryKey }) });
   const remove = useMutation({ mutationFn: async (entry: { animeId: number; episode: number }) => { if (!user) return; const { error } = await supabase.from("watch_history").delete().eq("user_id", user.id).eq("anime_id", entry.animeId).eq("episode_number", entry.episode); if (error) throw error; }, onSuccess: () => void queryClient.invalidateQueries({ queryKey }) });

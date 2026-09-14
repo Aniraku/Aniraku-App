@@ -216,3 +216,18 @@ export async function getAiringSchedule(page = 1, perPage = 40, window?: AiringS
   const data = await request<{ Page: AiringSchedulePage }>(airingScheduleQuery, { page, perPage, startAt: window?.startAt, endAt: window?.endAt });
   return data.Page;
 }
+
+export async function getRecommendations(animeId: number): Promise<Anime[]> {
+  const query = `query Recommendations($mediaId: Int!) {
+    MediaRecommendations(mediaId: $mediaId, sort: RATING_DESC, perPage: 12) {
+      edges {
+        node {
+          rating
+          mediaRecommendation { ${fields} }
+        }
+      }
+    }
+  }`;
+  const data = await request<{ MediaRecommendations?: { edges?: Array<{ node: { rating: number; mediaRecommendation: Anime } }> } }>(query, { mediaId: animeId });
+  return (data.MediaRecommendations?.edges ?? []).map((edge) => edge.node.mediaRecommendation);
+}

@@ -7,6 +7,7 @@ import * as Linking from "expo-linking";
 import { AppIcon } from "@/components/app-icon";
 import type { Anime } from "@/lib/types";
 import { animeTitle } from "@/lib/types";
+import { usePrefetchAnime } from "@/lib/prefetch";
 import { nothing, Signal } from "@/components/nothing-ui";
 
 type ActionItem = { label: string; icon: string; onPress: () => void };
@@ -20,6 +21,7 @@ export function AnimeCard({ anime, compact = false }: { anime: Anime; compact?: 
   const artwork = anime.coverImage?.extraLarge || anime.coverImage?.large;
   const [menuVisible, setMenuVisible] = useState(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prefetch = usePrefetchAnime();
 
   const cancelLongPress = () => {
     if (longPressTimer.current) {
@@ -76,6 +78,7 @@ export function AnimeCard({ anime, compact = false }: { anime: Anime; compact?: 
         onPress={() => {
           cancelLongPress();
           void Haptics.selectionAsync();
+          prefetch(anime.id);
           router.push((`/anime/${anime.id}`) as never);
         }}
         onPressIn={() => {

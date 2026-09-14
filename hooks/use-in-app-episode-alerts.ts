@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useRef } from "react";
 import { AppState } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
-import { getEpisodes } from "@/lib/aniraku-api";
+import { getEpisodes, getServers } from "@/lib/aniraku-api";
 import { getAnimeById } from "@/lib/anilist";
 import { availableReleasedEpisode, shouldCreateEpisodeAlert, type EpisodeAlertMarker } from "@/lib/in-app-alerts";
 import { scheduleNewEpisodeNotification } from "@/providers/notifications-provider";
@@ -12,6 +12,7 @@ import { useAnirakuAuth } from "@/providers/auth-provider";
 type BookmarkRecord = { anime_id: number; title?: string | null };
 type MarkerMap = Record<string, EpisodeAlertMarker>;
 const markerKey = (userId: string) => `aniraku-episode-track:${userId}`;
+const NOTIFY_ME_KEY = "aniraku.notify-me.v1";
 
 function parseMarkers(raw: string | null): MarkerMap {
   try {
@@ -22,9 +23,25 @@ function parseMarkers(raw: string | null): MarkerMap {
   }
 }
 
+async function getNotifyMeAnimeIds(): Promise<number[]> {
+  try {
+    const raw = await AsyncStorage.getItem(NOTIFY_ME_KEY);
+    if (!raw) return [];
+    const map = JSON.parse(raw);
+    return Object.keys(map).map(Number).filter((id) => Number.isFinite(id) && id > 0);
+  } catch {
+    return [];
+  }
+}
+
 /**
- * Native counterpart to the main site's bookmark release check. It deliberately
- * writes only the synced in-app inbox; no device-push provider is contacted.
+ * Enhanced episode alert monitor:
+ * 1. Checks bookmarks every 30 minutes (down from 6h)
+ * 2. Also on every app foreground
+ * 3. Verifies AniList has a released episode
+ * 4. Verifies the backend episode list includes it
+ * 5. Verifies the backend actually has streaming servers for it
+ * 6. Only THEN sends notification
  */
 export function InAppEpisodeAlertMonitor() {
   const { user } = useAnirakuAuth();
@@ -36,30 +53,44 @@ export function InAppEpisodeAlertMonitor() {
     running.current = true;
     try {
       const { data, error } = await supabase.from("bookmarks").select("anime_id,title").eq("user_id", user.id);
-      if (error || !data?.length) return;
-      const bookmarks = data as BookmarkRecord[];
+      const bookmarkRecords = (error || !data?.length) ? [] : (data as BookmarkRecord[]);
+      const notifyMeIds = await getNotifyMeAnimeIds();
+      const bookmarkIds = new Set(bookmarkRecords.map((b) => b.anime_id));
+      const notifyMeTitles = bookmarkRecords.filter((b) => bookmarkIds.has(b.anime_id));
+      const allAnimeIds = [...new Set([...bookmarkRecords.map((b) => b.anime_id), ...notifyMeIds])];
+      if (!allAnimeIds.length) return;
       const now = Date.now();
       const markers = parseMarkers(await AsyncStorage.getItem(markerKey(user.id)).catch(() => null));
       let changed = false;
 
-      for (const bookmark of bookmarks) {
+      for (const animeId of allAnimeIds) {
         try {
-          const anime = await getAnimeById(Number(bookmark.anime_id));
+          const anime = await getAnimeById(animeId);
           const releasedEpisode = availableReleasedEpisode(anime);
-          const marker = markers[String(bookmark.anime_id)];
+          const marker = markers[String(animeId)];
           if (!releasedEpisode || !shouldCreateEpisodeAlert(marker, releasedEpisode, now)) continue;
 
-          const episodes = await getEpisodes(Number(bookmark.anime_id));
+          const episodes = await getEpisodes(animeId);
           if (!episodes.some((item) => item.number === releasedEpisode)) continue;
 
-          const title = bookmark.title || anime.title.english || anime.title.romaji || anime.title.native || "Your saved anime";
-          const message = `Episode ${releasedEpisode} of ${title} is now available`;
+          const [subServers, dubServers] = await Promise.all([
+            getServers(animeId, releasedEpisode, "sub").catch(() => []),
+            getServers(animeId, releasedEpisode, "dub").catch(() => []),
+          ]);
+          const hasSource = subServers.length > 0 || dubServers.length > 0;
+          if (!hasSource) continue;
+
+          const bookmarkRecord = bookmarkRecords.find((b) => b.anime_id === animeId);
+          const title = bookmarkRecord?.title || anime.title.english || anime.title.romaji || anime.title.native || "Your saved anime";
+          const hasDub = dubServers.length > 0;
+          const message = `Episode ${releasedEpisode} of ${title} is now available${hasDub ? " (Sub & Dub)" : " (Sub)"}`;
+
           const { data: existing, error: lookupError } = await supabase
             .from("notifications")
             .select("id")
             .eq("user_id", user.id)
             .eq("type", "new_episode")
-            .eq("anime_id", bookmark.anime_id)
+            .eq("anime_id", animeId)
             .eq("message", message)
             .limit(1);
           if (lookupError) continue;
@@ -69,19 +100,19 @@ export function InAppEpisodeAlertMonitor() {
               user_id: user.id,
               type: "new_episode",
               message,
-              anime_id: bookmark.anime_id,
+              anime_id: animeId,
             });
             if (insertError && insertError.code !== "23505") continue;
           }
-          markers[String(bookmark.anime_id)] = { episode: releasedEpisode, checkedAt: now };
+          markers[String(animeId)] = { episode: releasedEpisode, checkedAt: now };
           changed = true;
           void scheduleNewEpisodeNotification({
-            animeId: Number(bookmark.anime_id),
+            animeId,
             title,
             episode: releasedEpisode,
           }).catch(() => {});
         } catch {
-          // One rate-limited title must never block the rest of the saved library.
+          // One rate-limited title must never block the rest.
         }
       }
 
@@ -97,7 +128,8 @@ export function InAppEpisodeAlertMonitor() {
   useEffect(() => {
     if (!user) return;
     void checkForReleasedEpisodes();
-    const interval = setInterval(() => { void checkForReleasedEpisodes(); }, 21_600_000);
+    // Check every 30 minutes instead of 6 hours
+    const interval = setInterval(() => { void checkForReleasedEpisodes(); }, 30 * 60 * 1000);
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") void checkForReleasedEpisodes();
     });

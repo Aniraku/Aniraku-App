@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { router } from "expo-router";
+import { useLocalSearchParams, router } from "expo-router";
 import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { getAnimePage, isAniListRateLimitError } from "@/lib/anilist";
@@ -65,6 +65,8 @@ function SearchResultRow({ anime, onPress }: { anime: any; onPress: () => void }
 }
 
 export default function SearchScreen() {
+  const params = useLocalSearchParams<{ genre?: string }>();
+  const genreFilter = params.genre || null;
   const nsfw = useNsfwPreference();
   const isAdultParam = nsfwFilterParam(nsfw.enabled);
   const [input, setInput] = useState("");
@@ -96,10 +98,12 @@ export default function SearchScreen() {
   }, [normalizedInput]);
 
   const waitingForInput = normalizedInput.length > 1 && query !== normalizedInput;
+  const isGenreMode = Boolean(genreFilter);
+  const searchQuery = isGenreMode ? (query || " ") : query;
   const results = useQuery({
-    queryKey: ["search", query, isAdultParam],
-    queryFn: () => getAnimePage({ search: query, perPage: 20, sort: ["SEARCH_MATCH"], isAdult: isAdultParam }),
-    enabled: query.length > 1,
+    queryKey: ["search", searchQuery, genreFilter, isAdultParam],
+    queryFn: () => getAnimePage({ search: isGenreMode && !query ? undefined : searchQuery, genre: genreFilter || undefined, perPage: 20, sort: ["SEARCH_MATCH"], isAdult: isAdultParam }),
+    enabled: isGenreMode || query.length > 1,
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     refetchOnMount: false,
@@ -158,7 +162,7 @@ export default function SearchScreen() {
     ]);
   }, []);
 
-  const isIdle = normalizedInput.length <= 1;
+  const isIdle = !isGenreMode && normalizedInput.length <= 1;
 
   return <NativeScreen scroll={false} style={styles.fill}>
     <View style={styles.header}>
@@ -167,11 +171,9 @@ export default function SearchScreen() {
       </Pressable>
       <View style={styles.searchInputWrap}>
         <AppIcon name="magnify" size={18} color={nothing.muted} />
-        <TextInput autoFocus value={input} onChangeText={setInput} placeholder="Search anime..." placeholderTextColor={nothing.dim} style={styles.input} returnKeyType="search" clearButtonMode="while-editing" />
+        <TextInput autoFocus={!isGenreMode} value={input} onChangeText={setInput} placeholder={genreFilter ? `Search in ${genreFilter}...` : "Search anime..."} placeholderTextColor={nothing.dim} style={styles.input} returnKeyType="search" />
+        {genreFilter ? <Pressable onPress={() => router.back()} style={styles.genreClear}><Text style={styles.genreClearText}>{genreFilter.toUpperCase()}</Text><AppIcon name="close" size={14} color={nothing.red} /></Pressable> : null}
       </View>
-      <Pressable style={({ pressed }) => [styles.filterBtn, pressed && styles.pressed]}>
-        <AppIcon name="tune-variant" size={18} color={nothing.muted} />
-      </Pressable>
     </View>
 
     {isIdle ? (
@@ -208,15 +210,15 @@ export default function SearchScreen() {
         </View>
       </View>
     ) : waitingForInput || results.isPending ? (
-      <LoadingState label={`Searching for "${normalizedInput}"`} />
+      <LoadingState label={isGenreMode ? `Loading ${genreFilter} anime` : `Searching for "${normalizedInput}"`} />
     ) : results.isError || !results.data ? (
       <ErrorState message={results.error?.message ?? "Search is unavailable."} onRetry={retrySearch} retryDisabled={retryIsBlocked} retryLabel={retryIsBlocked ? `TRY AGAIN IN ${retrySeconds}S` : "TRY AGAIN"} />
     ) : results.data.media.length === 0 ? (
-      <EmptyState label={`No titles found for "${query}".`} />
+      <EmptyState label={isGenreMode ? `No ${genreFilter} anime found.` : `No titles found for "${query}".`} />
     ) : (
       <View style={styles.resultsWrap}>
         <View style={styles.resultsHead}>
-          <DotLabel tone="live">TOP SEARCH</DotLabel>
+          <DotLabel tone="live">{isGenreMode ? genreFilter?.toUpperCase() : "TOP SEARCH"}</DotLabel>
         </View>
         <FlatList
           data={results.data.media}
@@ -237,6 +239,8 @@ const styles = StyleSheet.create({
   searchInputWrap: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
   input: { flex: 1, minHeight: 44, color: nothing.white, fontSize: 15 },
   filterBtn: { width: 38, height: 38, borderRadius: 8, borderWidth: 1, borderColor: nothing.line, alignItems: "center", justifyContent: "center" },
+  genreClear: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: "rgba(255,77,77,0.12)" },
+  genreClearText: { color: nothing.red, fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
 
   idleContent: { flex: 1, paddingHorizontal: 16, gap: 24 },
   historySection: { gap: 2 },

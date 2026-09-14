@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocalSearchParams, router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery } from "@tanstack/react-query";
-import { ActivityIndicator, Animated, BackHandler, Dimensions, FlatList, LayoutChangeEvent, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Animated, BackHandler, Dimensions, FlatList, LayoutChangeEvent, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Image } from "expo-image";
 import Video, { type OnProgressData, type OnLoadData, type OnBufferData, type VideoRef } from "react-native-video";
 import { useKeepAwake } from "expo-keep-awake";
@@ -63,6 +63,7 @@ import {
 import { animeTitle, type Episode, type Server, type StreamResponse, type StreamSource } from "@/lib/types";
 import { useWatchHistory } from "@/hooks/use-watch-history";
 import { useEpisodeRatings } from "@/hooks/use-episode-ratings";
+import { useSubDubCounts } from "@/hooks/use-sub-dub-counts";
 import { AnimeComments } from "@/components/anime-comments";
 import { useProviderSync } from "@/hooks/use-provider-sync";
 import { useAnirakuAuth } from "@/providers/auth-provider";
@@ -153,6 +154,7 @@ export default function WatchScreen() {
   const history = useWatchHistory();
   const ratings = useEpisodeRatings(animeId);
   const providerSync = useProviderSync();
+  const subDubCounts = useSubDubCounts(animeId);
   const episodeQuery = useQuery({ queryKey: ["watch-episodes", animeId], queryFn: () => getEpisodes(animeId), enabled: Number.isFinite(animeId) && animeId > 0, staleTime: 60_000 });
   const canonicalEpisodes = episodeQuery.data ?? EMPTY_EPISODES;
   const episodeSignature = useMemo(() => canonicalEpisodes.map((item) => `${item.number}:${item.title ?? ""}:${item.thumbnail ?? ""}`).join("|"), [canonicalEpisodes]);
@@ -265,8 +267,6 @@ export default function WatchScreen() {
   const [orientationLocked, setOrientationLocked] = useState(false);
   const [playerLocked, setPlayerLocked] = useState(false);
   const [lastPlayerError, setLastPlayerError] = useState<string | null>(null);
-  const [audioTracks, setAudioTracks] = useState<any[]>([]);
-  const [selectedAudioTrack, setSelectedAudioTrack] = useState<{ type: "language" | "title" | "index"; value?: string | number } | undefined>(undefined);
   const [sleepRemaining, setSleepRemaining] = useState<number | null>(null);
   const [is2xSeeking, setIs2xSeeking] = useState(false);
   const [doubleTapSide, setDoubleTapSide] = useState<"left" | "right" | null>(null);
@@ -975,8 +975,8 @@ export default function WatchScreen() {
   useEffect(() => {
     if (!auth.user || !source || currentTime < 1 || duration <= 0 || currentTime - lastHistorySync.current < 10) return;
     lastHistorySync.current = currentTime;
-    history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, progress: currentTime, duration });
-  }, [animeId, auth.user, currentTime, duration, episode, history.save, image, source, title]);
+    history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, episodeTitle: selectedEpisode?.title || null, episodeThumbnail: selectedEpisode?.thumbnail || null, progress: currentTime, duration });
+  }, [animeId, auth.user, currentTime, duration, episode, history.save, image, selectedEpisode?.title, selectedEpisode?.thumbnail, source, title]);
 
   useEffect(() => {
     if (!auth.user || !source || currentTime < 1 || duration <= 0 || providerSync.connected.length === 0 || currentTime - lastProviderSync.current < 90) return;
@@ -1011,7 +1011,7 @@ export default function WatchScreen() {
     if (currentTime / duration < 0.9) return;
     markedComplete.current = true;
     if (auth.user) {
-      history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, progress: currentTime, duration });
+      history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, episodeTitle: selectedEpisode?.title || null, episodeThumbnail: selectedEpisode?.thumbnail || null, progress: currentTime, duration });
       if (providerSync.connected.length) providerSync.pushProgress.mutate({ animeId, episode, progress: Math.floor(currentTime), status: "completed" });
     } else {
       void AsyncStorage.setItem(`aniraku-watch-local:${animeId}:${episode}`, JSON.stringify({ progress: currentTime, duration, completed: true, savedAt: Date.now() })).catch(() => {});
@@ -1879,16 +1879,15 @@ export default function WatchScreen() {
       {embedSource && !source ? <EmbedPlayer uri={embedSource.url} headers={nativePlaybackHeaders(playbackHeaders)} onError={() => handleProviderBlockedRef.current("player")} onLoaded={() => { embedReadyRef.current = true; }} /> : null}
       {source ? <Video key={activeProvider?.id ?? "default"} ref={videoRef} style={StyleSheet.absoluteFill} source={{ uri: videoSourceUri, headers: videoSourceHeaders, type: videoContentType, bufferConfig: videoBufferConfig }}
         paused={!isPlaying} rate={is2xSeeking ? 2.0 : speed} resizeMode="contain" muted={muted} volume={volume}
-        maxBitRate={adaptiveBitrateCap ?? undefined} selectedAudioTrack={selectedAudioTrack as any}
+        maxBitRate={adaptiveBitrateCap ?? undefined}
         onLoad={(data: OnLoadData) => { if (__DEV__) console.log(`[watch] first-frame t=${Date.now() - _watchMountTime}ms provider=${activeProvider?.id ?? "?"}`); setDuration(data.duration); sourceFirstFrame.current = true; sourceStarted.current = true; setPlayerStatus("playing"); setIsPlaying(true); setLastPlayerError(null); setShowControls(true); }}
         onProgress={handleVideoProgress}
         onBuffer={(data: OnBufferData) => { setBuffering(data.isBuffering); }}
         onVideoTracks={handleVideoTracks}
         onBandwidthUpdate={handleBandwidthUpdate}
         onPictureInPictureStatusChanged={onPipStatusChanged}
-        onAudioTracks={(event: any) => setAudioTracks(event?.audioTracks ?? [])}
         onError={(event: any) => { const detail = event?.error?.errorString || event?.error?.errorCode || "Unknown player error"; const mountedUrl = source?.url ?? null; if (shouldRefreshMasterOnVariantError({ errorDetail: String(detail), variantUrl: mountedUrl, refreshedAlready: variantTokenRefreshAttempted.current === mountedUrl })) { variantTokenRefreshAttempted.current = mountedUrl; void refreshVariantFromMaster(); return; } setLastPlayerError(String(detail)); setPlayerStatus("error"); if (!useSourceProxy) { setUseSourceProxy(true); setSourceRevision((v) => v + 1); return; } handleProviderBlockedRef.current("player"); }}
-        onEnd={() => { const reachedEnd = duration > 30 && currentTime >= Math.max(1, duration - 2); if (!sourceStarted.current || !reachedEnd) return; if (auth.user) { history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, progress: duration || currentTime, duration: duration || currentTime }); if (providerSync.connected.length) providerSync.pushProgress.mutate({ animeId, episode, progress: Math.floor(duration || currentTime), status: "completed" }); } showUpNext(); }}
+        onEnd={() => { const reachedEnd = duration > 30 && currentTime >= Math.max(1, duration - 2); if (!sourceStarted.current || !reachedEnd) return; if (auth.user) { history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, episodeTitle: selectedEpisode?.title || null, episodeThumbnail: selectedEpisode?.thumbnail || null, progress: duration || currentTime, duration: duration || currentTime }); if (providerSync.connected.length) providerSync.pushProgress.mutate({ animeId, episode, progress: Math.floor(duration || currentTime), status: "completed" }); } showUpNext(); }}
       /> : <View style={styles.videoPlaceholder}>
         {loadingServers ? <ProviderDiscoveryLoader attempt={serverAttempt} /> : loadingStream ? <View style={styles.thumbnailLoading}>
           <Image source={{ uri: selectedEpisode?.thumbnail || watchBackdrop || image || "" }} style={StyleSheet.absoluteFillObject} contentFit="cover" cachePolicy="memory-disk" />
@@ -2080,14 +2079,16 @@ export default function WatchScreen() {
       {/* Skip Intro/Outro (positioned bottom-right) */}
       {skipKind === "intro" && !playerLocked ? (
         <Pressable style={styles.skipButtonOverlay} onPress={() => skip("intro")} accessibilityRole="button" accessibilityLabel="Skip intro" accessibilityHint="Skips the opening sequence">
-          <SkipForward size={16} color="#FFF" weight="bold" />
-          <Text style={styles.skipButtonText}>{`Skip Intro · ${Math.max(0, Math.round((skipSegments.intro?.endTime ?? currentTime) - currentTime))}s`}</Text>
+          <SkipForward size={14} color="#FFF" weight="bold" />
+          <Text style={styles.skipButtonText}>{`SKIP INTRO`}</Text>
+          <Text style={styles.skipCountdown}>{`· ${Math.max(0, Math.round((skipSegments.intro?.endTime ?? currentTime) - currentTime))}s`}</Text>
         </Pressable>
       ) : null}
       {skipKind === "outro" && !playerLocked ? (
         <Pressable style={styles.skipButtonOverlay} onPress={() => skip("outro")} accessibilityRole="button" accessibilityLabel="Skip outro" accessibilityHint="Skips the ending sequence">
-          <SkipForward size={16} color="#FFF" weight="bold" />
-          <Text style={styles.skipButtonText}>{`Skip Outro · ${Math.max(0, Math.round((skipSegments.outro?.endTime ?? currentTime) - currentTime))}s`}</Text>
+          <SkipForward size={14} color="#FFF" weight="bold" />
+          <Text style={styles.skipButtonText}>{`SKIP OUTRO`}</Text>
+          <Text style={styles.skipCountdown}>{`· ${Math.max(0, Math.round((skipSegments.outro?.endTime ?? currentTime) - currentTime))}s`}</Text>
         </Pressable>
       ) : null}
 
@@ -2258,7 +2259,7 @@ export default function WatchScreen() {
         <Text style={styles.th3Watching}><Text style={styles.th3WatchingGreen}>You are watching </Text><Text style={styles.th3WatchingWhite}>Episode {episode}</Text></Text>
         {swipeDirectionHint ? <View style={styles.swipeHintRow}><AppIcon name="chevron-left" size={12} color={previousKnownEpisode ? nothing.muted : nothing.dim} /><Text style={[styles.swipeHintText, !previousKnownEpisode && !nextKnownEpisode && { color: nothing.dim }]}>{swipeDirectionHint}</Text><AppIcon name="chevron-right" size={12} color={nextKnownEpisode ? nothing.muted : nothing.dim} /></View> : null}
         <View style={styles.th3Tabs}>
-          {(["sub", "dub"] as Language[]).map((item) => { const active = language === item; const empty = !providers[item].length; return <Pressable key={item} accessibilityRole="tab" accessibilityLabel={`${item === "sub" ? "Subtitled" : "Dubbed"}${active ? " (selected)" : ""}`} accessibilityHint={empty ? "No servers available" : "Switch to this audio language"} disabled={empty} onPress={() => selectLanguage(item)} style={[styles.th3Tab, active && styles.th3TabActive]}><Text style={[styles.th3TabText, active ? styles.th3TabTextActive : empty && styles.th3TabTextEmpty]}>{item === "sub" ? "Sub" : "Dub"}</Text></Pressable>; })}
+          {(["sub", "dub"] as Language[]).map((item) => { const active = language === item; const empty = !providers[item].length; const epCount = item === "sub" ? subDubCounts.sub : subDubCounts.dub; return <Pressable key={item} accessibilityRole="tab" accessibilityLabel={`${item === "sub" ? "Subtitled" : "Dubbed"}${active ? " (selected)" : ""}`} accessibilityHint={empty ? "No servers available" : "Switch to this audio language"} disabled={empty} onPress={() => selectLanguage(item)} style={[styles.th3Tab, active && styles.th3TabActive]}><Text style={[styles.th3TabText, active ? styles.th3TabTextActive : empty && styles.th3TabTextEmpty]}>{item === "sub" ? "SUB" : "DUB"}{subDubCounts.loading && !empty ? "" : epCount > 0 ? ` · ${epCount}` : ""}</Text></Pressable>; })}
         </View>
         <View style={styles.th3Servers}>
           {activeProviders.map((provider, index) => { const active = index === serverIndex; return <Pressable key={provider.id} accessibilityRole="button" accessibilityLabel={`Server: ${provider.label}${active ? " (selected)" : ""}`} accessibilityHint={active ? "Currently active server" : "Switch to this streaming server"} onPress={() => selectServer(index)} style={[styles.th3Server, active && styles.th3ServerActive]}><Text style={[styles.th3ServerText, active && styles.th3ServerTextActive]}>{provider.label}</Text></Pressable>; })}
@@ -2287,7 +2288,7 @@ export default function WatchScreen() {
     {/* ── Modal Pickers ── */}
     <Modal visible={activePanel === "speed"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>{t("player.playbackSpeed")}</Text>{[0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((val) => <Pressable key={val} style={[styles.modalItem, speed === val && styles.modalItemActive]} onPress={() => { setSpeed(val); lockedSpeed.current = val; setActivePanel(null); }}><Text style={[styles.modalItemText, speed === val && styles.modalItemTextActive]}>{val === 1.0 ? "1.0x (Normal)" : `${val}x`}</Text>{speed === val && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
 
-    <Modal visible={activePanel === "server"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>{t("player.selectServer")}</Text><View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} onPress={() => selectLanguage(item)} disabled={!providers[item].length} style={[styles.language, language === item && styles.languageActive, !providers[item].length && styles.languageDisabled]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${providers.sub.length}` : `DUB · ${providers.dub.length}`}</Text></Pressable>)}</View>
+    <Modal visible={activePanel === "server"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>{t("player.selectServer")}</Text><View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => { const epCount = item === "sub" ? subDubCounts.sub : subDubCounts.dub; return <Pressable key={item} onPress={() => selectLanguage(item)} disabled={!providers[item].length} style={[styles.language, language === item && styles.languageActive, !providers[item].length && styles.languageDisabled]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${epCount || providers.sub.length}` : `DUB · ${epCount || providers.dub.length}`}</Text></Pressable>; })}</View>
       {activeProviders.map((provider, index) => <Pressable key={provider.id} onPress={() => { selectServer(index); setActivePanel(null); }} style={[styles.modalItem, index === serverIndex && styles.modalItemActive]}><Text style={[styles.modalItemText, index === serverIndex && styles.modalItemTextActive]}>{provider.label}</Text>{index === serverIndex && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
 
     {/* Chapter List Modal */}
@@ -2407,7 +2408,7 @@ const styles = StyleSheet.create({
   doubleTapOverlay: { position: "absolute", top: "32%", alignItems: "center", justifyContent: "center", zIndex: 12 },
   doubleTapText: { color: "#FFF", fontSize: 12, fontWeight: "800", marginTop: 3 },
   chapterMarker: { position: "absolute", height: 2, backgroundColor: "#FFD600", borderRadius: 1, top: 7 },
-  skipButtonOverlay: { position: "absolute", bottom: 120, right: 12, backgroundColor: nothing.red, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 5, zIndex: 15, elevation: 6 },
+  skipButtonOverlay: { position: "absolute", bottom: 120, right: 12, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, flexDirection: "row", alignItems: "center", gap: 4, zIndex: 15, elevation: 6, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 8 },
   upNextCard: { position: "absolute", bottom: 120, right: 12, zIndex: 15, elevation: 6, flexDirection: "row", gap: 8, alignItems: "center", maxWidth: 260, backgroundColor: "rgba(9,9,9,0.88)", borderRadius: 8, padding: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
   upNextPoster: { width: 44, height: 62, borderRadius: 4, backgroundColor: nothing.raised },
   upNextCopy: { flex: 1, gap: 3 },
@@ -2417,7 +2418,8 @@ const styles = StyleSheet.create({
   upNextPlay: { minHeight: 30, paddingHorizontal: 10, justifyContent: "center", borderRadius: 4, backgroundColor: nothing.red },
   upNextPlayText: { color: "#FFF", fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
   upNextDismiss: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 4 },
-  skipButtonText: { color: "#FFF", fontSize: 11, fontWeight: "700" },
+  skipButtonText: { color: nothing.black, fontSize: 11, fontWeight: "800", letterSpacing: 0.3, textTransform: "uppercase" },
+  skipCountdown: { color: nothing.muted, fontSize: 11, fontWeight: "700", letterSpacing: 0.2 },
   lockedPill: { position: "absolute", bottom: 32, alignSelf: "center", backgroundColor: "rgba(0,0,0,0.8)", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)", zIndex: 15 },
   lockedPillArmed: { borderColor: nothing.red },
   bufferingVeil: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", zIndex: 2 },

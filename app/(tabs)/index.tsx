@@ -3,10 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { getHomeAnime } from "@/lib/anilist";
+import { getHomeAnime, getAnimePage } from "@/lib/anilist";
 import { nsfwFilterParam, useNsfwPreference } from "@/lib/nsfw-preference";
 import { animeTitle } from "@/lib/types";
 import { hapticLight } from "@/lib/haptics";
+import { usePrefetchAnime } from "@/lib/prefetch";
+import { useUserTopGenre } from "@/hooks/use-user-top-genre";
 import { AnimeRail } from "@/components/anime-rail";
 import { ErrorState } from "@/components/async-state";
 import { nothing } from "@/components/nothing-ui";
@@ -35,11 +37,14 @@ function timeAgo(timestamp?: number | null): string {
 }
 
 function ContinueCard({ entry }: {
-  entry: { anime_id: number; episode_number: number; progress: number; duration?: number | null; anime_title?: string | null; anime_cover?: string | null; timestamp?: number | null };
+  entry: { anime_id: number; episode_number: number; progress: number; duration?: number | null; anime_title?: string | null; anime_cover?: string | null; episode_thumbnail?: string | null; timestamp?: number | null };
 }) {
   const [failed, setFailed] = useState(false);
+  const [epThumbFailed, setEpThumbFailed] = useState(false);
   const progress = entry.duration && entry.duration > 0 ? Math.min(100, (entry.progress / entry.duration) * 100) : 0;
+  const epThumb = !epThumbFailed && entry.episode_thumbnail ? entry.episode_thumbnail : null;
   const cover = !failed && entry.anime_cover ? entry.anime_cover : null;
+  const imageUri = epThumb || cover;
   return (
     <Pressable
       onPress={() => { hapticLight(); router.push({ pathname: "/watch/[id]", params: { id: String(entry.anime_id), episode: String(entry.episode_number), title: entry.anime_title || "", image: entry.anime_cover || "" } } as never); }}
@@ -48,7 +53,7 @@ function ContinueCard({ entry }: {
       style={({ pressed }) => [styles.continueCard, pressed && styles.pressed]}
     >
       <View style={styles.continueImageWrap}>
-        {cover ? <Image source={{ uri: cover }} recyclingKey={cover} onError={() => setFailed(true)} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} cachePolicy="memory-disk" /> : <View style={styles.continueImageFallback}><Text style={styles.continueImageFallbackText}>{(entry.anime_title || "A").charAt(0)}</Text></View>}
+        {imageUri ? <Image source={{ uri: imageUri }} recyclingKey={imageUri} onError={() => epThumb ? setEpThumbFailed(true) : setFailed(true)} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} cachePolicy="memory-disk" /> : <View style={styles.continueImageFallback}><Text style={styles.continueImageFallbackText}>{(entry.anime_title || "A").charAt(0)}</Text></View>}
         <View style={styles.continueOverlay}>
           <View style={styles.continuePlayBadge}><AppIcon name="play" size={14} color={nothing.white} /></View>
         </View>
@@ -96,8 +101,9 @@ function ContinueWatchingRail() {
 }
 
 function TrendingRow({ item, index }: { item: { id: number; coverImage?: { large?: string | null; extraLarge?: string | null } | null; bannerImage?: string | null; averageScore?: number | null; format?: string | null; episodes?: number | null; title?: { romaji?: string | null; english?: string | null; native?: string | null } | null }; index: number }) {
+  const prefetch = usePrefetchAnime();
   return (
-    <Pressable onPress={() => { hapticLight(); router.push((`/anime/${item.id}`) as never); }} style={({ pressed }) => [styles.trendingRow, pressed && styles.pressed]}>
+    <Pressable onPress={() => { hapticLight(); prefetch(item.id); router.push((`/anime/${item.id}`) as never); }} style={({ pressed }) => [styles.trendingRow, pressed && styles.pressed]}>
       <View style={styles.trendingThumb}>
         <Image source={{ uri: item.coverImage?.extraLarge || item.coverImage?.large || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" />
       </View>
@@ -113,6 +119,7 @@ function TrendingRow({ item, index }: { item: { id: number; coverImage?: { large
 }
 
 function TrendingGrid({ items }: { items: Array<{ id: number; coverImage?: { large?: string | null; extraLarge?: string | null } | null; bannerImage?: string | null; averageScore?: number | null; format?: string | null; episodes?: number | null; [key: string]: any }> }) {
+  const prefetch = usePrefetchAnime();
   if (!items.length) return null;
   return (
     <View style={styles.section}>
@@ -122,7 +129,7 @@ function TrendingGrid({ items }: { items: Array<{ id: number; coverImage?: { lar
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trendingList}>
         {items.slice(0, 10).map((item, index) => (
-          <Pressable key={item.id} onPress={() => { hapticLight(); router.push((`/anime/${item.id}`) as never); }} style={({ pressed }) => [styles.trendingCard, pressed && styles.pressed]}>
+          <Pressable key={item.id} onPress={() => { hapticLight(); prefetch(item.id); router.push((`/anime/${item.id}`) as never); }} style={({ pressed }) => [styles.trendingCard, pressed && styles.pressed]}>
             <View style={styles.trendingCardImage}>
               <Image source={{ uri: item.coverImage?.extraLarge || item.coverImage?.large || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" />
               <View style={styles.trendingCardBadge}><Text style={styles.trendingCardBadgeText}>HD</Text></View>
@@ -136,14 +143,34 @@ function TrendingGrid({ items }: { items: Array<{ id: number; coverImage?: { lar
 }
 
 export default function HomeScreen() {
+  const prefetch = usePrefetchAnime();
   const nsfw = useNsfwPreference();
   const isAdultParam = nsfwFilterParam(nsfw.enabled);
   const home = useQuery({ queryKey: ["home-anime", isAdultParam], queryFn: () => getHomeAnime(isAdultParam) });
+  const topGenre = useUserTopGenre();
+  const ongoing = useQuery({
+    queryKey: ["ongoing-anime", isAdultParam],
+    queryFn: () => getAnimePage({ status: "RELEASING", sort: ["POPULARITY_DESC"], perPage: 12, isAdult: isAdultParam }),
+    enabled: home.isSuccess,
+    staleTime: 10 * 60_000,
+  });
+  const topMovies = useQuery({
+    queryKey: ["top-movies", isAdultParam],
+    queryFn: () => getAnimePage({ format: "MOVIE", sort: ["SCORE_DESC"], perPage: 12, isAdult: isAdultParam }),
+    enabled: home.isSuccess,
+    staleTime: 10 * 60_000,
+  });
+  const topGenreAnime = useQuery({
+    queryKey: ["top-genre-anime", topGenre, isAdultParam],
+    queryFn: () => getAnimePage({ genre: topGenre!, sort: ["SCORE_DESC"], perPage: 12, isAdult: isAdultParam }),
+    enabled: home.isSuccess && Boolean(topGenre),
+    staleTime: 10 * 60_000,
+  });
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await home.refetch();
+    await Promise.all([home.refetch(), ongoing.refetch(), topMovies.refetch(), topGenreAnime.refetch()]);
     setRefreshing(false);
   };
 
@@ -158,7 +185,7 @@ export default function HomeScreen() {
       <Text style={styles.skeletonRailLabel}>TRENDING NOW</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.skeletonRailRow}>{Array.from({ length: 6 }).map((_, i) => <SkeletonRail key={i} />)}</ScrollView>
     </ScrollView> : <ScrollView contentContainerStyle={styles.scrollContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={nothing.red} />} showsVerticalScrollIndicator={false}>
-      {hero ?       <Pressable accessibilityRole="button" accessibilityLabel={`Open ${animeTitle(hero)}`} onPress={() => { hapticLight(); router.push((`/anime/${hero.id}`) as never); }} style={({ pressed }) => [styles.hero, pressed && styles.pressed]}>
+      {hero ?       <Pressable accessibilityRole="button" accessibilityLabel={`Open ${animeTitle(hero)}`} onPress={() => { hapticLight(); prefetch(hero.id); router.push((`/anime/${hero.id}`) as never); }} style={({ pressed }) => [styles.hero, pressed && styles.pressed]}>
         <View style={styles.heroFallback}><Text style={styles.heroFallbackText}>{animeTitle(hero).charAt(0)}</Text></View>
         <Image source={{ uri: hero.bannerImage || hero.coverImage?.extraLarge || hero.coverImage?.large || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" />
         <View style={styles.heroMask} />
@@ -170,11 +197,11 @@ export default function HomeScreen() {
             <Text style={styles.heroTitle} numberOfLines={2}>{animeTitle(hero)}</Text>
             <Text style={styles.heroMeta}>{titleFacts(hero.format, hero.episodes, hero.averageScore)}</Text>
             <View style={styles.heroActions}>
-              <Pressable style={({ pressed }) => [styles.heroPlayBtn, pressed && styles.pressed]} onPress={() => { hapticLight(); router.push((`/anime/${hero.id}`) as never); }}>
+              <Pressable style={({ pressed }) => [styles.heroPlayBtn, pressed && styles.pressed]} onPress={() => { hapticLight(); prefetch(hero.id); router.push((`/anime/${hero.id}`) as never); }}>
                 <AppIcon name="play" size={16} color={nothing.black} />
                 <Text style={styles.heroPlayText}>Play</Text>
               </Pressable>
-              <Pressable style={({ pressed }) => [styles.heroListBtn, pressed && styles.pressed]} onPress={() => router.push((`/anime/${hero.id}`) as never)}>
+              <Pressable style={({ pressed }) => [styles.heroListBtn, pressed && styles.pressed]} onPress={() => { prefetch(hero.id); router.push((`/anime/${hero.id}`) as never); }}>
                 <AppIcon name="plus" size={16} color={nothing.white} />
                 <Text style={styles.heroListText}>My List</Text>
               </Pressable>
@@ -184,8 +211,11 @@ export default function HomeScreen() {
       </Pressable> : null}
       <ContinueWatchingRail />
       <TrendingGrid items={home.data.trending.slice(1)} />
-      <AnimeRail label="02" title="Popular releases" items={home.data.popular} />
-      <AnimeRail label="03" title="Coming soon" items={home.data.upcoming} />
+      {ongoing.data?.media?.length ? <AnimeRail label="02" title="Ongoing" items={ongoing.data.media} /> : null}
+      <AnimeRail label="03" title="Popular releases" items={home.data.popular} />
+      {topMovies.data?.media?.length ? <AnimeRail label="04" title="Top movies" items={topMovies.data.media} /> : null}
+      {topGenreAnime.data?.media?.length ? <AnimeRail label="05" title={`Top in ${topGenre}`} items={topGenreAnime.data.media} /> : null}
+      <AnimeRail label="06" title="Coming soon" items={home.data.upcoming} />
     </ScrollView>}
   </NativeScreen>;
 }

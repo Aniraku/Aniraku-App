@@ -15,11 +15,11 @@ export function NativeHeader({ eyebrow, title, action }: { eyebrow?: string; tit
 }
 
 export function SearchAction() {
-  return <Pressable accessibilityRole="button" accessibilityLabel="Search anime" onPress={() => router.push("/search" as never)} style={({ pressed }) => [styles.searchButton, pressed && styles.pressed]}><AppIcon name="magnify" color={nothing.white} size={22} /></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel="Search anime" onPress={() => router.push("/search" as never)} style={({ pressed }) => [styles.searchButton, pressed && styles.pressed]}><AppIcon name="magnify" color={nothing.white} size={20} /></Pressable>;
 }
 
 export function NotificationAction() {
-  return <Pressable accessibilityRole="button" accessibilityLabel="Notifications" onPress={() => router.push("/profile" as never)} style={({ pressed }) => [styles.searchButton, pressed && styles.pressed]}><AppIcon name="bell-outline" color={nothing.white} size={22} /></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel="Notifications" onPress={() => router.push("/profile" as never)} style={({ pressed }) => [styles.searchButton, pressed && styles.pressed]}><AppIcon name="bell" color={nothing.white} size={20} /></Pressable>;
 }
 
 const styles = StyleSheet.create({

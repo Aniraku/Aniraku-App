@@ -5,11 +5,11 @@ import { AppIcon } from "@/components/app-icon";
 import { nothing } from "@/components/nothing-ui";
 
 const tabIcons = {
-  index: "home-variant-outline",
-  catalog: "view-grid-outline",
-  schedule: "calendar-blank-outline",
-  library: "bookmark-multiple-outline",
-  profile: "account-circle-outline",
+  index: "home",
+  catalog: "magnify",
+  schedule: "calendar",
+  library: "bookmark",
+  profile: "account",
 } as const;
 
 export default function TabLayout() {
@@ -32,7 +32,7 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: "Home" }} />
-      <Tabs.Screen name="catalog" options={{ title: "Catalog" }} />
+      <Tabs.Screen name="catalog" options={{ title: "Search" }} />
       <Tabs.Screen name="schedule" options={{ title: "Schedule" }} />
       <Tabs.Screen name="library" options={{ title: "Library" }} />
       <Tabs.Screen name="profile" options={{ title: "Profile" }} />
