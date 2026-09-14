@@ -214,7 +214,7 @@ export default function SearchScreen() {
     ) : results.isError || !results.data ? (
       <ErrorState message={results.error?.message ?? "Search is unavailable."} onRetry={retrySearch} retryDisabled={retryIsBlocked} retryLabel={retryIsBlocked ? `TRY AGAIN IN ${retrySeconds}S` : "TRY AGAIN"} />
     ) : results.data.media.length === 0 ? (
-      <EmptyState label={isGenreMode ? `No ${genreFilter} anime found.` : `No titles found for "${query}".`} />
+      <EmptyState label={isGenreMode ? `No ${genreFilter} anime found.` : `No titles found for "${query}".`} action={!retryIsBlocked ? { label: "Retry", onPress: retrySearch } : undefined} />
     ) : (
       <View style={styles.resultsWrap}>
         <View style={styles.resultsHead}>

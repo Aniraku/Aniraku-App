@@ -146,25 +146,31 @@ export default function HomeScreen() {
   const prefetch = usePrefetchAnime();
   const nsfw = useNsfwPreference();
   const isAdultParam = nsfwFilterParam(nsfw.enabled);
-  const home = useQuery({ queryKey: ["home-anime", isAdultParam], queryFn: () => getHomeAnime(isAdultParam) });
+  const home = useQuery({ queryKey: ["home-anime", isAdultParam], queryFn: () => getHomeAnime(isAdultParam), retry: 3, retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000) });
   const topGenre = useUserTopGenre();
   const ongoing = useQuery({
     queryKey: ["ongoing-anime", isAdultParam],
     queryFn: () => getAnimePage({ status: "RELEASING", sort: ["POPULARITY_DESC"], perPage: 12, isAdult: isAdultParam }),
     enabled: home.isSuccess,
     staleTime: 10 * 60_000,
+    retry: 2,
+    retryDelay: 1_500,
   });
   const topMovies = useQuery({
     queryKey: ["top-movies", isAdultParam],
     queryFn: () => getAnimePage({ format: "MOVIE", sort: ["SCORE_DESC"], perPage: 12, isAdult: isAdultParam }),
     enabled: home.isSuccess,
     staleTime: 10 * 60_000,
+    retry: 2,
+    retryDelay: 1_500,
   });
   const topGenreAnime = useQuery({
     queryKey: ["top-genre-anime", topGenre, isAdultParam],
     queryFn: () => getAnimePage({ genre: topGenre!, sort: ["SCORE_DESC"], perPage: 12, isAdult: isAdultParam }),
     enabled: home.isSuccess && Boolean(topGenre),
     staleTime: 10 * 60_000,
+    retry: 2,
+    retryDelay: 1_500,
   });
   const [refreshing, setRefreshing] = useState(false);
 
@@ -212,10 +218,10 @@ export default function HomeScreen() {
       <ContinueWatchingRail />
       <TrendingGrid items={home.data.trending.slice(1)} />
       {ongoing.data?.media?.length ? <AnimeRail label="02" title="Ongoing" items={ongoing.data.media} /> : null}
-      <AnimeRail label="03" title="Popular releases" items={home.data.popular} />
+      {home.data.popular.length ? <AnimeRail label="03" title="Popular releases" items={home.data.popular} /> : null}
       {topMovies.data?.media?.length ? <AnimeRail label="04" title="Top movies" items={topMovies.data.media} /> : null}
       {topGenreAnime.data?.media?.length ? <AnimeRail label="05" title={`Top in ${topGenre}`} items={topGenreAnime.data.media} /> : null}
-      <AnimeRail label="06" title="Coming soon" items={home.data.upcoming} />
+      {home.data.upcoming.length ? <AnimeRail label="06" title="Coming soon" items={home.data.upcoming} /> : null}
     </ScrollView>}
   </NativeScreen>;
 }

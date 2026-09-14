@@ -105,7 +105,7 @@ const airingScheduleQuery = `query AiringSchedule($page: Int!, $perPage: Int!, $
 }`;
 
 async function request<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
-  const providedVariables = Object.fromEntries(Object.entries(variables).filter(([, value]) => value !== undefined));
+  const providedVariables = Object.fromEntries(Object.entries(variables).filter(([, value]) => value != null));
   const requestBody = JSON.stringify({ query, variables: providedVariables });
   const cacheKey = requestBody;
   const now = Date.now();

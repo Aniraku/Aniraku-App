@@ -18,7 +18,13 @@ export default function ScheduleScreen() {
     end.setDate(end.getDate() + 7);
     return { startAt: Math.floor(start.getTime() / 1000), endAt: Math.floor(end.getTime() / 1000) };
   }, []);
-  const schedule = useQuery({ queryKey: ["schedule", window.startAt, window.endAt], queryFn: () => getAiringSchedule(1, 100, window) });
+  const schedule = useQuery({ queryKey: ["schedule", window.startAt, window.endAt], queryFn: async () => {
+    const page1 = await getAiringSchedule(1, 50, window);
+    const total = page1.pageInfo?.total ?? page1.airingSchedules.length;
+    if (total <= 50) return page1;
+    const page2 = await getAiringSchedule(2, 50, window);
+    return { ...page1, airingSchedules: [...page1.airingSchedules, ...page2.airingSchedules] };
+  } });
   const groups = useMemo(() => {
     const result = new Map<string, AiringScheduleItem[]>();
     schedule.data?.airingSchedules.forEach((item) => { const key = new Date(item.airingAt * 1000).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }); const current = result.get(key) ?? []; result.set(key, [...current, item]); });

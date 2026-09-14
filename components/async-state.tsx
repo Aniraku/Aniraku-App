@@ -13,8 +13,8 @@ export function ErrorState({ message, onRetry, retryLabel = "TRY AGAIN", retryDi
     : <View style={styles.container}><View style={styles.errorLine} /><DotLabel tone="signal">COULDN’T LOAD THIS</DotLabel><Text style={styles.text}>{friendlyMessage}</Text><NothingButton label={retryLabel} onPress={onRetry} variant="outline" disabled={retryDisabled} /></View>;
 }
 
-export function EmptyState({ label }: { label: string }) {
-  return <View style={styles.container}><View style={styles.emptyLine} /><DotLabel>NOTHING HERE YET</DotLabel><Text style={styles.text}>{label}</Text></View>;
+export function EmptyState({ label, action }: { label: string; action?: { label: string; onPress: () => void } }) {
+  return <View style={styles.container}><View style={styles.emptyLine} /><DotLabel>NOTHING HERE YET</DotLabel><Text style={styles.text}>{label}</Text>{action ? <NothingButton label={action.label} onPress={action.onPress} variant="outline" /> : null}</View>;
 }
 
 const styles = StyleSheet.create({

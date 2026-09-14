@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.6.0"
+        default: "v5.6.1"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -115,22 +115,27 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.6.0 — Anilab successor: animated UI, GOATED player, onboarding
+            ## v5.6.1 — DUB Architecture Rewrite & NSFW Fix
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.6.0-arm64.apk`
-            - `aniraku-v5.6.0-arm32.apk`
-            - `aniraku-v5.6.0-universal.apk`
+            - `aniraku-v5.6.1-arm64.apk`
+            - `aniraku-v5.6.1-arm32.apk`
+            - `aniraku-v5.6.1-universal.apk`
 
-            ### Highlights
-            - **Animated skeletons**: pulse loading on hero, cards, rails, episodes.
-            - **GOATED player**: animated controls, brightness/volume sliders, seek ripples, fast-forward badge.
-            - **Haptic feedback**: every tap, swipe, and interaction feels tactile.
-            - **Episode thumbnails**: grid buttons now show thumbnail images.
-            - **First-run onboarding**: 3-page intro with skip option.
-            - **Empty states**: personality-filled empty states for every screen.
-            - **Android versionCode**: 57.
+            ### Architecture
+            - **DUB per-episode**: Removed batch dub checking entirely. SUB/DUB servers now fetched per-episode on selection — instant watch page, no more "CHECKING DUB" spinner.
+            - **Per-anime language memory**: App remembers your last SUB/DUB choice per anime and auto-selects it next time.
+            - **Smarter language tabs**: SUB/DUB toggle only appears when both languages have servers for the current episode.
+
+            ### Bug Fixes
+            - **NSFW filter broken**: `isAdult: null` caused all AniList queries to return empty results. Fixed variable filtering so null values are omitted.
+            - **Episode grid pagination**: PREV/NEXT buttons now show for shows with >100 episodes (were missing in FlatList path).
+            - **Airing schedule**: Added pagination for AniList's 50-item cap.
+            - **Homepage**: Added retry (3 attempts, exponential backoff) for all AniList queries.
+            - **Episode search**: Fixed truncated placeholder "Number o" → "Ep number".
+            - **Empty states**: Added retry buttons to search and random page errors.
+            - **Android versionCode**: 58.
 
             Download the APK, install, and allow *install from unknown sources* if prompted.
           files: ./artifacts/*.apk

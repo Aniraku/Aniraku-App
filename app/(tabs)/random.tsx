@@ -28,9 +28,11 @@ export default function RandomScreen() {
         isAdult: isAdultParam,
         ...(selectedGenre ? { genre: selectedGenre } : {}),
       });
-      if (!page.media.length) throw new Error("No anime found for this filter.");
+      if (!page.media.length) throw new Error("No anime found. Check your connection and try again.");
       return page.media[Math.floor(Math.random() * page.media.length)];
     },
+    retry: 2,
+    retryDelay: 1_500,
   });
 
   const pickAnother = useCallback(() => {

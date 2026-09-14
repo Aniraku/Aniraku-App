@@ -17,7 +17,7 @@ import {
   Lock, Rewind, FastForward, Download, DownloadSimple, CaretLeft, CaretRight,
   Sun
 } from "phosphor-react-native";
-import { anirakuProxyUrl, getAnimeMetadata, getEpisodes, getServers, getStream, getPlaybackType, isAnirakuProxyUrl, nativePlaybackHeaders, hasDubForEpisode } from "@/lib/aniraku-api";
+import { anirakuProxyUrl, getAnimeMetadata, getEpisodes, getServers, getStream, getPlaybackType, isAnirakuProxyUrl, nativePlaybackHeaders } from "@/lib/aniraku-api";
 import { getAnimeById, getKnownMalId, getMalIdByAnimeId } from "@/lib/anilist";
 import { enrichEpisodesWithTmdb } from "@/lib/tmdb-episodes";
 import {
@@ -63,7 +63,6 @@ import {
 import { animeTitle, type Episode, type Server, type StreamResponse, type StreamSource } from "@/lib/types";
 import { useWatchHistory } from "@/hooks/use-watch-history";
 import { useEpisodeRatings } from "@/hooks/use-episode-ratings";
-import { useSubDubCounts } from "@/hooks/use-sub-dub-counts";
 import { AnimeComments } from "@/components/anime-comments";
 import { useProviderSync } from "@/hooks/use-provider-sync";
 import { useAnirakuAuth } from "@/providers/auth-provider";
@@ -154,7 +153,6 @@ export default function WatchScreen() {
   const history = useWatchHistory();
   const ratings = useEpisodeRatings(animeId);
   const providerSync = useProviderSync();
-  const subDubCounts = useSubDubCounts(animeId);
   const episodeQuery = useQuery({ queryKey: ["watch-episodes", animeId], queryFn: () => getEpisodes(animeId), enabled: Number.isFinite(animeId) && animeId > 0, staleTime: 60_000 });
   const canonicalEpisodes = episodeQuery.data ?? EMPTY_EPISODES;
   const episodeSignature = useMemo(() => canonicalEpisodes.map((item) => `${item.number}:${item.title ?? ""}:${item.thumbnail ?? ""}`).join("|"), [canonicalEpisodes]);
@@ -201,30 +199,6 @@ export default function WatchScreen() {
 
   // ── App state ──
   const [language, setLanguage] = useState<Language>("sub");
-
-  // ── Per-episode dub availability check ──
-  useEffect(() => {
-    if (language !== "dub" || !episodeQuery.isSuccess || !canonicalEpisodes.length || !Number.isFinite(animeId)) {
-      setDubEpisodeSet(new Set());
-      setDubCheckPending(false);
-      return;
-    }
-    const unchecked = canonicalEpisodes.filter((ep) => !dubEpisodeSet.has(ep.number));
-    if (!unchecked.length) return;
-    let cancelled = false;
-    setDubCheckPending(true);
-    const batch = unchecked.slice(0, 5);
-    Promise.all(batch.map((ep) => hasDubForEpisode(animeId, ep.number).then((has) => (has ? ep.number : null)))).then((results) => {
-      if (cancelled) return;
-      setDubEpisodeSet((prev) => {
-        const next = new Set(prev);
-        for (const num of results) { if (num !== null) next.add(num); }
-        return next;
-      });
-      setDubCheckPending(false);
-    }).catch(() => { if (!cancelled) setDubCheckPending(false); });
-    return () => { cancelled = true; };
-  }, [language, animeId, canonicalEpisodes, episodeQuery.isSuccess]);
 
   const [providers, setProviders] = useState<Record<Language, Server[]>>({ sub: [], dub: [] });
   const [serverIndex, setServerIndex] = useState(0);
@@ -289,8 +263,6 @@ export default function WatchScreen() {
   const [upNextVisible, setUpNextVisible] = useState(false);
   const [upNextCountdown, setUpNextCountdown] = useState(10);
   const upNextShownFor = useRef<string | null>(null);
-  const [dubEpisodeSet, setDubEpisodeSet] = useState<Set<number>>(new Set());
-  const [dubCheckPending, setDubCheckPending] = useState(false);
   const [volumeHud, setVolumeHud] = useState<number | null>(null);
   const [brightnessHud, setBrightnessHud] = useState<number | null>(null);
   const [volume, setVolume] = useState(1.0);
@@ -376,14 +348,10 @@ export default function WatchScreen() {
     let filtered = term
       ? displayEpisodes.filter((item) => String(item.number).includes(term) || String(item.title || "").toLowerCase().includes(term))
       : displayEpisodes;
-    // When dub tab is active, only show episodes that have dub available
-    if (language === "dub" && dubEpisodeSet.size > 0) {
-      filtered = filtered.filter((item) => dubEpisodeSet.has(item.number));
-    }
     const pageCount = episodePageCount(filtered.length);
     const safePage = Math.max(0, Math.min(episodePage, pageCount - 1));
     return { filteredEpisodes: filtered, totalEpisodePages: pageCount, safeEpisodePage: safePage, pagedEpisodes: episodePageSlice(filtered, safePage) };
-  }, [displayEpisodes, episodePage, episodeSearch, language, dubEpisodeSet]);
+  }, [displayEpisodes, episodePage, episodeSearch]);
 
   const sourceQualityOptions = useMemo(() => watchQualityOptions(stream, source), [source, stream]);
   const adaptiveCapOptions = useMemo(() => adaptiveBitrateCapOptions(source, videoTracks), [videoTracks, source]);
@@ -625,8 +593,14 @@ export default function WatchScreen() {
       if (cancelled) return;
       setProviders({ sub: subs, dub: dubs });
       setLoadingServers(false);
-      if (!subs.length && dubs.length) setLanguage("dub");
-      if (!subs.length && !dubs.length) setError("We don't have streaming for this episode.");
+      // Auto-select: preferred language > available language
+      const langKey = `aniraku.lang.${animeId}`;
+      const preferred = await AsyncStorage.getItem(langKey).catch(() => null) as Language | null;
+      if (cancelled) return;
+      if (preferred === "dub" && dubs.length) { setLanguage("dub"); }
+      else if (preferred === "sub" && subs.length) { setLanguage("sub"); }
+      else if (!subs.length && dubs.length) { setLanguage("dub"); }
+      else if (!subs.length && !dubs.length) { setError("We don't have streaming for this episode."); }
     };
     void fetchServers(0);
     return () => { cancelled = true; };
@@ -1201,6 +1175,8 @@ export default function WatchScreen() {
   const selectLanguage = (next: Language) => {
     if (!providers[next].length || next === language) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    // Save per-anime language preference
+    void AsyncStorage.setItem(`aniraku.lang.${animeId}`, next).catch(() => {});
     // Server-switch preserves position (Track 4): stash via the tested
     // resolveResumeOnSwitch helper so sub↔dub keeps the seek target.
     const stashed = resolveResumeOnSwitch(currentTime, duration);
@@ -2259,7 +2235,7 @@ export default function WatchScreen() {
         <Text style={styles.th3Watching}><Text style={styles.th3WatchingGreen}>You are watching </Text><Text style={styles.th3WatchingWhite}>Episode {episode}</Text></Text>
         {swipeDirectionHint ? <View style={styles.swipeHintRow}><AppIcon name="chevron-left" size={12} color={previousKnownEpisode ? nothing.muted : nothing.dim} /><Text style={[styles.swipeHintText, !previousKnownEpisode && !nextKnownEpisode && { color: nothing.dim }]}>{swipeDirectionHint}</Text><AppIcon name="chevron-right" size={12} color={nextKnownEpisode ? nothing.muted : nothing.dim} /></View> : null}
         <View style={styles.th3Tabs}>
-          {(["sub", "dub"] as Language[]).map((item) => { const active = language === item; const empty = !providers[item].length; const epCount = item === "sub" ? subDubCounts.sub : subDubCounts.dub; return <Pressable key={item} accessibilityRole="tab" accessibilityLabel={`${item === "sub" ? "Subtitled" : "Dubbed"}${active ? " (selected)" : ""}`} accessibilityHint={empty ? "No servers available" : "Switch to this audio language"} disabled={empty} onPress={() => selectLanguage(item)} style={[styles.th3Tab, active && styles.th3TabActive]}><Text style={[styles.th3TabText, active ? styles.th3TabTextActive : empty && styles.th3TabTextEmpty]}>{item === "sub" ? "SUB" : "DUB"}{subDubCounts.loading && !empty ? "" : epCount > 0 ? ` · ${epCount}` : ""}</Text></Pressable>; })}
+          {providers.sub.length > 0 && providers.dub.length > 0 ? (["sub", "dub"] as Language[]).map((item) => { const active = language === item; return <Pressable key={item} accessibilityRole="tab" accessibilityLabel={`${item === "sub" ? "Subtitled" : "Dubbed"}${active ? " (selected)" : ""}`} accessibilityHint="Switch to this audio language" onPress={() => selectLanguage(item)} style={[styles.th3Tab, active && styles.th3TabActive]}><Text style={[styles.th3TabText, active && styles.th3TabTextActive]}>{item === "sub" ? "SUB" : "DUB"}</Text></Pressable>; }) : null}
         </View>
         <View style={styles.th3Servers}>
           {activeProviders.map((provider, index) => { const active = index === serverIndex; return <Pressable key={provider.id} accessibilityRole="button" accessibilityLabel={`Server: ${provider.label}${active ? " (selected)" : ""}`} accessibilityHint={active ? "Currently active server" : "Switch to this streaming server"} onPress={() => selectServer(index)} style={[styles.th3Server, active && styles.th3ServerActive]}><Text style={[styles.th3ServerText, active && styles.th3ServerTextActive]}>{provider.label}</Text></Pressable>; })}
@@ -2270,7 +2246,7 @@ export default function WatchScreen() {
         <View style={styles.th3EpsRow}>
           <AppIcon name="options" size={14} color={nothing.muted} />
           <Text style={styles.th3EpsText}>EPS: {episodePage * EPISODE_PAGE_SIZE + 1}-{Math.min((episodePage + 1) * EPISODE_PAGE_SIZE, filteredEpisodes.length)}</Text>
-          <View style={styles.th3EpSearch}><AppIcon name="magnify" size={14} color={nothing.muted} /><TextInput value={episodeSearch} onChangeText={setEpisodeSearch} placeholder="Number of Ep" placeholderTextColor={nothing.dim} style={styles.th3EpSearchInput} returnKeyType="done" keyboardType={episodeSearch && /\d/.test(episodeSearch) ? "number-pad" : "default"} /></View>
+          <View style={styles.th3EpSearch}><AppIcon name="magnify" size={14} color={nothing.muted} /><TextInput value={episodeSearch} onChangeText={setEpisodeSearch} placeholder="Ep number" placeholderTextColor={nothing.dim} style={styles.th3EpSearchInput} returnKeyType="done" keyboardType={episodeSearch && /\d/.test(episodeSearch) ? "number-pad" : "default"} /></View>
         </View>
         {episodeQuery.isPending ? <View style={styles.episodeLoading}><ActivityIndicator color={nothing.white} /><Text style={styles.episodeLoadingText}>LOADING EPISODES</Text></View> : filteredEpisodes.length ? <>
           <Animated.View style={[styles.episodeSwipeContainer, { transform: [{ translateX: swipeOffsetX }] }]} {...episodeSwipeResponder.panHandlers}>
@@ -2288,7 +2264,7 @@ export default function WatchScreen() {
     {/* ── Modal Pickers ── */}
     <Modal visible={activePanel === "speed"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>{t("player.playbackSpeed")}</Text>{[0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((val) => <Pressable key={val} style={[styles.modalItem, speed === val && styles.modalItemActive]} onPress={() => { setSpeed(val); lockedSpeed.current = val; setActivePanel(null); }}><Text style={[styles.modalItemText, speed === val && styles.modalItemTextActive]}>{val === 1.0 ? "1.0x (Normal)" : `${val}x`}</Text>{speed === val && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
 
-    <Modal visible={activePanel === "server"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>{t("player.selectServer")}</Text><View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => { const epCount = item === "sub" ? subDubCounts.sub : subDubCounts.dub; return <Pressable key={item} onPress={() => selectLanguage(item)} disabled={!providers[item].length} style={[styles.language, language === item && styles.languageActive, !providers[item].length && styles.languageDisabled]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${epCount || providers.sub.length}` : `DUB · ${epCount || providers.dub.length}`}</Text></Pressable>; })}</View>
+    <Modal visible={activePanel === "server"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>{t("player.selectServer")}</Text>{providers.sub.length > 0 && providers.dub.length > 0 ? <View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} onPress={() => selectLanguage(item)} style={[styles.language, language === item && styles.languageActive]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${providers.sub.length}` : `DUB · ${providers.dub.length}`}</Text></Pressable>)}</View> : null}
       {activeProviders.map((provider, index) => <Pressable key={provider.id} onPress={() => { selectServer(index); setActivePanel(null); }} style={[styles.modalItem, index === serverIndex && styles.modalItemActive]}><Text style={[styles.modalItemText, index === serverIndex && styles.modalItemTextActive]}>{provider.label}</Text>{index === serverIndex && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
 
     {/* Chapter List Modal */}
@@ -2478,7 +2454,7 @@ const styles = StyleSheet.create({
   th3ServerTextActive: { color: nothing.black, fontWeight: "900" },
   th3EpHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   th3EpTitle: { color: nothing.white, fontSize: 16, fontWeight: "900", letterSpacing: -0.4 },
-  th3EpSearch: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, height: 34, minWidth: 110, borderWidth: 1, borderColor: nothing.line, borderRadius: 8, backgroundColor: nothing.surface },
+  th3EpSearch: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, height: 34, minWidth: 140, borderWidth: 1, borderColor: nothing.line, borderRadius: 8, backgroundColor: nothing.surface },
   th3EpSearchInput: { flex: 1, color: nothing.white, fontSize: 12, paddingVertical: 0 },
   th3EpsRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   th3EpsText: { color: nothing.red, fontFamily: nothing.mono, fontSize: 11, fontWeight: "900", letterSpacing: 0.4 },
@@ -2502,10 +2478,11 @@ const styles = StyleSheet.create({
   scroll: { padding: 14, gap: 12 },
   episodeLoading: { minHeight: 72, alignItems: "center", justifyContent: "center", gap: 7, borderTopWidth: 1, borderTopColor: nothing.line },
   episodeLoadingText: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "900", letterSpacing: 0.7 },
-  episodePager: { flexDirection: "row", gap: 6 },
+  episodePager: { flexDirection: "row", alignItems: "center", gap: 6 },
   episodePagerButton: { flex: 1, minHeight: 32, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 },
   episodePagerDisabled: { opacity: 0.3 },
   episodePagerText: { color: nothing.white, fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
+  episodePagerIndicator: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
   emptyEpisodeText: { color: nothing.muted, paddingVertical: 14, textAlign: "center", fontSize: 12 },
   swipeHintRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 2 },
   swipeHintText: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
@@ -2554,14 +2531,16 @@ const EpisodeGrid = memo(function EpisodeGrid({ episodes, activeEpisode, totalPa
             <Text style={[styles.th3EpBtnText, active ? styles.th3EpBtnTextActive : item.isFiller ? styles.th3EpBtnFiller : null]}>{item.number}</Text>
           </Pressable>;
         }}
-      /></>;
+      />
+      {totalPages > 1 ? <View style={styles.episodePager}><Pressable disabled={page === 0} onPress={() => onPageChange((v) => Math.max(0, v - 1))} accessibilityRole="button" accessibilityLabel="Previous page" accessibilityHint="Shows the previous page of episodes" style={[styles.episodePagerButton, page === 0 && styles.episodePagerDisabled]}><AppIcon name="chevron-left" size={17} color={nothing.white} /><Text style={styles.episodePagerText}>PREV</Text></Pressable><Text style={styles.episodePagerIndicator}>{page + 1} / {totalPages}</Text><Pressable disabled={page >= totalPages - 1} onPress={() => onPageChange((v) => Math.min(totalPages - 1, v + 1))} accessibilityRole="button" accessibilityLabel="Next page" accessibilityHint="Shows the next page of episodes" style={[styles.episodePagerButton, page >= totalPages - 1 && styles.episodePagerDisabled]}><Text style={styles.episodePagerText}>NEXT</Text><AppIcon name="chevron-right" size={17} color={nothing.white} /></Pressable></View> : null}
+    </>;
   }
   return <>
     <View style={styles.th3Grid}>{episodes.map((item) => { const active = item.number === activeEpisode; return <Pressable key={item.number} accessibilityRole="button" accessibilityLabel={`Episode ${item.number}${item.title ? `: ${item.title}` : ""}`} accessibilityHint={active ? "Currently playing" : "Double tap to play this episode"} onPress={() => onSelect(item.number)} onLongPress={() => onInfo(item.number)} style={[styles.th3EpBtn, active && styles.th3EpBtnActive]}>
       {item.thumbnail ? <><Image source={{ uri: item.thumbnail }} style={styles.th3EpBtnThumb} contentFit="cover" cachePolicy="memory-disk" /><View style={styles.th3EpBtnThumbShade} /></> : null}
       <Text style={[styles.th3EpBtnText, active ? styles.th3EpBtnTextActive : item.isFiller ? styles.th3EpBtnFiller : null]}>{item.number}</Text>
     </Pressable>; })}</View>
-    {totalPages > 1 ? <View style={styles.episodePager}><Pressable disabled={page === 0} onPress={() => onPageChange((v) => Math.max(0, v - 1))} accessibilityRole="button" accessibilityLabel="Previous page" accessibilityHint="Shows the previous page of episodes" style={[styles.episodePagerButton, page === 0 && styles.episodePagerDisabled]}><AppIcon name="chevron-left" size={17} color={nothing.white} /><Text style={styles.episodePagerText}>PREV</Text></Pressable><Pressable disabled={page >= totalPages - 1} onPress={() => onPageChange((v) => Math.min(totalPages - 1, v + 1))} accessibilityRole="button" accessibilityLabel="Next page" accessibilityHint="Shows the next page of episodes" style={[styles.episodePagerButton, page >= totalPages - 1 && styles.episodePagerDisabled]}><Text style={styles.episodePagerText}>NEXT</Text><AppIcon name="chevron-right" size={17} color={nothing.white} /></Pressable></View> : null}
+    {totalPages > 1 ? <View style={styles.episodePager}><Pressable disabled={page === 0} onPress={() => onPageChange((v) => Math.max(0, v - 1))} accessibilityRole="button" accessibilityLabel="Previous page" accessibilityHint="Shows the previous page of episodes" style={[styles.episodePagerButton, page === 0 && styles.episodePagerDisabled]}><AppIcon name="chevron-left" size={17} color={nothing.white} /><Text style={styles.episodePagerText}>PREV</Text></Pressable><Text style={styles.episodePagerIndicator}>{page + 1} / {totalPages}</Text><Pressable disabled={page >= totalPages - 1} onPress={() => onPageChange((v) => Math.min(totalPages - 1, v + 1))} accessibilityRole="button" accessibilityLabel="Next page" accessibilityHint="Shows the next page of episodes" style={[styles.episodePagerButton, page >= totalPages - 1 && styles.episodePagerDisabled]}><Text style={styles.episodePagerText}>NEXT</Text><AppIcon name="chevron-right" size={17} color={nothing.white} /></Pressable></View> : null}
   </>;
 });
 
