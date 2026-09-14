@@ -54,7 +54,6 @@ function OSSLicenses() {
     { name: "expo-screen-orientation", license: "MIT License", copyright: "Copyright (c) 650 Industries" },
     { name: "expo-keep-awake", license: "MIT License", copyright: "Copyright (c) 650 Industries" },
     { name: "@react-native-async-storage/async-storage", license: "MIT License", copyright: "Copyright (c) React Native Community" },
-    { name: "react-native-reanimated", license: "MIT License", copyright: "Copyright (c) Software Mansion" },
     { name: "react-native-gesture-handler", license: "MIT License", copyright: "Copyright (c) Software Mansion" },
   ];
 
