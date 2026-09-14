@@ -24,7 +24,7 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.5.0">v5.5.0 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.6.0">v5.6.0 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
@@ -35,15 +35,15 @@
 
 <div align="center">
 
-  ### v5.5.0 is out
+  ### v5.6.0 is out
 
   Subtitle parser overhaul, fullscreen controls fix, dead control buttons restored, all servers accepted from backend, embed only as last resort. Three builds for full coverage. Chapter navigation, trending discovery, random anime with genre filters, spoiler tags, skeleton loading, swipe between episodes, pull to refresh, landscape auto-rotate, quick actions, performance monitoring, and more.
 
   | APK |
   |:--|
-  | [Aniraku-v5.5.0-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.5.0/aniraku-v5.5.0-arm64.apk) |
-  | [Aniraku-v5.5.0-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.5.0/aniraku-v5.5.0-arm32.apk) |
-  | [Aniraku-v5.5.0-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.5.0/aniraku-v5.5.0-universal.apk) |
+  | [Aniraku-v5.6.0-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.0-arm64.apk) |
+  | [Aniraku-v5.6.0-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.0-arm32.apk) |
+  | [Aniraku-v5.6.0-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.0-universal.apk) |
 
   <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 

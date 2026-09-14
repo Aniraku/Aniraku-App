@@ -1200,6 +1200,7 @@ export default function WatchScreen() {
   // ── Actions ──
   const selectLanguage = (next: Language) => {
     if (!providers[next].length || next === language) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     // Server-switch preserves position (Track 4): stash via the tested
     // resolveResumeOnSwitch helper so sub↔dub keeps the seek target.
     const stashed = resolveResumeOnSwitch(currentTime, duration);
@@ -1227,6 +1228,7 @@ export default function WatchScreen() {
   };
 
   const selectServer = (index: number) => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     // Server-switch preserves position (Track 4): stash via the tested
     // resolveResumeOnSwitch helper so the new source re-seeks here.
     const stashed = resolveResumeOnSwitch(currentTime, duration);
@@ -1633,6 +1635,7 @@ export default function WatchScreen() {
 
   const goToEpisode = useCallback((targetEpisode: number) => {
     if (!canonicalEpisodes.some((item) => item.number === targetEpisode)) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     router.replace({ pathname: "/watch/[id]", params: { id: String(animeId), episode: String(targetEpisode), title, image } } as never);
   }, [animeId, canonicalEpisodes, image, title]);
 
@@ -2478,9 +2481,11 @@ const styles = StyleSheet.create({
   th3EpsRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   th3EpsText: { color: nothing.red, fontFamily: nothing.mono, fontSize: 11, fontWeight: "900", letterSpacing: 0.4 },
   th3Grid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  th3EpBtn: { width: 56, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 8, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
+  th3EpBtn: { width: 56, height: 56, alignItems: "center", justifyContent: "center", borderRadius: 8, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface, overflow: "hidden" },
   th3EpBtnActive: { backgroundColor: nothing.red, borderColor: nothing.red },
-  th3EpBtnText: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 13, fontWeight: "800" },
+  th3EpBtnThumb: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
+  th3EpBtnThumbShade: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+  th3EpBtnText: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 13, fontWeight: "800", zIndex: 1 },
   th3EpBtnTextActive: { color: nothing.black, fontWeight: "900" },
   th3EpBtnFiller: { color: nothing.muted },
   resumeBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: "rgba(0,0,0,0.7)" },
@@ -2542,12 +2547,18 @@ const EpisodeGrid = memo(function EpisodeGrid({ episodes, activeEpisode, totalPa
         removeClippedSubviews
         renderItem={({ item }) => {
           const active = item.number === activeEpisode;
-          return <Pressable key={item.number} accessibilityRole="button" accessibilityLabel={`Episode ${item.number}${item.title ? `: ${item.title}` : ""}`} accessibilityHint={active ? "Currently playing" : "Double tap to play this episode"} onPress={() => onSelect(item.number)} onLongPress={() => onInfo(item.number)} style={[styles.th3EpBtn, active && styles.th3EpBtnActive]}><Text style={[styles.th3EpBtnText, active ? styles.th3EpBtnTextActive : item.isFiller ? styles.th3EpBtnFiller : null]}>{item.number}</Text></Pressable>;
+          return <Pressable key={item.number} accessibilityRole="button" accessibilityLabel={`Episode ${item.number}${item.title ? `: ${item.title}` : ""}`} accessibilityHint={active ? "Currently playing" : "Double tap to play this episode"} onPress={() => onSelect(item.number)} onLongPress={() => onInfo(item.number)} style={[styles.th3EpBtn, active && styles.th3EpBtnActive]}>
+            {item.thumbnail ? <><Image source={{ uri: item.thumbnail }} style={styles.th3EpBtnThumb} contentFit="cover" cachePolicy="memory-disk" /><View style={styles.th3EpBtnThumbShade} /></> : null}
+            <Text style={[styles.th3EpBtnText, active ? styles.th3EpBtnTextActive : item.isFiller ? styles.th3EpBtnFiller : null]}>{item.number}</Text>
+          </Pressable>;
         }}
       /></>;
   }
   return <>
-    <View style={styles.th3Grid}>{episodes.map((item) => { const active = item.number === activeEpisode; return <Pressable key={item.number} accessibilityRole="button" accessibilityLabel={`Episode ${item.number}${item.title ? `: ${item.title}` : ""}`} accessibilityHint={active ? "Currently playing" : "Double tap to play this episode"} onPress={() => onSelect(item.number)} onLongPress={() => onInfo(item.number)} style={[styles.th3EpBtn, active && styles.th3EpBtnActive]}><Text style={[styles.th3EpBtnText, active ? styles.th3EpBtnTextActive : item.isFiller ? styles.th3EpBtnFiller : null]}>{item.number}</Text></Pressable>; })}</View>
+    <View style={styles.th3Grid}>{episodes.map((item) => { const active = item.number === activeEpisode; return <Pressable key={item.number} accessibilityRole="button" accessibilityLabel={`Episode ${item.number}${item.title ? `: ${item.title}` : ""}`} accessibilityHint={active ? "Currently playing" : "Double tap to play this episode"} onPress={() => onSelect(item.number)} onLongPress={() => onInfo(item.number)} style={[styles.th3EpBtn, active && styles.th3EpBtnActive]}>
+      {item.thumbnail ? <><Image source={{ uri: item.thumbnail }} style={styles.th3EpBtnThumb} contentFit="cover" cachePolicy="memory-disk" /><View style={styles.th3EpBtnThumbShade} /></> : null}
+      <Text style={[styles.th3EpBtnText, active ? styles.th3EpBtnTextActive : item.isFiller ? styles.th3EpBtnFiller : null]}>{item.number}</Text>
+    </Pressable>; })}</View>
     {totalPages > 1 ? <View style={styles.episodePager}><Pressable disabled={page === 0} onPress={() => onPageChange((v) => Math.max(0, v - 1))} accessibilityRole="button" accessibilityLabel="Previous page" accessibilityHint="Shows the previous page of episodes" style={[styles.episodePagerButton, page === 0 && styles.episodePagerDisabled]}><AppIcon name="chevron-left" size={17} color={nothing.white} /><Text style={styles.episodePagerText}>PREV</Text></Pressable><Pressable disabled={page >= totalPages - 1} onPress={() => onPageChange((v) => Math.min(totalPages - 1, v + 1))} accessibilityRole="button" accessibilityLabel="Next page" accessibilityHint="Shows the next page of episodes" style={[styles.episodePagerButton, page >= totalPages - 1 && styles.episodePagerDisabled]}><Text style={styles.episodePagerText}>NEXT</Text><AppIcon name="chevron-right" size={17} color={nothing.white} /></Pressable></View> : null}
   </>;
 });

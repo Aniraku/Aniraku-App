@@ -6,26 +6,20 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
-## v5.5.0 — UI redesign: homepage, search, player, catalog
+## v5.6.0 — Anilab successor: animated UI, GOATED player, onboarding
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
 
-- Homepage redesign: hero banner with Play/My List buttons, Continue Watching rail with progress bars, Trending Now horizontal cards, notification icon.
-- Search redesign: horizontal row results with landscape thumbnails and play badge overlay, genre chips, search history with timestamps.
-- Watch page redesign: centered "You are watching Episode X" text, pill-style server chips (rounded, filled when active), 5-column episode grid (was 8), episode count filter with dropdown.
-- Player top bar restructured: 3 icons (Speed, Subtitles, Settings), PiP removed from inline.
-- Player settings panel: quality chips + INFO section (Server, Quality, Language, Source, Format).
-- Subtitle panel expanded: language, size, background opacity, outline thickness, font family.
-- Bottom nav updated: Home, Catalog, Schedule, Library, Profile (no Download tab).
-- Library tab added: History/Saved tabs, watch progress bars, bookmark list.
-- Catalog polish: rounded search bar, cleaner mode tabs, consistent filter chips.
-- NSFW toggle added to settings with content warning, wired to all AniList query screens.
-- Settings screen redesigned: flattened editorial list with DotLabel headers, no cards.
-- `.toUpperCase()` cleanup: 15+ calls removed from JSX, replaced with `textTransform: "uppercase"`.
-- Pressed state standardized: 9 different opacities → 2 shared tokens (`nothing.pressed`, `nothing.pressedSubtle`).
-- Font unification: 46 raw `"monospace"` → `nothing.mono` token across 14 files.
+- Animated skeleton loading: pulse animation on all loading states (hero, cards, rails, episodes) — no more static gray blocks.
+- GOATED video player: animated controls overlay with smooth fade/slide, brightness/volume gesture sliders with spring animation, animated double-tap seek ripples, fast-forward badge with spring transition, loading spinner.
+- Haptic feedback on every key interaction: episode select, server switch, language toggle, play/pause, seek, hero card press, trending card press.
+- Episode grid thumbnails: each episode button now shows its thumbnail image with a dark overlay when available.
+- First-run onboarding: 3-page intro flow (Watch freely, Track everything, Make it yours) with dot indicators and skip option.
+- Personality empty states: contextual empty states for search, episodes, library, history, schedule, and comments with icons and action buttons.
+- Custom pull-to-refresh component with consistent theming.
+- Smooth page transitions: fade animation between all screens (already in _layout.tsx).
 - Ships three builds: `arm64`, `arm32`, and `universal` (universal contains all architectures).
-- Bumps the Android versionCode to 56.
+- Bumps the Android versionCode to 57.
 
 ## v5.4.4 — Phosphor icons + compact player redesign
 

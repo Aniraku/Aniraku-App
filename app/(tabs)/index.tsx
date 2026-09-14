@@ -6,10 +6,11 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "r
 import { getHomeAnime } from "@/lib/anilist";
 import { nsfwFilterParam, useNsfwPreference } from "@/lib/nsfw-preference";
 import { animeTitle } from "@/lib/types";
+import { hapticLight } from "@/lib/haptics";
 import { AnimeRail } from "@/components/anime-rail";
 import { ErrorState } from "@/components/async-state";
 import { nothing } from "@/components/nothing-ui";
-import { SkeletonCard, SkeletonRail } from "@/components/skeleton";
+import { SkeletonCard, SkeletonRail, SkeletonHero } from "@/components/skeleton";
 import { NativeHeader, NativeScreen, SearchAction, NotificationAction } from "@/components/screen";
 import { AppIcon } from "@/components/app-icon";
 import { InAppEpisodeAlertMonitor } from "@/hooks/use-in-app-episode-alerts";
@@ -41,7 +42,7 @@ function ContinueCard({ entry }: {
   const cover = !failed && entry.anime_cover ? entry.anime_cover : null;
   return (
     <Pressable
-      onPress={() => router.push({ pathname: "/watch/[id]", params: { id: String(entry.anime_id), episode: String(entry.episode_number), title: entry.anime_title || "", image: entry.anime_cover || "" } } as never)}
+      onPress={() => { hapticLight(); router.push({ pathname: "/watch/[id]", params: { id: String(entry.anime_id), episode: String(entry.episode_number), title: entry.anime_title || "", image: entry.anime_cover || "" } } as never); }}
       accessibilityRole="button"
       accessibilityLabel={`Continue ${entry.anime_title || "Untitled"} episode ${entry.episode_number}`}
       style={({ pressed }) => [styles.continueCard, pressed && styles.pressed]}
@@ -96,7 +97,7 @@ function ContinueWatchingRail() {
 
 function TrendingRow({ item, index }: { item: { id: number; coverImage?: { large?: string | null; extraLarge?: string | null } | null; bannerImage?: string | null; averageScore?: number | null; format?: string | null; episodes?: number | null; title?: { romaji?: string | null; english?: string | null; native?: string | null } | null }; index: number }) {
   return (
-    <Pressable onPress={() => router.push((`/anime/${item.id}`) as never)} style={({ pressed }) => [styles.trendingRow, pressed && styles.pressed]}>
+    <Pressable onPress={() => { hapticLight(); router.push((`/anime/${item.id}`) as never); }} style={({ pressed }) => [styles.trendingRow, pressed && styles.pressed]}>
       <View style={styles.trendingThumb}>
         <Image source={{ uri: item.coverImage?.extraLarge || item.coverImage?.large || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" />
       </View>
@@ -121,7 +122,7 @@ function TrendingGrid({ items }: { items: Array<{ id: number; coverImage?: { lar
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trendingList}>
         {items.slice(0, 10).map((item, index) => (
-          <Pressable key={item.id} onPress={() => router.push((`/anime/${item.id}`) as never)} style={({ pressed }) => [styles.trendingCard, pressed && styles.pressed]}>
+          <Pressable key={item.id} onPress={() => { hapticLight(); router.push((`/anime/${item.id}`) as never); }} style={({ pressed }) => [styles.trendingCard, pressed && styles.pressed]}>
             <View style={styles.trendingCardImage}>
               <Image source={{ uri: item.coverImage?.extraLarge || item.coverImage?.large || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" />
               <View style={styles.trendingCardBadge}><Text style={styles.trendingCardBadgeText}>HD</Text></View>
@@ -146,7 +147,7 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  if (home.isPending) return <NativeScreen><InAppEpisodeAlertMonitor /><NativeHeader eyebrow="ANIRAKU" title="Home" action={<View style={styles.topActions}><SearchAction /><NotificationAction /></View>} /><ScrollView contentContainerStyle={styles.skeletonContainer} showsVerticalScrollIndicator={false}><View style={styles.skeletonHeroRow}>{Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}</View><Text style={styles.skeletonRailLabel}>TRENDING NOW</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.skeletonRailRow}>{Array.from({ length: 6 }).map((_, i) => <SkeletonRail key={i} />)}</ScrollView></ScrollView></NativeScreen>;
+  if (home.isPending) return <NativeScreen><InAppEpisodeAlertMonitor /><NativeHeader eyebrow="ANIRAKU" title="Home" action={<View style={styles.topActions}><SearchAction /><NotificationAction /></View>} /><ScrollView contentContainerStyle={styles.skeletonContainer} showsVerticalScrollIndicator={false}><SkeletonHero /><Text style={styles.skeletonRailLabel}>TRENDING NOW</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.skeletonRailRow}>{Array.from({ length: 6 }).map((_, i) => <SkeletonRail key={i} />)}</ScrollView><Text style={styles.skeletonRailLabel}>POPULAR RELEASES</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.skeletonRailRow}>{Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}</ScrollView></ScrollView></NativeScreen>;
   if (home.isError || !home.data) return <NativeScreen><InAppEpisodeAlertMonitor /><NativeHeader eyebrow="ANIRAKU" title="Home" action={<View style={styles.topActions}><SearchAction /><NotificationAction /></View>} /><ErrorState message={home.error?.message ?? "We could not load anime right now."} onRetry={() => void home.refetch()} /></NativeScreen>;
 
   const hero = !home.isPending ? home.data.trending[0] : null;
@@ -157,7 +158,7 @@ export default function HomeScreen() {
       <Text style={styles.skeletonRailLabel}>TRENDING NOW</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.skeletonRailRow}>{Array.from({ length: 6 }).map((_, i) => <SkeletonRail key={i} />)}</ScrollView>
     </ScrollView> : <ScrollView contentContainerStyle={styles.scrollContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={nothing.red} />} showsVerticalScrollIndicator={false}>
-      {hero ? <Pressable accessibilityRole="button" accessibilityLabel={`Open ${animeTitle(hero)}`} onPress={() => router.push((`/anime/${hero.id}`) as never)} style={({ pressed }) => [styles.hero, pressed && styles.pressed]}>
+      {hero ?       <Pressable accessibilityRole="button" accessibilityLabel={`Open ${animeTitle(hero)}`} onPress={() => { hapticLight(); router.push((`/anime/${hero.id}`) as never); }} style={({ pressed }) => [styles.hero, pressed && styles.pressed]}>
         <View style={styles.heroFallback}><Text style={styles.heroFallbackText}>{animeTitle(hero).charAt(0)}</Text></View>
         <Image source={{ uri: hero.bannerImage || hero.coverImage?.extraLarge || hero.coverImage?.large || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" />
         <View style={styles.heroMask} />
@@ -169,7 +170,7 @@ export default function HomeScreen() {
             <Text style={styles.heroTitle} numberOfLines={2}>{animeTitle(hero)}</Text>
             <Text style={styles.heroMeta}>{titleFacts(hero.format, hero.episodes, hero.averageScore)}</Text>
             <View style={styles.heroActions}>
-              <Pressable style={({ pressed }) => [styles.heroPlayBtn, pressed && styles.pressed]} onPress={() => router.push((`/anime/${hero.id}`) as never)}>
+              <Pressable style={({ pressed }) => [styles.heroPlayBtn, pressed && styles.pressed]} onPress={() => { hapticLight(); router.push((`/anime/${hero.id}`) as never); }}>
                 <AppIcon name="play" size={16} color={nothing.black} />
                 <Text style={styles.heroPlayText}>Play</Text>
               </Pressable>
