@@ -47,6 +47,7 @@ const config: ExpoConfig = {
     "expo-audio",
     "expo-font",
     "expo-web-browser",
+    "react-native-reanimated",
     ["react-native-video", { enableAndroidPictureInPicture: true }],
     ["expo-screen-orientation", { initialOrientation: "DEFAULT" }],
     ["expo-secure-store", { configureAndroidBackup: false }],
