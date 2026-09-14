@@ -20,4 +20,4 @@ export function AppIcon({ name, size = 20, color, style }: { name: string; size?
   return <Text accessibilityElementsHidden style={[styles.icon, { color, fontSize: size, lineHeight: size + 2 }, style]}>{glyphs[name] ?? "•"}</Text>;
 }
 
-const styles = StyleSheet.create({ icon: { fontFamily: "monospace", fontWeight: "700", includeFontPadding: false, textAlign: "center" } });
+const styles = StyleSheet.create({ icon: { fontFamily: "SpaceGrotesk-Regular", fontWeight: "700", includeFontPadding: false, textAlign: "center" } });

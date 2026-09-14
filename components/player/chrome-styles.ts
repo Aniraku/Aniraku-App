@@ -17,8 +17,8 @@ export const chrome = StyleSheet.create({
     gap: 4,
   },
   topBtn: {
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 4,
@@ -26,7 +26,6 @@ export const chrome = StyleSheet.create({
   topTitle: {
     flex: 1,
     color: "#FFF",
-    fontFamily: "Caveat-Bold",
     fontSize: 14,
     lineHeight: 16,
     marginLeft: 4,
@@ -46,10 +45,9 @@ export const chrome = StyleSheet.create({
   },
   serverPillText: {
     color: nothing.black,
-    fontFamily: "monospace",
-    fontSize: 8,
-    fontWeight: "900",
-    letterSpacing: 0.3,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.2,
   },
   bottomDeck: {
     gap: 4,
@@ -70,9 +68,9 @@ export const chrome = StyleSheet.create({
   },
   resumePillText: {
     color: "#FFF",
-    fontFamily: "monospace",
-    fontSize: 8,
-    fontWeight: "900",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.3,
   },
   skipPill: {
     flexDirection: "row",
@@ -85,7 +83,6 @@ export const chrome = StyleSheet.create({
   },
   skipPillText: {
     color: "#FFF",
-    fontFamily: "Caveat-Bold",
     fontSize: 13,
     fontWeight: "700",
     letterSpacing: 0.3,
@@ -97,11 +94,11 @@ export const chrome = StyleSheet.create({
   },
   timeText: {
     color: "#FFF",
-    fontFamily: "monospace",
-    fontSize: 9,
-    fontWeight: "700",
+    fontSize: 11,
+    fontWeight: "600",
     minWidth: 34,
     textAlign: "center",
+    fontVariant: ["tabular-nums"],
   },
   timelineTrack: {
     flex: 1,
@@ -196,16 +193,14 @@ export const chrome = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.7)",
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 18,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.2)",
   },
   lockedPillText: {
     color: "#FFF",
-    fontFamily: "monospace",
-    fontSize: 9,
-    fontWeight: "800",
-    letterSpacing: 0.6,
+    fontSize: 12,
+    fontWeight: "600",
   },
   badge2x: {
     position: "absolute",
@@ -218,14 +213,13 @@ export const chrome = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.75)",
     paddingHorizontal: 12,
     paddingVertical: 5,
-    borderRadius: 14,
+    borderRadius: 8,
   },
   badge2xText: {
     color: "#FFF",
-    fontFamily: "monospace",
-    fontSize: 10,
-    fontWeight: "900",
-    letterSpacing: 0.5,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
   verticalBarWrap: {
     position: "absolute",
@@ -271,9 +265,9 @@ export const chrome = StyleSheet.create({
   },
   verticalBarText: {
     color: "#FFF",
-    fontFamily: "monospace",
-    fontSize: 9,
-    fontWeight: "800",
+    fontSize: 11,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
   },
   doubleTapOverlay: {
     position: "absolute",
@@ -293,10 +287,8 @@ export const chrome = StyleSheet.create({
   },
   doubleTapLabel: {
     color: "#FFF",
-    fontFamily: "monospace",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     marginTop: 4,
-    letterSpacing: 0.5,
   },
 });

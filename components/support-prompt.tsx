@@ -79,8 +79,8 @@ const styles = StyleSheet.create({
   title: { color: nothing.white, fontSize: 27, fontWeight: "900", letterSpacing: -0.8, lineHeight: 31 },
   copy: { color: nothing.muted, fontSize: 13, lineHeight: 19 },
   primary: { minHeight: 50, alignItems: "center", justifyContent: "center", borderRadius: 4, backgroundColor: nothing.white },
-  primaryText: { color: nothing.black, fontFamily: "monospace", fontSize: 10, fontWeight: "900", letterSpacing: 0.45 },
+  primaryText: { color: nothing.black, fontSize: 10, fontWeight: "800", letterSpacing: 0.45 },
   secondary: { minHeight: 42, alignItems: "center", justifyContent: "center" },
-  secondaryText: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.45 },
-  pressed: { opacity: 0.72, transform: [{ scale: 0.985 }] },
+  secondaryText: { color: nothing.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.45 },
+  pressed: nothing.pressed,
 });

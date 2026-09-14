@@ -5,9 +5,9 @@ import { Platform } from "react-native";
 import { anirakuDownloadUrl, nativePlaybackHeaders } from "@/lib/aniraku-api";
 import { isAutoQuality } from "@/lib/watch-engine";
 import type { StreamSource } from "@/lib/types";
-import { downloadLabel, isDownloadableSource, publicDownloadFilename, selectMaximumQualityDownload } from "@/lib/download-policy";
+import { downloadLabel, filterExistingDownloadEntries, isDownloadableSource, publicDownloadFilename, selectDownloadSourceForQuality, selectMaximumQualityDownload } from "@/lib/download-policy";
 
-export { downloadLabel, isDownloadableSource, publicDownloadFilename, selectMaximumQualityDownload } from "@/lib/download-policy";
+export { downloadLabel, filterExistingDownloadEntries, isDownloadableSource, publicDownloadFilename, selectDownloadSourceForQuality, selectMaximumQualityDownload } from "@/lib/download-policy";
 
 const INDEX_KEY = "aniraku.offline-downloads.v1";
 const PUBLIC_DOWNLOADS_DIRECTORY_KEY = "aniraku.public-downloads-directory.v1";
@@ -58,18 +58,50 @@ export async function findOfflineDownload(animeId: number, episode: number, lang
   return new File(entry.uri).exists ? entry : null;
 }
 
+export async function listOfflineDownloads(): Promise<OfflineDownload[]> {
+  return readIndex();
+}
+
+/**
+ * Stale-index cleanup: on library/download list load, drop index entries
+ * whose files are gone (removed outside the app). Returns what was pruned
+ * so callers can no-op when nothing changed.
+ */
+export async function pruneStaleDownloads(): Promise<{ kept: OfflineDownload[]; removed: OfflineDownload[] }> {
+  const entries = await readIndex();
+  const { kept, removed } = filterExistingDownloadEntries(entries, (uri) => {
+    try {
+      return new File(uri).exists;
+    } catch {
+      return false;
+    }
+  });
+  if (removed.length) await writeIndex(kept);
+  return { kept, removed };
+}
+
 /**
  * Downloads via the backend proxy endpoint which handles CDN headers, CORS,
  * and authentication. The backend streams the file through /api/v1/download
  * so the client never touches the raw CDN URL.
+ *
+ * When `variantUrl` carries the parsed HLS variant for the chosen height,
+ * that exact rendition is fetched — never the master's highest guess. The
+ * max-guess `source` remains the fallback (and still supplies the filename)
+ * when no parsed variant is available.
  */
-export async function startMaximumQualityDownload(input: { animeId: number; episode: number; language: "sub" | "dub"; title: string; source: StreamSource; headers?: Record<string, string>; onProgress?: (fraction: number) => void }) {
-  if (!isDownloadableSource(input.source)) throw new Error("This provider only offers adaptive, embedded, or protected playback. A direct progressive source is required for downloading.");
+export async function startMaximumQualityDownload(input: { animeId: number; episode: number; language: "sub" | "dub"; title: string; source: StreamSource; variantUrl?: string | null; variantQuality?: string | null; headers?: Record<string, string>; onProgress?: (fraction: number) => void }) {
+  const explicitUrl = String(input.variantUrl ?? "").trim() || null;
+  const useExplicit = Boolean(explicitUrl && /^https:\/\//i.test(explicitUrl));
+  if (explicitUrl && !useExplicit) throw new Error("The selected quality offered an unusable download URL.");
+  if (!useExplicit && !isDownloadableSource(input.source)) throw new Error("This provider only offers adaptive, embedded, or protected playback. A direct progressive source is required for downloading.");
   const id = downloadId(input.animeId, input.episode, input.language);
-  const quality = isAutoQuality(input.source) ? "ORIGINAL DIRECT" : input.source.quality || "DIRECT";
+  const quality = useExplicit
+    ? (String(input.variantQuality ?? "").trim() || input.source.quality || "VARIANT")
+    : (isAutoQuality(input.source) ? "ORIGINAL DIRECT" : input.source.quality || "DIRECT");
   const filename = publicDownloadFilename(input.title, input.episode, input.language, quality, input.source);
   const proxyHeaders = nativePlaybackHeaders(input.headers);
-  const downloadUrl = anirakuDownloadUrl(input.source.url, proxyHeaders);
+  const downloadUrl = anirakuDownloadUrl(useExplicit ? explicitUrl as string : input.source.url, proxyHeaders);
 
   const saveInto = async (directory: Directory) => {
     const destination = new File(directory, filename);

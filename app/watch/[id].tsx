@@ -2,37 +2,44 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocalSearchParams, router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery } from "@tanstack/react-query";
-import { ActivityIndicator, Animated, BackHandler, Dimensions, LayoutChangeEvent, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Animated, BackHandler, Dimensions, FlatList, LayoutChangeEvent, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { Image } from "expo-image";
 import Video, { type OnProgressData, type OnLoadData, type OnBufferData, type VideoRef } from "react-native-video";
 import { useKeepAwake } from "expo-keep-awake";
 import { StatusBar } from "expo-status-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as Brightness from "expo-brightness";
-import * as IntentLauncher from "expo-intent-launcher";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import {
   ArrowLeft, Gear, Speedometer, Subtitles, SpeakerHigh, SpeakerNone,
   SkipBack, SkipForward, Play, Pause, ArrowsOut, ArrowsIn, Check, X,
-  Lock, Rewind, FastForward, Download, VideoCamera, CaretLeft, CaretRight,
-  Eye, EyeSlash, Lightning, LightningSlash, Moon, Sun,
-  ListPlus, TextAa, Timer, BookmarkSimple, Queue
+  Lock, Rewind, FastForward, Download, DownloadSimple, CaretLeft, CaretRight,
+  Sun
 } from "phosphor-react-native";
-import { anirakuDownloadUrl, anirakuProxyUrl, getAnimeMetadata, getEpisodes, getServers, getStream, getPlaybackType, isAnirakuProxyUrl, nativePlaybackHeaders, hasDubForEpisode } from "@/lib/aniraku-api";
+import { anirakuProxyUrl, getAnimeMetadata, getEpisodes, getServers, getStream, getPlaybackType, isAnirakuProxyUrl, nativePlaybackHeaders, hasDubForEpisode } from "@/lib/aniraku-api";
 import { getAnimeById, getKnownMalId, getMalIdByAnimeId } from "@/lib/anilist";
 import { enrichEpisodesWithTmdb } from "@/lib/tmdb-episodes";
 import {
   activeSkipKind,
+  autoQualityLine,
+  chapterTrackSegments,
   directSources,
   embedSources,
   episodePageCount,
   episodePageFor,
   episodePageSlice,
   hasConfirmedPlaybackStart,
+  humanPlayerError,
   isAutoQuality,
   isHentaiAnime,
+  isOfflinePlaybackSource,
   isProxySource,
+  isResumablePosition,
+  liveRenditionHeight,
+  resolveHistoryResume,
+  resolveResumeOnSwitch,
+  resolveSkipFetchStatus,
   FUTURE_RELEASE_MESSAGE,
   isConfirmedFutureRelease,
   mergeSkipSegments,
@@ -41,11 +48,15 @@ import {
   providerSkipSegments,
   proxySources,
   shouldPreferEmbed,
+  shouldRefreshSameProvider,
   shouldRetryProxiedSourceAfterDirect,
   shouldApplyInitialHistoryResume,
   shouldMountReplacementSource,
   shouldHoldRebufferWatermark,
+  streamCacheKey,
   type Language,
+  type RetryReason,
+  type SkipFetchStatus,
   type SkipKind,
   type SkipSegments,
 } from "@/lib/watch-engine";
@@ -55,20 +66,26 @@ import { useEpisodeRatings } from "@/hooks/use-episode-ratings";
 import { AnimeComments } from "@/components/anime-comments";
 import { useProviderSync } from "@/hooks/use-provider-sync";
 import { useAnirakuAuth } from "@/providers/auth-provider";
-import { downloadLabel, findOfflineDownload, removeOfflineDownload, selectMaximumQualityDownload, shareOfflineDownload, startMaximumQualityDownload, type OfflineDownload } from "@/lib/downloads";
+import { findOfflineDownload, removeOfflineDownload, selectDownloadSourceForQuality, selectMaximumQualityDownload, startMaximumQualityDownload, type OfflineDownload } from "@/lib/downloads";
 import { adaptiveBitrateCapOptions, selectedWatchQuality, watchQualityOptions, type WatchQualityOption } from "@/lib/watch-quality";
+import { buildDashQualityOptions, buildHlsQualityOptions, hlsVariantsCacheKey, originalStreamUrl, parseDashRepresentations, parseHlsMasterVariants, shouldRefetchVariants, shouldRefreshMasterOnVariantError, variantUrlForHeight, type HlsVariant, type VariantsCacheScope } from "@/lib/hls-variants";
 import { AppIcon } from "@/components/app-icon";
 import { EmbedPlayer } from "@/components/embed-player";
 import { DotLabel, NothingButton, NothingCard, nothing, Signal } from "@/components/nothing-ui";
 import { NativeScreen } from "@/components/screen";
 import { SubtitleRenderer } from "@/components/subtitle-renderer";
-import { SleepTimer, SleepTimerPill } from "@/components/sleep-timer";
+import { SleepTimerPill } from "@/components/sleep-timer";
 import { chrome } from "@/components/player/chrome-styles";
 import { parseSubtitle, detectSubtitleFormat, detectSubtitleFormatFromContent, findActiveCues, matchSubtitleTrack, type SubtitleCue } from "@/lib/subtitle-parser";
-import { loadSubtitlePreferences, saveSubtitlePreferences, type SubtitlePreferences, SUBTITLE_FONTS, FONT_SIZE_PRESETS, BG_OPACITY_PRESETS, OUTLINE_PRESETS } from "@/lib/subtitle-preferences";
+import { loadSubtitlePreferences, saveSubtitlePreferences, SUBTITLE_FONTS, BG_OPACITY_PRESETS, OUTLINE_PRESETS, type SubtitlePreferences } from "@/lib/subtitle-preferences";
+import { resolveNextEpisode, resolvePrevEpisode } from "@/lib/up-next";
+import { t } from "@/lib/i18n";
 
 const EPISODE_PAGE_SIZE = 50;
 const RESUME_MIN_TIME = 30;
+const DOUBLE_TAP_WINDOW_MS = 300;
+const SKIP_HOLD_MS = 400;
+const UP_NEXT_SECONDS = 10;
 const STREAM_CACHE_TTL_MS = 30_000;
 const STARTUP_WATCHDOG_MS = 6_000;
 const SKIP_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -88,13 +105,35 @@ function formatTime(seconds: number) {
   return `${minutes}:${String(secs).padStart(2, "0")}`;
 }
 
-function streamCacheKey(provider: Server, episode: number) {
-  return `aniraku-watch-stream:${provider.id}:${episode}`;
-}
-
 function skipCacheKey(malId: number, episode: number) {
   return `aniraku-skip-v2:${malId}:${episode}`;
 }
+
+type ProviderQualityMap = Record<string, string>;
+const PROVIDER_QUALITY_KEY = "aniraku.provider-quality.v1";
+
+async function readProviderQualityMap(): Promise<ProviderQualityMap> {
+  try {
+    const raw = await AsyncStorage.getItem(PROVIDER_QUALITY_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed as ProviderQualityMap : {};
+  } catch { return {}; }
+}
+
+/** Remembers a manual per-server quality ("1080p") so Auto can re-apply it. */
+async function rememberProviderQuality(providerId: string | undefined, quality: string | null) {
+  if (!providerId) return;
+  try {
+    const map = await readProviderQualityMap();
+    if (quality) map[providerId] = quality;
+    else delete map[providerId];
+    await AsyncStorage.setItem(PROVIDER_QUALITY_KEY, JSON.stringify(map));
+  } catch { /* preference loss is acceptable */ }
+}
+
+// ── Track 5.1: Cold-start measurement (dev only) ──
+const _watchMountTime = __DEV__ ? Date.now() : 0;
+if (__DEV__) console.log("[watch] mount t=0");
 
 export default function WatchScreen() {
   const params = useLocalSearchParams<{ id: string; episode?: string; title?: string; image?: string }>();
@@ -152,6 +191,11 @@ export default function WatchScreen() {
   const [buffering, setBuffering] = useState(false);
   const [playableDuration, setPlayableDuration] = useState(0);
   const [videoTracks, setVideoTracks] = useState<any[]>([]);
+  // Real renditions parsed out of the provider's Auto URL (HLS master or DASH
+  // manifest) — kept around while a parsed variant is mounted so the menu can
+  // offer Auto + siblings without re-fetching.
+  const [parsedQualityOptions, setParsedQualityOptions] = useState<WatchQualityOption[] | null>(null);
+  const [parsedQualityNote, setParsedQualityNote] = useState<string | null>(null);
 
   // ── App state ──
   const [language, setLanguage] = useState<Language>("sub");
@@ -198,15 +242,17 @@ export default function WatchScreen() {
   const [speed, setSpeed] = useState(1);
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [showControls, setShowControls] = useState(true);
-  const [showSourcePicker, setShowSourcePicker] = useState(false);
-  const [showQualityPicker, setShowQualityPicker] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  type ActivePanel = "settings" | "subtitles" | "speed" | "server" | "chapters" | "source" | "quality" | null;
+  const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const [manualFullscreen, setManualFullscreen] = useState(false);
   const [episodeSearch, setEpisodeSearch] = useState("");
   const [episodePage, setEpisodePage] = useState(0);
   const [progressWidth, setProgressWidth] = useState(0);
   const [dragPct, setDragPct] = useState<number | null>(null);
   const [skipSegments, setSkipSegments] = useState<SkipSegments>({ intro: null, outro: null });
+  // AniSkip telemetry (Track 4): distinguishes "no skip data" (empty) from
+  // "request timed out" (timeout) in the error-card diagnostic line.
+  const [skipFetchStatus, setSkipFetchStatus] = useState<SkipFetchStatus>("idle");
   const [resumePosition, setResumePosition] = useState<number | null>(null);
   const [offlineDownload, setOfflineDownload] = useState<OfflineDownload | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
@@ -222,13 +268,27 @@ export default function WatchScreen() {
   const [audioTracks, setAudioTracks] = useState<any[]>([]);
   const [selectedAudioTrack, setSelectedAudioTrack] = useState<{ type: "language" | "title" | "index"; value?: string | number } | undefined>(undefined);
   const [sleepRemaining, setSleepRemaining] = useState<number | null>(null);
-  const [showSpeedModal, setShowSpeedModal] = useState(false);
-  const [showSubtitleModal, setShowSubtitleModal] = useState(false);
-  const [showServerModal, setShowServerModal] = useState(false);
-  const [showChapterList, setShowChapterList] = useState(false);
   const [is2xSeeking, setIs2xSeeking] = useState(false);
   const [doubleTapSide, setDoubleTapSide] = useState<"left" | "right" | null>(null);
   const doubleTapAnim = useRef(new Animated.Value(0)).current;
+  // Single-flash generation: a new double-tap replaces the previous flash
+  // instead of stacking a second ripple on top of it.
+  const doubleTapGen = useRef(0);
+  // Double-tap-and-hold: +10s every 400ms while the second tap stays down.
+  const skipHoldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipHoldSide = useRef<"left" | "right" | null>(null);
+  const doubleTapTouch = useRef(false);
+  // PiP hardening: availability is probed (button hides where enter fails),
+  // activity pauses UI updates while the system owns the frame.
+  const [pipAvailable, setPipAvailable] = useState(true);
+  const [pipActive, setPipActive] = useState(false);
+  const pipActiveRef = useRef(false);
+  // Live ExoPlayer rendition feeding the `Auto · 720p` line.
+  const [liveHeight, setLiveHeight] = useState<number | null>(null);
+  // Up-next end-card: quiet 10s countdown, cancellable, autoNext-aware.
+  const [upNextVisible, setUpNextVisible] = useState(false);
+  const [upNextCountdown, setUpNextCountdown] = useState(10);
+  const upNextShownFor = useRef<string | null>(null);
   const [dubEpisodeSet, setDubEpisodeSet] = useState<Set<number>>(new Set());
   const [dubCheckPending, setDubCheckPending] = useState(false);
   const [volumeHud, setVolumeHud] = useState<number | null>(null);
@@ -247,16 +307,30 @@ export default function WatchScreen() {
   // Fullscreen is entered explicitly via enterFullscreen() only.
   useEffect(() => () => { if (Platform.OS !== "web") void ScreenOrientation.unlockAsync().catch(() => {}); }, []);
 
+  // Sensor landscape (normal + reversed), never a hard single-sided lock.
+  // Expo's LANDSCAPE already resolves to SENSOR_LANDSCAPE on Android, but the
+  // explicit platform constant keeps reversed-landscape working regardless of
+  // how the mapping evolves. iOS LANDSCAPE spans both sides natively.
+  const lockSensorLandscape = useCallback(() => {
+    if (Platform.OS === "web") return;
+    if (Platform.OS === "android") {
+      // ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+      void ScreenOrientation.lockPlatformAsync({ screenOrientationConstantAndroid: 6 }).catch(() => {});
+      return;
+    }
+    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+  }, []);
+
   const toggleOrientationLock = useCallback(() => {
     setOrientationLocked((prev) => {
       const next = !prev;
       if (Platform.OS !== "web") {
-        if (next) void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+        if (next) lockSensorLandscape();
         else void ScreenOrientation.unlockAsync().catch(() => {});
       }
       return next;
     });
-  }, []);
+  }, [lockSensorLandscape]);
 
   const streamCache = useRef(new Map<string, CachedStream>());
   const blockedProviders = useRef(new Set<string>());
@@ -279,6 +353,21 @@ export default function WatchScreen() {
   const rebufferSeen = useRef(false);
   const intentionalSeekUntil = useRef(0);
   const adaptiveCapSourceUrl = useRef<string | null>(null);
+  // One cache entry per master playback URL. Entries are dropped only when the
+  // variants scope rotates (provider / episode / refresh / master) — opening
+  // the settings sheet changes none of those, so it never re-fetches.
+  const hlsVariantsCache = useRef(new Map<string, { options: WatchQualityOption[]; variants: HlsVariant[] }>());
+  const parsedOptionsRef = useRef<{ key: string; options: WatchQualityOption[] } | null>(null);
+  // Raw parsed renditions for the current master: downloads fetch the exact
+  // variant URL for the chosen height, and the token guard re-resolves the
+  // same height after a master refresh.
+  const parsedVariantsRef = useRef<{ key: string; variants: HlsVariant[] } | null>(null);
+  const variantsScopeRef = useRef<VariantsCacheScope | null>(null);
+  // Single-refresh flag for the variant token-expiry guard: the mounted
+  // variant URL that already earned its one master refresh. Reset on every
+  // provider / episode / language / retry switch so a fresh mount retries once.
+  const variantTokenRefreshAttempted = useRef<string | null>(null);
+  const autoQualityAppliedFor = useRef<string | null>(null);
 
   const activeProviders = providers[language] ?? [];
   const activeProvider = activeProviders[serverIndex];
@@ -311,6 +400,15 @@ export default function WatchScreen() {
   const parsedCuesRef = useRef<SubtitleCue[]>([]);
   const currentTimeRef = useRef(0);
   currentTimeRef.current = currentTime;
+  // Mirrors for the quality effect: it depends on scalar snapshots (url, type,
+  // serialized headers) instead of these objects, so unrelated identity churn
+  // never re-fetches the master — only real scope changes do.
+  const sourceMirrorRef = useRef(source);
+  sourceMirrorRef.current = source;
+  const playbackHeadersMirrorRef = useRef(playbackHeaders);
+  playbackHeadersMirrorRef.current = playbackHeaders;
+  // PiP-safe mirrors: refs keep tracking while setState is paused in PiP.
+  const playableDurationRef = useRef(0);
 
   const updateSubtitlePrefs = useCallback((patch: Partial<SubtitlePreferences>) => {
     setSubtitlePrefs((prev) => {
@@ -380,6 +478,7 @@ export default function WatchScreen() {
     rebufferSeen.current = false;
     intentionalSeekUntil.current = 0;
     initialHistoryResumeApplied.current = false;
+    setLiveHeight(null);
   }, [source?.url, sourceRevision]);
 
   useEffect(() => {
@@ -412,6 +511,7 @@ export default function WatchScreen() {
     autoSkipped.current = { intro: false, outro: false };
     blockedProviders.current.clear();
     refreshAttempted.current.clear();
+    variantTokenRefreshAttempted.current = null;
     sourceStarted.current = false;
     sourceFirstFrame.current = false;
     sourceMounted.current = false;
@@ -423,10 +523,13 @@ export default function WatchScreen() {
     setResumePosition(null);
   }, []);
 
-  const handleProviderBlocked = useCallback((reason: "player" | "stream" | "startup" | "permanent" = "player") => {
+  const handleProviderBlocked = useCallback((reason: RetryReason = "player") => {
     const current = activeProviders[serverIndex];
     if (!current) return;
-    if (reason !== "permanent" && !refreshAttempted.current.has(current.id)) {
+    // Retry honesty: the same provider is re-fetched ONCE with refresh:true;
+    // afterwards we move to the next unblocked provider. The same dead URL
+    // is never looped without the refresh flag (see shouldRefreshSameProvider).
+    if (shouldRefreshSameProvider(reason, refreshAttempted.current.has(current.id))) {
       refreshAttempted.current.add(current.id);
       forceRefresh.current = true;
       sourceStarted.current = false;
@@ -464,7 +567,7 @@ export default function WatchScreen() {
         setSource(null);
         setEmbedSource(fallbackEmbed);
         setLoadingStream(false);
-        setShowSourcePicker(false);
+        setActivePanel(null);
         return;
       }
     }
@@ -583,7 +686,10 @@ export default function WatchScreen() {
       setLoadingStream(true);
     }
 
-    const cacheKey = streamCacheKey(activeProvider, episode);
+    // Cache is keyed by provider identity + language + episode (see
+    // streamCacheKey in lib/watch-engine): a sub stream must never be
+    // reused for a dub request, nor Momo's for Niko's.
+    const cacheKey = streamCacheKey(activeProvider, episode, language);
     const cached = streamCache.current.get(cacheKey);
     if (!forceThisRequest && cached && Date.now() - cached.savedAt < STREAM_CACHE_TTL_MS) {
       const cachedDirect = directSources(cached.data);
@@ -668,8 +774,11 @@ export default function WatchScreen() {
   }, [activeProvider, animeId, applySkipSegments, episode, futureRelease, isHentai, language, refreshNonce]);
 
   // ── Source loading with direct → proxy fallback ──
+  // Offline saved copies never touch the stream path: no watchdog, no
+  // proxy, no headers. Local files either load or surface a player error;
+  // failing over to a network server would be the wrong next step.
   useEffect(() => {
-    if (!source) return;
+    if (!source || isOfflinePlaybackSource(source)) return;
     sourceFailureHandled.current = null;
     sourceStarted.current = false;
     sourceFirstFrame.current = false;
@@ -697,11 +806,23 @@ export default function WatchScreen() {
     }
   }, [adaptiveBitrateCap, source]);
 
+  // Embeds had no startup watchdog — a dead embed page spun forever. If the
+  // WebView never finishes loading, fall through to the next server.
+  const embedReadyRef = useRef(false);
+  useEffect(() => {
+    if (!embedSource || source) return;
+    embedReadyRef.current = false;
+    const timer = setTimeout(() => {
+      if (!embedReadyRef.current) handleProviderBlockedRef.current("startup");
+    }, 15_000);
+    return () => clearTimeout(timer);
+  }, [embedSource, source]);
+
   useEffect(() => {
     if (hasConfirmedPlaybackStart({ isPlaying, currentTime, firstFrameRendered: sourceFirstFrame.current })) sourceStarted.current = true;
     const pendingPosition = pendingResume.current;
     if (shouldApplyInitialHistoryResume({
-      currentTime, hasPendingResume: Boolean(pendingPosition && pendingPosition > RESUME_MIN_TIME),
+      currentTime, hasPendingResume: isResumablePosition(pendingPosition),
       isPlaying, resumeAppliedForSource: initialHistoryResumeApplied.current, status: playerStatus,
     })) {
       initialHistoryResumeApplied.current = true;
@@ -713,6 +834,14 @@ export default function WatchScreen() {
 
   useEffect(() => {
     if (playerStatus !== "error" || !source?.url || sourceFailureHandled.current === source.url) return;
+    // Offline files stay offline: surface the player error, never proxy or
+    // fail over to a network server.
+    if (isOfflinePlaybackSource(source)) {
+      sourceFailureHandled.current = source.url;
+      setLoadingStream(false);
+      setError("The saved copy could not play. Remove it and download again.");
+      return;
+    }
     if (!useSourceProxy) { setUseSourceProxy(true); setSourceRevision((v) => v + 1); return; }
     sourceFailureHandled.current = source.url;
     handleProviderBlockedRef.current("player");
@@ -746,6 +875,7 @@ export default function WatchScreen() {
         const cached = JSON.parse(stored) as { savedAt?: number; segments?: SkipSegments | null };
         if (cached.savedAt && Date.now() - cached.savedAt < SKIP_CACHE_TTL_MS) {
           if (!cancelled && cached.segments) applySkipSegments(cached.segments);
+          if (!cancelled) setSkipFetchStatus(resolveSkipFetchStatus({ fromCache: true }));
           return;
         }
       }
@@ -753,18 +883,34 @@ export default function WatchScreen() {
       // Pass the real runtime when known — episodeLength=0 makes AniSkip miss
       // entries it would otherwise return (then 404, handled below).
       const runtime = duration > 0 ? Math.round(duration) : 0;
-      const response = await fetch(`https://api.aniskip.com/v2/skip-times/${malId}/${episode}?types%5B%5D=op&types%5B%5D=ed&episodeLength=${runtime}`, { headers: { Accept: "application/json" }, signal: controller.signal, cache: "no-store" });
-      clearTimeout(timeout);
-      if (!response.ok) { void AsyncStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), segments: null })).catch(() => {}); return; }
-      const segments = normalizeAniSkipSegments(await response.json());
-      if (cancelled) return;
-      applySkipSegments(segments);
-      void AsyncStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), segments: segments.intro || segments.outro ? segments : null })).catch(() => {});
-    }).catch(() => {});
+      let timedOut = false;
+      try {
+        const response = await fetch(`https://api.aniskip.com/v2/skip-times/${malId}/${episode}?types%5B%5D=op&types%5B%5D=ed&episodeLength=${runtime}`, { headers: { Accept: "application/json" }, signal: controller.signal, cache: "no-store" });
+        clearTimeout(timeout);
+        if (!response.ok) {
+          void AsyncStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), segments: null })).catch(() => {});
+          if (!cancelled) setSkipFetchStatus(resolveSkipFetchStatus({ ok: true, hasSegments: false }));
+          return;
+        }
+        const segments = normalizeAniSkipSegments(await response.json());
+        if (cancelled) return;
+        applySkipSegments(segments);
+        if (!cancelled) setSkipFetchStatus(resolveSkipFetchStatus({ ok: true, hasSegments: Boolean(segments.intro || segments.outro) }));
+        void AsyncStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), segments: segments.intro || segments.outro ? segments : null })).catch(() => {});
+      } catch (cause) {
+        clearTimeout(timeout);
+        timedOut = cause instanceof Error && cause.name === "AbortError";
+        void AsyncStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), segments: null })).catch(() => {});
+        if (!cancelled) setSkipFetchStatus(resolveSkipFetchStatus({ timedOut, ok: false }));
+      }
+    }).catch(() => { if (!cancelled) setSkipFetchStatus(resolveSkipFetchStatus({ ok: false })); });
     return () => { cancelled = true; controller.abort(); };
   }, [animeId, animeQuery.data, applySkipSegments, duration, episode]);
 
   // ── History resume ──
+  // Conflict rule (Track 4): prefer max(local, server), not last-write. A
+  // device that kept watching offline must not lose its lead to an older
+  // server row, and vice versa.
   useEffect(() => {
     if (!history.history.isSuccess) return;
     const historyKey = `${animeId}:${episode}`;
@@ -772,11 +918,30 @@ export default function WatchScreen() {
     historyResumeRequestedFor.current = historyKey;
     setResumePosition(null);
     pendingResume.current = null;
-    const entry = history.history.data?.find((item) => item.anime_id === animeId && item.episode_number === episode);
-    if (entry && entry.progress > RESUME_MIN_TIME && entry.duration && entry.progress < entry.duration - 10) {
-      pendingResume.current = entry.progress;
-      setResumePosition(entry.progress);
-    }
+    const serverEntry = history.history.data?.find((item) => item.anime_id === animeId && item.episode_number === episode);
+    const server = serverEntry ? { progress: serverEntry.progress, duration: serverEntry.duration } : null;
+    void AsyncStorage.getItem(`aniraku-watch-local:${animeId}:${episode}`).then((stored) => {
+      let local: { progress: number; duration: number } | null = null;
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as { progress?: number; duration?: number };
+          if (Number.isFinite(parsed.progress) && Number.isFinite(parsed.duration)) {
+            local = { progress: Number(parsed.progress), duration: Number(parsed.duration) };
+          }
+        } catch { /* ignore malformed */ }
+      }
+      const best = resolveHistoryResume(local, server);
+      if (best !== null) {
+        pendingResume.current = best;
+        setResumePosition(best);
+      }
+    }).catch(() => {
+      const best = resolveHistoryResume(null, server);
+      if (best !== null) {
+        pendingResume.current = best;
+        setResumePosition(best);
+      }
+    });
   }, [animeId, episode, history.history.data, history.history.isSuccess]);
 
   // Local resume fallback for logged-out users (Anilab parity).
@@ -880,6 +1045,143 @@ export default function WatchScreen() {
     return nativePlaybackHeaders(playbackHeaders);
   }, [useSourceProxy, playbackHeaders, source?.url]);
 
+  // ── Quality from the provider's Auto URL ──
+  // Fetch the manifest the player is actually using and enumerate its real
+  // renditions: HLS variant playlists mount by URL; DASH representations
+  // become bitrate caps. Picking one mounts that rendition; Auto remounts the
+  // master. A remembered per-server quality re-applies itself once here.
+  //
+  // Cache audit: the effect re-runs only on scalar scope signals (master URL,
+  // provider id, episode, language, refresh, proxy/headers content). Object
+  // identity churn and settings-sheet opens change none of those, so the
+  // master is never re-fetched from them — the held menu or the per-master
+  // cache entry answers instead.
+  const qualitySourceUrl = source?.url ?? null;
+  const qualitySourceType = source?.type ?? null;
+  const qualityHeadersKey = JSON.stringify(playbackHeaders ?? null);
+  const qualityProviderId = activeProvider?.id ?? null;
+  useEffect(() => {
+    const current = sourceMirrorRef.current;
+    const currentUrl = current?.url ?? null;
+    if (!current || !currentUrl) {
+      setParsedQualityOptions(null);
+      setParsedQualityNote(null);
+      parsedOptionsRef.current = null;
+      parsedVariantsRef.current = null;
+      return;
+    }
+    const playbackType = getPlaybackType({ url: currentUrl, type: current?.type ?? undefined } as StreamSource);
+    if (playbackType !== "hls" && playbackType !== "dash") {
+      setParsedQualityOptions(null);
+      setParsedQualityNote(null);
+      parsedOptionsRef.current = null;
+      parsedVariantsRef.current = null;
+      return;
+    }
+
+    // Master identity: Auto mounts the master itself; a mounted variant
+    // reuses the master key captured at parse time (variant URLs rot faster
+    // than masters, so they are never used as fetch keys).
+    const masterPlaybackUri = hlsVariantsCacheKey(isAutoQuality(current) ? videoSourceUri : parsedOptionsRef.current?.key);
+    if (!masterPlaybackUri) {
+      const held = parsedOptionsRef.current;
+      if (held && !isAutoQuality(current) && held.options.some((option) => option.source?.url === currentUrl)) {
+        setParsedQualityOptions(held.options);
+        return;
+      }
+      setParsedQualityOptions(null);
+      setParsedQualityNote(null);
+      parsedOptionsRef.current = null;
+      parsedVariantsRef.current = null;
+      return;
+    }
+
+    // Invalidate on scope rotation only: same scope (e.g. settings opened)
+    // reuses the held menu / cache without a fetch; a rotated scope on the
+    // same master drops the stale parse so the refresh below re-resolves.
+    const nextScope: VariantsCacheScope = { masterUrl: masterPlaybackUri, providerId: qualityProviderId, episode, refreshNonce };
+    const prevScope = variantsScopeRef.current;
+    variantsScopeRef.current = nextScope;
+    if (prevScope && !shouldRefetchVariants(prevScope, nextScope)) {
+      const held = parsedOptionsRef.current;
+      if (held && held.key === masterPlaybackUri) { setParsedQualityOptions(held.options); return; }
+      const cached = hlsVariantsCache.current.get(masterPlaybackUri);
+      if (cached) {
+        setParsedQualityOptions(cached.options);
+        parsedOptionsRef.current = { key: masterPlaybackUri, options: cached.options };
+        parsedVariantsRef.current = { key: masterPlaybackUri, variants: cached.variants };
+        return;
+      }
+    } else if (prevScope && (prevScope.masterUrl ?? null) === (nextScope.masterUrl ?? null)) {
+      hlsVariantsCache.current.delete(masterPlaybackUri);
+      parsedOptionsRef.current = null;
+      parsedVariantsRef.current = null;
+    }
+
+    // A parsed variant is currently mounted — keep its menu alive.
+    const held = parsedOptionsRef.current;
+    if (!isAutoQuality(current) && held && held.key === masterPlaybackUri && held.options.some((option) => option.source?.url === currentUrl)) {
+      setParsedQualityOptions(held.options);
+      return;
+    }
+
+    const cached = hlsVariantsCache.current.get(masterPlaybackUri);
+    if (cached) {
+      setParsedQualityOptions(cached.options);
+      parsedOptionsRef.current = { key: masterPlaybackUri, options: cached.options };
+      parsedVariantsRef.current = { key: masterPlaybackUri, variants: cached.variants };
+      return;
+    }
+
+    let cancelled = false;
+    const directHeaders = nativePlaybackHeaders(playbackHeadersMirrorRef.current);
+    const proxied = useSourceProxy || isAnirakuProxyUrl(currentUrl) || isAnirakuProxyUrl(masterPlaybackUri);
+    const providerId = qualityProviderId;
+    const activeSource = current;
+    const applyRemembered = async (options: WatchQualityOption[], variants: HlsVariant[]) => {
+      const remembered = providerId ? (await readProviderQualityMap())[providerId] : undefined;
+      if (cancelled) return;
+      if (remembered) {
+        setParsedQualityNote(`${remembered} · saved for this server`);
+        const match = options.find((option) => option.requestQuality === remembered);
+        const applyKey = `${providerId}:${remembered}`;
+        if (match?.source && autoQualityAppliedFor.current !== applyKey) {
+          autoQualityAppliedFor.current = applyKey;
+          setParsedQualityOptions(options);
+          parsedOptionsRef.current = { key: masterPlaybackUri, options };
+          parsedVariantsRef.current = { key: masterPlaybackUri, variants };
+          selectQualityRef.current(match.source);
+          return;
+        }
+      } else {
+        setParsedQualityNote(null);
+      }
+      setParsedQualityOptions(options);
+      parsedOptionsRef.current = { key: masterPlaybackUri, options };
+      parsedVariantsRef.current = { key: masterPlaybackUri, variants };
+    };
+
+    fetch(masterPlaybackUri, directHeaders && !proxied ? { headers: { ...directHeaders, Accept: "*/*" } } : undefined)
+      .then((response) => {
+        if (!response.ok) throw new Error(`manifest ${response.status}`);
+        return response.text();
+      })
+      .then(async (text) => {
+        if (cancelled) return;
+        const variants = playbackType === "dash"
+          ? parseDashRepresentations(text)
+          : parseHlsMasterVariants(text, originalStreamUrl(masterPlaybackUri));
+        const options = playbackType === "dash"
+          ? buildDashQualityOptions(activeSource, variants)
+          : buildHlsQualityOptions(activeSource, variants, { proxied, headers: directHeaders });
+        if (!options.length) { setParsedQualityOptions(null); parsedOptionsRef.current = null; parsedVariantsRef.current = null; return; }
+        hlsVariantsCache.current.set(masterPlaybackUri, { options, variants });
+        await applyRemembered(options, variants);
+      })
+      .catch(() => { if (!cancelled) { setParsedQualityOptions(null); parsedOptionsRef.current = null; parsedVariantsRef.current = null; } });
+    return () => { cancelled = true; };
+  }, [qualitySourceUrl, qualitySourceType, videoSourceUri, useSourceProxy, qualityHeadersKey, qualityProviderId, episode, language, refreshNonce]);
+
   const videoContentType = useMemo(() => {
     if (!source) return undefined;
     const t = getPlaybackType(source);
@@ -898,13 +1200,14 @@ export default function WatchScreen() {
   // ── Actions ──
   const selectLanguage = (next: Language) => {
     if (!providers[next].length || next === language) return;
-    // Stash current position so the new source re-seeks here after load
-    if (currentTime > 0 && duration > 0) {
-      pendingResume.current = currentTime;
-    }
+    // Server-switch preserves position (Track 4): stash via the tested
+    // resolveResumeOnSwitch helper so sub↔dub keeps the seek target.
+    const stashed = resolveResumeOnSwitch(currentTime, duration);
+    if (stashed !== null) pendingResume.current = stashed;
     videoRef.current?.pause();
     blockedProviders.current.clear();
     refreshAttempted.current.clear();
+    variantTokenRefreshAttempted.current = null;
     sourceStarted.current = false;
     sourceFirstFrame.current = false;
     sourceMounted.current = false;
@@ -924,10 +1227,10 @@ export default function WatchScreen() {
   };
 
   const selectServer = (index: number) => {
-    // Stash current position so the new source re-seeks here after load
-    if (currentTime > 0 && duration > 0) {
-      pendingResume.current = currentTime;
-    }
+    // Server-switch preserves position (Track 4): stash via the tested
+    // resolveResumeOnSwitch helper so the new source re-seeks here.
+    const stashed = resolveResumeOnSwitch(currentTime, duration);
+    if (stashed !== null) pendingResume.current = stashed;
     // Reset the mount flag or the new provider's stream resolves but never
     // mounts (permanent spinner) — this stalled every manual server switch.
     sourceStarted.current = false;
@@ -935,6 +1238,7 @@ export default function WatchScreen() {
     sourceMounted.current = false;
     markedComplete.current = false;
     sourceFailureHandled.current = null;
+    variantTokenRefreshAttempted.current = null;
     videoRef.current?.pause();
     setSource(null);
     setEmbedSource(null);
@@ -942,9 +1246,7 @@ export default function WatchScreen() {
     setUseSourceProxy(false);
     setAdaptiveBitrateCap(null);
     setLoadingStream(true);
-    setShowSourcePicker(false);
-    setShowServerModal(false);
-    setShowSettings(false);
+    setActivePanel(null);
     if (index === serverIndex) {
       forceRefresh.current = true;
       setRefreshNonce((v) => v + 1);
@@ -955,6 +1257,13 @@ export default function WatchScreen() {
   };
 
   const selectQuality = (next: StreamSource) => {
+    // Quality switch preserves position too: the variant playlist starts at
+    // 0, so stash the current time for the resume effect to re-apply.
+    const stashed = resolveResumeOnSwitch(currentTime, duration);
+    if (stashed !== null) {
+      pendingResume.current = stashed;
+      initialHistoryResumeApplied.current = false;
+    }
     sourceMounted.current = true;
     setAdaptiveBitrateCap(null);
     setEmbedSource(null);
@@ -963,9 +1272,15 @@ export default function WatchScreen() {
     setSourceRevision((v) => v + 1);
     setPlaybackHeaders(stream?.headers ?? activeProvider?.headers);
     setRequestedQuality(isAutoQuality(next) ? "auto" : next.quality || "auto");
-    setShowQualityPicker(false);
-    setShowSettings(false);
+    setActivePanel(null);
+    // Remember manual quality per server; picking Auto (or a saved offline
+    // copy) clears it. The parse effect re-applies it on the next Auto mount.
+    const rememberedLabel = (next.quality || "").split("·")[0].trim().toLowerCase();
+    const persistable = rememberedLabel && rememberedLabel !== "auto" && !/saved/i.test(next.quality || "") ? rememberedLabel : null;
+    void rememberProviderQuality(activeProvider?.id, persistable);
   };
+  const selectQualityRef = useRef(selectQuality);
+  selectQualityRef.current = selectQuality;
 
   const selectAdaptiveQuality = async (choice: WatchQualityOption) => {
     if (!activeProvider || !source) return;
@@ -973,12 +1288,11 @@ export default function WatchScreen() {
       if (!isAutoQuality(source)) return;
       setAdaptiveBitrateCap(choice.maxVideoBitrate ?? null);
       setRequestedQuality("auto");
-      setShowQualityPicker(false);
-      setShowSettings(false);
+      setActivePanel(null);
       return;
     }
     if (choice.source) { selectQuality(choice.source); return; }
-    if (choice.requestQuality === "auto" && isAutoQuality(source)) { setRequestedQuality("auto"); setShowQualityPicker(false); setShowSettings(false); return; }
+    if (choice.requestQuality === "auto" && isAutoQuality(source)) { setRequestedQuality("auto"); setActivePanel(null); return; }
     try {
       setLoadingStream(true);
       const response = await getStream({ animeId, episode, provider: activeProvider.provider, lang: language, quality: choice.requestQuality });
@@ -995,15 +1309,47 @@ export default function WatchScreen() {
     }
   };
 
+  // Token-expiry guard: a mounted variant URL 403s with a rotted embedded
+  // timestamp → refresh the master once and re-resolve the same height before
+  // failing over to the next server. Variant URLs rot faster than masters, so
+  // a failover without this step burns a healthy provider. The
+  // single-refresh flag lives on the mounted URL itself: a fresh token means
+  // a fresh URL, which earns its own single attempt — no loops possible.
+  const refreshVariantFromMaster = async () => {
+    const stale = sourceMirrorRef.current;
+    const staleUrl = stale?.url ?? null;
+    const masterKey = parsedOptionsRef.current?.key ?? null;
+    if (!stale || !staleUrl || !masterKey) { handleProviderBlockedRef.current("player"); return; }
+    try {
+      const directHeaders = nativePlaybackHeaders(playbackHeadersMirrorRef.current);
+      const proxied = useSourceProxy || isAnirakuProxyUrl(staleUrl) || isAnirakuProxyUrl(masterKey);
+      const response = await fetch(masterKey, directHeaders && !proxied ? { headers: { ...directHeaders, Accept: "*/*" } } : undefined);
+      if (!response.ok) throw new Error(`manifest ${response.status}`);
+      const text = await response.text();
+      const variants = parseHlsMasterVariants(text, originalStreamUrl(masterKey));
+      if (!variants.length) throw new Error("empty variants");
+      const wantedHeight = Number.parseInt(String(stale.quality ?? ""), 10);
+      const targetCdn = (Number.isFinite(wantedHeight) ? variantUrlForHeight(variants, wantedHeight) : null) ?? variants[0]?.url ?? null;
+      if (!targetCdn) throw new Error("no variant");
+      const freshOptions = buildHlsQualityOptions(stale, variants, { proxied, headers: directHeaders });
+      if (freshOptions.length) {
+        hlsVariantsCache.current.set(masterKey, { options: freshOptions, variants });
+        setParsedQualityOptions(freshOptions);
+        parsedOptionsRef.current = { key: masterKey, options: freshOptions };
+        parsedVariantsRef.current = { key: masterKey, variants };
+      }
+      sourceMounted.current = true;
+      sourceFailureHandled.current = null;
+      setSource({ ...stale, url: proxied ? anirakuProxyUrl(targetCdn, directHeaders) : targetCdn });
+      setSourceRevision((value) => value + 1);
+    } catch {
+      handleProviderBlockedRef.current("player");
+    }
+  };
+
   const markIntentionalSeek = (target?: number) => {
     intentionalSeekUntil.current = Date.now() + 1_500;
     if (typeof target === "number" && Number.isFinite(target)) lastStablePlaybackTime.current = target;
-  };
-
-  const seek = (seconds: number) => {
-    const target = Math.max(0, duration > 0 ? Math.min(duration, currentTime + seconds) : currentTime + seconds);
-    markIntentionalSeek(target);
-    videoRef.current?.seek(target);
   };
 
   const seekBy = useCallback((seconds: number) => {
@@ -1024,6 +1370,27 @@ export default function WatchScreen() {
     }
   }, [duration]);
 
+  const handleVideoProgress = useCallback((data: OnProgressData) => {
+    currentTimeRef.current = data.currentTime;
+    playableDurationRef.current = data.playableDuration;
+    // While PiP is active the system owns the frame — refs keep tracking and
+    // state flushes once, on exit, instead of re-rendering per tick.
+    if (pipActiveRef.current) return;
+    setCurrentTime(data.currentTime);
+    setPlayableDuration(data.playableDuration);
+  }, []);
+
+  const handleVideoTracks = useCallback((event: { videoTracks?: Array<{ height?: number; selected?: boolean }> }) => {
+    const tracks = event?.videoTracks ?? [];
+    setVideoTracks(tracks);
+    const height = liveRenditionHeight(tracks);
+    if (height) setLiveHeight(height);
+  }, []);
+
+  const handleBandwidthUpdate = useCallback((event: { height?: number }) => {
+    const height = Math.round(Number(event?.height));
+    if (Number.isFinite(height) && height > 0) setLiveHeight(height);
+  }, []);
   // th3-anime style hold-for-2x: remember the pre-hold speed and restore it.
   const beginHoldSpeed = useCallback(() => {
     if (holdSpeedRestore.current === null) {
@@ -1047,6 +1414,8 @@ export default function WatchScreen() {
     return () => {
       if (singleTapTimeout.current) clearTimeout(singleTapTimeout.current);
       if (longPressTimeout.current) clearTimeout(longPressTimeout.current);
+      if (skipHoldTimer.current) clearTimeout(skipHoldTimer.current);
+      if (unlockArmTimer.current) clearTimeout(unlockArmTimer.current);
     };
   }, []);
   const gestureStartY = useRef(0);
@@ -1054,12 +1423,15 @@ export default function WatchScreen() {
   const currentVolumeVal = useRef(1.0);
 
   const triggerDoubleTapAnimation = useCallback((side: "left" | "right") => {
+    // A new double-tap replaces the previous flash (generation guard) — rapid
+    // taps show one ±10s label, never stacked ripples.
+    const gen = ++doubleTapGen.current;
     setDoubleTapSide(side);
-    doubleTapAnim.setValue(0);
-    Animated.sequence([
-      Animated.timing(doubleTapAnim, { toValue: 1, duration: 250, useNativeDriver: Platform.OS !== "web" }),
-      Animated.timing(doubleTapAnim, { toValue: 0, duration: 250, useNativeDriver: Platform.OS !== "web" }),
-    ]).start(() => setDoubleTapSide(null));
+    doubleTapAnim.stopAnimation();
+    doubleTapAnim.setValue(1);
+    Animated.timing(doubleTapAnim, { toValue: 0, duration: 600, useNativeDriver: Platform.OS !== "web" }).start(() => {
+      if (doubleTapGen.current === gen) setDoubleTapSide(null);
+    });
   }, [doubleTapAnim]);
 
   const seekRelative = useCallback((deltaSeconds: number) => {
@@ -1071,6 +1443,33 @@ export default function WatchScreen() {
     });
   }, [duration, markIntentionalSeek]);
 
+  // Ref mirrors so the hold-repeat timer never captures a stale closure.
+  const seekRelativeRef = useRef(seekRelative);
+  useEffect(() => { seekRelativeRef.current = seekRelative; }, [seekRelative]);
+  const flashRef = useRef(triggerDoubleTapAnimation);
+  useEffect(() => { flashRef.current = triggerDoubleTapAnimation; }, [triggerDoubleTapAnimation]);
+
+  const clearSkipHold = useCallback(() => {
+    if (skipHoldTimer.current) { clearTimeout(skipHoldTimer.current); skipHoldTimer.current = null; }
+    skipHoldSide.current = null;
+  }, []);
+
+  // Double-tap-and-hold: the second tap already jumped ±10s; while the finger
+  // stays down, keep skipping every 400ms. Ticks are silent (no haptic) and
+  // refresh the single flash label instead of stacking ripples.
+  const armSkipHold = useCallback((side: "left" | "right") => {
+    clearSkipHold();
+    skipHoldSide.current = side;
+    const delta = side === "left" ? -10 : 10;
+    const tick = () => {
+      if (!skipHoldSide.current) return;
+      seekRelativeRef.current(delta);
+      flashRef.current(side);
+      skipHoldTimer.current = setTimeout(tick, SKIP_HOLD_MS);
+    };
+    skipHoldTimer.current = setTimeout(tick, SKIP_HOLD_MS);
+  }, [clearSkipHold]);
+
   const panResponder = useMemo(
     () =>
       PanResponder.create({
@@ -1080,6 +1479,23 @@ export default function WatchScreen() {
           gestureStartY.current = gesture.y0;
           currentBrightnessVal.current = brightness;
           currentVolumeVal.current = volume;
+          // Double-tap is detected at touch-down (not release) so the second
+          // tap can be held to keep skipping. The pending single-tap toggle
+          // is cancelled and the 2x long-press is suppressed for this touch.
+          const prior = lastTapRef.current;
+          if (!playerLocked && prior && Date.now() - prior.time < DOUBLE_TAP_WINDOW_MS && Math.abs(gesture.x0 - prior.x) < 80) {
+            if (singleTapTimeout.current) { clearTimeout(singleTapTimeout.current); singleTapTimeout.current = null; }
+            if (longPressTimeout.current) { clearTimeout(longPressTimeout.current); longPressTimeout.current = null; }
+            lastTapRef.current = null;
+            doubleTapTouch.current = true;
+            const side = gesture.x0 < Dimensions.get("window").width / 2 ? "left" : "right";
+            seekRelativeRef.current(side === "left" ? -10 : 10);
+            flashRef.current(side);
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            armSkipHold(side);
+            return;
+          }
+          doubleTapTouch.current = false;
           longPressTimeout.current = setTimeout(() => {
             if (!playerLocked) {
               setIs2xSeeking(true);
@@ -1090,47 +1506,54 @@ export default function WatchScreen() {
         },
         onPanResponderMove: (_evt, gesture) => {
           if (playerLocked) return;
-          if (Math.abs(gesture.dy) > 10 && longPressTimeout.current) {
+          if (Math.abs(gesture.dx) > 10 && longPressTimeout.current) {
             clearTimeout(longPressTimeout.current);
             longPressTimeout.current = null;
           }
+          // A real swipe is not a hold — stop the skip repeater.
+          if ((Math.abs(gesture.dx) > 10 || Math.abs(gesture.dy) > 10) && skipHoldSide.current) clearSkipHold();
           const screenWidth = Dimensions.get("window").width;
           const delta = -gesture.dy / 250;
+          // 5% steps: the HUD stops flickering through every integer and the
+          // value matches what the bar shows.
+          const snapToStep = (value: number) => Math.max(0, Math.min(1, Math.round(value * 20) / 20));
           if (gesture.x0 < screenWidth / 2) {
-            const newBrightness = Math.max(0, Math.min(1, currentBrightnessVal.current + delta));
-            setBrightness(newBrightness);
+            const newBrightness = snapToStep(currentBrightnessVal.current + delta);
+            if (newBrightness !== brightness) {
+              setBrightness(newBrightness);
+              if (Platform.OS !== "web") Brightness.setBrightnessAsync(newBrightness).catch(() => {});
+            }
             setBrightnessHud(Math.round(newBrightness * 100));
-            if (Platform.OS !== "web") Brightness.setBrightnessAsync(newBrightness).catch(() => {});
           } else {
-            const newVol = Math.max(0, Math.min(1, currentVolumeVal.current + delta));
-            setVolume(newVol);
+            const newVol = snapToStep(currentVolumeVal.current + delta);
+            if (newVol !== volume) setVolume(newVol);
             setVolumeHud(Math.round(newVol * 100));
           }
         },
         onPanResponderRelease: (_evt, gesture) => {
           if (longPressTimeout.current) { clearTimeout(longPressTimeout.current); longPressTimeout.current = null; }
           if (is2xSeeking) { setIs2xSeeking(false); endHoldSpeed(); }
+          clearSkipHold();
           setTimeout(() => { setVolumeHud(null); setBrightnessHud(null); }, 800);
+          // This touch was the second tap of a double-tap (seek already
+          // applied at touch-down) — release only ends the hold.
+          if (doubleTapTouch.current) { doubleTapTouch.current = false; return; }
           if (Math.abs(gesture.dx) < 8 && Math.abs(gesture.dy) < 8) {
             const now = Date.now();
             const { locationX } = _evt.nativeEvent;
-            const screenWidth = Dimensions.get("window").width;
-            if (lastTapRef.current && now - lastTapRef.current.time < 300 && Math.abs(locationX - lastTapRef.current.x) < 80) {
-              if (singleTapTimeout.current) clearTimeout(singleTapTimeout.current);
-              lastTapRef.current = null;
-              if (!playerLocked) {
-                if (locationX < screenWidth / 2) { seekRelative(-10); triggerDoubleTapAnimation("left"); }
-                else { seekRelative(10); triggerDoubleTapAnimation("right"); }
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-              }
-            } else {
-              lastTapRef.current = { time: now, x: locationX };
-              singleTapTimeout.current = setTimeout(() => { setShowControls((prev) => !prev); lastTapRef.current = null; }, 300);
-            }
+            if (singleTapTimeout.current) clearTimeout(singleTapTimeout.current);
+            lastTapRef.current = { time: now, x: locationX };
+            singleTapTimeout.current = setTimeout(() => { setShowControls((prev) => !prev); lastTapRef.current = null; }, DOUBLE_TAP_WINDOW_MS);
           }
         },
+        onPanResponderTerminate: () => {
+          if (longPressTimeout.current) { clearTimeout(longPressTimeout.current); longPressTimeout.current = null; }
+          if (is2xSeeking) { setIs2xSeeking(false); endHoldSpeed(); }
+          clearSkipHold();
+          doubleTapTouch.current = false;
+        },
       }),
-    [brightness, is2xSeeking, playerLocked, seekRelative, volume, beginHoldSpeed, endHoldSpeed, triggerDoubleTapAnimation],
+    [armSkipHold, brightness, clearSkipHold, is2xSeeking, playerLocked, seekRelative, volume, beginHoldSpeed, endHoldSpeed, triggerDoubleTapAnimation],
   );
 
   const skip = (kind: SkipKind) => {
@@ -1138,10 +1561,19 @@ export default function WatchScreen() {
     if (target) { markIntentionalSeek(target); videoRef.current?.seek(target); }
   };
 
+  // Retry honesty (Track 4): TRY AGAIN re-fetches the SAME provider once
+  // with refresh:true. If that provider already had its one refresh, TRY
+  // AGAIN advances to the next unblocked provider instead of looping the
+  // same dead URL. SWITCH SERVER always skips the refresh and moves on.
   const retry = () => {
     if (!activeProvider) return;
+    if (refreshAttempted.current.has(activeProvider.id)) {
+      handleProviderBlockedRef.current("permanent");
+      return;
+    }
+    refreshAttempted.current.add(activeProvider.id);
     blockedProviders.current.delete(activeProvider.id);
-    refreshAttempted.current.delete(activeProvider.id);
+    variantTokenRefreshAttempted.current = null;
     forceRefresh.current = true;
     sourceMounted.current = false;
     setEmbedSource(null);
@@ -1151,24 +1583,33 @@ export default function WatchScreen() {
   };
 
   const startDownload = async () => {
-    if (!maximumDownloadSource) { setDownloadMessage("DIRECT SOURCE REQUIRED FOR DOWNLOAD."); return; }
     try {
       setDownloadMessage(null);
       setDownloadProgress(0);
-      const entry = await startMaximumQualityDownload({ animeId, episode, language, title, source: maximumDownloadSource, headers: stream?.headers ?? activeProvider?.headers, onProgress: setDownloadProgress });
+      const headers = stream?.headers ?? activeProvider?.headers;
+      // The chosen rendition wins over the master's highest guess: a parsed
+      // HLS variant URL for the selected height is fetched exactly. Without
+      // parsed variants the native match-or-max fallback applies.
+      const wantedHeight = Number.parseInt(String(requestedQuality ?? ""), 10);
+      const variantUrl = Number.isFinite(wantedHeight)
+        ? variantUrlForHeight(parsedVariantsRef.current?.variants ?? [], wantedHeight)
+        : null;
+      if (variantUrl) {
+        const base = maximumDownloadSource ?? source;
+        if (!base) { setDownloadMessage("DIRECT SOURCE REQUIRED FOR DOWNLOAD."); return; }
+        const entry = await startMaximumQualityDownload({ animeId, episode, language, title, source: base, variantUrl, variantQuality: `${Math.round(wantedHeight)}p`, headers, onProgress: setDownloadProgress });
+        setOfflineDownload(entry);
+        setDownloadMessage(`${entry.quality.toUpperCase()} SAVED.`);
+        return;
+      }
+      const matched = selectDownloadSourceForQuality(stream?.sources ?? activeProvider?.sources ?? [], requestedQuality);
+      if (!matched) { setDownloadMessage("DIRECT SOURCE REQUIRED FOR DOWNLOAD."); return; }
+      const entry = await startMaximumQualityDownload({ animeId, episode, language, title, source: matched, headers, onProgress: setDownloadProgress });
       setOfflineDownload(entry);
       setDownloadMessage(`${entry.quality.toUpperCase()} SAVED.`);
     } catch (cause) {
       setDownloadMessage(cause instanceof Error ? cause.message.toUpperCase() : "DOWNLOAD FAILED.");
     } finally { setDownloadProgress(null); }
-  };
-
-  const openDownloadLink = () => {
-    if (!maximumDownloadSource) return;
-    const url = anirakuDownloadUrl(maximumDownloadSource.url, nativePlaybackHeaders(stream?.headers ?? activeProvider?.headers));
-    if (Platform.OS === "android") {
-      IntentLauncher.startActivityAsync("android.intent.action.VIEW", { data: url }).catch(() => {});
-    }
   };
 
   const playOffline = () => {
@@ -1179,7 +1620,7 @@ export default function WatchScreen() {
     setUseSourceProxy(false);
     setSource({ url: offlineDownload.uri, quality: `${offlineDownload.quality} · SAVED`, type: "native" });
     setSourceRevision((v) => v + 1);
-    setShowSettings(false);
+    setActivePanel(null);
     setDownloadMessage("PLAYING SAVED COPY.");
   };
 
@@ -1201,16 +1642,51 @@ export default function WatchScreen() {
   }, [animeId, displayEpisodes, episode, image, title]);
 
   const { nextKnownEpisode, previousKnownEpisode } = useMemo(() => {
-    let next: number | undefined;
-    let previous: number | undefined;
-    for (const item of canonicalEpisodes) {
-      if (item.number > episode && (next === undefined || item.number < next)) next = item.number;
-      if (item.number < episode && (previous === undefined || item.number > previous)) previous = item.number;
-    }
+    const next = resolveNextEpisode(episode, canonicalEpisodes) ?? undefined;
+    const previous = resolvePrevEpisode(episode, canonicalEpisodes) ?? undefined;
     return { nextKnownEpisode: next, previousKnownEpisode: previous };
   }, [canonicalEpisodes, episode]);
 
   const nextEpisode = useCallback(() => { if (nextKnownEpisode) goToEpisode(nextKnownEpisode); }, [goToEpisode, nextKnownEpisode]);
+
+  // ── Up-next end-card: quiet 10s countdown, cancellable, autoNext-aware ──
+  const upNextKey = `${animeId}:${episode}`;
+  const nextEpisodeDisplay = nextKnownEpisode ? displayEpisodes.find((item) => item.number === nextKnownEpisode) : undefined;
+
+  const showUpNext = useCallback(() => {
+    if (!autoNext || !nextKnownEpisode) return;
+    if (upNextShownFor.current === upNextKey) return;
+    upNextShownFor.current = upNextKey;
+    setUpNextCountdown(UP_NEXT_SECONDS);
+    setUpNextVisible(true);
+  }, [autoNext, nextKnownEpisode, upNextKey]);
+
+  const dismissUpNext = useCallback(() => { setUpNextVisible(false); }, []);
+
+  useEffect(() => {
+    if (!source || duration <= 0) return;
+    // Scrubbing back out of the end zone cancels the card and re-arms it, so
+    // the natural onEnded can still surface it.
+    if (currentTime / duration < 0.85) {
+      if (upNextShownFor.current === upNextKey) upNextShownFor.current = null;
+      if (upNextVisible) setUpNextVisible(false);
+      return;
+    }
+    if (currentTime > 0 && currentTime / duration >= 0.9) showUpNext();
+  }, [currentTime, duration, showUpNext, source, upNextKey, upNextVisible]);
+
+  useEffect(() => {
+    if (!upNextVisible) return;
+    if (upNextCountdown <= 0) {
+      setUpNextVisible(false);
+      if (nextKnownEpisode) goToEpisode(nextKnownEpisode);
+      return;
+    }
+    const id = setTimeout(() => setUpNextCountdown((value) => value - 1), 1000);
+    return () => clearTimeout(id);
+  }, [goToEpisode, nextKnownEpisode, upNextCountdown, upNextVisible]);
+
+  useEffect(() => { setUpNextVisible(false); setUpNextCountdown(UP_NEXT_SECONDS); }, [animeId, episode]);
 
   // ── Swipe between episodes ──
   const swipeOffsetX = useRef(new Animated.Value(0)).current;
@@ -1281,17 +1757,11 @@ export default function WatchScreen() {
     // Close every overlay so fullscreen never opens with a hidden-behind-modal
     // state, and force chrome visible — opening with showControls=false looked
     // like "fullscreen has no controls".
-    setShowSettings(false);
-    setShowSpeedModal(false);
-    setShowSubtitleModal(false);
-    setShowServerModal(false);
-    setShowChapterList(false);
-    setShowSourcePicker(false);
-    setShowQualityPicker(false);
+    setActivePanel(null);
     setShowControls(true);
     setManualFullscreen(true);
-    if (Platform.OS !== "web") void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
-  }, []);
+    if (Platform.OS !== "web") lockSensorLandscape();
+  }, [lockSensorLandscape]);
 
   const exitFullscreen = useCallback(() => {
     setManualFullscreen(false);
@@ -1302,8 +1772,59 @@ export default function WatchScreen() {
 
   const enterPiP = useCallback(() => {
     if (Platform.OS === "web") return;
-    try { videoRef.current?.enterPictureInPicture(); } catch {}
+    const ref = videoRef.current as unknown as { enterPictureInPicture?: () => void } | null;
+    if (typeof ref?.enterPictureInPicture !== "function") { setPipAvailable(false); return; }
+    try {
+      ref.enterPictureInPicture();
+    } catch {
+      // Device throws where PiP is unsupported — hide the button for good.
+      setPipAvailable(false);
+    }
   }, []);
+
+  const onPipStatusChanged = useCallback((event: { isActive?: boolean }) => {
+    const active = event?.isActive === true;
+    pipActiveRef.current = active;
+    setPipActive(active);
+    if (!active) {
+      // Flush time held in refs while the system owned the frame.
+      setCurrentTime(currentTimeRef.current);
+      setPlayableDuration(playableDurationRef.current);
+    }
+  }, []);
+
+  // Rail lock button: freezing chrome AND hiding it is what makes the lock
+  // real — previously playerLocked could never be set to true at all.
+  const engagePlayerLock = useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    setPlayerLocked(true);
+    setShowControls(false);
+  }, []);
+
+  // Lock requires a second tap within 1.6s — pocket touches and accidental
+  // taps on the pill stop unlocking the whole player.
+  const [unlockArmed, setUnlockArmed] = useState(false);
+  const unlockArmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestUnlock = useCallback(() => {
+    if (unlockArmTimer.current) { clearTimeout(unlockArmTimer.current); unlockArmTimer.current = null; }
+    if (unlockArmed) {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      setPlayerLocked(false);
+      setShowControls(true);
+      setUnlockArmed(false);
+      return;
+    }
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    setUnlockArmed(true);
+    unlockArmTimer.current = setTimeout(() => setUnlockArmed(false), 1_600);
+  }, [unlockArmed]);
+
+  // Download status toasts self-dismiss so "SAVED." never lingers forever.
+  useEffect(() => {
+    if (!downloadMessage) return;
+    const timer = setTimeout(() => setDownloadMessage(null), 4_000);
+    return () => clearTimeout(timer);
+  }, [downloadMessage]);
 
   useEffect(() => {
     if (!manualFullscreen || Platform.OS === "web") return;
@@ -1312,18 +1833,27 @@ export default function WatchScreen() {
   }, [manualFullscreen, exitFullscreen]);
 
   useEffect(() => {
-    if (!source || !showControls || showSettings || showSourcePicker || showQualityPicker) return;
+    if (!source || !showControls || activePanel) return;
+    if (dragPct !== null) return; // never hide the chrome out from under a scrub
     const timer = setTimeout(() => setShowControls(false), 3_500);
     return () => clearTimeout(timer);
-  }, [showControls, showSettings, showSourcePicker, showQualityPicker, manualFullscreen, currentTime, source?.url]);
+  }, [showControls, activePanel, manualFullscreen, currentTime, source?.url, dragPct]);
+
+  // Controls fade instead of popping — 180ms opacity, cause → effect only.
+  const controlsOpacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(controlsOpacity, { toValue: showControls && !playerLocked ? 1 : 0, duration: 180, useNativeDriver: true }).start();
+  }, [controlsOpacity, playerLocked, showControls]);
 
   const onProgressLayout = (event: LayoutChangeEvent) => setProgressWidth(event.nativeEvent.layout.width);
-  const progress = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
-  const buffered = duration > 0 && playableDuration > 0 ? Math.min(100, (playableDuration / duration) * 100) : 0;
 
-  const displayedQualityOptions: WatchQualityOption[] = source
-    ? (adaptiveCapOptions.length ? adaptiveCapOptions : sourceQualityOptions)
-    : sourceQualityOptions.map((item) => ({ id: item.id, label: item.label, requestQuality: item.requestQuality, source: item.source }));
+  // Priority: renditions parsed from the Auto manifest → ExoPlayer
+  // bitrate caps (Android) → provider-claimed labels.
+  const displayedQualityOptions: WatchQualityOption[] = parsedQualityOptions
+    ? parsedQualityOptions
+    : source
+      ? (adaptiveCapOptions.length ? adaptiveCapOptions : sourceQualityOptions)
+      : sourceQualityOptions.map((item) => ({ id: item.id, label: item.label, requestQuality: item.requestQuality, source: item.source }));
 
   const selectedSubtitleUrl = useMemo(
     () => (source?.subtitles?.length && subtitlePrefs?.enabled ? matchSubtitleTrack(source.subtitles, subtitlePrefs.preferredLanguage)?.url ?? null : null),
@@ -1332,6 +1862,8 @@ export default function WatchScreen() {
 
   const progressPct = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
   const bufferPct = duration > 0 && playableDuration > 0 ? Math.min(100, (playableDuration / duration) * 100) : 0;
+  // Segmented track tint from real OP/ED ranges (provider + AniSkip merged).
+  const chapterTrack = useMemo(() => chapterTrackSegments(skipSegments, duration), [skipSegments, duration]);
 
   return <NativeScreen scroll={false} style={styles.fill}>
     <StatusBar hidden={manualFullscreen} />
@@ -1341,22 +1873,24 @@ export default function WatchScreen() {
         Parent-level onStartShouldSetPanResponder stole Pressable touches and the
         native Video SurfaceView eats touches aimed behind it. */}
     <View style={[styles.videoShell, manualFullscreen && ps.videoShellFullscreen]}>
-      {embedSource && !source ? <EmbedPlayer uri={embedSource.url} headers={nativePlaybackHeaders(playbackHeaders)} onError={() => handleProviderBlockedRef.current("player")} /> : null}
-      {source ? <Video ref={videoRef} style={StyleSheet.absoluteFill} source={{ uri: videoSourceUri, headers: videoSourceHeaders, type: videoContentType, bufferConfig: videoBufferConfig }}
+      {embedSource && !source ? <EmbedPlayer uri={embedSource.url} headers={nativePlaybackHeaders(playbackHeaders)} onError={() => handleProviderBlockedRef.current("player")} onLoaded={() => { embedReadyRef.current = true; }} /> : null}
+      {source ? <Video key={activeProvider?.id ?? "default"} ref={videoRef} style={StyleSheet.absoluteFill} source={{ uri: videoSourceUri, headers: videoSourceHeaders, type: videoContentType, bufferConfig: videoBufferConfig }}
         paused={!isPlaying} rate={is2xSeeking ? 2.0 : speed} resizeMode="contain" muted={muted} volume={volume}
         maxBitRate={adaptiveBitrateCap ?? undefined} selectedAudioTrack={selectedAudioTrack as any}
-        onLoad={(data: OnLoadData) => { setDuration(data.duration); sourceFirstFrame.current = true; sourceStarted.current = true; setPlayerStatus("playing"); setIsPlaying(true); setLastPlayerError(null); setShowControls(true); }}
-        onProgress={(data: OnProgressData) => { setCurrentTime(data.currentTime); setPlayableDuration(data.playableDuration); }}
+        onLoad={(data: OnLoadData) => { if (__DEV__) console.log(`[watch] first-frame t=${Date.now() - _watchMountTime}ms provider=${activeProvider?.id ?? "?"}`); setDuration(data.duration); sourceFirstFrame.current = true; sourceStarted.current = true; setPlayerStatus("playing"); setIsPlaying(true); setLastPlayerError(null); setShowControls(true); }}
+        onProgress={handleVideoProgress}
         onBuffer={(data: OnBufferData) => { setBuffering(data.isBuffering); }}
-        onVideoTracks={(event: any) => setVideoTracks(event?.videoTracks ?? [])}
+        onVideoTracks={handleVideoTracks}
+        onBandwidthUpdate={handleBandwidthUpdate}
+        onPictureInPictureStatusChanged={onPipStatusChanged}
         onAudioTracks={(event: any) => setAudioTracks(event?.audioTracks ?? [])}
-        onError={(event: any) => { const detail = event?.error?.errorString || event?.error?.errorCode || "Unknown player error"; setLastPlayerError(String(detail)); setPlayerStatus("error"); if (!useSourceProxy) { setUseSourceProxy(true); setSourceRevision((v) => v + 1); return; } handleProviderBlockedRef.current("player"); }}
-        onEnd={() => { const reachedEnd = duration > 30 && currentTime >= Math.max(1, duration - 2); if (!sourceStarted.current || !reachedEnd) return; if (auth.user) { history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, progress: duration || currentTime, duration: duration || currentTime }); if (providerSync.connected.length) providerSync.pushProgress.mutate({ animeId, episode, progress: Math.floor(duration || currentTime), status: "completed" }); } if (autoNext && nextKnownEpisode) router.replace({ pathname: "/watch/[id]", params: { id: String(animeId), episode: String(nextKnownEpisode), title, image } } as never); }}
+        onError={(event: any) => { const detail = event?.error?.errorString || event?.error?.errorCode || "Unknown player error"; const mountedUrl = source?.url ?? null; if (shouldRefreshMasterOnVariantError({ errorDetail: String(detail), variantUrl: mountedUrl, refreshedAlready: variantTokenRefreshAttempted.current === mountedUrl })) { variantTokenRefreshAttempted.current = mountedUrl; void refreshVariantFromMaster(); return; } setLastPlayerError(String(detail)); setPlayerStatus("error"); if (!useSourceProxy) { setUseSourceProxy(true); setSourceRevision((v) => v + 1); return; } handleProviderBlockedRef.current("player"); }}
+        onEnd={() => { const reachedEnd = duration > 30 && currentTime >= Math.max(1, duration - 2); if (!sourceStarted.current || !reachedEnd) return; if (auth.user) { history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, progress: duration || currentTime, duration: duration || currentTime }); if (providerSync.connected.length) providerSync.pushProgress.mutate({ animeId, episode, progress: Math.floor(duration || currentTime), status: "completed" }); } showUpNext(); }}
       /> : <View style={styles.videoPlaceholder}>
         {loadingServers ? <ProviderDiscoveryLoader attempt={serverAttempt} /> : loadingStream ? <View style={styles.thumbnailLoading}>
           <Image source={{ uri: selectedEpisode?.thumbnail || watchBackdrop || image || "" }} style={StyleSheet.absoluteFillObject} contentFit="cover" cachePolicy="memory-disk" />
           <View style={styles.thumbnailLoadingShade} />
-          <View style={styles.thumbnailLoadingContent}><View style={styles.thumbnailPlay}><Play size={18} color={nothing.black} weight="fill" /></View><Text style={styles.thumbnailEpisode}>EPISODE {episode}</Text><Text numberOfLines={2} style={styles.thumbnailTitle}>{selectedEpisode?.title || title}</Text><View style={styles.thumbnailProgress}><View style={styles.thumbnailProgressFill} /></View><Text style={styles.thumbnailStatus}>STARTING VIDEO</Text></View>
+          <View style={styles.thumbnailLoadingContent}><View style={styles.thumbnailPlay}><Play size={18} color={nothing.black} weight="fill" /></View><Text style={styles.thumbnailEpisode}>EPISODE {episode}</Text><Text numberOfLines={2} style={styles.thumbnailTitle}>{selectedEpisode?.title || title}</Text><Text style={styles.thumbnailStatus}>STARTING VIDEO</Text></View>
         </View> : error ? <Text style={styles.errorText}>{error}</Text> : <Text style={styles.placeholderText}>PREPARING VIDEO</Text>}
       </View>}
 
@@ -1369,6 +1903,14 @@ export default function WatchScreen() {
           bubble through the ExoPlayer SurfaceView to the parent. Sibling
           chrome above (zIndex 3) still wins hit-test on buttons. */}
       {source && !playerLocked ? <View style={styles.gestureOverlay} {...panResponder.panHandlers} /> : null}
+
+      {/* Center buffering veil — visible with chrome hidden too, so buffering
+          never reads as "frozen". */}
+      {source && buffering && !embedSource ? (
+        <View pointerEvents="none" style={styles.bufferingVeil}>
+          <ActivityIndicator size="large" color="#FFF" />
+        </View>
+      ) : null}
 
       {/* ── Embed chrome: WebView has its own internal controls, but we always
           show back + title + EMBED badge so it never looks like "no UI". */}
@@ -1388,11 +1930,19 @@ export default function WatchScreen() {
       ) : null}
 
       {/* ── Mini progress: always visible when chrome is hidden, so inline
-          never looks dead and matches the reference layout's timeline. */}
+          never looks dead and matches the reference layout's timeline. ── */}
       {source && !showControls && !playerLocked && duration > 0 ? (
         <View style={styles.miniProgress} pointerEvents="none">
           <View style={[styles.miniProgressBuffered, { width: `${bufferPct}%` }]} />
           <View style={[styles.miniProgressPlayed, { width: `${progressPct}%` }]} />
+        </View>
+      ) : null}
+
+      {/* ── Download / status toast (auto-dismisses) ── */}
+      {downloadMessage ? (
+        <View style={styles.statusToast} pointerEvents="none">
+          <Download size={13} color={nothing.white} weight="bold" />
+          <Text style={styles.statusToastText}>{downloadMessage}</Text>
         </View>
       ) : null}
 
@@ -1406,37 +1956,44 @@ export default function WatchScreen() {
         </Animated.View>
       ) : null}
 
-      {/* Main controls */}
-      {showControls && !playerLocked ? (
-        <View style={[styles.controlsBackdrop, manualFullscreen && styles.controlsBackdropFullscreen]} pointerEvents="box-none">
+      {/* Main controls — mounted for the whole source lifetime; visibility is
+          an animated opacity so chrome never pops. pointerEvents switches with
+          it, so gestures still reach the overlay while faded out. */}
+      {source ? (
+        <Animated.View style={[styles.controlsBackdrop, manualFullscreen && styles.controlsBackdropFullscreen, { opacity: controlsOpacity }]} pointerEvents={showControls && !playerLocked ? "box-none" : "none"}>
+          {/* Edge scrims — layered bands fake a gradient without adding a
+              native dependency; keeps top/bottom rows readable like the
+              reference player. */}
+          <View pointerEvents="none" style={styles.scrimTopSoft} />
+          <View pointerEvents="none" style={styles.scrimTopMain} />
+          <View pointerEvents="none" style={styles.scrimBottomSoft} />
+          <View pointerEvents="none" style={styles.scrimBottomMain} />
           {/* TOP BAR */}
           <View style={styles.topBar}>
             <Pressable onPress={() => { if (manualFullscreen) exitFullscreen(); else router.back(); }} accessibilityRole="button" accessibilityLabel="Go back" style={styles.iconButton} hitSlop={10}>
-              <ArrowLeft size={20} color="#FFF" weight="bold" />
+              <ArrowLeft size={22} color="#FFF" weight="bold" />
             </Pressable>
             <Text style={styles.playerTitle} numberOfLines={1} ellipsizeMode="tail">{`${title} - Episode ${episode}`}</Text>
             <View style={styles.topRightRow}>
-              <Pressable onPress={() => setShowSpeedModal(true)} accessibilityRole="button" accessibilityLabel="Playback speed" style={styles.iconButton} hitSlop={8}>
-                <Speedometer size={16} color="#FFF" weight="bold" />
+              <Pressable onPress={() => setActivePanel("speed")} accessibilityRole="button" accessibilityLabel="Playback speed" style={styles.iconButton} hitSlop={8}>
+                <Speedometer size={18} color="#FFF" weight="bold" />
               </Pressable>
-              <Pressable onPress={() => setShowSubtitleModal(true)} accessibilityRole="button" accessibilityLabel="Subtitles" style={styles.iconButton} hitSlop={8}>
-                <Subtitles size={16} color="#FFF" weight="bold" />
+              <Pressable onPress={() => setActivePanel(activePanel === "subtitles" ? null : "subtitles")} accessibilityRole="button" accessibilityLabel="Subtitles" style={[styles.iconButton, activePanel === "subtitles" && styles.iconButtonActive]} hitSlop={8}>
+                <Subtitles size={18} color={activePanel === "subtitles" ? nothing.red : "#FFF"} weight="bold" />
               </Pressable>
-              <Pressable onPress={() => setShowServerModal(true)} accessibilityRole="button" accessibilityLabel="Select server" style={styles.subPillBadge} hitSlop={8}>
-                <Text style={styles.subPillBadgeText}>{`${language.toUpperCase()} • ${activeProvider?.label || "S1"}`}</Text>
-              </Pressable>
-              <Pressable onPress={() => setShowSettings(true)} accessibilityRole="button" accessibilityLabel="Quality" style={styles.iconButton} hitSlop={8}>
-                <Gear size={16} color="#FFF" weight="bold" />
+              <Pressable onPress={() => setActivePanel(activePanel === "settings" ? null : "settings")} accessibilityRole="button" accessibilityLabel="Settings" style={[styles.iconButton, activePanel === "settings" && styles.iconButtonActive]} hitSlop={8}>
+                <Gear size={18} color={activePanel === "settings" ? nothing.red : "#FFF"} weight="bold" />
               </Pressable>
             </View>
           </View>
 
           {/* BOTTOM CONTROLS */}
           <View style={styles.bottomDeck}>
-            {/* Resume / Skip pills */}
-            {(resumePosition || skipKind) ? (
+            {/* Resume / Skip pills — resume hides near the end (there is nothing
+                left to resume), skip shows seconds remaining in the segment. */}
+            {(resumePosition && (duration <= 0 || resumePosition < duration * 0.9)) || skipKind ? (
               <View style={styles.contextActions}>
-                {resumePosition ? (
+                {resumePosition && (duration <= 0 || resumePosition < duration * 0.9) ? (
                   <Pressable onPress={() => { pendingResume.current = resumePosition; videoRef.current?.seek(resumePosition); setResumePosition(null); }} accessibilityRole="button" style={styles.resumeBtn}>
                     <Play size={12} color="#FFF" weight="fill" />
                     <Text style={styles.resumeBtnText}>{`RESUME ${formatTime(resumePosition)}`}</Text>
@@ -1444,7 +2001,7 @@ export default function WatchScreen() {
                 ) : null}
                 {skipKind ? (
                   <Pressable onPress={() => skip(skipKind)} accessibilityRole="button" style={styles.skipBtn}>
-                    <Text style={styles.skipBtnText}>{`SKIP ${skipKind.toUpperCase()}`}</Text>
+                    <Text style={styles.skipBtnText}>{`SKIP ${skipKind.toUpperCase()} · ${Math.max(0, Math.round((skipSegments[skipKind]?.endTime ?? currentTime) - currentTime))}s`}</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -1454,69 +2011,107 @@ export default function WatchScreen() {
             <View style={styles.timelineRow}>
               <Text style={styles.timeLabel}>{formatTime(currentTime)}</Text>
               <View style={styles.progressBarTrack} onLayout={onProgressLayout} onTouchStart={onBarTouchStart} onTouchMove={onBarTouchMove} onTouchEnd={seekFromBar} accessibilityRole="adjustable" accessibilityLabel="Seek bar">
-                <View style={[styles.progressBuffered, { width: `${bufferPct}%` }]} />
-                <View style={[styles.progressPlayed, { width: `${dragPct !== null ? dragPct : progressPct}%` }]} />
-                {skipSegments.intro && duration > 0 ? <View style={[styles.chapterMarker, { left: `${(skipSegments.intro.startTime / duration) * 100}%`, width: `${((skipSegments.intro.endTime - skipSegments.intro.startTime) / duration) * 100}%` }]} /> : null}
-                {skipSegments.outro && duration > 0 ? <View style={[styles.chapterMarker, { left: `${(skipSegments.outro.startTime / duration) * 100}%`, width: `${((skipSegments.outro.endTime - skipSegments.outro.startTime) / duration) * 100}%` }]} /> : null}
-                <View style={[styles.scrubberKnob, { left: `${dragPct !== null ? dragPct : progressPct}%` }]} />
+                <View style={[styles.progressBuffered, dragPct !== null && styles.progressTrackThick, { width: `${bufferPct}%` }]} />
+                <View style={[styles.progressPlayed, dragPct !== null && styles.progressTrackThick, { width: `${dragPct !== null ? dragPct : progressPct}%` }]} />
+                {chapterTrack.map((segment) => <View key={segment.kind} style={[styles.chapterMarker, { left: `${segment.leftPct}%`, width: `${segment.widthPct}%` }]} />)}
+                <View style={[styles.scrubberKnob, dragPct !== null && styles.scrubberKnobActive, { left: `${dragPct !== null ? dragPct : progressPct}%` }]} />
                 {dragPct !== null ? <View style={[styles.dragPreview, { left: `${Math.max(0, Math.min(dragPct, 100))}%` }]}><Text style={styles.dragPreviewText}>{formatTime((dragPct / 100) * duration)}</Text></View> : null}
               </View>
               <Text style={styles.timeLabel}>{formatTime(duration)}</Text>
             </View>
 
-            {/* Action rail — essentials only */}
+            {/* Action rail — reference layout: lock+volume | −10 prev play next +10 | download fullscreen.
+                ±10 uses numbered icons — the old rail had two identical SkipBack/SkipForward
+                pairs (±10 vs prev/next episode) that were impossible to tell apart. */}
             <View style={styles.actionRail}>
               <View style={styles.railSide}>
-                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setMuted((m) => !m); }} accessibilityRole="button" style={styles.iconButton} hitSlop={8}>
-                  {muted ? <SpeakerNone size={16} color="#FFF" weight="bold" /> : <SpeakerHigh size={16} color="#FFF" weight="bold" />}
+                <Pressable onPress={engagePlayerLock} accessibilityRole="button" accessibilityLabel="Lock player controls" style={styles.railBtn} hitSlop={8}>
+                  <Lock size={18} color="#FFF" weight="bold" />
                 </Pressable>
-                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); seekBy(-10); }} accessibilityRole="button" style={styles.iconButton} hitSlop={8}>
-                  <SkipBack size={18} color="#FFF" weight="bold" />
+                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setMuted((m) => !m); }} accessibilityRole="button" accessibilityLabel={muted ? "Unmute" : "Mute"} style={styles.railBtn} hitSlop={8}>
+                  {muted ? <SpeakerNone size={18} color="#FFF" weight="bold" /> : <SpeakerHigh size={18} color="#FFF" weight="bold" />}
                 </Pressable>
               </View>
               <View style={styles.railCenter}>
-                <Pressable disabled={!previousKnownEpisode} onPress={() => previousKnownEpisode && goToEpisode(previousKnownEpisode)} accessibilityRole="button" style={[styles.iconButton, !previousKnownEpisode && { opacity: 0.35 }]} hitSlop={8}>
+                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); seekBy(-10); }} accessibilityRole="button" accessibilityLabel="Back 10 seconds" style={styles.railBtn} hitSlop={8}>
+                  <AppIcon name="rewind-10" size={23} color="#FFF" />
+                </Pressable>
+                <Pressable disabled={!previousKnownEpisode} onPress={() => previousKnownEpisode && goToEpisode(previousKnownEpisode)} accessibilityRole="button" accessibilityLabel="Previous episode" style={[styles.railBtn, !previousKnownEpisode && styles.railBtnDisabled]} hitSlop={8}>
                   <SkipBack size={20} color="#FFF" weight="fill" />
                 </Pressable>
-                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setIsPlaying((p) => !p); }} onLongPress={beginHoldSpeed} onPressOut={endHoldSpeed} delayLongPress={400} accessibilityRole="button" style={styles.bigPlayButton}>
-                  {buffering ? <ActivityIndicator color={nothing.black} /> : isPlaying ? <Pause size={24} color="#000" weight="fill" /> : <Play size={24} color="#000" weight="fill" style={{ marginLeft: 2 }} />}
+                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setIsPlaying((p) => !p); }} onLongPress={beginHoldSpeed} onPressOut={endHoldSpeed} delayLongPress={400} accessibilityRole="button" accessibilityLabel={isPlaying ? "Pause" : "Play"} accessibilityHint="Hold for 2x speed" style={[styles.bigPlayButton, manualFullscreen && styles.bigPlayButtonFullscreen]}>
+                  {isPlaying ? <Pause size={26} color="#000" weight="fill" /> : <Play size={26} color="#000" weight="fill" style={{ marginLeft: 2 }} />}
                 </Pressable>
-                <Pressable disabled={!nextKnownEpisode} onPress={nextEpisode} accessibilityRole="button" style={[styles.iconButton, !nextKnownEpisode && { opacity: 0.35 }]} hitSlop={8}>
+                <Pressable disabled={!nextKnownEpisode} onPress={nextEpisode} accessibilityRole="button" accessibilityLabel="Next episode" style={[styles.railBtn, !nextKnownEpisode && styles.railBtnDisabled]} hitSlop={8}>
                   <SkipForward size={20} color="#FFF" weight="fill" />
+                </Pressable>
+                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); seekBy(10); }} accessibilityRole="button" accessibilityLabel="Forward 10 seconds" style={styles.railBtn} hitSlop={8}>
+                  <AppIcon name="fast-forward-10" size={23} color="#FFF" />
                 </Pressable>
               </View>
               <View style={styles.railSideRight}>
-                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); seekBy(10); }} accessibilityRole="button" style={styles.iconButton} hitSlop={8}>
-                  <SkipForward size={18} color="#FFF" weight="bold" />
-                </Pressable>
-                <Pressable onPress={manualFullscreen ? exitFullscreen : enterFullscreen} accessibilityRole="button" style={styles.iconButton} hitSlop={8}>
-                  {manualFullscreen ? <ArrowsIn size={16} color="#FFF" weight="bold" /> : <ArrowsOut size={16} color="#FFF" weight="bold" />}
+                {downloadProgress !== null ? (
+                  /* expo-file-system's File.downloadFileAsync emits no incremental
+                     progress (only the final 1.0), so show an honest spinner. */
+                  <View style={styles.downloadBtn} accessibilityLabel="Downloading episode">
+                    <ActivityIndicator size="small" color="#FFF" />
+                  </View>
+                ) : offlineDownload ? (
+                  <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); playOffline(); }} onLongPress={() => { void removeDownload(); }} accessibilityRole="button" accessibilityLabel="Play saved download" accessibilityHint="Long press to remove the saved copy" style={styles.railBtn} hitSlop={8}>
+                    <DownloadSimple size={19} color={nothing.green} weight="bold" />
+                  </Pressable>
+                ) : (
+                  <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); void startDownload(); }} accessibilityRole="button" accessibilityLabel="Download episode" style={styles.railBtn} hitSlop={8}>
+                    <Download size={19} color="#FFF" weight="bold" />
+                  </Pressable>
+                )}
+                <Pressable onPress={manualFullscreen ? exitFullscreen : enterFullscreen} accessibilityRole="button" accessibilityLabel={manualFullscreen ? "Exit fullscreen" : "Enter fullscreen"} style={styles.railBtn} hitSlop={8}>
+                  {manualFullscreen ? <ArrowsIn size={18} color="#FFF" weight="bold" /> : <ArrowsOut size={18} color="#FFF" weight="bold" />}
                 </Pressable>
               </View>
             </View>
           </View>
-        </View>
+        </Animated.View>
       ) : null}
 
       {/* Skip Intro/Outro (positioned bottom-right) */}
       {skipKind === "intro" && !playerLocked ? (
         <Pressable style={styles.skipButtonOverlay} onPress={() => skip("intro")} accessibilityRole="button" accessibilityLabel="Skip intro" accessibilityHint="Skips the opening sequence">
           <SkipForward size={16} color="#FFF" weight="bold" />
-          <Text style={styles.skipButtonText}>Skip Intro</Text>
+          <Text style={styles.skipButtonText}>{`Skip Intro · ${Math.max(0, Math.round((skipSegments.intro?.endTime ?? currentTime) - currentTime))}s`}</Text>
         </Pressable>
       ) : null}
       {skipKind === "outro" && !playerLocked ? (
         <Pressable style={styles.skipButtonOverlay} onPress={() => skip("outro")} accessibilityRole="button" accessibilityLabel="Skip outro" accessibilityHint="Skips the ending sequence">
           <SkipForward size={16} color="#FFF" weight="bold" />
-          <Text style={styles.skipButtonText}>Skip Outro</Text>
+          <Text style={styles.skipButtonText}>{`Skip Outro · ${Math.max(0, Math.round((skipSegments.outro?.endTime ?? currentTime) - currentTime))}s`}</Text>
         </Pressable>
+      ) : null}
+
+      {/* Up-next end-card: next poster + title, 10s countdown, cancellable. */}
+      {source && upNextVisible && nextKnownEpisode && !playerLocked ? (
+        <View style={styles.upNextCard}>
+          {nextEpisodeDisplay?.thumbnail ? <Image source={{ uri: nextEpisodeDisplay.thumbnail }} style={styles.upNextPoster} contentFit="cover" cachePolicy="memory-disk" /> : null}
+          <View style={styles.upNextCopy}>
+            <Text style={styles.upNextKicker}>{`UP NEXT · ${upNextCountdown}S`}</Text>
+            <Text numberOfLines={1} style={styles.upNextTitle}>{`EP ${nextKnownEpisode}${nextEpisodeDisplay?.title ? ` · ${nextEpisodeDisplay.title}` : ""}`}</Text>
+            <View style={styles.upNextRow}>
+              <Pressable onPress={() => { setUpNextVisible(false); goToEpisode(nextKnownEpisode); }} accessibilityRole="button" accessibilityLabel="Play next episode now" style={styles.upNextPlay} hitSlop={8}>
+                <Text style={styles.upNextPlayText}>PLAY NOW</Text>
+              </Pressable>
+              <Pressable onPress={dismissUpNext} accessibilityRole="button" accessibilityLabel="Dismiss up next" style={styles.upNextDismiss} hitSlop={8}>
+                <X size={15} color="#FFF" weight="bold" />
+              </Pressable>
+            </View>
+          </View>
+        </View>
       ) : null}
 
       {/* Locked state */}
       {playerLocked ? (
-        <Pressable style={styles.lockedPill} onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); setPlayerLocked(false); }} accessibilityRole="button" accessibilityLabel="Unlock player" accessibilityHint="Unlocks player controls to resume interaction">
-          <Lock size={16} color="#FFF" weight="bold" />
-          <Text style={styles.lockedText}>Tap to unlock</Text>
+        <Pressable style={[styles.lockedPill, unlockArmed && styles.lockedPillArmed]} onPress={requestUnlock} accessibilityRole="button" accessibilityLabel="Unlock player" accessibilityHint="Tap twice to unlock player controls">
+          <Lock size={16} color={unlockArmed ? nothing.red : "#FFF"} weight="bold" />
+          <Text style={styles.lockedText}>{unlockArmed ? "Tap again to unlock" : "Controls locked"}</Text>
         </Pressable>
       ) : null}
 
@@ -1546,27 +2141,113 @@ export default function WatchScreen() {
         </View>
       ) : null}
 
-      {/* ── Settings panel — Quality only ── */}
-      {source && showSettings ? <View style={ps.settingsOverlay}>
+      {/* ── Settings panel — quality + playback info ── */}
+      {source && activePanel === "settings" && !playerLocked ? <View style={ps.settingsOverlay}>
+        <View style={ps.settingsHeader}>
+          <Text style={ps.settingsHeaderText}>Settings</Text>
+          <Pressable onPress={() => setActivePanel(null)} accessibilityRole="button" accessibilityLabel="Close settings" hitSlop={8}>
+            <X size={15} color="#FFF" weight="bold" />
+          </Pressable>
+        </View>
         <ScrollView contentContainerStyle={ps.settingsContent} showsVerticalScrollIndicator={false}>
-          <View style={ps.settingsHeading}><DotLabel>QUALITY</DotLabel><Pressable onPress={() => setShowSettings(false)}><AppIcon name="close" size={16} color={nothing.muted} /></Pressable></View>
-          <View style={ps.settingsSection}>
+          <Text style={ps.sectionLabel}>{t("player.quality")}</Text>
+          <View style={ps.chipRow}>
             {displayedQualityOptions.length ? displayedQualityOptions.map((item: WatchQualityOption) => {
-              const selected = source ? displayedQuality.toLowerCase() === item.label.toLowerCase() : false;
-              return <Pressable key={item.id} onPress={() => { if (source) void selectAdaptiveQuality(item); else if (item.source) selectQuality(item.source); setShowSettings(false); }} style={[styles.quality, selected && styles.qualityActive]}><Text style={[styles.qualityText, selected && styles.qualityTextActive]}>{item.label.toUpperCase()}</Text>{selected && <Check size={14} color={nothing.red} weight="bold" />}</Pressable>;
-            }) : <Text style={styles.qualityText}>No quality options</Text>}
+              const selected = displayedQuality.toLowerCase() === item.label.toLowerCase();
+              return <Pressable key={item.id} onPress={() => { if (source) void selectAdaptiveQuality(item); else if (item.source) selectQuality(item.source); }} style={[ps.chip, selected && ps.chipActive]}><Text style={[ps.chipText, selected && ps.chipTextActive]}>{item.label}</Text></Pressable>;
+            }) : <Text style={ps.emptyLine}>{t("player.nothingSelectable")}</Text>}
           </View>
-          <View style={ps.settingsSection}>
-            <Text style={ps.diagnosticLine}>{`${activeProvider?.label || "—"} · ${embedSource ? "EMBED" : useSourceProxy ? "PROXY" : "DIRECT"}`}</Text>
+          {(() => {
+            const ceiling = parsedQualityOptions?.find((option) => option.requestQuality !== "auto")?.label ?? null;
+            if (liveHeight) return <Text style={ps.emptyLine}>{autoQualityLine({ ceilingLabel: ceiling, liveHeight })}</Text>;
+            return ceiling ? <Text style={ps.emptyLine}>{`Auto · up to ${ceiling}`}</Text> : null;
+          })()}
+          {parsedQualityNote ? <Text style={ps.emptyLine} numberOfLines={1}>{parsedQualityNote}</Text> : null}
+
+          <Text style={ps.sectionLabel}>INFO</Text>
+          <View style={ps.infoRow}>
+            <Text style={ps.infoLabel}>Server</Text>
+            <Text style={ps.infoValue}>{activeProvider?.label || "Unknown"}</Text>
+          </View>
+          <View style={ps.infoRow}>
+            <Text style={ps.infoLabel}>Quality</Text>
+            <Text style={ps.infoValue}>{displayedQuality || "Auto"}</Text>
+          </View>
+          <View style={ps.infoRow}>
+            <Text style={ps.infoLabel}>Language</Text>
+            <Text style={ps.infoValue}>{language === "sub" ? "Subtitled" : "Dubbed"}</Text>
+          </View>
+          <View style={ps.infoRow}>
+            <Text style={ps.infoLabel}>Source</Text>
+            <Text style={ps.infoValue}>{embedSource ? "Embed" : useSourceProxy ? "Proxied" : "Direct"}</Text>
+          </View>
+          <View style={ps.infoRow}>
+            <Text style={ps.infoLabel}>Format</Text>
+            <Text style={ps.infoValue}>{source?.type?.toUpperCase() || "HLS"}</Text>
           </View>
         </ScrollView>
       </View> : null}
 
-      {source && sleepRemaining ? <SleepTimerPill remaining={sleepRemaining} onPress={() => setShowSettings(true)} /> : null}
+      {/* ── Subtitle panel — language, size, bg, outline, font ── */}
+      {source && activePanel === "subtitles" && !playerLocked ? <View style={ps.settingsOverlay}>
+        <View style={ps.settingsHeader}>
+          <Text style={ps.settingsHeaderText}>Subtitles</Text>
+          <Pressable onPress={() => setActivePanel(null)} accessibilityRole="button" accessibilityLabel="Close subtitles" hitSlop={8}>
+            <X size={15} color="#FFF" weight="bold" />
+          </Pressable>
+        </View>
+        <ScrollView contentContainerStyle={ps.settingsContent} showsVerticalScrollIndicator={false}>
+          <Text style={ps.sectionLabel}>{t("player.subtitles")}</Text>
+          <View style={ps.chipRow}>
+            {source.subtitles?.length ? <>
+              <Pressable onPress={() => updateSubtitlePrefs({ enabled: false })} style={[ps.chip, subtitlePrefs && !subtitlePrefs.enabled && ps.chipActive]}>
+                <Text style={[ps.chipText, subtitlePrefs && !subtitlePrefs.enabled && ps.chipTextActive]}>{t("player.off")}</Text>
+              </Pressable>
+              {source.subtitles.map((sub) => { const active = subtitlePrefs?.enabled && selectedSubtitleUrl === sub.url; return <Pressable key={sub.url} onPress={() => updateSubtitlePrefs({ enabled: true, preferredLanguage: sub.lang || sub.label || "en" })} style={[ps.chip, active && ps.chipActive]}><Text numberOfLines={1} style={[ps.chipText, active && ps.chipTextActive]}>{sub.label || sub.lang || "Track"}</Text></Pressable>; })}
+            </> : <Text style={ps.emptyLine}>{t("player.noTracks")}</Text>}
+          </View>
+
+          <Text style={ps.sectionLabel}>{t("player.subtitleSize")}</Text>
+          <View style={ps.chipRow}>
+            {[{ label: "S", value: 12 }, { label: "M", value: 14 }, { label: "L", value: 18 }].map((preset) => {
+              const active = (subtitlePrefs?.fontSize ?? 14) === preset.value;
+              return <Pressable key={preset.label} onPress={() => updateSubtitlePrefs({ enabled: true, fontSize: preset.value })} style={[ps.chip, active && ps.chipActive]}><Text style={[ps.chipText, active && ps.chipTextActive]}>{preset.label}</Text></Pressable>;
+            })}
+          </View>
+
+          <Text style={ps.sectionLabel}>BACKGROUND</Text>
+          <View style={ps.chipRow}>
+            {BG_OPACITY_PRESETS.map((val) => {
+              const active = (subtitlePrefs?.bgOpacity ?? 0.55) === val;
+              const label = val === 0 ? "Off" : `${Math.round(val * 100)}%`;
+              return <Pressable key={val} onPress={() => updateSubtitlePrefs({ enabled: true, bgOpacity: val })} style={[ps.chip, active && ps.chipActive]}><Text style={[ps.chipText, active && ps.chipTextActive]}>{label}</Text></Pressable>;
+            })}
+          </View>
+
+          <Text style={ps.sectionLabel}>OUTLINE</Text>
+          <View style={ps.chipRow}>
+            {OUTLINE_PRESETS.map((val) => {
+              const active = (subtitlePrefs?.outlineThickness ?? 2) === val;
+              const label = val === 0 ? "Off" : `${val}px`;
+              return <Pressable key={val} onPress={() => updateSubtitlePrefs({ enabled: true, outlineThickness: val })} style={[ps.chip, active && ps.chipActive]}><Text style={[ps.chipText, active && ps.chipTextActive]}>{label}</Text></Pressable>;
+            })}
+          </View>
+
+          <Text style={ps.sectionLabel}>FONT</Text>
+          <View style={ps.chipRow}>
+            {SUBTITLE_FONTS.map((font) => {
+              const active = (subtitlePrefs?.fontFamily ?? "default") === font.id;
+              return <Pressable key={font.id} onPress={() => updateSubtitlePrefs({ enabled: true, fontFamily: font.id })} style={[ps.chip, active && ps.chipActive]}><Text style={[ps.chipText, active && ps.chipTextActive]}>{font.label}</Text></Pressable>;
+            })}
+          </View>
+        </ScrollView>
+      </View> : null}
+
+      {source && sleepRemaining && !playerLocked ? <SleepTimerPill remaining={sleepRemaining} onPress={() => setActivePanel("settings")} /> : null}
     </View>
 
     {/* ── Error ── */}
-    {error ? <View style={styles.errorAction}><NothingCard style={styles.errorCard}><DotLabel tone="muted">{futureRelease ? "FUTURE EPISODE" : "VIDEO UNAVAILABLE"}</DotLabel><Text style={styles.errorCopy}>{error}</Text>{lastPlayerError ? <Text style={ps.diagnosticLine}>{`PLAYER · ${lastPlayerError}`}</Text> : null}{futureRelease ? null : <View style={styles.errorBtnRow}><NothingButton label="TRY AGAIN" onPress={retry} variant="outline" /><NothingButton label="SWITCH SERVER" onPress={() => handleProviderBlocked("permanent")} variant="outline" /><NothingButton label="COPY ERROR" onPress={() => { void Clipboard.setStringAsync(`${error}${lastPlayerError ? `\nPLAYER · ${lastPlayerError}` : ""}\nSERVER · ${activeProvider?.label || "UNKNOWN"} · ${embedSource ? "EMBED" : useSourceProxy ? "PROXY" : "DIRECT"}`).catch(() => {}); }} variant="outline" /></View>}</NothingCard></View> : null}
+    {error ? <View style={styles.errorAction}><NothingCard style={styles.errorCard}><DotLabel tone="muted">{futureRelease ? "FUTURE EPISODE" : "VIDEO UNAVAILABLE"}</DotLabel><Text style={styles.errorCopy}>{error}</Text>{lastPlayerError ? <Text style={styles.errorCopy}>{humanPlayerError(lastPlayerError) ?? "Playback failed on this server."}</Text> : null}{lastPlayerError ? <Text style={ps.diagnosticLine}>{`PLAYER · ${lastPlayerError}`}</Text> : null}{skipFetchStatus !== "idle" && skipFetchStatus !== "ok" ? <Text style={ps.diagnosticLine}>{`SKIP DATA · ${skipFetchStatus.toUpperCase()}`}</Text> : null}{futureRelease ? null : <View style={styles.errorBtnRow}><NothingButton label={t("player.retry")} onPress={retry} variant="outline" /><NothingButton label={t("player.switchServer")} onPress={() => handleProviderBlocked("permanent")} variant="outline" /><NothingButton label={t("player.copyError")} onPress={() => { void Clipboard.setStringAsync(`${error}${lastPlayerError ? `\nPLAYER · ${lastPlayerError}` : ""}${skipFetchStatus !== "idle" && skipFetchStatus !== "ok" ? `\nSKIP DATA · ${skipFetchStatus.toUpperCase()}` : ""}\nSERVER · ${activeProvider?.label || "UNKNOWN"} · ${embedSource ? "EMBED" : useSourceProxy ? "PROXY" : "DIRECT"}`).catch(() => {}); }} variant="outline" /></View>}</NothingCard></View> : null}
 
     {/* ── Below player ── */}
     {!manualFullscreen ? <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} removeClippedSubviews={Platform.OS === "android"}>
@@ -1577,41 +2258,38 @@ export default function WatchScreen() {
           {(["sub", "dub"] as Language[]).map((item) => { const active = language === item; const empty = !providers[item].length; return <Pressable key={item} accessibilityRole="tab" accessibilityLabel={`${item === "sub" ? "Subtitled" : "Dubbed"}${active ? " (selected)" : ""}`} accessibilityHint={empty ? "No servers available" : "Switch to this audio language"} disabled={empty} onPress={() => selectLanguage(item)} style={[styles.th3Tab, active && styles.th3TabActive]}><Text style={[styles.th3TabText, active ? styles.th3TabTextActive : empty && styles.th3TabTextEmpty]}>{item === "sub" ? "Sub" : "Dub"}</Text></Pressable>; })}
         </View>
         <View style={styles.th3Servers}>
-          {activeProviders.map((provider, index) => { const active = index === serverIndex; return <Pressable key={provider.id} accessibilityRole="button" accessibilityLabel={`Server: ${provider.label}${active ? " (selected)" : ""}`} accessibilityHint={active ? "Currently active server" : "Switch to this streaming server"} onPress={() => selectServer(index)} style={[styles.th3ServerPill, active ? styles.th3ServerPillActive : styles.th3ServerPillIdle]}><Text style={active ? styles.th3ServerPillTextActive : styles.th3ServerPillTextIdle}>{provider.label}</Text></Pressable>; })}
+          {activeProviders.map((provider, index) => { const active = index === serverIndex; return <Pressable key={provider.id} accessibilityRole="button" accessibilityLabel={`Server: ${provider.label}${active ? " (selected)" : ""}`} accessibilityHint={active ? "Currently active server" : "Switch to this streaming server"} onPress={() => selectServer(index)} style={[styles.th3Server, active && styles.th3ServerActive]}><Text style={[styles.th3ServerText, active && styles.th3ServerTextActive]}>{provider.label}</Text></Pressable>; })}
         </View>
         <View style={styles.th3EpHead}>
-          <Text style={styles.th3EpTitle}>List of episodes</Text>
-          <View style={styles.th3EpSearch}><AppIcon name="magnify" size={16} color={nothing.muted} /><TextInput value={episodeSearch} onChangeText={setEpisodeSearch} placeholder="No. of Ep" placeholderTextColor={nothing.dim} style={styles.th3EpSearchInput} returnKeyType="done" keyboardType={episodeSearch && /\d/.test(episodeSearch) ? "number-pad" : "default"} /></View>
+          <Text style={styles.th3EpTitle}>{t("player.listOfEpisodes")}</Text>
         </View>
-        <View style={styles.th3EpsRow}><AppIcon name="layers" size={15} color={nothing.red} /><Text style={styles.th3EpsText}>{`EPS: ${filteredEpisodes.length}`}</Text>{dubCheckPending ? <><ActivityIndicator size="small" color={nothing.muted} /><Text style={[styles.th3EpsText, { color: nothing.muted }]}>CHECKING DUB</Text></> : null}</View>
+        <View style={styles.th3EpsRow}>
+          <AppIcon name="options" size={14} color={nothing.muted} />
+          <Text style={styles.th3EpsText}>EPS: {episodePage * EPISODE_PAGE_SIZE + 1}-{Math.min((episodePage + 1) * EPISODE_PAGE_SIZE, filteredEpisodes.length)}</Text>
+          <View style={styles.th3EpSearch}><AppIcon name="magnify" size={14} color={nothing.muted} /><TextInput value={episodeSearch} onChangeText={setEpisodeSearch} placeholder="Number of Ep" placeholderTextColor={nothing.dim} style={styles.th3EpSearchInput} returnKeyType="done" keyboardType={episodeSearch && /\d/.test(episodeSearch) ? "number-pad" : "default"} /></View>
+        </View>
         {episodeQuery.isPending ? <View style={styles.episodeLoading}><ActivityIndicator color={nothing.white} /><Text style={styles.episodeLoadingText}>LOADING EPISODES</Text></View> : filteredEpisodes.length ? <>
           <Animated.View style={[styles.episodeSwipeContainer, { transform: [{ translateX: swipeOffsetX }] }]} {...episodeSwipeResponder.panHandlers}>
-            <View style={styles.th3Grid}>{pagedEpisodes.map((item) => { const active = item.number === episode; return <Pressable key={item.number} accessibilityRole="button" accessibilityLabel={`Episode ${item.number}${item.title ? `: ${item.title}` : ""}`} accessibilityHint={active ? "Currently playing" : "Double tap to play this episode"} onPress={() => goToEpisode(item.number)} onLongPress={() => openEpisodeInfo(item.number)} style={[styles.th3EpBtn, active && styles.th3EpBtnActive]}><Text style={[styles.th3EpBtnText, active ? styles.th3EpBtnTextActive : item.isFiller ? styles.th3EpBtnFiller : null]}>{item.number}</Text></Pressable>; })}</View>
-            {totalEpisodePages > 1 ? <View style={styles.episodePager}><Pressable disabled={safeEpisodePage === 0} onPress={() => setEpisodePage((v) => Math.max(0, v - 1))} accessibilityRole="button" accessibilityLabel="Previous page" accessibilityHint="Shows the previous page of episodes" style={[styles.episodePagerButton, safeEpisodePage === 0 && styles.episodePagerDisabled]}><AppIcon name="chevron-left" size={17} color={nothing.white} /><Text style={styles.episodePagerText}>PREV</Text></Pressable><Pressable disabled={safeEpisodePage >= totalEpisodePages - 1} onPress={() => setEpisodePage((v) => Math.min(totalEpisodePages - 1, v + 1))} accessibilityRole="button" accessibilityLabel="Next page" accessibilityHint="Shows the next page of episodes" style={[styles.episodePagerButton, safeEpisodePage >= totalEpisodePages - 1 && styles.episodePagerDisabled]}><Text style={styles.episodePagerText}>NEXT</Text><AppIcon name="chevron-right" size={17} color={nothing.white} /></Pressable></View> : null}
+            <EpisodeGrid episodes={pagedEpisodes} activeEpisode={episode} totalPages={totalEpisodePages} page={safeEpisodePage} onPageChange={setEpisodePage} onSelect={goToEpisode} onInfo={openEpisodeInfo} totalEpisodeCount={filteredEpisodes.length} />
           </Animated.View>
         </> : <Text style={styles.emptyEpisodeText}>{episodeSearch ? "No episodes match your search." : "No episodes are listed for this title."}</Text>}
       </View>
       <View style={styles.watchCommunitySection}>
         <DotLabel>EPISODE ACTIVITY</DotLabel>
-        <View style={styles.ratingRow}><Text style={styles.ratingPrompt}>{currentRating ? `YOU RATED ${currentRating}/10` : "RATE THIS EPISODE"}</Text><View style={styles.ratingChoices}>{Array.from({ length: 10 }, (_, index) => index + 1).map((score) => <Pressable key={score} onPress={() => { if (!auth.user) { router.push("/auth" as never); return; } ratings.setRating.mutate({ episode, score }); }} style={[styles.ratingChoice, currentRating >= score && styles.ratingChoiceActive]}><Text style={[styles.ratingChoiceText, currentRating >= score && styles.ratingChoiceTextActive]}>{score}</Text></Pressable>)}</View></View>
+        <View style={styles.ratingRow}><Text style={styles.ratingPrompt}>{currentRating ? `${t("player.youRated")} ${currentRating}/10` : t("player.rateEpisode")}</Text><View style={styles.ratingChoices}>{Array.from({ length: 10 }, (_, index) => index + 1).map((score) => <Pressable key={score} onPress={() => { if (!auth.user) { router.push("/auth" as never); return; } ratings.setRating.mutate({ episode, score }); }} style={[styles.ratingChoice, currentRating >= score && styles.ratingChoiceActive]}><Text style={[styles.ratingChoiceText, currentRating >= score && styles.ratingChoiceTextActive]}>{score}</Text></Pressable>)}</View></View>
         <AnimeComments animeId={animeId} episodeNumber={episode} />
       </View>
     </ScrollView> : null}
 
     {/* ── Modal Pickers ── */}
-    <Modal visible={showSpeedModal} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setShowSpeedModal(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Playback Speed</Text>{[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map((val) => <Pressable key={val} style={[styles.modalItem, speed === val && styles.modalItemActive]} onPress={() => { setSpeed(val); lockedSpeed.current = val; setShowSpeedModal(false); }}><Text style={[styles.modalItemText, speed === val && styles.modalItemTextActive]}>{val === 1.0 ? "1.0x (Normal)" : `${val}x`}</Text>{speed === val && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
+    <Modal visible={activePanel === "speed"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>{t("player.playbackSpeed")}</Text>{[0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((val) => <Pressable key={val} style={[styles.modalItem, speed === val && styles.modalItemActive]} onPress={() => { setSpeed(val); lockedSpeed.current = val; setActivePanel(null); }}><Text style={[styles.modalItemText, speed === val && styles.modalItemTextActive]}>{val === 1.0 ? "1.0x (Normal)" : `${val}x`}</Text>{speed === val && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
 
-    <Modal visible={showSubtitleModal} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setShowSubtitleModal(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Subtitles</Text>{source?.subtitles?.length ? <>
-      <Pressable style={[styles.modalItem, subtitlePrefs && !subtitlePrefs.enabled && styles.modalItemActive]} onPress={() => { updateSubtitlePrefs({ enabled: false }); setShowSubtitleModal(false); }}><Text style={[styles.modalItemText, subtitlePrefs && !subtitlePrefs.enabled && styles.modalItemTextActive]}>Off</Text>{subtitlePrefs && !subtitlePrefs.enabled && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>
-      {source.subtitles.map((sub) => { const active = subtitlePrefs?.enabled && selectedSubtitleUrl === sub.url; return <Pressable key={sub.url} style={[styles.modalItem, active && styles.modalItemActive]} onPress={() => { updateSubtitlePrefs({ enabled: true, preferredLanguage: sub.lang || sub.label || "en" }); setShowSubtitleModal(false); }}><Text style={[styles.modalItemText, active && styles.modalItemTextActive]}>{sub.label || sub.lang || "Track"}</Text>{active && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>; })}
-    </> : <Text style={styles.modalItemText}>No subtitles available</Text>}</View></Pressable></Modal>
-
-    <Modal visible={showServerModal} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setShowServerModal(false)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Select Server</Text><View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} onPress={() => selectLanguage(item)} disabled={!providers[item].length} style={[styles.language, language === item && styles.languageActive, !providers[item].length && styles.languageDisabled]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${providers.sub.length}` : `DUB · ${providers.dub.length}`}</Text></Pressable>)}</View>
-      {activeProviders.map((provider, index) => <Pressable key={provider.id} onPress={() => { selectServer(index); setShowServerModal(false); }} style={[styles.modalItem, index === serverIndex && styles.modalItemActive]}><Text style={[styles.modalItemText, index === serverIndex && styles.modalItemTextActive]}>{provider.label}</Text>{index === serverIndex && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
+    <Modal visible={activePanel === "server"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>{t("player.selectServer")}</Text><View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} onPress={() => selectLanguage(item)} disabled={!providers[item].length} style={[styles.language, language === item && styles.languageActive, !providers[item].length && styles.languageDisabled]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${providers.sub.length}` : `DUB · ${providers.dub.length}`}</Text></Pressable>)}</View>
+      {activeProviders.map((provider, index) => <Pressable key={provider.id} onPress={() => { selectServer(index); setActivePanel(null); }} style={[styles.modalItem, index === serverIndex && styles.modalItemActive]}><Text style={[styles.modalItemText, index === serverIndex && styles.modalItemTextActive]}>{provider.label}</Text>{index === serverIndex && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
 
     {/* Chapter List Modal */}
-    <Modal visible={showChapterList} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setShowChapterList(false)}><View style={styles.chapterModalSheet}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={styles.modalTitle}>CHAPTERS</Text><Pressable onPress={() => setShowChapterList(false)}><X size={20} color={nothing.muted} weight="bold" /></Pressable></View>
+    <Modal visible={activePanel === "chapters" && !playerLocked} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.chapterModalSheet}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={styles.modalTitle}>{t("player.chapters")}</Text><Pressable onPress={() => setActivePanel(null)}><X size={20} color={nothing.muted} weight="bold" /></Pressable></View>
       {duration <= 0 ? <Text style={styles.chapterEmptyText}>No duration data available yet.</Text> : (
         <View style={styles.chapterList}>
           {(() => {
@@ -1624,7 +2302,7 @@ export default function WatchScreen() {
               const isPast = currentTime >= ch.endTime;
               const durationSec = ch.endTime - ch.startTime;
               return (
-                <Pressable key={ch.kind} onPress={() => { seekTo(ch.startTime); setShowChapterList(false); }} style={[styles.chapterItem, isActive && styles.chapterItemActive, isPast && styles.chapterItemPast]}>
+                <Pressable key={ch.kind} onPress={() => { seekTo(ch.startTime); setActivePanel(null); }} style={[styles.chapterItem, isActive && styles.chapterItemActive, isPast && styles.chapterItemPast]}>
                   <View style={styles.chapterItemLeft}>
                     <View style={[styles.chapterDot, isActive && styles.chapterDotActive, isPast && styles.chapterDotPast]} />
                     <View style={styles.chapterInfo}>
@@ -1647,44 +2325,23 @@ export default function WatchScreen() {
 }
 
 // ── Styles ──
-const wp = StyleSheet.create({
-  watchBackdrop: { position: "absolute", top: 0, left: 0, right: 0, height: 540, opacity: 0.42 },
-  watchBackdropMask: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(9,9,9,0.82)" },
-});
-
 const ps = StyleSheet.create({
   videoShellFullscreen: { position: "absolute", zIndex: 50, elevation: 50, top: 0, right: 0, bottom: 0, left: 0, width: "100%", height: "100%", aspectRatio: undefined, backgroundColor: "#000000", justifyContent: "center" },
-  qualityOverlay: { position: "absolute", zIndex: 5, top: 56, right: 8, width: 180, gap: 9, padding: 12, borderWidth: 1, borderColor: "rgba(246,246,242,0.3)", borderRadius: 5, backgroundColor: "rgba(9,9,9,0.97)" },
-  qualityHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  qualityChoices: { borderTopWidth: 1, borderTopColor: nothing.line },
-  qualityChoice: { minHeight: 38, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, borderBottomWidth: 1, borderBottomColor: nothing.line },
-  qualityChoiceActive: { borderBottomColor: nothing.red, backgroundColor: "rgba(255,77,77,0.06)" },
-  qualityChoiceText: { color: nothing.white, fontSize: 13, fontWeight: "800", letterSpacing: -0.2 },
-  qualityChoiceTextActive: { color: nothing.red },
-  qualityChoiceState: { color: nothing.dim, fontFamily: "monospace", fontSize: 8, fontWeight: "800" },
-  qualityChoiceStateActive: { color: nothing.red },
-  sourceOverlay: { position: "absolute", zIndex: 6, left: 8, right: 8, bottom: 8, maxHeight: "55%", gap: 10, padding: 12, borderWidth: 1, borderColor: "rgba(246,246,242,0.3)", borderTopLeftRadius: 12, borderTopRightRadius: 12, borderBottomLeftRadius: 5, borderBottomRightRadius: 5, backgroundColor: "rgba(9,9,9,0.97)" },
-  sourceItem: { minHeight: 38, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, borderBottomWidth: 1, borderBottomColor: nothing.line },
-  sourceItemActive: { borderBottomColor: nothing.red, backgroundColor: "rgba(255,77,77,0.06)" },
-  sourceItemName: { flexDirection: "row", alignItems: "center", gap: 8 },
-  sourceSignal: { width: 6, height: 6, borderRadius: 3, backgroundColor: nothing.dim },
-  sourceSignalActive: { backgroundColor: nothing.red },
-  sourceItemText: { color: nothing.white, fontSize: 13, fontWeight: "800", letterSpacing: -0.2 },
-  sourceItemTextActive: { color: nothing.red },
-  sourceItemState: { color: nothing.dim, fontFamily: "monospace", fontSize: 8, fontWeight: "800" },
-  settingsOverlay: { position: "absolute", zIndex: 4, top: 6, right: 6, bottom: 6, width: "72%", maxWidth: 300, borderWidth: 1, borderColor: "rgba(246,246,242,0.25)", borderRadius: 8, backgroundColor: "rgba(12,12,12,0.97)" },
-  settingsContent: { padding: 10, gap: 8 },
-  settingsHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingBottom: 2 },
-  settingsSection: { gap: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: "rgba(246,246,242,0.08)" },
-  settingsBtn: { flex: 1, minHeight: 34, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: 6, backgroundColor: "rgba(246,246,242,0.08)", borderWidth: 1, borderColor: "rgba(246,246,242,0.12)" },
-  settingsBtnText: { color: nothing.white, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.4 },
-  settingsRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  settingsRowLabel: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "800", letterSpacing: 0.3, minWidth: 40 },
-  settingsPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, backgroundColor: "rgba(246,246,242,0.06)", borderWidth: 1, borderColor: "rgba(246,246,242,0.1)" },
-  settingsPillActive: { backgroundColor: "rgba(255,77,77,0.12)", borderColor: nothing.red },
-  settingsPillText: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "800" },
-  settingsPillTextActive: { color: nothing.red },
-  diagnosticLine: { color: nothing.dim, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.25, lineHeight: 13 },
+  settingsOverlay: { position: "absolute", zIndex: 4, top: 6, right: 6, bottom: 6, width: 240, maxWidth: "76%", borderRadius: 4, backgroundColor: "rgba(9,9,9,0.92)", overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
+  settingsHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
+  settingsHeaderText: { color: "#FFF", fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
+  settingsContent: { padding: 8, paddingBottom: 10, gap: 1 },
+  sectionLabel: { color: "#FF4D4D", fontSize: 9, fontWeight: "800", letterSpacing: 0.8, marginTop: 6, marginBottom: 2, textTransform: "uppercase" },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 2 },
+  chip: { minHeight: 26, paddingHorizontal: 8, borderRadius: 3, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", backgroundColor: "transparent", alignItems: "center", justifyContent: "center" },
+  chipActive: { backgroundColor: nothing.red, borderColor: nothing.red },
+  chipText: { color: "rgba(255,255,255,0.7)", fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
+  chipTextActive: { color: "#FFFFFF", fontSize: 10, fontWeight: "700" },
+  emptyLine: { color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: "500" },
+  infoRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" },
+  infoLabel: { color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: "600" },
+  infoValue: { color: "rgba(255,255,255,0.8)", fontSize: 10, fontWeight: "700" },
+  diagnosticLine: { color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: "600", letterSpacing: 0.3, marginTop: 6 },
 });
 
 const styles = StyleSheet.create({
@@ -1693,7 +2350,7 @@ const styles = StyleSheet.create({
   closeButton: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 6 },
   topCopy: { flex: 1, gap: 2 },
   title: { color: nothing.white, fontSize: 18, fontWeight: "900", lineHeight: 22, letterSpacing: -0.5 },
-  episodeLabel: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
+  episodeLabel: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.8 },
   videoShell: { width: "100%", aspectRatio: 16 / 9, backgroundColor: "#000000", overflow: "hidden", position: "relative" },
   video: { flex: 1 },
   gestureOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 2 },
@@ -1701,216 +2358,198 @@ const styles = StyleSheet.create({
   miniProgress: { position: "absolute", left: 0, right: 0, bottom: 0, height: 2, backgroundColor: "rgba(255,255,255,0.22)", zIndex: 2 },
   miniProgressBuffered: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.35)" },
   miniProgressPlayed: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "#FF4D4D" },
+  statusToast: { position: "absolute", bottom: 28, alignSelf: "center", zIndex: 14, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 8, backgroundColor: "rgba(0,0,0,0.82)", borderWidth: 1, borderColor: "rgba(255,255,255,0.14)" },
+  statusToastText: { color: "#FFF", fontSize: 11, fontWeight: "600", letterSpacing: 0.2 },
   subtitleWrapper: { ...StyleSheet.absoluteFillObject, justifyContent: "flex-end", alignItems: "center", paddingBottom: 68, zIndex: 1 },
-  subtitleWrapperWithControls: { paddingBottom: 132 },
+  subtitleWrapperWithControls: { paddingBottom: 144 },
   subtitleWrapperFullscreen: { paddingBottom: 24 },
   controlsBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: 3, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 6 },
-  controlsBackdropFullscreen: { paddingHorizontal: 16, paddingVertical: 8 },
+  controlsBackdropFullscreen: { paddingHorizontal: 20, paddingVertical: 12 },
+  scrimTopMain: { position: "absolute", top: 0, left: 0, right: 0, height: 64, backgroundColor: "rgba(0,0,0,0.28)" },
+  scrimTopSoft: { position: "absolute", top: 0, left: 0, right: 0, height: 132, backgroundColor: "rgba(0,0,0,0.14)" },
+  scrimBottomMain: { position: "absolute", bottom: 0, left: 0, right: 0, height: 88, backgroundColor: "rgba(0,0,0,0.28)" },
+  scrimBottomSoft: { position: "absolute", bottom: 0, left: 0, right: 0, height: 156, backgroundColor: "rgba(0,0,0,0.14)" },
   topBar: { flexDirection: "row", alignItems: "center", flexWrap: "nowrap", width: "100%" },
-  playerTitle: { flex: 1, flexShrink: 1, color: "#FFF", fontSize: 12, fontWeight: "700", letterSpacing: -0.2, marginLeft: 6, marginRight: 4 },
+  playerTitle: { flex: 1, flexShrink: 1, color: "#FFF", fontSize: 13, fontWeight: "600", marginLeft: 8, marginRight: 6 },
   topRightRow: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
-  iconButton: { width: 28, height: 28, padding: 2, justifyContent: "center", alignItems: "center", flexShrink: 0 },
+  iconButton: { width: 30, height: 30, padding: 2, justifyContent: "center", alignItems: "center", flexShrink: 0 },
   iconButtonActive: { backgroundColor: "rgba(255,77,77,0.15)", borderRadius: 4 },
   orientationBadge: { backgroundColor: "rgba(255,77,77,0.85)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 3 },
-  orientationBadgeText: { color: nothing.white, fontFamily: "monospace", fontSize: 7, fontWeight: "900", letterSpacing: 0.5 },
-  subPillBadge: { backgroundColor: nothing.red, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4, flexShrink: 0 },
-  subPillBadgeText: { color: nothing.black, fontSize: 8, fontWeight: "900", fontFamily: "monospace", letterSpacing: 0.3 },
+  orientationBadgeText: { color: nothing.white, fontFamily: nothing.mono, fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
+  subPillBadge: { backgroundColor: nothing.red, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5, flexShrink: 0 },
+  subPillBadgeText: { color: nothing.black, fontSize: 10, fontWeight: "800", letterSpacing: 0.2, textTransform: "uppercase" },
   bottomDeck: { gap: 3, width: "100%" },
   timelineRow: { flexDirection: "row", alignItems: "center", gap: 4, width: "100%" },
-  timeLabel: { color: "#FFF", fontSize: 9, fontWeight: "600", fontFamily: "monospace", minWidth: 30, textAlign: "center", flexShrink: 0 },
+  timeLabel: { color: "#FFF", fontSize: 11, fontWeight: "600", minWidth: 34, textAlign: "center", flexShrink: 0, fontVariant: ["tabular-nums"] },
   progressBarTrack: { flex: 1, height: 16, justifyContent: "center" },
   progressBuffered: { position: "absolute", height: 2, backgroundColor: "rgba(255,255,255,0.45)", borderRadius: 1 },
   progressPlayed: { position: "absolute", height: 2, backgroundColor: nothing.red, borderRadius: 1 },
+  progressTrackThick: { height: 3, borderRadius: 1.5 },
   scrubberKnob: { position: "absolute", width: 10, height: 10, borderRadius: 5, backgroundColor: "#FFF", marginLeft: -5, top: 3, elevation: 3 },
-  dragPreview: { position: "absolute", top: -26, marginLeft: -22, backgroundColor: "rgba(0,0,0,0.85)", borderRadius: 3, paddingHorizontal: 5, paddingVertical: 2 },
-  dragPreviewText: { color: nothing.white, fontFamily: "monospace", fontSize: 9, fontWeight: "700" },
+  scrubberKnobActive: { width: 14, height: 14, borderRadius: 7, marginLeft: -7, top: 1 },
+  dragPreview: { position: "absolute", top: -28, marginLeft: -24, backgroundColor: "rgba(0,0,0,0.85)", borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
+  dragPreviewText: { color: nothing.white, fontSize: 11, fontWeight: "700", fontVariant: ["tabular-nums"] },
   actionRail: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "nowrap", width: "100%" },
-  railSide: { flexDirection: "row", alignItems: "center", gap: 0, flexShrink: 0 },
-  railSideRight: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 0, flexShrink: 0 },
-  railCenter: { flexDirection: "row", alignItems: "center", gap: 0, flexShrink: 1, justifyContent: "center" },
-  bigPlayButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: "#FFF", justifyContent: "center", alignItems: "center", flexShrink: 0, marginHorizontal: 2 },
-  hudBadge: { position: "absolute", top: 20, alignSelf: "center", backgroundColor: "rgba(0,0,0,0.75)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 14, flexDirection: "row", alignItems: "center", gap: 5, zIndex: 10 },
-  hudPill: { position: "absolute", alignSelf: "center", backgroundColor: "rgba(0,0,0,0.8)", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, flexDirection: "row", alignItems: "center", gap: 8, zIndex: 10 },
+  railSide: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
+  railSideRight: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 2, flexShrink: 0 },
+  railCenter: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 1, justifyContent: "center" },
+  railBtn: { width: 32, height: 32, justifyContent: "center", alignItems: "center", flexShrink: 0 },
+  railBtnDisabled: { opacity: 0.35 },
+  downloadBtn: { width: 32, height: 32, justifyContent: "center", alignItems: "center", flexShrink: 0, gap: 0 },
+  bigPlayButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: "#FFF", justifyContent: "center", alignItems: "center", flexShrink: 0, marginHorizontal: 4 },
+  bigPlayButtonFullscreen: { width: 56, height: 56, borderRadius: 28 },
+  hudBadge: { position: "absolute", top: 20, alignSelf: "center", backgroundColor: "rgba(0,0,0,0.75)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 5, zIndex: 10 },
+  hudPill: { position: "absolute", alignSelf: "center", backgroundColor: "rgba(0,0,0,0.8)", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 8, zIndex: 10 },
   hudText: { color: "#FFF", fontSize: 12, fontWeight: "700" },
   doubleTapOverlay: { position: "absolute", top: "32%", alignItems: "center", justifyContent: "center", zIndex: 12 },
-  doubleTapText: { color: "#FFF", fontSize: 11, fontWeight: "800", marginTop: 3 },
+  doubleTapText: { color: "#FFF", fontSize: 12, fontWeight: "800", marginTop: 3 },
   chapterMarker: { position: "absolute", height: 2, backgroundColor: "#FFD600", borderRadius: 1, top: 7 },
-  skipButtonOverlay: { position: "absolute", bottom: 84, right: 12, backgroundColor: nothing.red, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, flexDirection: "row", alignItems: "center", gap: 5, zIndex: 15, elevation: 6 },
+  skipButtonOverlay: { position: "absolute", bottom: 120, right: 12, backgroundColor: nothing.red, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 5, zIndex: 15, elevation: 6 },
+  upNextCard: { position: "absolute", bottom: 120, right: 12, zIndex: 15, elevation: 6, flexDirection: "row", gap: 8, alignItems: "center", maxWidth: 260, backgroundColor: "rgba(9,9,9,0.88)", borderRadius: 8, padding: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
+  upNextPoster: { width: 44, height: 62, borderRadius: 4, backgroundColor: nothing.raised },
+  upNextCopy: { flex: 1, gap: 3 },
+  upNextKicker: { color: nothing.red, fontSize: 10, fontWeight: "800", letterSpacing: 0.6, fontVariant: ["tabular-nums"] },
+  upNextTitle: { color: "#FFF", fontSize: 12, fontWeight: "700" },
+  upNextRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  upNextPlay: { minHeight: 30, paddingHorizontal: 10, justifyContent: "center", borderRadius: 4, backgroundColor: nothing.red },
+  upNextPlayText: { color: "#FFF", fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
+  upNextDismiss: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 4 },
   skipButtonText: { color: "#FFF", fontSize: 11, fontWeight: "700" },
-  lockedPill: { position: "absolute", bottom: 32, alignSelf: "center", backgroundColor: "rgba(0,0,0,0.8)", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)", zIndex: 15 },
+  lockedPill: { position: "absolute", bottom: 32, alignSelf: "center", backgroundColor: "rgba(0,0,0,0.8)", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)", zIndex: 15 },
+  lockedPillArmed: { borderColor: nothing.red },
+  bufferingVeil: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", zIndex: 2 },
   lockedText: { color: "#FFF", fontSize: 11, fontWeight: "600" },
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" },
-  modalSheet: { backgroundColor: "#161B26", borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: 16, gap: 2 },
-  modalTitle: { color: "#FFF", fontSize: 14, fontWeight: "800", marginBottom: 6 },
-  modalItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" },
-  modalItemActive: { backgroundColor: "rgba(255,77,77,0.08)" },
-  modalItemText: { color: "#FFF", fontSize: 13, fontWeight: "600" },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.8)", justifyContent: "flex-end" },
+  modalSheet: { backgroundColor: "rgba(9,9,9,0.96)", borderTopLeftRadius: 2, borderTopRightRadius: 2, padding: 14, gap: 1, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)" },
+  modalTitle: { color: "#FFF", fontSize: 12, fontWeight: "800", letterSpacing: 0.3, marginBottom: 4, textTransform: "uppercase" },
+  modalItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" },
+  modalItemActive: { backgroundColor: "rgba(255,77,77,0.06)" },
+  modalItemText: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600" },
   modalItemTextActive: { color: nothing.red, fontWeight: "700" },
-  chapterModalSheet: { backgroundColor: "#161B26", borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: 16, gap: 6, maxHeight: "70%" },
-  chapterList: { gap: 4 },
-  chapterItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", backgroundColor: "rgba(255,255,255,0.02)" },
-  chapterItemActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.08)" },
-  chapterItemPast: { opacity: 0.5 },
+  chapterModalSheet: { backgroundColor: "rgba(9,9,9,0.96)", borderTopLeftRadius: 2, borderTopRightRadius: 2, padding: 14, gap: 4, maxHeight: "70%", borderWidth: 1, borderColor: "rgba(255,255,255,0.06)" },
+  chapterList: { gap: 1 },
+  chapterItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 9, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" },
+  chapterItemActive: { backgroundColor: "rgba(255,77,77,0.06)" },
+  chapterItemPast: { opacity: 0.45 },
   chapterItemLeft: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
-  chapterDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: nothing.dim },
+  chapterDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: nothing.dim },
   chapterDotActive: { backgroundColor: nothing.red },
   chapterDotPast: { backgroundColor: nothing.green },
   chapterInfo: { gap: 1 },
-  chapterName: { color: nothing.white, fontSize: 12, fontWeight: "700" },
+  chapterName: { color: nothing.white, fontSize: 11, fontWeight: "700" },
   chapterNameActive: { color: nothing.red },
-  chapterTimestamp: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "700" },
+  chapterTimestamp: { color: nothing.muted, fontSize: 9, fontWeight: "500", fontVariant: ["tabular-nums"] },
   chapterItemRight: { flexDirection: "row", alignItems: "center", gap: 6 },
-  chapterDuration: { color: nothing.dim, fontFamily: "monospace", fontSize: 9, fontWeight: "800" },
-  chapterEmptyText: { color: nothing.muted, fontSize: 12, textAlign: "center", paddingVertical: 14 },
+  chapterDuration: { color: nothing.dim, fontSize: 9, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  chapterEmptyText: { color: nothing.muted, fontSize: 11, textAlign: "center", paddingVertical: 12 },
   contextActions: { alignSelf: "flex-end", alignItems: "flex-end", gap: 4 },
   videoPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: "#090909" },
   thumbnailLoading: { ...StyleSheet.absoluteFillObject, overflow: "hidden", justifyContent: "flex-end", backgroundColor: "#090909" },
   thumbnailLoadingShade: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.52)" },
   thumbnailLoadingContent: { zIndex: 1, gap: 6, padding: 14, paddingTop: 48, backgroundColor: "rgba(9,9,9,0.68)" },
   thumbnailPlay: { width: 34, height: 34, alignItems: "center", justifyContent: "center", backgroundColor: nothing.white, borderRadius: 4 },
-  thumbnailEpisode: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.6 },
+  thumbnailEpisode: { color: nothing.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
   thumbnailTitle: { color: nothing.white, fontSize: 14, lineHeight: 18, fontWeight: "900" },
-  thumbnailProgress: { height: 2, marginTop: 4, backgroundColor: "rgba(246,246,242,0.24)", overflow: "hidden" },
-  thumbnailProgressFill: { width: "36%", height: "100%", backgroundColor: nothing.red },
-  thumbnailStatus: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.55 },
-  placeholderText: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 1.1 },
-  errorText: { color: nothing.red, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.5, textAlign: "center", paddingHorizontal: 20 },
+  thumbnailStatus: { color: nothing.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+  placeholderText: { color: nothing.muted, fontSize: 11, fontWeight: "700", letterSpacing: 0.8 },
+  errorText: { color: nothing.red, fontSize: 11, fontWeight: "600", textAlign: "center", paddingHorizontal: 20 },
   playerOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 3, justifyContent: "space-between", padding: 8 },
   pointerBoxNone: { pointerEvents: "box-none" },
   pointerNone: { pointerEvents: "none" },
-  th3Top: { flexDirection: "row", alignItems: "center", gap: 6 },
-  th3Back: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
-  th3Title: { flex: 1, color: nothing.white, fontSize: 16, fontWeight: "800", lineHeight: 20, letterSpacing: -0.4 },
-  th3TopIcons: { flexDirection: "row", alignItems: "center", gap: 6 },
-  th3Icon: { minWidth: 28, minHeight: 28, alignItems: "center", justifyContent: "center" },
-  th3Pill: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4, backgroundColor: nothing.red },
-  th3PillText: { color: nothing.black, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.3 },
-  th3SeekRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 0 },
-  th3Time: { minWidth: 36, color: nothing.white, fontFamily: "monospace", fontSize: 9, fontWeight: "700", textAlign: "center" },
-  th3Timeline: { flex: 1, height: 12, justifyContent: "center" },
-  th3Track: { position: "absolute", left: 0, right: 0, height: 2, borderRadius: 1, backgroundColor: "rgba(246,246,242,0.22)" },
-  th3Buffered: { position: "absolute", left: 0, height: 2, borderRadius: 1, backgroundColor: "rgba(255,77,77,0.45)" },
-  th3TimelinePlayed: { position: "absolute", left: 0, height: 2, borderRadius: 1, backgroundColor: nothing.red },
-  th3Knob: { position: "absolute", top: 2, width: 8, height: 8, marginLeft: -4, borderRadius: 4, backgroundColor: nothing.white },
-  th3Rail: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 0 },
-  th3RailSide: { flexDirection: "row", alignItems: "center", gap: 2, minWidth: 64 },
-  th3Cluster: { flexDirection: "row", alignItems: "center", gap: 2 },
-  th3Fab: { width: 40, height: 40, alignItems: "center", justifyContent: "center", backgroundColor: nothing.white, borderRadius: 20, marginHorizontal: 4 },
-  th3Disabled: { opacity: 0.3 },
   th3Section: { gap: 10 },
-  th3Watching: { fontSize: 18, fontWeight: "900", letterSpacing: -0.5 },
-  th3WatchingGreen: { color: nothing.red, fontSize: 18, fontWeight: "900", letterSpacing: -0.5 },
-  th3WatchingWhite: { color: nothing.white, fontSize: 18, fontWeight: "900", letterSpacing: -0.5 },
-  th3Tabs: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: nothing.line },
-  th3Tab: { flex: 1, alignItems: "center", paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: "transparent" },
+  th3Watching: { fontSize: 16, fontWeight: "900", letterSpacing: -0.4, textAlign: "center", paddingVertical: 10, marginHorizontal: -14, backgroundColor: nothing.surface, borderBottomWidth: 1, borderBottomColor: nothing.line },
+  th3WatchingGreen: { color: nothing.red, fontSize: 16, fontWeight: "900", letterSpacing: -0.4 },
+  th3WatchingWhite: { color: nothing.white, fontSize: 16, fontWeight: "900", letterSpacing: -0.4 },
+  th3Tabs: { flexDirection: "row", gap: 16, marginHorizontal: 14, borderBottomWidth: 1, borderBottomColor: nothing.line },
+  th3Tab: { flex: 1, alignItems: "center", paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: "transparent", marginBottom: -1 },
   th3TabActive: { borderBottomColor: nothing.red },
-  th3TabText: { color: nothing.white, fontSize: 14, fontWeight: "700" },
-  th3TabTextActive: { color: nothing.red },
+  th3TabText: { color: nothing.muted, fontSize: 14, fontWeight: "700" },
+  th3TabTextActive: { color: nothing.red, fontWeight: "900" },
   th3TabTextEmpty: { color: nothing.dim },
-  th3Servers: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  th3ServerPill: { minWidth: 96, minHeight: 38, alignItems: "center", justifyContent: "center", paddingHorizontal: 14, borderRadius: 19, borderWidth: 1 },
-  th3ServerPillActive: { backgroundColor: nothing.red, borderColor: nothing.red },
-  th3ServerPillIdle: { backgroundColor: nothing.raised, borderColor: nothing.line },
-  th3ServerPillTextActive: { color: nothing.black, fontSize: 12, fontWeight: "900" },
-  th3ServerPillTextIdle: { color: nothing.muted, fontSize: 12, fontWeight: "700" },
+  th3Servers: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingVertical: 4, marginHorizontal: 14 },
+  th3Server: { minHeight: 32, paddingHorizontal: 14, justifyContent: "center", borderRadius: 16, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
+  th3ServerActive: { backgroundColor: nothing.red, borderColor: nothing.red },
+  th3ServerText: { color: nothing.muted, fontSize: 12, fontWeight: "700" },
+  th3ServerTextActive: { color: nothing.black, fontWeight: "900" },
   th3EpHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  th3EpTitle: { color: nothing.white, fontSize: 18, fontWeight: "900", letterSpacing: -0.5 },
+  th3EpTitle: { color: nothing.white, fontSize: 16, fontWeight: "900", letterSpacing: -0.4 },
   th3EpSearch: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, height: 34, minWidth: 110, borderWidth: 1, borderColor: nothing.line, borderRadius: 8, backgroundColor: nothing.surface },
   th3EpSearchInput: { flex: 1, color: nothing.white, fontSize: 12, paddingVertical: 0 },
-  th3EpsRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  th3EpsText: { color: nothing.red, fontFamily: "monospace", fontSize: 11, fontWeight: "900", letterSpacing: 0.4 },
-  th3Grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  th3EpBtn: { width: 48, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: nothing.raised },
-  th3EpBtnActive: { backgroundColor: nothing.red },
-  th3EpBtnText: { color: nothing.white, fontSize: 14, fontWeight: "800" },
+  th3EpsRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  th3EpsText: { color: nothing.red, fontFamily: nothing.mono, fontSize: 11, fontWeight: "900", letterSpacing: 0.4 },
+  th3Grid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  th3EpBtn: { width: 56, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 8, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
+  th3EpBtnActive: { backgroundColor: nothing.red, borderColor: nothing.red },
+  th3EpBtnText: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 13, fontWeight: "800" },
   th3EpBtnTextActive: { color: nothing.black, fontWeight: "900" },
-  th3EpBtnFiller: { color: nothing.red },
-  overlayTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  sourcePill: { flexDirection: "row", alignItems: "center", gap: 6 },
-  overlayActions: { flexDirection: "row", alignItems: "center", gap: 5 },
-  overlayBtn: { minWidth: 32, height: 32, alignItems: "center", justifyContent: "center", paddingHorizontal: 6, borderRadius: 4, backgroundColor: "rgba(9,9,9,0.74)", borderWidth: 1, borderColor: "rgba(246,246,242,0.35)" },
-  overlayBtnActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.15)" },
-  overlayBtnText: { color: nothing.white, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.25 },
-  centerControls: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 32 },
-  seekBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  overlayBottom: { gap: 6 },
-  resumeBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 3, backgroundColor: "rgba(9,9,9,0.8)" },
-  resumeBtnText: { color: nothing.white, fontFamily: "monospace", fontSize: 8, fontWeight: "900" },
+  th3EpBtnFiller: { color: nothing.muted },
+  resumeBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: "rgba(0,0,0,0.7)" },
+  resumeBtnText: { color: nothing.white, fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
   skipBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 3, backgroundColor: nothing.red },
-  skipBtnText: { color: nothing.white, fontSize: 11, fontWeight: "900", letterSpacing: 0.3 },
+  skipBtnText: { color: nothing.white, fontSize: 11, fontWeight: "900", letterSpacing: 0.3, textTransform: "uppercase" },
   lockedRow: { flex: 1, alignItems: "flex-end", justifyContent: "center" },
   errorBtnRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  timelineBlock: { gap: 4, paddingTop: 2 },
-  timeline: { height: 3, backgroundColor: "rgba(246,246,242,0.2)", borderRadius: 2, overflow: "hidden" },
-  timelineBuffered: { position: "absolute", top: 0, left: 0, height: "100%", backgroundColor: "rgba(246,246,242,0.3)" },
-  timelinePlayed: { position: "absolute", top: 0, left: 0, height: "100%", backgroundColor: nothing.red },
-  timeRow: { flexDirection: "row", justifyContent: "space-between" },
-  timeText: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900" },
-  timeMeta: { color: nothing.dim, fontFamily: "monospace", fontSize: 7, fontWeight: "800", letterSpacing: 0.4 },
   errorAction: { paddingHorizontal: 12, paddingTop: 10 },
   errorCard: { gap: 6, padding: 12 },
   errorCopy: { color: nothing.muted, fontSize: 12, lineHeight: 16 },
   scroll: { padding: 14, gap: 12 },
   episodeLoading: { minHeight: 72, alignItems: "center", justifyContent: "center", gap: 7, borderTopWidth: 1, borderTopColor: nothing.line },
-  episodeLoadingText: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.7 },
-  episodeGrid: { gap: 0, borderTopWidth: 1, borderTopColor: nothing.line },
-  episodeInfoBar: { minHeight: 34, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 7 },
-  episodePageMeta: { flex: 1, color: nothing.dim, fontFamily: "monospace", fontSize: 7, fontWeight: "800", letterSpacing: 0.3 },
+  episodeLoadingText: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "900", letterSpacing: 0.7 },
   episodePager: { flexDirection: "row", gap: 6 },
-  episodePagerButton: { flex: 1, minHeight: 32, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
+  episodePagerButton: { flex: 1, minHeight: 32, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 },
   episodePagerDisabled: { opacity: 0.3 },
-  episodePagerText: { color: nothing.white, fontFamily: "monospace", fontSize: 7, fontWeight: "900", letterSpacing: 0.3 },
-  episodeChoice: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 2, borderBottomWidth: 1, borderBottomColor: nothing.line },
-  episodeChoiceActive: { borderBottomColor: nothing.red, backgroundColor: "rgba(255,77,77,0.05)" },
-  episodeChoiceNumber: { width: 26, color: nothing.dim, fontFamily: "monospace", fontSize: 11, fontWeight: "900" },
-  episodeChoiceTitle: { flex: 1, color: nothing.white, fontSize: 12, fontWeight: "700" },
-  episodeChoiceState: { color: nothing.muted, fontFamily: "monospace", fontSize: 7, fontWeight: "800", letterSpacing: 0.4 },
-  episodeChoiceTextActive: { color: nothing.red },
+  episodePagerText: { color: nothing.white, fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
   emptyEpisodeText: { color: nothing.muted, paddingVertical: 14, textAlign: "center", fontSize: 12 },
   swipeHintRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 2 },
-  swipeHintText: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "700", letterSpacing: 0.3 },
+  swipeHintText: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
   episodeSwipeContainer: { overflow: "hidden" },
   watchCommunitySection: { gap: 10, paddingTop: 2 },
-  ratingRow: { gap: 6, paddingVertical: 10, borderTopWidth: 1, borderBottomWidth: 1, borderColor: nothing.line },
-  ratingPrompt: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.4 },
-  ratingChoices: { flexDirection: "row", gap: 4 },
-  ratingChoice: { flex: 1, height: 26, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 3 },
-  ratingChoiceActive: { backgroundColor: nothing.white, borderColor: nothing.white },
-  ratingChoiceText: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900" },
-  ratingChoiceTextActive: { color: nothing.black },
-  languageRow: { flexDirection: "row", gap: 6 },
-  language: { minWidth: 50, minHeight: 32, alignItems: "center", justifyContent: "center", paddingHorizontal: 8, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
-  languageActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.08)" },
-  languageDisabled: { opacity: 0.32 },
-  languageText: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.2 },
+  ratingRow: { gap: 5, paddingVertical: 8, borderTopWidth: 1, borderBottomWidth: 1, borderColor: nothing.line },
+  ratingPrompt: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 9, fontWeight: "900", letterSpacing: 0.4, textTransform: "uppercase" },
+  ratingChoices: { flexDirection: "row", gap: 3 },
+  ratingChoice: { flex: 1, height: 28, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 3 },
+  ratingChoiceActive: { backgroundColor: nothing.red, borderColor: nothing.red },
+  ratingChoiceText: { color: "rgba(255,255,255,0.4)", fontFamily: nothing.mono, fontSize: 9, fontWeight: "900" },
+  ratingChoiceTextActive: { color: "#FFFFFF" },
+  languageRow: { flexDirection: "row", gap: 4 },
+  language: { minWidth: 48, minHeight: 28, alignItems: "center", justifyContent: "center", paddingHorizontal: 8, borderRadius: 3, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", backgroundColor: "transparent" },
+  languageActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.06)" },
+  languageDisabled: { opacity: 0.3 },
+  languageText: { color: "rgba(255,255,255,0.5)", fontFamily: nothing.mono, fontSize: 9, fontWeight: "900", letterSpacing: 0.2 },
   languageTextActive: { color: nothing.red },
-  toggleRow: { flexDirection: "row", gap: 5 },
-  toggle: { minHeight: 30, paddingHorizontal: 8, alignItems: "center", justifyContent: "center", borderRadius: 4, borderWidth: 1, borderColor: nothing.line },
-  toggleOn: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.08)" },
-  toggleText: { color: nothing.muted, fontFamily: "monospace", fontSize: 7, fontWeight: "900" },
-  toggleTextOn: { color: nothing.red },
-  speedRow: { flexDirection: "row", gap: 4 },
-  speed: { minWidth: 36, minHeight: 28, alignItems: "center", justifyContent: "center", paddingHorizontal: 6, borderRadius: 4, borderWidth: 1, borderColor: nothing.line },
-  speedActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.08)" },
-  speedText: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900" },
-  speedTextActive: { color: nothing.red },
-  qualityRow: { flexDirection: "row", flexWrap: "wrap", gap: 5 },
-  quality: { minWidth: 40, minHeight: 28, alignItems: "center", justifyContent: "center", paddingHorizontal: 8, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
-  qualityActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.1)" },
-  qualityText: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "900" },
-  qualityTextActive: { color: nothing.red },
   providerDiscovery: { width: "100%", maxWidth: 260, alignItems: "center", gap: 10 },
   providerDiscoveryCopy: { alignItems: "center", gap: 3 },
-  providerDiscoveryTitle: { color: nothing.white, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 1.1 },
-  providerDiscoveryDetail: { color: nothing.muted, fontFamily: "monospace", fontSize: 7, fontWeight: "800", letterSpacing: 0.6 },
+  providerDiscoveryTitle: { color: nothing.white, fontFamily: nothing.mono, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  providerDiscoveryDetail: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.6 },
 });
 
-const EpisodeChoice = memo(function EpisodeChoice({ item, selected, onSelect, onInfo }: { item: Episode; selected: boolean; onSelect: (n: number) => void; onInfo: (n: number) => void }) {
-  return <Pressable onPress={() => onSelect(item.number)} onLongPress={() => onInfo(item.number)} style={[styles.episodeChoice, selected && styles.episodeChoiceActive]}>
-    <Text style={[styles.episodeChoiceNumber, selected && styles.episodeChoiceTextActive]}>{String(item.number).padStart(2, "0")}</Text>
-    <Text style={[styles.episodeChoiceTitle, selected && styles.episodeChoiceTextActive]} numberOfLines={1}>{item.title || `Episode ${item.number}`}</Text>
-    <Text style={[styles.episodeChoiceState, selected && styles.episodeChoiceTextActive]}>{selected ? "WATCHING" : item.isFiller ? "FILLER" : "EPISODE"}</Text>
-  </Pressable>;
+// Memoized: the watch screen re-renders every second (progress clock), and
+// re-diffing 50+ episode buttons per tick was the largest avoidable cost.
+// Track 5.2: FlatList virtualization when total episodes > 100 (e.g. One Piece).
+const EpisodeGrid = memo(function EpisodeGrid({ episodes, activeEpisode, totalPages, page, onPageChange, onSelect, onInfo, totalEpisodeCount = 0 }: { episodes: Episode[]; activeEpisode: number; totalPages: number; page: number; onPageChange: (update: (value: number) => number) => void; onSelect: (n: number) => void; onInfo: (n: number) => void; totalEpisodeCount?: number }) {
+  // For shows with >100 total episodes, use a virtualized FlatList for the
+  // grid to avoid diffing hundreds of buttons per tick. Small episode counts
+  // keep the cheaper View.map path.
+  if (totalEpisodeCount > 100) {
+    return <>
+      <FlatList
+        data={episodes}
+        keyExtractor={(item) => String(item.number)}
+        numColumns={5}
+        scrollEnabled={false}
+        windowSize={3}
+        maxToRenderPerBatch={8}
+        removeClippedSubviews
+        renderItem={({ item }) => {
+          const active = item.number === activeEpisode;
+          return <Pressable key={item.number} accessibilityRole="button" accessibilityLabel={`Episode ${item.number}${item.title ? `: ${item.title}` : ""}`} accessibilityHint={active ? "Currently playing" : "Double tap to play this episode"} onPress={() => onSelect(item.number)} onLongPress={() => onInfo(item.number)} style={[styles.th3EpBtn, active && styles.th3EpBtnActive]}><Text style={[styles.th3EpBtnText, active ? styles.th3EpBtnTextActive : item.isFiller ? styles.th3EpBtnFiller : null]}>{item.number}</Text></Pressable>;
+        }}
+      /></>;
+  }
+  return <>
+    <View style={styles.th3Grid}>{episodes.map((item) => { const active = item.number === activeEpisode; return <Pressable key={item.number} accessibilityRole="button" accessibilityLabel={`Episode ${item.number}${item.title ? `: ${item.title}` : ""}`} accessibilityHint={active ? "Currently playing" : "Double tap to play this episode"} onPress={() => onSelect(item.number)} onLongPress={() => onInfo(item.number)} style={[styles.th3EpBtn, active && styles.th3EpBtnActive]}><Text style={[styles.th3EpBtnText, active ? styles.th3EpBtnTextActive : item.isFiller ? styles.th3EpBtnFiller : null]}>{item.number}</Text></Pressable>; })}</View>
+    {totalPages > 1 ? <View style={styles.episodePager}><Pressable disabled={page === 0} onPress={() => onPageChange((v) => Math.max(0, v - 1))} accessibilityRole="button" accessibilityLabel="Previous page" accessibilityHint="Shows the previous page of episodes" style={[styles.episodePagerButton, page === 0 && styles.episodePagerDisabled]}><AppIcon name="chevron-left" size={17} color={nothing.white} /><Text style={styles.episodePagerText}>PREV</Text></Pressable><Pressable disabled={page >= totalPages - 1} onPress={() => onPageChange((v) => Math.min(totalPages - 1, v + 1))} accessibilityRole="button" accessibilityLabel="Next page" accessibilityHint="Shows the next page of episodes" style={[styles.episodePagerButton, page >= totalPages - 1 && styles.episodePagerDisabled]}><Text style={styles.episodePagerText}>NEXT</Text><AppIcon name="chevron-right" size={17} color={nothing.white} /></Pressable></View> : null}
+  </>;
 });
 
 function ProviderDiscoveryLoader({ attempt }: { attempt: number }) {

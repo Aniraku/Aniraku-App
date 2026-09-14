@@ -310,12 +310,11 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: 8,
     backgroundColor: nothing.white,
   },
   fastForwardText: {
     color: nothing.black,
-    fontFamily: "Caveat-Bold",
     fontSize: 18,
   },
 });

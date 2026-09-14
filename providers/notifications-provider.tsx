@@ -1,7 +1,16 @@
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
+import {
+  EPISODE_NOTIFICATION_STORAGE_KEY,
+  buildEpisodeNotificationContent,
+  parseScheduledEpisodeKeys,
+  shouldScheduleEpisodeNotification,
+  withScheduledEpisodeKey,
+  type EpisodeNotificationInput,
+} from "@/lib/episode-notifications";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -54,13 +63,43 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   return <>{children}</>;
 }
 
+async function notificationPrefsAllowNewEpisodes(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem("aniraku.notificationprefs");
+    if (!raw) return true;
+    return (JSON.parse(raw) as { newEpisodes?: boolean }).newEpisodes ?? true;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Local-only new-episode notification. Permission-guarded (never prompts from
+ * the background) and deduped to one notification per episode.
+ */
 export async function scheduleEpisodeNotification(animeId: number, title: string, episode: number) {
+  return scheduleNewEpisodeNotification({ animeId, title, episode });
+}
+
+export async function scheduleNewEpisodeNotification(input: EpisodeNotificationInput): Promise<boolean> {
+  if (Platform.OS === "web") return false;
+  if (!Number.isInteger(input.animeId) || input.animeId <= 0) return false;
+  if (!Number.isInteger(input.episode) || input.episode <= 0) return false;
+  if (!(await notificationPrefsAllowNewEpisodes())) return false;
+  const { status } = await Notifications.getPermissionsAsync();
+  if (status !== "granted") return false;
+  const scheduled = parseScheduledEpisodeKeys(
+    await AsyncStorage.getItem(EPISODE_NOTIFICATION_STORAGE_KEY).catch(() => null),
+  );
+  if (!shouldScheduleEpisodeNotification(scheduled, input.animeId, input.episode)) return false;
+  const content = buildEpisodeNotificationContent(input);
   await Notifications.scheduleNotificationAsync({
-    content: {
-      title,
-      body: `Episode ${episode} is now available`,
-      data: { animeId },
-    },
+    content: { title: content.title, body: content.body, data: content.data },
     trigger: null,
   });
+  await AsyncStorage.setItem(
+    EPISODE_NOTIFICATION_STORAGE_KEY,
+    JSON.stringify(withScheduledEpisodeKey(scheduled, input.animeId, input.episode)),
+  ).catch(() => {});
+  return true;
 }

@@ -1,9 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View, Platform } from "react-native";
+import { hlsLevelIndexForHeight } from "@/lib/hls-variants";
+
+export type HlsVariantLevelInput = {
+  height: number;
+  width?: number;
+  bandwidth?: number;
+  /** Absolute CDN URL of the variant media playlist. */
+  url: string;
+};
 
 type WebVideoPlayerProps = {
   sourceUri?: string;
   sourceHeaders?: Record<string, string>;
+  /** Parsed HLS variants for the mounted master. Lets quality switches ride
+      the hls.js level API (ABR state + buffers survive) instead of tearing
+      the instance down per choice. */
+  variantLevels?: HlsVariantLevelInput[];
+  /** Pinned rendition height, or null/undefined for Auto (ABR). */
+  preferredHeight?: number | null;
+  onLevelsReady?: (levels: { index: number; width: number; height: number; bitrate: number }[]) => void;
   paused?: boolean;
   rate?: number;
   resizeMode?: "contain" | "cover" | "stretch";
@@ -31,6 +47,9 @@ export function WebVideoPlayer({
   rate = 1,
   resizeMode = "contain",
   muted = false,
+  variantLevels,
+  preferredHeight = null,
+  onLevelsReady,
   onLoad,
   onProgress,
   onBuffer,
@@ -43,13 +62,43 @@ export function WebVideoPlayer({
 }: WebVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<any>(null);
+  const masterUrlRef = useRef<string | null>(null);
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onProgressRef = useRef(onProgress);
   const onEndRef = useRef(onEnd);
+  const variantLevelsRef = useRef(variantLevels);
   const [ready, setReady] = useState(false);
 
   onProgressRef.current = onProgress;
   onEndRef.current = onEnd;
+  variantLevelsRef.current = variantLevels;
+
+  /**
+   * Pins the live hls.js instance to `preferredHeight`, or re-enables ABR on
+   * Auto. Silent no-op when levels aren't loaded yet (MANIFEST_PARSED applies
+   * the same preference) or the height is unknown — never throws, never
+   * empties the picture.
+   */
+  const applyHlsPreference = useCallback((hls: any) => {
+    try {
+      const levels = hls?.levels ?? [];
+      if (!hls || !levels.length) return;
+      if (preferredHeight == null) {
+        hls.autoLevelEnabled = true;
+        return;
+      }
+      const index = hlsLevelIndexForHeight(levels, preferredHeight);
+      if (index < 0) return;
+      hls.autoLevelEnabled = false;
+      hls.currentLevel = index;
+    } catch {
+      /* keep the current level — a failed pin must never stall playback */
+    }
+  }, [preferredHeight]);
+  const applyHlsPreferenceRef = useRef(applyHlsPreference);
+  applyHlsPreferenceRef.current = applyHlsPreference;
+  const onLevelsReadyRef = useRef(onLevelsReady);
+  onLevelsReadyRef.current = onLevelsReady;
 
   useEffect(() => {
     if (!sourceUri || Platform.OS !== "web") return;
@@ -70,6 +119,33 @@ export function WebVideoPlayer({
 
         const isHls = sourceUri.includes(".m3u8") || sourceUri.includes("hls");
 
+        // Level-API fast path: the instance is already on this master and the
+        // new URI is either the master (Auto → re-enable ABR) or a known
+        // variant (pin that height). No teardown, so ABR recovers instantly.
+        // Anything unrecognized falls through to the URL-swap path below.
+        const existing = hlsRef.current;
+        if (isHls && existing?.levels?.length) {
+          try {
+            if (sourceUri === masterUrlRef.current) {
+              existing.autoLevelEnabled = true;
+              if (!destroyed) { setReady(true); onBuffer?.({ isBuffering: false }); }
+              return;
+            }
+            const known = (variantLevelsRef.current ?? []).find((variant) => variant.url === sourceUri);
+            const levelIndex = known
+              ? hlsLevelIndexForHeight(existing.levels, known.height)
+              : existing.levels.findIndex((level: any) => level?.url === sourceUri);
+            if (levelIndex >= 0) {
+              existing.autoLevelEnabled = false;
+              existing.currentLevel = levelIndex;
+              if (!destroyed) { setReady(true); onBuffer?.({ isBuffering: false }); }
+              return;
+            }
+          } catch {
+            /* fall through to URL-swap */
+          }
+        }
+
         if (isHls && Hls.isSupported()) {
           const hls = new Hls({
             enableWorker: true,
@@ -87,6 +163,14 @@ export function WebVideoPlayer({
             setReady(true);
             onBuffer?.({ isBuffering: false });
             onLoad?.({ duration: videoEl.duration || 0 });
+            applyHlsPreferenceRef.current(hlsRef.current);
+            try {
+              onLevelsReadyRef.current?.((hlsRef.current?.levels ?? []).map((l: any, i: number) => ({
+                index: i, width: l.width || 0, height: l.height || 0, bitrate: l.bitrate || 0,
+              })));
+            } catch {
+              /* level reporting is advisory only */
+            }
             videoEl.play().catch(() => {});
           });
 
@@ -126,6 +210,7 @@ export function WebVideoPlayer({
           });
 
           hlsRef.current = hls;
+          masterUrlRef.current = sourceUri;
         } else if (videoEl.canPlayType("application/vnd.apple.mpegurl")) {
           videoEl.src = sourceUri;
           videoEl.addEventListener("loadedmetadata", () => {
@@ -147,8 +232,17 @@ export function WebVideoPlayer({
     return () => {
       destroyed = true;
       if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+      masterUrlRef.current = null;
     };
   }, [sourceUri]);
+
+  // Preference changes ride the live instance — no remount, no URL swap.
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const hls = hlsRef.current;
+    if (!hls || !hls.levels?.length) return;
+    applyHlsPreference(hls);
+  }, [applyHlsPreference, variantLevels]);
 
   useEffect(() => {
     const video = videoRef.current;

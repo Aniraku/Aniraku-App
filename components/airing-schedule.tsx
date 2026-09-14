@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { AppIcon } from "@/components/app-icon";
 import { nothing } from "@/components/nothing-ui";
 
 type AiringScheduleProps = {
@@ -33,20 +32,14 @@ export function AiringSchedule({ nextAiringEpisode, totalEpisodes }: AiringSched
 
   return (
     <View style={styles.container}>
-      <View style={styles.row}>
-        <AppIcon name="clock-outline" size={14} color={nothing.green} />
-        <Text style={styles.label}>AIRING</Text>
-      </View>
-      <Text style={styles.episode}>EP {String(ep).padStart(2, "0")}{aired ? " FINALE" : ""}</Text>
-      {countdown ? <Text style={styles.countdown}>IN {countdown}</Text> : <Text style={styles.countdown}>AIRING NOW</Text>}
+      <View style={styles.rule} />
+      <Text style={styles.line}>EP {String(ep).padStart(2, "0")}{aired ? " · FINALE" : ""} · {countdown ? `IN ${countdown}` : "AIRING NOW"}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 12, gap: 6, borderRadius: 12, borderWidth: 1, borderColor: "rgba(150,211,123,0.3)", backgroundColor: "rgba(150,211,123,0.06)" },
-  row: { flexDirection: "row", alignItems: "center", gap: 6 },
-  label: { color: nothing.green, fontFamily: "monospace", fontWeight: "900", fontSize: 9, letterSpacing: 0.6 },
-  episode: { color: nothing.white, fontSize: 14, fontWeight: "900" },
-  countdown: { color: nothing.muted, fontFamily: "monospace", fontSize: 11, fontWeight: "700", letterSpacing: 0.3 },
+  container: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: nothing.line },
+  rule: { width: 18, height: 2, backgroundColor: nothing.red },
+  line: { flex: 1, color: nothing.muted, fontFamily: nothing.mono, fontWeight: "800", fontSize: 10, letterSpacing: 0.5 },
 });

@@ -5,7 +5,7 @@ import * as Clipboard from "expo-clipboard";
 import * as WebBrowser from "expo-web-browser";
 
 import { AppIcon } from "@/components/app-icon";
-import { DotLabel, NothingCard, nothing, Signal } from "@/components/nothing-ui";
+import { DotLabel, nothing, Signal } from "@/components/nothing-ui";
 import { NativeScreen } from "@/components/screen";
 import { PATREON_URL, SUPPORT_FUNDING_COPY } from "@/lib/support";
 
@@ -55,13 +55,13 @@ export default function SupportScreen() {
     </View>
 
     {/* Hero */}
-    <NothingCard style={styles.hero}>
+    <View style={styles.hero}>
       <Text style={styles.heroTitle}>Keep Aniraku alive.</Text>
       <Text style={styles.heroCopy}>{SUPPORT_FUNDING_COPY}</Text>
-    </NothingCard>
+    </View>
 
     {/* Patreon */}
-    <NothingCard style={styles.methodCard}>
+    <View style={styles.methodCard}>
       <View style={styles.methodHeader}>
         <View style={styles.methodIcon}>
           <Image source={patreonIcon} style={styles.patreonIconImage} />
@@ -81,10 +81,10 @@ export default function SupportScreen() {
           <Text style={styles.secondaryBtnText}>COPY LINK</Text>
         </Pressable>
       </View>
-    </NothingCard>
+    </View>
 
     {/* Binance */}
-    <NothingCard style={styles.methodCard}>
+    <View style={styles.methodCard}>
       <View style={styles.methodHeader}>
         <View style={styles.methodIcon}>
           <Image source={binanceIcon} style={styles.binanceIconImage} />
@@ -105,7 +105,7 @@ export default function SupportScreen() {
         </View>
       </View>
       <Text style={styles.uidHint}>Open Binance → Pay → send to UID · Any token accepted</Text>
-    </NothingCard>
+    </View>
 
     {message ? <View style={styles.toast}><Text style={styles.toastText}>{message}</Text></View> : null}
 
@@ -116,15 +116,15 @@ export default function SupportScreen() {
 const styles = StyleSheet.create({
   top: { minHeight: 82, flexDirection: "row", alignItems: "center", gap: 11 },
   close: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 14, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.raised },
-  pressed: { opacity: 0.7 },
+  pressed: nothing.pressedSubtle,
   titleBlock: { gap: 2 },
   title: { color: nothing.white, fontFamily: "SpaceGrotesk-SemiBold", fontSize: 25, fontWeight: "900", letterSpacing: -0.65 },
 
-  hero: { gap: 10, padding: 18 },
-  heroTitle: { color: nothing.white, fontFamily: "SpaceGrotesk-SemiBold", fontSize: 22, fontWeight: "900", letterSpacing: -0.5 },
-  heroCopy: { color: nothing.muted, fontFamily: "SpaceGrotesk-Regular", fontSize: 13, lineHeight: 19 },
+  hero: { gap: 10, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: nothing.line },
+  heroTitle: { color: nothing.white, fontSize: 22, fontWeight: "900", letterSpacing: -0.5 },
+  heroCopy: { color: nothing.muted, fontSize: 13, lineHeight: 19 },
 
-  methodCard: { gap: 14, padding: 16 },
+  methodCard: { gap: 14, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: nothing.line },
   methodHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
   methodIcon: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: nothing.raised, borderWidth: 1, borderColor: nothing.line, overflow: "hidden" },
   patreonIconImage: { width: 28, height: 28 },
@@ -140,11 +140,11 @@ const styles = StyleSheet.create({
   secondaryBtnText: { color: nothing.muted, fontFamily: "SpaceGrotesk-Medium", fontSize: 11, fontWeight: "700", letterSpacing: 0.3 },
 
   uidBox: { width: "100%", padding: 12, borderRadius: 8, backgroundColor: nothing.black, borderWidth: 1, borderColor: nothing.line },
-  uidLabel: { color: nothing.dim, fontFamily: "SpaceGrotesk-Medium", fontSize: 9, fontWeight: "800", letterSpacing: 0.8, marginBottom: 6 },
+  uidLabel: { color: nothing.dim, fontFamily: "SpaceGrotesk-Medium", fontSize: 10, fontWeight: "800", letterSpacing: 0.8, marginBottom: 6 },
   uidRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  uidValue: { color: nothing.white, fontFamily: "SpaceGrotesk-SemiBold", fontSize: 20, fontWeight: "900", letterSpacing: 2 },
+  uidValue: { color: nothing.white, fontFamily: "SpaceGrotesk-SemiBold", fontSize: 20, fontWeight: "900", letterSpacing: 1 },
   copyBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, backgroundColor: nothing.red },
-  copyBtnText: { color: nothing.black, fontFamily: "SpaceGrotesk-SemiBold", fontSize: 10, fontWeight: "900", letterSpacing: 0.3 },
+  copyBtnText: { color: nothing.black, fontFamily: "SpaceGrotesk-SemiBold", fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
   uidHint: { color: nothing.dim, fontFamily: "SpaceGrotesk-Regular", fontSize: 11, lineHeight: 16 },
 
   toast: { alignSelf: "center", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: nothing.surface, borderWidth: 1, borderColor: nothing.line },

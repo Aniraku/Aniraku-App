@@ -124,7 +124,7 @@ export function AnimeCard({ anime, compact = false }: { anime: Anime; compact?: 
 const styles = StyleSheet.create({
   card: { width: 144, gap: 8 },
   compactCard: { width: 124 },
-  pressed: { opacity: 0.78, transform: [{ scale: 0.98 }] },
+  pressed: nothing.pressed,
   media: { height: 204, borderRadius: 6, overflow: "hidden", backgroundColor: nothing.raised },
   artFallback: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "#242422" },
   fallbackInitial: { color: nothing.dim, fontSize: 54, fontWeight: "900" },
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   topline: { position: "absolute", left: 7, top: 7, paddingHorizontal: 6, paddingVertical: 4, borderRadius: 4, backgroundColor: "rgba(9,9,9,0.74)" },
   meta: { gap: 3 },
   title: { color: nothing.white, fontSize: 13, fontWeight: "900", lineHeight: 17 },
-  detail: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.35 },
+  detail: { color: nothing.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.35 },
   backdrop: { flex: 1, padding: 20, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.76)" },
   sheet: { gap: 0, padding: 4, borderRadius: 10, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
   sheetHeader: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10 },

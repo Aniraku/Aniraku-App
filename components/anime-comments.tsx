@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { router } from "expo-router";
 import { ActivityIndicator, Alert, Animated, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppIcon } from "@/components/app-icon";
@@ -41,7 +41,9 @@ function SpoilerContent({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function AnimeComments({ animeId, episodeNumber }: { animeId: number; episodeNumber?: number }) {
+// Memoized: the watch screen re-renders every second; stable numeric props
+// let comments skip those renders entirely.
+export const AnimeComments = memo(function AnimeComments({ animeId, episodeNumber }: { animeId: number; episodeNumber?: number }) {
   const auth = useAnirakuAuth();
   const comments = useComments(animeId, episodeNumber);
   const [content, setContent] = useState("");
@@ -105,7 +107,7 @@ export function AnimeComments({ animeId, episodeNumber }: { animeId: number; epi
       </View>; })}
     </NothingCard>; }} />}
   </View>;
-}
+});
 
 const styles = StyleSheet.create({
   section: { gap: 10, marginTop: 4 },
@@ -119,25 +121,25 @@ const styles = StyleSheet.create({
   sortPillText: { color: nothing.muted, fontSize: 13, fontWeight: "700" },
   sortPillTextActive: { color: nothing.red },
   title: { color: nothing.white, fontSize: 21, fontWeight: "900", marginTop: 4 },
-  count: { color: nothing.dim, fontFamily: "monospace", fontSize: 12 },
+  count: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 12 },
   composer: { gap: 8, padding: 10 },
   replyBar: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 7, backgroundColor: "rgba(255,77,77,0.10)", borderWidth: 1, borderColor: "rgba(255,77,77,0.45)" },
   replyBarText: { flex: 1, color: nothing.white, fontSize: 14, fontWeight: "700" },
   replyBarClose: { padding: 4 },
   commentActions: { flexDirection: "row", alignItems: "center", gap: 14, paddingTop: 2 },
-  commentAction: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 28, paddingHorizontal: 2 },
-  commentActionText: { color: nothing.muted, fontFamily: "monospace", fontSize: 11, fontWeight: "800" },
+  commentAction: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 30, paddingHorizontal: 2 },
+  commentActionText: { color: nothing.muted, fontSize: 11, fontWeight: "800" },
   commentActionTextActive: { color: nothing.red },
   replyRow: { gap: 7, marginTop: 4, marginLeft: 12, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: nothing.line },
   input: { color: nothing.white, fontSize: 14, lineHeight: 20, minHeight: 48, padding: 0 },
   composerActions: { alignItems: "center", borderTopColor: nothing.line, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", gap: 7, paddingTop: 8 },
   tool: { alignItems: "center", borderColor: "transparent", borderRadius: 7, borderWidth: 1, flexDirection: "row", gap: 5, minHeight: 30, paddingHorizontal: 8 },
   toolActive: { backgroundColor: "rgba(255,77,77,0.10)", borderColor: "rgba(255,77,77,0.55)" },
-  toolText: { color: nothing.muted, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.45 },
+  toolText: { color: nothing.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.45 },
   toolTextActive: { color: nothing.red },
   send: { alignItems: "center", backgroundColor: nothing.white, borderRadius: 7, height: 30, justifyContent: "center", marginLeft: "auto", width: 34 },
   sendDisabled: { opacity: 0.4 },
-  pressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
+  pressed: nothing.pressed,
   error: { color: nothing.red, fontSize: 12, lineHeight: 17 },
   guest: { gap: 10, padding: 14 },
   guestText: { color: nothing.muted, fontSize: 13, lineHeight: 19 },
@@ -149,13 +151,13 @@ const styles = StyleSheet.create({
   commentAuthor: { alignItems: "center", flexDirection: "row", gap: 8 },
   avatar: { backgroundColor: nothing.raised, borderRadius: 14, height: 28, width: 28 },
   initialAvatar: { alignItems: "center", backgroundColor: nothing.white, borderRadius: 14, height: 28, justifyContent: "center", width: 28 },
-  initialAvatarText: { color: nothing.black, fontSize: 11, fontWeight: "900" },
+  initialAvatarText: { color: nothing.black, fontSize: 11, fontWeight: "800" },
   authorCopy: { flex: 1, gap: 1 },
   authorName: { color: nothing.white, fontSize: 13, fontWeight: "800" },
-  authorMeta: { color: nothing.dim, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.45 },
+  authorMeta: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.45 },
   commentText: { color: nothing.white, fontSize: 14, lineHeight: 20 },
   commentGif: { alignSelf: "flex-start", borderRadius: 7, height: 144, maxWidth: "100%", width: 220 },
   spoilerShield: { alignItems: "center", backgroundColor: "rgba(255,77,77,0.07)", borderColor: "rgba(255,77,77,0.55)", borderRadius: 7, borderStyle: "dashed", borderWidth: 1, flexDirection: "row", gap: 7, justifyContent: "center", minHeight: 48, paddingHorizontal: 10 },
-  spoilerText: { color: nothing.white, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.35, textAlign: "center" },
-  revealed: { color: nothing.red, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.5 },
+  spoilerText: { color: nothing.white, fontSize: 10, fontWeight: "800", letterSpacing: 0.35, textAlign: "center" },
+  revealed: { color: nothing.red, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
 });

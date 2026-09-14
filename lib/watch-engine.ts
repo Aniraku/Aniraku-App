@@ -7,6 +7,7 @@ export type SkipSegment = { startTime: number; endTime: number; source: "provide
 export type SkipSegments = Record<SkipKind, SkipSegment | null>;
 
 export const EPISODE_PAGE_SIZE = 50;
+export const RESUME_MIN_TIME = 30;
 export const FUTURE_RELEASE_MESSAGE = "Time travel still has not been invented—sorry, we cannot stream an episode from the future. It will appear here the moment it is officially released.";
 
 export function isConfirmedFutureRelease(input: {
@@ -218,4 +219,182 @@ export function episodePageSlice<T>(episodes: readonly T[], page: number, pageSi
   const safePage = Math.max(0, Math.min(episodePageCount(episodes.length, pageSize) - 1, page));
   const start = safePage * Math.max(1, pageSize);
   return episodes.slice(start, start + Math.max(1, pageSize));
+}
+
+/** Segmented-track tint for the timeline: OP/ED ranges as % offsets. */
+export type ChapterTrackSegment = { kind: SkipKind; leftPct: number; widthPct: number };
+
+export function chapterTrackSegments(segments: SkipSegments, duration: number): ChapterTrackSegment[] {
+  if (!Number.isFinite(duration) || duration <= 0) return [];
+  const out: ChapterTrackSegment[] = [];
+  for (const kind of ["intro", "outro"] as const) {
+    const segment = segments[kind];
+    if (!segment) continue;
+    const start = Math.max(0, Math.min(duration, segment.startTime));
+    const end = Math.max(0, Math.min(duration, segment.endTime));
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+    out.push({ kind, leftPct: (start / duration) * 100, widthPct: ((end - start) / duration) * 100 });
+  }
+  return out.sort((a, b) => a.leftPct - b.leftPct);
+}
+
+export type VideoTrackLike = {
+  height?: number | null;
+  width?: number | null;
+  bitrate?: number | null;
+  selected?: boolean | null;
+};
+
+/** Live ExoPlayer rendition: height of the selected video track, if reported. */
+export function liveRenditionHeight(tracks: readonly VideoTrackLike[] | undefined | null): number | null {
+  if (!tracks?.length) return null;
+  const selected = tracks.find((track) => track.selected === true);
+  const height = Number(selected?.height);
+  return Number.isFinite(height) && height > 0 ? Math.round(height) : null;
+}
+
+/**
+ * The `Auto · 720p` line: live rendition when ExoPlayer reports one,
+ * otherwise the parsed-manifest ceiling so Auto never reads as a black box.
+ */
+export function autoQualityLine(input: { ceilingLabel?: string | null; liveHeight?: number | null }): string | null {
+  const live = Number(input.liveHeight);
+  if (Number.isFinite(live) && live > 0) return `AUTO · ${Math.round(live)}P`;
+  const ceiling = String(input.ceilingLabel ?? "").trim();
+  if (ceiling) return `AUTO ADAPTS UP TO ${ceiling.toUpperCase()}`;
+  return null;
+}
+
+/**
+ * Raw ExoPlayer/AVPlayer error strings mean nothing to a viewer. Maps the
+ * common engine codes to one honest sentence; unknown details return null so
+ * the UI can keep them in the small diagnostic line instead.
+ */
+export function humanPlayerError(detail: string | null | undefined) {
+  const raw = String(detail ?? "");
+  if (/BAD_HTTP_STATUS|403|forbidden|proxy target not allowed/i.test(raw)) {
+    return "This server refused the stream. The next server usually works.";
+  }
+  if (/IO_NETWORK_ERROR|ETIMEDOUT|timed?out|ENOTCONN|ECONN|unable to connect/i.test(raw)) {
+    return "The server took too long to respond. Check your connection or switch servers.";
+  }
+  if (/BEHIND_LIVE_WINDOW|MANIFEST|PARSING|parsing|malformed|WRONG_TIME/i.test(raw)) {
+    return "This stream's listing confused the player. Switching servers is the fix.";
+  }
+  if (/DECOD|unsupported|codec|no decoder/i.test(raw)) {
+    return "This device can't decode this stream's video. Try another quality or server.";
+  }
+  if (/DRM|secure|licen/i.test(raw)) {
+    return "This stream is protected and can't play here. Try another server.";
+  }
+  return null;
+}
+
+// ── Track 4 (Reliability) pure helpers ───────────────────────────────
+// These are deliberately UI-free so vitest can prove the contracts:
+// position survives switches, caches never cross languages, history
+// prefers max() over last-write, and retries stay honest.
+
+/**
+ * Stash the current position when switching server / language / quality.
+ * Returns the position to resume at, or null when there is nothing worth
+ * keeping (unstarted or unknown duration). Callers store the result in
+ * pendingResume before tearing down the current source.
+ */
+export function resolveResumeOnSwitch(currentTime: number, duration: number): number | null {
+  if (!Number.isFinite(currentTime) || !Number.isFinite(duration)) return null;
+  if (currentTime <= 0 || duration <= 0) return null;
+  return currentTime;
+}
+
+/** True when a stashed position is worth seeking to on the new source. */
+export function isResumablePosition(position: number | null | undefined): boolean {
+  return typeof position === "number" && Number.isFinite(position) && position > RESUME_MIN_TIME;
+}
+
+/**
+ * Stream-cache key. MUST include provider identity + language + episode:
+ * reusing a sub stream for a dub request (or Momo's for Niko's) plays the
+ * wrong audio or a dead URL. The episode alone is never enough.
+ */
+export function streamCacheKey(
+  provider: { id?: string | null; provider?: string | null },
+  episode: number,
+  lang: Language,
+): string {
+  const providerName = String(provider.provider ?? "").trim() || "unknown-provider";
+  const providerId = String(provider.id ?? "").trim() || "unknown-id";
+  return `aniraku-watch-stream:${providerName}:${providerId}:${lang}:${Number(episode)}`;
+}
+
+export type SkipFetchStatus = "idle" | "cached" | "ok" | "empty" | "timeout" | "error";
+
+/**
+ * Classify an AniSkip fetch outcome so the diagnostics line can tell
+ * "no skip data for this episode" apart from "the request timed out".
+ */
+export function resolveSkipFetchStatus(input: {
+  fromCache?: boolean;
+  timedOut?: boolean;
+  ok?: boolean;
+  hasSegments?: boolean;
+}): SkipFetchStatus {
+  if (input.fromCache) return "cached";
+  if (input.timedOut) return "timeout";
+  if (input.ok === false) return "error";
+  return input.hasSegments ? "ok" : "empty";
+}
+
+export type HistoryProgressLike = { progress?: number | null; duration?: number | null } | null | undefined;
+
+/**
+ * History conflict rule: prefer max(local, server), not last-write.
+ * A stale background save must never rewind a newer position, and a
+ * near-end (≥90%) entry resolves to null = nothing left to resume.
+ */
+export function resolveHistoryResume(
+  local: HistoryProgressLike,
+  server: HistoryProgressLike,
+): number | null {
+  const candidates = [local, server]
+    .map((entry) => ({ progress: Number(entry?.progress), duration: Number(entry?.duration) }))
+    .filter((entry) => Number.isFinite(entry.progress) && entry.progress > RESUME_MIN_TIME && Number.isFinite(entry.duration) && entry.duration > 0);
+  if (!candidates.length) return null;
+  const best = candidates.reduce((a, b) => (b.progress > a.progress ? b : a));
+  if (best.progress >= best.duration - 10) return null;
+  if (best.duration > 0 && best.progress / best.duration >= 0.9) return null;
+  return best.progress;
+}
+
+/** Save path half of the same rule: never persist a regression. */
+export function resolveMaxHistoryProgress(localProgress: number, serverProgress: number): number {
+  const local = Number(localProgress);
+  const server = Number(serverProgress);
+  if (!Number.isFinite(local)) return Number.isFinite(server) ? server : 0;
+  if (!Number.isFinite(server)) return local;
+  return Math.max(local, server);
+}
+
+export type RetryReason = "player" | "stream" | "startup" | "permanent";
+
+/**
+ * Retry honesty: TRY AGAIN re-fetches the SAME provider once with
+ * refresh:true; SWITCH moves to the next unblocked provider; the same dead
+ * URL is never retried twice without the refresh flag.
+ */
+export function shouldRefreshSameProvider(reason: RetryReason, refreshAlreadyAttempted: boolean): boolean {
+  if (reason === "permanent") return false;
+  return !refreshAlreadyAttempted;
+}
+
+/**
+ * Offline playback never touches the stream path: no watchdog, no proxy,
+ * no headers. Saved copies play from file:// / content:// URIs and carry a
+ * "· SAVED" quality marker.
+ */
+export function isOfflinePlaybackSource(source: { url?: string | null; quality?: string | null } | null | undefined): boolean {
+  if (!source?.url) return false;
+  const url = String(source.url);
+  if (/^(file|content):\/\//i.test(url)) return true;
+  return /saved/i.test(String(source.quality ?? ""));
 }

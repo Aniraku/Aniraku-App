@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Animated, Dimensions, Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/app-icon";
 import { nothing } from "@/components/nothing-ui";
 import { APP_CONFIG } from "@/lib/app-config";
 
@@ -85,7 +85,7 @@ export function AniListDownBanner() {
         <Pressable style={styles.backdropPress} onPress={dismiss} />
         <Animated.View style={[styles.card, { width: Math.min(SCREEN_W - 48, 380), transform: [{ scale }] }]}>
           <View style={styles.iconWrap}>
-            <Ionicons name="cloud-offline-outline" size={28} color={nothing.red} />
+            <AppIcon name="cloud-offline-outline" size={28} color={nothing.red} />
           </View>
           <Text style={styles.title}>AniList is temporarily down</Text>
           <Text style={styles.body}>
@@ -93,7 +93,7 @@ export function AniListDownBanner() {
           </Text>
           <View style={styles.divider} />
           <Text style={styles.hint}>No action needed. This banner will clear itself once AniList responds.</Text>
-          <Pressable onPress={dismiss} style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
+          <Pressable onPress={dismiss} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
             <Text style={styles.buttonText}>GOT IT</Text>
           </Pressable>
         </Animated.View>
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: "#1a1a18",
-    borderRadius: 20,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: "rgba(255,77,77,0.25)",
     padding: 28,
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
   iconWrap: {
     width: 52,
     height: 52,
-    borderRadius: 16,
+    borderRadius: 8,
     backgroundColor: "rgba(255,77,77,0.1)",
     borderWidth: 1,
     borderColor: "rgba(255,77,77,0.2)",
@@ -162,13 +162,11 @@ const styles = StyleSheet.create({
   button: {
     marginTop: 4,
     paddingVertical: 13,
-    borderRadius: 10,
+    borderRadius: 8,
     backgroundColor: nothing.white,
     alignItems: "center",
   },
-  buttonPressed: {
-    opacity: 0.8,
-  },
+  pressed: nothing.pressedSubtle,
   buttonText: {
     color: nothing.black,
     fontSize: 12,

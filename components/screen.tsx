@@ -18,14 +18,18 @@ export function SearchAction() {
   return <Pressable accessibilityRole="button" accessibilityLabel="Search anime" onPress={() => router.push("/search" as never)} style={({ pressed }) => [styles.searchButton, pressed && styles.pressed]}><AppIcon name="magnify" color={nothing.white} size={22} /></Pressable>;
 }
 
+export function NotificationAction() {
+  return <Pressable accessibilityRole="button" accessibilityLabel="Notifications" onPress={() => router.push("/profile" as never)} style={({ pressed }) => [styles.searchButton, pressed && styles.pressed]}><AppIcon name="bell-outline" color={nothing.white} size={22} /></Pressable>;
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: nothing.black },
   scroll: { paddingHorizontal: 18, paddingBottom: 110, gap: 28 },
   fill: { flex: 1 },
   header: { minHeight: 68, paddingTop: 6, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerText: { gap: 2 },
-  eyebrow: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 1.05 },
+  eyebrow: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 1 },
   headerTitle: { color: nothing.white, fontSize: 28, fontWeight: "900", letterSpacing: -0.9 },
   searchButton: { width: 42, height: 42, borderRadius: 8, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, backgroundColor: "transparent" },
-  pressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
+  pressed: nothing.pressed,
 });

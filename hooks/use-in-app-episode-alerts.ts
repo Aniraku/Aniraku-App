@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getEpisodes } from "@/lib/aniraku-api";
 import { getAnimeById } from "@/lib/anilist";
 import { availableReleasedEpisode, shouldCreateEpisodeAlert, type EpisodeAlertMarker } from "@/lib/in-app-alerts";
+import { scheduleNewEpisodeNotification } from "@/providers/notifications-provider";
 import { supabase } from "@/lib/supabase";
 import { useAnirakuAuth } from "@/providers/auth-provider";
 
@@ -74,6 +75,11 @@ export function InAppEpisodeAlertMonitor() {
           }
           markers[String(bookmark.anime_id)] = { episode: releasedEpisode, checkedAt: now };
           changed = true;
+          void scheduleNewEpisodeNotification({
+            animeId: Number(bookmark.anime_id),
+            title,
+            episode: releasedEpisode,
+          }).catch(() => {});
         } catch {
           // One rate-limited title must never block the rest of the saved library.
         }

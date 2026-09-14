@@ -1,27 +1,8 @@
-import { useEffect, useRef } from "react";
-import { Animated, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { nothing } from "@/components/nothing-ui";
 
-function usePulse() {
-  const opacity = useRef(new Animated.Value(0.3)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 0.7, duration: 1200, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.3, duration: 1200, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [opacity]);
-
-  return opacity;
-}
-
 export function Skeleton({ style }: { style?: object }) {
-  const opacity = usePulse();
-  return <Animated.View style={[styles.base, style, { opacity }]} />;
+  return <View style={[styles.base, style, { opacity: 0.35 }]} />;
 }
 
 export function SkeletonCard() {

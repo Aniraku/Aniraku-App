@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery } from "@tanstack/react-query";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { getAnimePage, isAniListRateLimitError } from "@/lib/anilist";
-import { AnimeCard } from "@/components/anime-card";
+import { nsfwFilterParam, useNsfwPreference } from "@/lib/nsfw-preference";
+import { animeTitle } from "@/lib/types";
 import { ErrorState, LoadingState, EmptyState } from "@/components/async-state";
 import { AppIcon } from "@/components/app-icon";
-import { AnirakuMark, DotLabel, nothing } from "@/components/nothing-ui";
+import { DotLabel, nothing } from "@/components/nothing-ui";
 import { NativeScreen } from "@/components/screen";
 
 type HistoryEntry = { term: string; timestamp: number };
@@ -39,14 +41,38 @@ function upgradeLegacyEntries(raw: unknown): HistoryEntry[] {
   }).filter((e): e is HistoryEntry => e !== null);
 }
 
+const QUICK_GENRES = ["Action", "Romance", "Comedy", "Fantasy", "Sci-Fi", "Horror"];
+
+function SearchResultRow({ anime, onPress }: { anime: any; onPress: () => void }) {
+  const title = animeTitle(anime);
+  const image = anime.coverImage?.extraLarge || anime.coverImage?.large || "";
+  const format = anime.format || "";
+  const episodes = anime.episodes;
+  const score = anime.averageScore;
+  const meta = [format, episodes ? `${episodes} EP` : null, score ? `${score}%` : null].filter(Boolean).join(" · ");
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.resultRow, pressed && styles.pressed]}>
+      <View style={styles.resultThumb}>
+        <Image source={{ uri: image }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" />
+        <View style={styles.resultPlayBadge}><AppIcon name="play" size={14} color={nothing.white} /></View>
+      </View>
+      <View style={styles.resultBody}>
+        <Text style={styles.resultTitle} numberOfLines={2}>{title}</Text>
+        {meta ? <Text style={styles.resultMeta}>{meta}</Text> : null}
+      </View>
+    </Pressable>
+  );
+}
+
 export default function SearchScreen() {
+  const nsfw = useNsfwPreference();
+  const isAdultParam = nsfwFilterParam(nsfw.enabled);
   const [input, setInput] = useState("");
   const normalizedInput = input.trim().replace(/\s+/g, " ");
   const [query, setQuery] = useState("");
   const [retryAt, setRetryAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   const [recent, setRecent] = useState<HistoryEntry[]>([]);
-  const longPressRef = useRef<string | null>(null);
 
   useEffect(() => {
     void AsyncStorage.getItem(STORAGE_KEY).then((stored) => {
@@ -71,8 +97,8 @@ export default function SearchScreen() {
 
   const waitingForInput = normalizedInput.length > 1 && query !== normalizedInput;
   const results = useQuery({
-    queryKey: ["search", query],
-    queryFn: () => getAnimePage({ search: query, perPage: 30, sort: ["SEARCH_MATCH"] }),
+    queryKey: ["search", query, isAdultParam],
+    queryFn: () => getAnimePage({ search: query, perPage: 20, sort: ["SEARCH_MATCH"], isAdult: isAdultParam }),
     enabled: query.length > 1,
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
@@ -84,10 +110,7 @@ export default function SearchScreen() {
   const retryAfterMs = rateLimitError?.retryAfterMs ?? null;
 
   useEffect(() => {
-    if (retryAfterMs === null) {
-      setRetryAt(null);
-      return;
-    }
+    if (retryAfterMs === null) { setRetryAt(null); return; }
     setRetryAt((current) => current && current > Date.now() ? current : Date.now() + retryAfterMs);
   }, [retryAfterMs]);
 
@@ -108,6 +131,7 @@ export default function SearchScreen() {
     setRetryAt(null);
     void results.refetch();
   };
+
   useEffect(() => {
     if (!results.isSuccess || query.length < 2) return;
     setRecent((current) => {
@@ -119,34 +143,127 @@ export default function SearchScreen() {
       return pruned;
     });
   }, [query, results.isSuccess]);
+
   const deleteHistoryItem = useCallback((term: string) => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Alert.alert("Delete", `Remove "${term}" from history?`, [
       { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => {
-          setRecent((current) => {
-            const next = current.filter((e) => e.term.toLowerCase() !== term.toLowerCase());
-            void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
-            return next;
-          });
-        },
-      },
+      { text: "Delete", style: "destructive", onPress: () => {
+        setRecent((current) => {
+          const next = current.filter((e) => e.term.toLowerCase() !== term.toLowerCase());
+          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
+          return next;
+        });
+      }},
     ]);
   }, []);
 
+  const isIdle = normalizedInput.length <= 1;
+
   return <NativeScreen scroll={false} style={styles.fill}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Close search" onPress={() => router.back()} style={({ pressed }) => [styles.back, pressed && styles.pressed]}><AppIcon name="arrow-left" size={21} color={nothing.white} /></Pressable><View style={styles.titleBlock}><DotLabel>SEARCH ANIME</DotLabel><Text style={styles.title}>Find something to watch</Text></View><AnirakuMark size={36} /></View>
-    <View style={styles.inputRow}><AppIcon name="magnify" size={21} color={nothing.muted} /><TextInput autoFocus value={input} onChangeText={setInput} placeholder="Search anime or characters" placeholderTextColor={nothing.dim} style={styles.input} returnKeyType="search" clearButtonMode="while-editing" /></View>
-    {normalizedInput.length <= 1 ? <View style={styles.idle}><DotLabel tone="live">START SEARCHING</DotLabel><Text style={styles.idleTitle}>What do you want to watch?</Text><Text style={styles.idleCopy}>Type an anime title, character, or genre.</Text>{recent.length ? <View style={styles.recent}><View style={styles.recentHead}><Text style={styles.recentLabel}>RECENT SEARCHES ({recent.length})</Text><Pressable accessibilityRole="button" onPress={() => { setRecent([]); void AsyncStorage.removeItem(STORAGE_KEY); }}><Text style={styles.clearRecent}>CLEAR</Text></Pressable></View><View style={styles.recentChoices}>{recent.map((entry) => <Pressable key={entry.term} accessibilityRole="button" accessibilityLabel={`${entry.term}, ${relativeTime(entry.timestamp)}. Long press to delete.`} onPress={() => setInput(entry.term)} onLongPress={() => deleteHistoryItem(entry.term)} delayLongPress={400} style={styles.recentChoice}><Text style={styles.recentChoiceText}>{entry.term}</Text><Text style={styles.recentChoiceTime}>{relativeTime(entry.timestamp)}</Text></Pressable>)}</View></View> : null}</View> : waitingForInput || results.isPending ? <LoadingState label={`Searching for "${normalizedInput}"`} /> : results.isError || !results.data ? <ErrorState message={results.error?.message ?? "Search is unavailable."} onRetry={retrySearch} retryDisabled={retryIsBlocked} retryLabel={retryIsBlocked ? `TRY AGAIN IN ${retrySeconds}S` : "TRY AGAIN"} /> : results.data.media.length === 0 ? <EmptyState label={`No titles found for "${query}".`} /> : <FlatList data={results.data.media} numColumns={2} keyExtractor={(item) => String(item.id)} ListHeaderComponent={<View style={styles.resultHead}><DotLabel tone="live">SEARCH RESULTS</DotLabel><Text style={styles.resultTitle}>{results.data.media.length} titles found for "{query}"</Text></View>} renderItem={({ item }) => <View style={styles.cell}><AnimeCard anime={item} /></View>} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} />}
+    <View style={styles.header}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Close search" onPress={() => router.back()} style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
+        <AppIcon name="arrow-left" size={21} color={nothing.white} />
+      </Pressable>
+      <View style={styles.searchInputWrap}>
+        <AppIcon name="magnify" size={18} color={nothing.muted} />
+        <TextInput autoFocus value={input} onChangeText={setInput} placeholder="Search anime..." placeholderTextColor={nothing.dim} style={styles.input} returnKeyType="search" clearButtonMode="while-editing" />
+      </View>
+      <Pressable style={({ pressed }) => [styles.filterBtn, pressed && styles.pressed]}>
+        <AppIcon name="tune-variant" size={18} color={nothing.muted} />
+      </Pressable>
+    </View>
+
+    {isIdle ? (
+      <View style={styles.idleContent}>
+        {recent.length > 0 ? (
+          <View style={styles.historySection}>
+            <View style={styles.historyHead}>
+              <Text style={styles.historyLabel}>Recent Searches</Text>
+              <Pressable onPress={() => { setRecent([]); void AsyncStorage.removeItem(STORAGE_KEY); }}>
+                <Text style={styles.clearBtn}>Clear</Text>
+              </Pressable>
+            </View>
+            {recent.map((entry) => (
+              <Pressable key={entry.term} onPress={() => setInput(entry.term)} onLongPress={() => deleteHistoryItem(entry.term)} delayLongPress={400} style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
+                <AppIcon name="clock-counter" size={16} color={nothing.dim} />
+                <View style={styles.historyBody}>
+                  <Text style={styles.historyTerm}>{entry.term}</Text>
+                  <Text style={styles.historyTime}>{relativeTime(entry.timestamp)}</Text>
+                </View>
+                <AppIcon name="arrow-top-right" size={14} color={nothing.dim} />
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+        <View style={styles.genreSection}>
+          <Text style={styles.genreLabel}>Browse by genre</Text>
+          <View style={styles.genreGrid}>
+            {QUICK_GENRES.map((genre) => (
+              <Pressable key={genre} onPress={() => setInput(genre)} style={({ pressed }) => [styles.genreChip, pressed && styles.pressed]}>
+                <Text style={styles.genreChipText}>{genre}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      </View>
+    ) : waitingForInput || results.isPending ? (
+      <LoadingState label={`Searching for "${normalizedInput}"`} />
+    ) : results.isError || !results.data ? (
+      <ErrorState message={results.error?.message ?? "Search is unavailable."} onRetry={retrySearch} retryDisabled={retryIsBlocked} retryLabel={retryIsBlocked ? `TRY AGAIN IN ${retrySeconds}S` : "TRY AGAIN"} />
+    ) : results.data.media.length === 0 ? (
+      <EmptyState label={`No titles found for "${query}".`} />
+    ) : (
+      <View style={styles.resultsWrap}>
+        <View style={styles.resultsHead}>
+          <DotLabel tone="live">TOP SEARCH</DotLabel>
+        </View>
+        <FlatList
+          data={results.data.media}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={({ item }) => <SearchResultRow anime={item} onPress={() => router.push((`/anime/${item.id}`) as never)} />}
+          contentContainerStyle={styles.resultsList}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
+    )}
   </NativeScreen>;
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1 }, header: { minHeight: 78, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 11 }, back: { width: 43, height: 43, alignItems: "center", justifyContent: "center", backgroundColor: nothing.raised, borderWidth: 1, borderColor: nothing.line, borderRadius: 14 }, titleBlock: { flex: 1, gap: 2 }, title: { color: nothing.white, fontSize: 24, fontWeight: "900", letterSpacing: -0.65 }, inputRow: { minHeight: 56, marginHorizontal: 16, paddingHorizontal: 14, gap: 10, flexDirection: "row", alignItems: "center", borderRadius: 17, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface }, input: { flex: 1, minHeight: 52, color: nothing.white, fontSize: 14 }, idle: { flex: 1, justifyContent: "center", paddingHorizontal: 24, gap: 8 }, idleTitle: { color: nothing.white, fontSize: 28, fontWeight: "900", letterSpacing: -0.7 }, idleCopy: { color: nothing.muted, fontSize: 14, lineHeight: 20, maxWidth: 260 }, recent: { marginTop: 16, gap: 9 }, recentHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, recentLabel: { color: nothing.dim, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.4 }, clearRecent: { color: nothing.red, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.3 },   recentChoices: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
-  recentChoice: { justifyContent: "center", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
-  recentChoiceText: { color: nothing.white, fontSize: 11 },
-  recentChoiceTime: { color: nothing.dim, fontFamily: "monospace", fontSize: 7, fontWeight: "800", letterSpacing: 0.3, marginTop: 2 }, resultHead: { paddingBottom: 14, gap: 4 }, resultTitle: { color: nothing.white, fontSize: 18, fontWeight: "900", letterSpacing: -0.4 }, list: { padding: 16, paddingTop: 18, paddingBottom: 112 }, cell: { flex: 1, alignItems: "center", marginBottom: 14 }, pressed: { opacity: 0.75, transform: [{ scale: 0.97 }] },
+  fill: { flex: 1 },
+  header: { minHeight: 60, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 10 },
+  back: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
+  searchInputWrap: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
+  input: { flex: 1, minHeight: 44, color: nothing.white, fontSize: 15 },
+  filterBtn: { width: 38, height: 38, borderRadius: 8, borderWidth: 1, borderColor: nothing.line, alignItems: "center", justifyContent: "center" },
+
+  idleContent: { flex: 1, paddingHorizontal: 16, gap: 24 },
+  historySection: { gap: 2 },
+  historyHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  historyLabel: { color: nothing.white, fontSize: 15, fontWeight: "800" },
+  clearBtn: { color: nothing.red, fontSize: 12, fontWeight: "800" },
+  historyRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: nothing.line },
+  historyBody: { flex: 1, gap: 1 },
+  historyTerm: { color: nothing.white, fontSize: 14, fontWeight: "700" },
+  historyTime: { color: nothing.dim, fontSize: 11, fontWeight: "600" },
+
+  genreSection: { gap: 10 },
+  genreLabel: { color: nothing.muted, fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
+  genreGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  genreChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
+  genreChipText: { color: nothing.white, fontSize: 13, fontWeight: "700" },
+
+  resultsWrap: { flex: 1 },
+  resultsHead: { paddingHorizontal: 16, paddingBottom: 8 },
+  resultsList: { paddingHorizontal: 16, paddingBottom: 112 },
+
+  resultRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: nothing.line },
+  resultThumb: { width: 120, height: 68, borderRadius: 8, overflow: "hidden", backgroundColor: nothing.raised },
+  resultPlayBadge: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.3)" },
+  resultBody: { flex: 1, gap: 4 },
+  resultTitle: { color: nothing.white, fontSize: 15, fontWeight: "800", lineHeight: 19 },
+  resultMeta: { color: nothing.dim, fontSize: 12, fontWeight: "700" },
+
+  pressed: nothing.pressed,
 });

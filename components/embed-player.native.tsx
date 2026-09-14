@@ -3,7 +3,7 @@ import { useState } from "react";
 import { WebView } from "react-native-webview";
 import { embeddedPopupGuardScript, shouldAllowEmbedNavigation } from "@/lib/embed-navigation";
 
-export function EmbedPlayer({ uri, headers, onError }: { uri: string; headers?: Record<string, string>; onError: () => void }) {
+export function EmbedPlayer({ uri, headers, onError, onLoaded }: { uri: string; headers?: Record<string, string>; onError: () => void; onLoaded?: () => void }) {
   const [loading, setLoading] = useState(true);
   return <View style={styles.shell}>
     <WebView
@@ -28,7 +28,7 @@ export function EmbedPlayer({ uri, headers, onError }: { uri: string; headers?: 
       injectedJavaScriptBeforeContentLoaded={embeddedPopupGuardScript}
       onShouldStartLoadWithRequest={(request) => shouldAllowEmbedNavigation(request.url)}
       onLoadStart={() => setLoading(true)}
-      onLoadEnd={() => setLoading(false)}
+      onLoadEnd={() => { setLoading(false); onLoaded?.(); }}
       onError={onError}
       onRenderProcessGone={onError}
     />
@@ -36,4 +36,4 @@ export function EmbedPlayer({ uri, headers, onError }: { uri: string; headers?: 
   </View>;
 }
 
-const styles = StyleSheet.create({ shell: { flex: 1, backgroundColor: "#000000" }, webview: { flex: 1, backgroundColor: "#000000" }, loading: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: "#000000" }, pointerNone: { pointerEvents: "none" }, loadingText: { color: "#A2A2A0", fontFamily: "monospace", fontSize: 10, fontWeight: "800", letterSpacing: 0.8 } });
+const styles = StyleSheet.create({ shell: { flex: 1, backgroundColor: "#000000" }, webview: { flex: 1, backgroundColor: "#000000" }, loading: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: "#000000" }, pointerNone: { pointerEvents: "none" }, loadingText: { color: "#A2A2A0", fontSize: 11, fontWeight: "600", letterSpacing: 0.4 } });

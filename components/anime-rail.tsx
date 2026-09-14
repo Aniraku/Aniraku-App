@@ -30,10 +30,10 @@ const styles = StyleSheet.create({
   section: { gap: 14 },
   heading: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
   headingCopy: { gap: 3 },
-  label: { color: nothing.muted, fontFamily: "monospace", fontWeight: "800", fontSize: 8, letterSpacing: 0.8 },
+  label: { color: nothing.muted, fontFamily: nothing.mono, fontWeight: "800", fontSize: 10, letterSpacing: 0.8 },
   title: { color: nothing.white, marginTop: 3, fontSize: 24, fontWeight: "900", letterSpacing: -0.7 },
   browse: { minHeight: 30, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 },
-  browseText: { color: nothing.white, fontFamily: "monospace", fontWeight: "800", fontSize: 8, letterSpacing: 0.4 },
+  browseText: { color: nothing.white, fontWeight: "800", fontSize: 10, letterSpacing: 0.4 },
   browseArrow: { color: nothing.red, fontSize: 14, fontWeight: "900" },
   rail: { gap: 14, paddingRight: 18 },
 });

@@ -15,16 +15,10 @@ import { checkForAnirakuUpdate, type AppRelease } from "@/lib/app-update";
 import { downloadAndInstallAnirakuUpdate } from "@/lib/android-app-installer";
 import { AppIcon } from "@/components/app-icon";
 import { PROVIDER_LABELS, ProviderMark, type SyncProvider } from "@/components/provider-mark";
-import { DotLabel, NothingButton, NothingCard, nothing, Signal } from "@/components/nothing-ui";
+import { useNsfwPreference } from "@/lib/nsfw-preference";
+import { DotLabel, NothingButton, nothing, Signal } from "@/components/nothing-ui";
 import { NativeScreen } from "@/components/screen";
-
-function SettingRow({ label, detail, icon, onPress, danger = false }: { label: string; detail: string; icon: "history" | "bookmark-remove-outline" | "file-document-outline" | "delete-forever-outline" | "heart-outline"; onPress: () => void; danger?: boolean }) {
-  return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.settingRow, danger && styles.settingDanger, pressed && styles.pressed]}>
-    <View style={[styles.settingIcon, danger && styles.settingIconDanger]}><AppIcon name={icon} size={20} color={danger ? nothing.red : nothing.white} /></View>
-    <View style={styles.settingCopy}><Text style={[styles.settingLabel, danger && styles.dangerLabel]}>{label}</Text><Text style={styles.settingDetail}>{detail}</Text></View>
-    <AppIcon name="chevron-right" size={20} color={danger ? nothing.red : nothing.muted} />
-  </Pressable>;
-}
+import { t } from "@/lib/i18n";
 
 function resultSummary(result: { imported?: number; already?: number; exported?: number; skipped?: number; limited?: boolean }, mode: "import" | "export") {
   if (mode === "import") return `${result.imported || 0} IMPORTED · ${result.already || 0} ALREADY IN LIBRARY`;
@@ -42,6 +36,7 @@ export default function SettingsScreen() {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [installingUpdate, setInstallingUpdate] = useState(false);
   const installedVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || "0.0.0";
+  const nsfw = useNsfwPreference();
 
   const [notifPrefs, setNotifPrefs] = useState({ newEpisodes: true, commentReplies: true, systemAnnouncements: true });
 
@@ -121,55 +116,240 @@ export default function SettingsScreen() {
   const clearBookmarks = () => Alert.alert("Clear saved titles?", "This removes every synchronized bookmark from your Aniraku account.", [{ text: "Cancel", style: "cancel" }, { text: "Clear", style: "destructive", onPress: () => void bookmarks.clear.mutateAsync().catch((error) => Alert.alert("Could not clear bookmarks", error.message)) }]);
   const deleteAccount = () => Alert.alert("Delete Aniraku account?", "This permanently removes your profile, watch history, ratings, bookmarks, comments, notifications, preferences, and account. This cannot be undone.", [{ text: "Cancel", style: "cancel" }, { text: "Delete account", style: "destructive", onPress: () => void deleteCurrentAccount().then(() => router.replace("/(tabs)" as never)).catch((error) => Alert.alert("Account not deleted", error.message)) }]);
 
-  const syncRows = (["mal", "anilist"] as SyncProvider[]).map((provider) => {
-    const item = sync.status.data?.[provider];
-    const busy = sync.authorize.isPending || sync.disconnect.isPending || sync.importLibrary.isPending || sync.exportLibrary.isPending;
-    const connected = Boolean(item?.configured && item?.connected);
-    return <NothingCard key={provider} style={styles.providerCard}>
-      <View style={styles.providerTop}><View style={styles.providerIdentity}><View style={styles.providerIcon}><ProviderMark provider={provider} size={19} muted={!connected} /></View><View><Text style={styles.providerName}>{PROVIDER_LABELS[provider]}</Text><Text style={styles.providerMeta}>{connected ? item?.username ? `SYNCING AS ${item.username}` : tokenHealth(item?.expires_at) : item?.configured ? "NOT CONNECTED" : "NOT CONFIGURED ON SERVER"}</Text></View></View><Signal label={connected ? "CONNECTED" : "OFF"} tone={connected ? "live" : "muted"} /></View>
-      {connected ? <><View style={styles.providerActions}><Pressable disabled={busy} accessibilityRole="button" onPress={() => void runTransfer(provider, "import")} style={[styles.providerButton, busy && styles.buttonDisabled]}><Text style={styles.providerButtonText}>IMPORT</Text></Pressable><Pressable disabled={busy} accessibilityRole="button" onPress={() => void runTransfer(provider, "export")} style={[styles.providerButton, busy && styles.buttonDisabled]}><Text style={styles.providerButtonText}>EXPORT</Text></Pressable><Pressable disabled={busy} accessibilityRole="button" onPress={() => void sync.disconnect.mutateAsync(provider).then(() => setSyncMessage(`${PROVIDER_LABELS[provider].toUpperCase()} DISCONNECTED.`)).catch((error) => setSyncMessage(error.message.toUpperCase()))} style={[styles.providerButton, styles.disconnectButton, busy && styles.buttonDisabled]}><Text style={[styles.providerButtonText, styles.disconnectText]}>DISCONNECT</Text></Pressable></View><Text style={styles.providerHint}>Progress and episode-rating summaries are pushed only after real playback or a deliberate rating.</Text></> : <Pressable disabled={!item?.configured || busy} accessibilityRole="button" onPress={() => void connectProvider(provider)} style={[styles.connectButton, (!item?.configured || busy) && styles.buttonDisabled]}><AppIcon name="link-variant" size={16} color={nothing.black} /><Text style={styles.connectText}>{busy ? "OPENING SECURE LINK" : `CONNECT ${PROVIDER_LABELS[provider].toUpperCase()}`}</Text></Pressable>}
-    </NothingCard>;
-  });
-
   return <NativeScreen>
-    <View style={styles.top}><Pressable accessibilityRole="button" accessibilityLabel="Close settings" onPress={() => router.back()} style={styles.close}><AppIcon name="arrow-left" size={21} color={nothing.white} /></Pressable><View style={styles.titleBlock}><DotLabel>ACCOUNT / CONTROL ROOM</DotLabel><Text style={styles.title}>Settings</Text></View></View>
-    <NothingCard style={styles.session}><Signal label="VERIFIED SESSION" tone="live" /><Text style={styles.email}>{auth.user.email}</Text><NothingButton label="SIGN OUT" variant="outline" onPress={() => void auth.signOut().then(() => router.back())} /></NothingCard>
-    <View style={styles.group}><DotLabel>APPLICATION</DotLabel><NothingCard style={styles.updateCard}><View><Text style={styles.updateVersion}>ANIRAKU V{installedVersion}</Text><Text style={styles.updateCopy}>{updateMessage || "CHECK FOR THE LATEST DIRECT-DISTRIBUTION BUILD."}</Text></View><Pressable accessibilityRole="button" disabled={checkingUpdate} onPress={() => void checkForUpdate()} style={[styles.updateButton, checkingUpdate && styles.buttonDisabled]}><Text style={styles.updateButtonText}>{checkingUpdate ? "CHECKING" : "CHECK"}</Text></Pressable></NothingCard>{availableRelease ? <Pressable accessibilityRole="button" disabled={installingUpdate} onPress={() => void installAvailableRelease()} style={[styles.releaseButton, installingUpdate && styles.buttonDisabled]}><Text style={styles.releaseButtonText}>{installingUpdate ? "PREPARING INSTALL" : `INSTALL V${availableRelease.version}`}</Text></Pressable> : null}</View>
-    <View style={styles.group}>
-      <DotLabel>NOTIFICATIONS</DotLabel>
-      <NothingCard style={styles.notifCard}>
-        <Pressable accessibilityRole="button" onPress={() => toggleNotifPref("newEpisodes")} style={styles.notifRow}>
-          <View style={styles.notifCopy}><Text style={styles.notifLabel}>New Episode Alerts</Text><Text style={styles.notifDetail}>Notifies when subscribed anime gets new episodes</Text></View>
-          <View style={[styles.toggleTrack, notifPrefs.newEpisodes && styles.toggleTrackOn]}><View style={[styles.toggleThumb, notifPrefs.newEpisodes && styles.toggleThumbOn]} /></View>
-        </Pressable>
-        <View style={styles.notifDivider} />
-        <Pressable accessibilityRole="button" onPress={() => toggleNotifPref("commentReplies")} style={styles.notifRow}>
-          <View style={styles.notifCopy}><Text style={styles.notifLabel}>Comment Replies</Text><Text style={styles.notifDetail}>Notifies when someone replies to your comment</Text></View>
-          <View style={[styles.toggleTrack, notifPrefs.commentReplies && styles.toggleTrackOn]}><View style={[styles.toggleThumb, notifPrefs.commentReplies && styles.toggleThumbOn]} /></View>
-        </Pressable>
-        <View style={styles.notifDivider} />
-        <Pressable accessibilityRole="button" onPress={() => toggleNotifPref("systemAnnouncements")} style={styles.notifRow}>
-          <View style={styles.notifCopy}><Text style={styles.notifLabel}>System Announcements</Text><Text style={styles.notifDetail}>App updates and maintenance notices</Text></View>
-          <View style={[styles.toggleTrack, notifPrefs.systemAnnouncements && styles.toggleTrackOn]}><View style={[styles.toggleThumb, notifPrefs.systemAnnouncements && styles.toggleThumbOn]} /></View>
-        </Pressable>
-      </NothingCard>
+    <View style={styles.top}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Close settings" onPress={() => router.back()} style={styles.close}>
+        <AppIcon name="arrow-left" size={21} color={nothing.white} />
+      </Pressable>
+      <View style={styles.titleBlock}>
+        <DotLabel>ACCOUNT / CONTROL ROOM</DotLabel>
+        <Text style={styles.title}>{t("settings.title")}</Text>
+      </View>
     </View>
-    <View style={styles.group}><View style={styles.syncHeading}><View><DotLabel>LIBRARY SYNC</DotLabel><Text style={styles.groupTitle}>Your connected lists</Text></View><Pressable accessibilityRole="button" onPress={() => { setSyncMessage(null); void sync.status.refetch(); }} style={styles.refresh}><AppIcon name="refresh" size={16} color={nothing.white} /><Text style={styles.refreshText}>REFRESH</Text></Pressable></View><Text style={styles.syncLead}>The same protected Aniraku service connects your MyAnimeList and AniList libraries. Provider passwords and tokens never enter the Android app.</Text>{sync.status.isPending ? <Text style={styles.syncStatus}>CHECKING PROVIDER STATUS</Text> : sync.status.isError ? <Text style={styles.syncError}>{sync.status.error instanceof Error ? sync.status.error.message.toUpperCase() : "SYNC STATUS UNAVAILABLE"}</Text> : syncRows}{syncMessage ? <Text style={styles.syncStatus}>{syncMessage}</Text> : null}<Text style={styles.syncFootnote}>Connect in the browser while signed in to the same Aniraku account, approve the provider, then return here and refresh. Import and export are always deliberate actions.</Text></View>
-    <View style={styles.group}><DotLabel>SYNCED LIBRARY</DotLabel><SettingRow label="Clear watch history" detail="Remove synced progress across your account" icon="history" onPress={clearHistory} /><SettingRow label="Clear saved titles" detail="Remove all synced bookmarks" icon="bookmark-remove-outline" onPress={clearBookmarks} /></View>
-    <View style={styles.group}><DotLabel>SUPPORT AND LEGAL</DotLabel><SettingRow label="Support Aniraku" detail="Patreon and optional USDT BEP20" icon="heart-outline" onPress={() => router.push("/support" as never)} /><SettingRow label="Legal information" detail="Privacy, terms, copyright, and security" icon="file-document-outline" onPress={() => router.push("/legal" as never)} /></View>
-    <View style={styles.group}><DotLabel tone="signal">IRREVERSIBLE</DotLabel><Text style={styles.warning}>Deletion is completed through the protected account service. It clears your synchronized data before removing your authentication record.</Text><SettingRow label="Delete account" detail="Permanently erase your Aniraku account" icon="delete-forever-outline" onPress={deleteAccount} danger /></View>
+
+    {/* ── Session ── */}
+    <View style={styles.row}>
+      <View style={styles.rowIcon}><AppIcon name="account" size={18} color={nothing.muted} /></View>
+      <View style={styles.rowBody}>
+        <Text style={styles.rowLabel}>{auth.user.email}</Text>
+        <Text style={styles.rowMeta}>VERIFIED SESSION</Text>
+      </View>
+      <Signal label="LIVE" tone="live" />
+    </View>
+    <View style={styles.row}>
+      <View style={styles.rowIcon}><AppIcon name="logout" size={18} color={nothing.muted} /></View>
+      <Pressable accessibilityRole="button" onPress={() => void auth.signOut().then(() => router.back())} style={styles.rowBody}>
+        <Text style={styles.rowLabel}>{t("settings.signOut")}</Text>
+      </Pressable>
+    </View>
+
+    {/* ── Application ── */}
+    <View style={styles.section}><DotLabel>{t("settings.application")}</DotLabel></View>
+    <View style={styles.row}>
+      <View style={styles.rowIcon}><AppIcon name="cellphone-arrow-down" size={18} color={nothing.muted} /></View>
+      <View style={styles.rowBody}>
+        <Text style={styles.rowLabel}>ANIRAKU V{installedVersion}</Text>
+        <Text style={styles.rowMeta}>{updateMessage || "CHECK FOR THE LATEST BUILD"}</Text>
+      </View>
+      <Pressable accessibilityRole="button" disabled={checkingUpdate} onPress={() => void checkForUpdate()} style={styles.rowAction}>
+        <Text style={styles.rowActionText}>{checkingUpdate ? "..." : t("settings.check")}</Text>
+      </Pressable>
+    </View>
+    {availableRelease ? <View style={styles.row}>
+      <View style={styles.rowIcon}><AppIcon name="download" size={18} color={nothing.red} /></View>
+      <Pressable accessibilityRole="button" disabled={installingUpdate} onPress={() => void installAvailableRelease()} style={styles.rowBody}>
+        <Text style={[styles.rowLabel, { color: nothing.red }]}>{installingUpdate ? "PREPARING INSTALL" : `INSTALL V${availableRelease.version}`}</Text>
+      </Pressable>
+    </View> : null}
+
+    {/* ── Content ── */}
+    <View style={styles.section}><DotLabel>{t("settings.content")}</DotLabel></View>
+    <Pressable accessibilityRole="button" onPress={nsfw.toggle} style={styles.row}>
+      <View style={styles.rowIcon}><AppIcon name="eye" size={18} color={nsfw.enabled ? nothing.red : nothing.muted} /></View>
+      <View style={styles.rowBody}>
+        <Text style={styles.rowLabel}>{t("settings.nsfwContent")}</Text>
+        <Text style={styles.rowMeta}>{t("settings.nsfwContentDetail")}</Text>
+      </View>
+      <View style={[styles.toggleTrack, nsfw.enabled && styles.toggleTrackOn]}><View style={[styles.toggleThumb, nsfw.enabled && styles.toggleThumbOn]} /></View>
+    </Pressable>
+    {nsfw.enabled ? <View style={styles.row}><View style={styles.rowIcon} /><Text style={styles.nsfwWarning}>{t("settings.nsfwWarning")}</Text></View> : null}
+
+    {/* ── Notifications ── */}
+    <View style={styles.section}><DotLabel>{t("settings.notifications")}</DotLabel></View>
+    <Pressable accessibilityRole="button" onPress={() => toggleNotifPref("newEpisodes")} style={styles.row}>
+      <View style={styles.rowIcon}><AppIcon name="bell" size={18} color={notifPrefs.newEpisodes ? nothing.red : nothing.muted} /></View>
+      <View style={styles.rowBody}>
+        <Text style={styles.rowLabel}>{t("settings.newEpisodes")}</Text>
+        <Text style={styles.rowMeta}>{t("settings.newEpisodesDetail")}</Text>
+      </View>
+      <View style={[styles.toggleTrack, notifPrefs.newEpisodes && styles.toggleTrackOn]}><View style={[styles.toggleThumb, notifPrefs.newEpisodes && styles.toggleThumbOn]} /></View>
+    </Pressable>
+    <Pressable accessibilityRole="button" onPress={() => toggleNotifPref("commentReplies")} style={styles.row}>
+      <View style={styles.rowIcon}><AppIcon name="reply" size={18} color={notifPrefs.commentReplies ? nothing.red : nothing.muted} /></View>
+      <View style={styles.rowBody}>
+        <Text style={styles.rowLabel}>{t("settings.commentReplies")}</Text>
+        <Text style={styles.rowMeta}>{t("settings.commentRepliesDetail")}</Text>
+      </View>
+      <View style={[styles.toggleTrack, notifPrefs.commentReplies && styles.toggleTrackOn]}><View style={[styles.toggleThumb, notifPrefs.commentReplies && styles.toggleThumbOn]} /></View>
+    </Pressable>
+    <Pressable accessibilityRole="button" onPress={() => toggleNotifPref("systemAnnouncements")} style={styles.row}>
+      <View style={styles.rowIcon}><AppIcon name="information" size={18} color={notifPrefs.systemAnnouncements ? nothing.red : nothing.muted} /></View>
+      <View style={styles.rowBody}>
+        <Text style={styles.rowLabel}>{t("settings.systemAnnouncements")}</Text>
+        <Text style={styles.rowMeta}>{t("settings.systemAnnouncementsDetail")}</Text>
+      </View>
+      <View style={[styles.toggleTrack, notifPrefs.systemAnnouncements && styles.toggleTrackOn]}><View style={[styles.toggleThumb, notifPrefs.systemAnnouncements && styles.toggleThumbOn]} /></View>
+    </Pressable>
+
+    {/* ── Library sync ── */}
+    <View style={styles.section}>
+      <View style={styles.sectionHead}>
+        <DotLabel>{t("settings.librarySync")}</DotLabel>
+        <Pressable accessibilityRole="button" onPress={() => { setSyncMessage(null); void sync.status.refetch(); }} style={styles.refresh}>
+          <AppIcon name="refresh" size={14} color={nothing.white} />
+          <Text style={styles.refreshText}>{t("settings.refresh")}</Text>
+        </Pressable>
+      </View>
+    </View>
+    <Text style={styles.lead}>The Aniraku service connects your MAL and AniList libraries. Provider tokens never enter the app.</Text>
+
+    {(["mal", "anilist"] as SyncProvider[]).map((provider) => {
+      const item = sync.status.data?.[provider];
+      const busy = sync.authorize.isPending || sync.disconnect.isPending || sync.importLibrary.isPending || sync.exportLibrary.isPending;
+      const connected = Boolean(item?.configured && item?.connected);
+      return <View key={provider}>
+        <View style={styles.row}>
+          <View style={styles.rowIcon}><ProviderMark provider={provider} size={18} muted={!connected} /></View>
+          <View style={styles.rowBody}>
+            <Text style={styles.rowLabel}>{PROVIDER_LABELS[provider]}</Text>
+            <Text style={styles.rowMeta}>{connected ? item?.username ? `SYNCING AS ${item.username}` : tokenHealth(item?.expires_at) : item?.configured ? "NOT CONNECTED" : "NOT CONFIGURED"}</Text>
+          </View>
+          <Signal label={connected ? "LIVE" : "OFF"} tone={connected ? "live" : "muted"} />
+        </View>
+        {connected ? <View style={styles.providerActions}>
+          <Pressable disabled={busy} accessibilityRole="button" onPress={() => void runTransfer(provider, "import")} style={[styles.providerBtn, busy && styles.btnDisabled]}>
+            <Text style={styles.providerBtnText}>{t("settings.import")}</Text>
+          </Pressable>
+          <Pressable disabled={busy} accessibilityRole="button" onPress={() => void runTransfer(provider, "export")} style={[styles.providerBtn, busy && styles.btnDisabled]}>
+            <Text style={styles.providerBtnText}>{t("settings.export")}</Text>
+          </Pressable>
+          <Pressable disabled={busy} accessibilityRole="button" onPress={() => void sync.disconnect.mutateAsync(provider).then(() => setSyncMessage(`${PROVIDER_LABELS[provider].toUpperCase()} DISCONNECTED.`)).catch((error) => setSyncMessage(error.message.toUpperCase()))} style={[styles.providerBtn, styles.disconnectBtn, busy && styles.btnDisabled]}>
+            <Text style={[styles.providerBtnText, styles.disconnectText]}>{t("settings.disconnect")}</Text>
+          </Pressable>
+        </View> : <View style={styles.providerActions}>
+          <Pressable disabled={!item?.configured || busy} accessibilityRole="button" onPress={() => void connectProvider(provider)} style={[styles.providerBtn, styles.connectBtn, (!item?.configured || busy) && styles.btnDisabled]}>
+            <Text style={styles.connectBtnText}>{busy ? "OPENING LINK" : `CONNECT ${PROVIDER_LABELS[provider].toUpperCase()}`}</Text>
+          </Pressable>
+        </View>}
+      </View>;
+    })}
+    {sync.status.isPending ? <Text style={styles.syncStatus}>CHECKING PROVIDER STATUS</Text> : sync.status.isError ? <Text style={styles.syncError}>{sync.status.error instanceof Error ? sync.status.error.message.toUpperCase() : "SYNC STATUS UNAVAILABLE"}</Text> : null}
+    {syncMessage ? <Text style={styles.syncStatus}>{syncMessage}</Text> : null}
+    <Text style={styles.footnote}>Connect in the browser while signed in, approve the provider, then return here and refresh.</Text>
+
+    {/* ── Data ── */}
+    <View style={styles.section}><DotLabel>{t("settings.syncedLibrary")}</DotLabel></View>
+    <View style={styles.row}>
+      <View style={styles.rowIcon}><AppIcon name="history" size={18} color={nothing.muted} /></View>
+      <Pressable accessibilityRole="button" onPress={clearHistory} style={styles.rowBody}>
+        <Text style={styles.rowLabel}>Clear watch history</Text>
+        <Text style={styles.rowMeta}>Remove synced progress across your account</Text>
+      </Pressable>
+    </View>
+    <View style={styles.row}>
+      <View style={styles.rowIcon}><AppIcon name="bookmark-remove-outline" size={18} color={nothing.muted} /></View>
+      <Pressable accessibilityRole="button" onPress={clearBookmarks} style={styles.rowBody}>
+        <Text style={styles.rowLabel}>Clear saved titles</Text>
+        <Text style={styles.rowMeta}>Remove all synced bookmarks</Text>
+      </Pressable>
+    </View>
+
+    {/* ── Support / Legal ── */}
+    <View style={styles.section}><DotLabel>{t("settings.supportLegal")}</DotLabel></View>
+    <View style={styles.row}>
+      <View style={styles.rowIcon}><AppIcon name="heart-outline" size={18} color={nothing.muted} /></View>
+      <Pressable accessibilityRole="button" onPress={() => router.push("/support" as never)} style={styles.rowBody}>
+        <Text style={styles.rowLabel}>Support Aniraku</Text>
+        <Text style={styles.rowMeta}>Patreon and optional USDT BEP20</Text>
+      </Pressable>
+    </View>
+    <View style={styles.row}>
+      <View style={styles.rowIcon}><AppIcon name="file-document-outline" size={18} color={nothing.muted} /></View>
+      <Pressable accessibilityRole="button" onPress={() => router.push("/legal" as never)} style={styles.rowBody}>
+        <Text style={styles.rowLabel}>Legal information</Text>
+        <Text style={styles.rowMeta}>Privacy, terms, copyright, and security</Text>
+      </Pressable>
+    </View>
+
+    {/* ── Danger zone ── */}
+    <View style={styles.section}><DotLabel tone="signal">IRREVERSIBLE</DotLabel></View>
+    <View style={styles.row}>
+      <View style={styles.rowIcon}><AppIcon name="delete-forever-outline" size={18} color={nothing.red} /></View>
+      <Pressable accessibilityRole="button" onPress={deleteAccount} style={styles.rowBody}>
+        <Text style={[styles.rowLabel, { color: nothing.red }]}>Delete account</Text>
+        <Text style={styles.rowMeta}>Permanently erase your Aniraku account</Text>
+      </Pressable>
+    </View>
+    <Text style={styles.footnote}>Deletion removes your synchronized data before removing your authentication record.</Text>
   </NativeScreen>;
 }
 
 const styles = StyleSheet.create({
-  redirectState: { flex: 1, paddingHorizontal: 24, justifyContent: "center", gap: 9 }, redirectTitle: { color: nothing.white, fontSize: 24, fontWeight: "900", letterSpacing: -0.6 }, redirectCopy: { color: nothing.muted, fontSize: 13, lineHeight: 19, maxWidth: 290 }, top: { minHeight: 82, flexDirection: "row", alignItems: "center", gap: 11 }, close: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 14, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.raised }, titleBlock: { gap: 2 }, title: { color: nothing.white, fontSize: 25, fontWeight: "900", letterSpacing: -0.65 }, session: { padding: 16, gap: 10 }, email: { color: nothing.white, fontWeight: "900", fontSize: 15 }, group: { gap: 8 }, groupTitle: { color: nothing.white, fontSize: 18, fontWeight: "900", marginTop: 4 }, syncHeading: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 10 }, syncLead: { color: nothing.muted, fontSize: 12, lineHeight: 18 }, refresh: { minHeight: 34, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 }, refreshText: { color: nothing.white, fontFamily: "monospace", fontWeight: "900", fontSize: 8, letterSpacing: 0.3 }, syncStatus: { color: nothing.white, fontFamily: "monospace", fontWeight: "800", fontSize: 9, lineHeight: 14, letterSpacing: 0.3 }, syncError: { color: nothing.red, fontFamily: "monospace", fontWeight: "800", fontSize: 9, lineHeight: 14, letterSpacing: 0.3 },   syncFootnote: { color: nothing.dim, fontSize: 11, lineHeight: 16 }, providerCard: { gap: 10, padding: 12 }, providerTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }, providerIdentity: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }, providerIcon: { width: 35, height: 35, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 4, backgroundColor: nothing.raised }, providerName: { color: nothing.white, fontSize: 14, fontWeight: "900" }, providerMeta: { color: nothing.muted, fontFamily: "monospace", fontSize: 8, fontWeight: "800", letterSpacing: 0.2, marginTop: 3 }, providerActions: { flexDirection: "row", gap: 6 }, providerButton: { flex: 1, minHeight: 34, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 4 }, providerButtonText: { color: nothing.white, fontFamily: "monospace", fontWeight: "900", fontSize: 8, letterSpacing: 0.25 }, disconnectButton: { borderColor: "rgba(255,77,77,0.5)" }, disconnectText: { color: nothing.red }, connectButton: { minHeight: 39, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 4, backgroundColor: nothing.white }, connectText: { color: nothing.black, fontFamily: "monospace", fontWeight: "900", fontSize: 9, letterSpacing: 0.3 }, providerHint: { color: nothing.dim, fontSize: 10, lineHeight: 15 }, buttonDisabled: { opacity: 0.42 }, updateCard: { minHeight: 76, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, padding: 12 }, updateVersion: { color: nothing.white, fontFamily: "monospace", fontSize: 10, fontWeight: "900", letterSpacing: 0.3 }, updateCopy: { maxWidth: 210, marginTop: 4, color: nothing.muted, fontSize: 10, lineHeight: 14 }, updateButton: { minWidth: 64, minHeight: 34, alignItems: "center", justifyContent: "center", borderRadius: 4, backgroundColor: nothing.white }, updateButtonText: { color: nothing.black, fontFamily: "monospace", fontSize: 8, fontWeight: "900", letterSpacing: 0.3 }, releaseButton: { minHeight: 38, alignItems: "center", justifyContent: "center", borderRadius: 4, backgroundColor: nothing.white }, releaseButtonText: { color: nothing.black, fontFamily: "monospace", fontSize: 9, fontWeight: "900", letterSpacing: 0.3 }, settingRow: { minHeight: 76, flexDirection: "row", alignItems: "center", gap: 11, padding: 11, borderRadius: 16, backgroundColor: nothing.surface, borderWidth: 1, borderColor: nothing.line }, settingDanger: { borderColor: "rgba(255,77,77,0.45)", backgroundColor: "rgba(255,77,77,0.055)" }, settingIcon: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: nothing.raised }, settingIconDanger: { backgroundColor: "rgba(255,77,77,0.10)" }, settingCopy: { flex: 1, gap: 3 }, settingLabel: { color: nothing.white, fontSize: 14, fontWeight: "900" }, dangerLabel: { color: nothing.red }, settingDetail: { color: nothing.muted, fontSize: 11, lineHeight: 15 }, warning: { color: nothing.muted, fontSize: 12, lineHeight: 18 },   pressed: { opacity: 0.74, transform: [{ scale: 0.985 }] },
-  notifCard: { padding: 0, overflow: "hidden" },
-  notifRow: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
-  notifCopy: { flex: 1, gap: 2 },
-  notifLabel: { color: nothing.white, fontSize: 14, fontWeight: "800" },
-  notifDetail: { color: nothing.muted, fontSize: 11, lineHeight: 16 },
-  notifDivider: { height: 1, backgroundColor: nothing.line, marginLeft: 14 },
-  toggleTrack: { width: 44, height: 26, borderRadius: 13, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface, alignItems: "center", justifyContent: "center" },
+  redirectState: { flex: 1, paddingHorizontal: 24, justifyContent: "center", gap: 9 },
+  redirectTitle: { color: nothing.white, fontSize: 24, fontWeight: "900", letterSpacing: -0.6 },
+  redirectCopy: { color: nothing.muted, fontSize: 13, lineHeight: 19, maxWidth: 290 },
+
+  top: { minHeight: 82, flexDirection: "row", alignItems: "center", gap: 11 },
+  close: { width: 42, height: 42, alignItems: "center", justifyContent: "center" },
+  titleBlock: { gap: 2 },
+  title: { color: nothing.white, fontSize: 25, fontWeight: "900", letterSpacing: -0.65 },
+
+  section: { paddingTop: 18, paddingBottom: 4 },
+  sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 52,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: nothing.line,
+  },
+  rowIcon: { width: 28, alignItems: "center", justifyContent: "center" },
+  rowBody: { flex: 1, gap: 2 },
+  rowLabel: { color: nothing.white, fontSize: 14, fontWeight: "800" },
+  rowMeta: { color: nothing.muted, fontSize: 11, lineHeight: 15 },
+  rowAction: { paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
+  rowActionText: { color: nothing.white, fontWeight: "800", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase" },
+
+  lead: { color: nothing.muted, fontSize: 12, lineHeight: 17, paddingHorizontal: 4, paddingBottom: 8 },
+  footnote: { color: nothing.dim, fontSize: 11, lineHeight: 16, paddingHorizontal: 4, paddingTop: 4, paddingBottom: 8 },
+
+  refresh: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
+  refreshText: { color: nothing.white, fontWeight: "800", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase" },
+
+  providerActions: { flexDirection: "row", gap: 6, paddingHorizontal: 40, paddingBottom: 10 },
+  providerBtn: { paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
+  providerBtnText: { color: nothing.white, fontWeight: "800", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase" },
+  connectBtn: { backgroundColor: nothing.white, borderColor: nothing.white },
+  connectBtnText: { color: nothing.black, fontWeight: "800", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase" },
+  disconnectBtn: { borderColor: "rgba(255,77,77,0.4)" },
+  disconnectText: { color: nothing.red },
+  btnDisabled: { opacity: 0.4 },
+
+  syncStatus: { color: nothing.white, fontWeight: "800", fontSize: 10, lineHeight: 14, letterSpacing: 0.3, paddingHorizontal: 4, paddingVertical: 4 },
+  syncError: { color: nothing.red, fontWeight: "800", fontSize: 10, lineHeight: 14, letterSpacing: 0.3, paddingHorizontal: 4, paddingVertical: 4 },
+
+  nsfwWarning: { flex: 1, color: nothing.red, fontSize: 11, lineHeight: 16, fontWeight: "700" },
+
+  toggleTrack: {
+    width: 44, height: 26, borderRadius: 13,
+    borderWidth: 1, borderColor: nothing.line,
+    backgroundColor: nothing.surface,
+    alignItems: "center", justifyContent: "center",
+  },
   toggleTrackOn: { borderColor: nothing.white, backgroundColor: nothing.white },
   toggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: nothing.muted },
   toggleThumbOn: { backgroundColor: nothing.black },

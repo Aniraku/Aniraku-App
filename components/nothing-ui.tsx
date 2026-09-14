@@ -17,6 +17,17 @@ export const nothing = {
   font: "SpaceGrotesk-Regular",
   fontMedium: "SpaceGrotesk-Medium",
   fontBold: "SpaceGrotesk-SemiBold",
+  mono: "monospace" as const,
+  /** Standard press feedback: opacity dim + subtle scale-in. */
+  pressed: { opacity: 0.72, transform: [{ scale: 0.97 }] } as const,
+  /** Lighter press feedback: opacity only, no scale. For buttons and chips. */
+  pressedSubtle: { opacity: 0.78 } as const,
+  /** Tight tracking for headlines and large display text. */
+  trackingTight: -0.65 as const,
+  /** Normal tracking for body copy, labels, and meta. */
+  trackingNormal: 0.3 as const,
+  /** Wide tracking for uppercase kickers, eyebrow labels, and small caps. */
+  trackingWide: 0.6 as const,
 } as const;
 
 export function useThemeColors() {
@@ -82,7 +93,7 @@ export function NothingButton({
         variant === "outline" && styles.outlineButton,
         variant === "danger" && styles.dangerButton,
         disabled && styles.disabledButton,
-        pressed && styles.pressedButton,
+        pressed && styles.pressed,
       ]}
     >
       <Text style={[styles.buttonText, variant === "primary" ? styles.primaryButtonText : styles.outlineButtonText]}>{label}</Text>
@@ -96,7 +107,7 @@ export function Signal({ label, tone = "live" }: { label: string; tone?: "live" 
 }
 
 const styles = StyleSheet.create({
-  dotLabel: { fontFamily: "monospace", fontSize: 9, fontWeight: "800", letterSpacing: 1.2, textTransform: "uppercase" },
+  dotLabel: { fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase" },
   downloadLabel: { flexDirection: "row", alignItems: "center", gap: 5 },
   mark: { alignItems: "center", justifyContent: "center", borderWidth: 1, overflow: "hidden" },
   markOrbit: { width: "56%", height: "56%", borderWidth: 2, borderRadius: 99, opacity: 0.9 },
@@ -107,11 +118,11 @@ const styles = StyleSheet.create({
   outlineButton: { backgroundColor: "transparent", borderColor: nothing.line },
   dangerButton: { backgroundColor: "rgba(255,77,77,0.12)", borderColor: "rgba(255,77,77,0.55)" },
   disabledButton: { opacity: 0.45 },
-  pressedButton: { opacity: 0.8, transform: [{ scale: 0.975 }] },
-  buttonText: { fontSize: 13, fontWeight: "900", letterSpacing: 0.25 },
+  pressed: nothing.pressed,
+  buttonText: { fontSize: 13, fontWeight: "900", letterSpacing: 0.25, textTransform: "uppercase" },
   primaryButtonText: { color: nothing.black },
   outlineButtonText: { color: nothing.white },
   signalRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   signalDot: { width: 7, height: 7, borderRadius: 4 },
-  signalText: { fontFamily: "monospace", fontSize: 10, fontWeight: "700", letterSpacing: 1 },
+  signalText: { fontSize: 10, fontWeight: "700", letterSpacing: 1 },
 });

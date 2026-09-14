@@ -35,7 +35,48 @@ export function selectMaximumQualityDownload(sources: StreamSource[]) {
   return eligible.sort((a, b) => downloadableQualityRank(b) - downloadableQualityRank(a))[0] ?? null;
 }
 
+/**
+ * Binds a download to the quality the viewer actually chose: an exact native
+ * match for `requestedQuality` wins, otherwise the historical max-guess
+ * fallback applies. Auto (or an unmatchable label) always takes the fallback.
+ */
+export function selectDownloadSourceForQuality(sources: StreamSource[], requestedQuality?: string | null) {
+  const wanted = String(requestedQuality ?? "").trim();
+  if (wanted && !/auto|adaptive|master|original|default/i.test(wanted)) {
+    const targetRank = qualityRank(wanted);
+    const exact = sources.filter(isDownloadableSource)
+      .filter((source) => downloadableQualityRank(source) === targetRank)
+      .sort((a, b) => downloadableQualityRank(b) - downloadableQualityRank(a))[0];
+    if (exact) return exact;
+  }
+  return selectMaximumQualityDownload(sources);
+}
+
 export function downloadLabel(source: StreamSource | null) {
   if (!source) return "DIRECT SOURCE REQUIRED";
   return isAutoQuality(source) ? "ORIGINAL DIRECT" : `${source.quality || "DIRECT"} MAX`;
+}
+
+/**
+ * Stale-index cleanup (pure, tested): drop index entries whose files are
+ * gone — files removed outside the app via a file manager must not linger
+ * as phantom "saved" rows. `exists` is injected so vitest stays FS-free;
+ * lib/downloads.ts wires the real expo-file-system check.
+ */
+export function filterExistingDownloadEntries<T extends { uri: string }>(
+  entries: readonly T[],
+  exists: (uri: string) => boolean,
+): { kept: T[]; removed: T[] } {
+  const kept: T[] = [];
+  const removed: T[] = [];
+  for (const entry of entries) {
+    let alive = false;
+    try {
+      alive = exists(entry.uri);
+    } catch {
+      alive = false;
+    }
+    (alive ? kept : removed).push(entry);
+  }
+  return { kept, removed };
 }

@@ -88,14 +88,14 @@ const detailFields = `${fields}
   }
 `;
 
-const pageQuery = `query MediaPage($page: Int!, $perPage: Int!, $sort: [MediaSort], $search: String, $status: MediaStatus, $season: MediaSeason, $seasonYear: Int, $genre: String, $format: MediaFormat) {
-  Page(page: $page, perPage: $perPage) { pageInfo { currentPage hasNextPage total } media(type: ANIME, isAdult: false, sort: $sort, search: $search, status: $status, season: $season, seasonYear: $seasonYear, genre: $genre, format: $format) { ${fields} } }
+const pageQuery = `query MediaPage($page: Int!, $perPage: Int!, $sort: [MediaSort], $search: String, $status: MediaStatus, $season: MediaSeason, $seasonYear: Int, $genre: String, $format: MediaFormat, $isAdult: Boolean) {
+  Page(page: $page, perPage: $perPage) { pageInfo { currentPage hasNextPage total } media(type: ANIME, isAdult: $isAdult, sort: $sort, search: $search, status: $status, season: $season, seasonYear: $seasonYear, genre: $genre, format: $format) { ${fields} } }
 }`;
 
-const homeQuery = `query Home {
-  trending: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: false, sort: [TRENDING_DESC, POPULARITY_DESC]) { ${fields} } }
-  popular: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: false, sort: [POPULARITY_DESC]) { ${fields} } }
-  upcoming: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: false, status: NOT_YET_RELEASED, sort: [POPULARITY_DESC]) { ${fields} } }
+const homeQuery = `query Home($isAdult: Boolean) {
+  trending: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: $isAdult, sort: [TRENDING_DESC, POPULARITY_DESC]) { ${fields} } }
+  popular: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: $isAdult, sort: [POPULARITY_DESC]) { ${fields} } }
+  upcoming: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: $isAdult, status: NOT_YET_RELEASED, sort: [POPULARITY_DESC]) { ${fields} } }
 }`;
 
 export type AiringScheduleWindow = { startAt: number; endAt: number };
@@ -169,6 +169,7 @@ export async function getAnimePage(options: {
   seasonYear?: number;
   genre?: string;
   format?: string;
+  isAdult?: boolean | null;
 } = {}): Promise<AnimePage> {
   const data = await request<{ Page: AnimePage }>(pageQuery, {
     page: options.page ?? 1,
@@ -180,12 +181,13 @@ export async function getAnimePage(options: {
     seasonYear: options.seasonYear,
     genre: options.genre,
     format: options.format,
+    isAdult: options.isAdult,
   });
   return data.Page;
 }
 
-export async function getHomeAnime() {
-  const data = await request<{ trending: AnimePage; popular: AnimePage; upcoming: AnimePage }>(homeQuery);
+export async function getHomeAnime(isAdult?: boolean | null) {
+  const data = await request<{ trending: AnimePage; popular: AnimePage; upcoming: AnimePage }>(homeQuery, { isAdult });
   return { trending: data.trending.media, popular: data.popular.media, upcoming: data.upcoming.media };
 }
 

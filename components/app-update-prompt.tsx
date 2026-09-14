@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, AppState, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
+import { AppIcon } from "@/components/app-icon";
 import { nothing } from "@/components/nothing-ui";
 import { checkForAnirakuUpdate, updateDismissalKey, type AppRelease } from "@/lib/app-update";
 import { downloadAndInstallAnirakuUpdate } from "@/lib/android-app-installer";
@@ -54,7 +55,7 @@ export function AppUpdatePrompt() {
         <View style={styles.sheet} accessibilityViewIsModal>
           <View style={styles.header}>
             <View style={styles.badge}><Text style={styles.badgeText}>UPDATE</Text></View>
-            <Pressable onPress={() => void dismiss()} style={styles.close}><Text style={styles.closeText}>✕</Text></Pressable>
+            <Pressable onPress={() => void dismiss()} accessibilityRole="button" accessibilityLabel="Dismiss update" hitSlop={8} style={styles.close}><AppIcon name="close" size={16} color={nothing.muted} /></Pressable>
           </View>
           <Text style={styles.title}>{release ? `v${release.version}` : ""}</Text>
           <Text style={styles.subtitle}>A new version of Aniraku is ready.</Text>
@@ -79,11 +80,10 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   badge: { backgroundColor: nothing.red, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
   badgeText: { color: nothing.black, fontFamily: "SpaceGrotesk-SemiBold", fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
-  close: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
-  closeText: { color: nothing.muted, fontSize: 16 },
+  close: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
   title: { color: nothing.white, fontFamily: "SpaceGrotesk-SemiBold", fontSize: 22, fontWeight: "800", letterSpacing: -0.5 },
   subtitle: { color: nothing.muted, fontFamily: "SpaceGrotesk-Regular", fontSize: 13, lineHeight: 18 },
-  status: { color: nothing.dim, fontFamily: "monospace", fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
+  status: { color: nothing.dim, fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
   actions: { flexDirection: "row", gap: 10, marginTop: 4 },
   install: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", backgroundColor: nothing.white, borderRadius: 8 },
   installText: { color: nothing.black, fontFamily: "SpaceGrotesk-SemiBold", fontSize: 13, fontWeight: "800", letterSpacing: 0.3 },
