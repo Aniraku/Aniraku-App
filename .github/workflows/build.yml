@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.6.1"
+        default: "v5.6.2"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -115,27 +115,36 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.6.1 — DUB Architecture Rewrite & NSFW Fix
+            ## v5.6.2 — Player Gestures, Downloads & Playback Honesty
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.6.1-arm64.apk`
-            - `aniraku-v5.6.1-arm32.apk`
-            - `aniraku-v5.6.1-universal.apk`
+            - `aniraku-v5.6.2-arm64.apk`
+            - `aniraku-v5.6.2-arm32.apk`
+            - `aniraku-v5.6.2-universal.apk`
 
-            ### Architecture
-            - **DUB per-episode**: Removed batch dub checking entirely. SUB/DUB servers now fetched per-episode on selection — instant watch page, no more "CHECKING DUB" spinner.
-            - **Per-anime language memory**: App remembers your last SUB/DUB choice per anime and auto-selects it next time.
-            - **Smarter language tabs**: SUB/DUB toggle only appears when both languages have servers for the current episode.
+            ### Player gestures rewritten (zoned state machine)
+            - **No more all-at-once triggers**: brightness, volume, 2x hold, and seek each own a screen zone and can never fire together.
+            - Outer-left swipe = brightness, outer-right swipe = volume (22px activation, direction-locked).
+            - Center hold 550ms = 2x speed — outer zones can never trigger it.
+            - Double-tap left/right = −10s/+10s, triple-tap = −20s/+30s totals, center double/triple = play/pause. Seek fires on touch-down, double-tap-and-hold keeps skipping.
+            - Single tap toggles controls without flashing on double-taps.
 
-            ### Bug Fixes
-            - **NSFW filter broken**: `isAdult: null` caused all AniList queries to return empty results. Fixed variable filtering so null values are omitted.
-            - **Episode grid pagination**: PREV/NEXT buttons now show for shows with >100 episodes (were missing in FlatList path).
-            - **Airing schedule**: Added pagination for AniList's 50-item cap.
-            - **Homepage**: Added retry (3 attempts, exponential backoff) for all AniList queries.
-            - **Episode search**: Fixed truncated placeholder "Number o" → "Ep number".
-            - **Empty states**: Added retry buttons to search and random page errors.
-            - **Android versionCode**: 58.
+            ### Downloads that match the backend
+            - Download icon now opens the backend's real file links: quality picker (1080p/720p/…) when offered, direct open when only a default label exists.
+            - Backend links are external pages, so they open in the browser behind a "You're leaving Aniraku" confirmation. SUB and DUB lists stay separate.
+            - Legacy in-app save remains as fallback when the backend offers no download links.
+
+            ### Hentai & playback
+            - **Hentai embed fallback**: titles with embed-only sources no longer die at server discovery — the player now attempts the stream and mounts the embed inline in the WebView.
+            - **No more auto-play/auto-skip**: removed both. Near the finish line a persistent UP NEXT card waits for you — PLAY NOW or dismiss, your call. Manual Skip Intro/Outro buttons unchanged.
+
+            ### Home & search
+            - **Notification bell** opens an in-app bottom sheet (unread/all, mark-read) instead of dumping you on the profile page.
+            - **VIEW ALL / See all** open filtered search (Trending, Ongoing, Popular, Top Movies, Top in genre, Coming Soon) instead of the plain catalog.
+
+            ### Housekeeping
+            - **Android versionCode**: 59.
 
             Download the APK, install, and allow *install from unknown sources* if prompted.
           files: ./artifacts/*.apk

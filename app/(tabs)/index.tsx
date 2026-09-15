@@ -14,6 +14,7 @@ import { ErrorState } from "@/components/async-state";
 import { nothing } from "@/components/nothing-ui";
 import { SkeletonCard, SkeletonRail, SkeletonHero } from "@/components/skeleton";
 import { NativeHeader, NativeScreen, SearchAction, NotificationAction } from "@/components/screen";
+import { NotificationSheet } from "@/components/notification-sheet";
 import { AppIcon } from "@/components/app-icon";
 import { InAppEpisodeAlertMonitor } from "@/hooks/use-in-app-episode-alerts";
 import { useWatchHistory } from "@/hooks/use-watch-history";
@@ -125,7 +126,7 @@ function TrendingGrid({ items }: { items: Array<{ id: number; coverImage?: { lar
     <View style={styles.section}>
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>Trending Now</Text>
-        <Pressable onPress={() => router.push("/catalog" as never)}><Text style={styles.seeAll}>See all</Text></Pressable>
+        <Pressable onPress={() => router.push({ pathname: "/search", params: { sort: "TRENDING_DESC", title: "Trending Now" } } as never)}><Text style={styles.seeAll}>See all</Text></Pressable>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trendingList}>
         {items.slice(0, 10).map((item, index) => (
@@ -146,6 +147,7 @@ export default function HomeScreen() {
   const prefetch = usePrefetchAnime();
   const nsfw = useNsfwPreference();
   const isAdultParam = nsfwFilterParam(nsfw.enabled);
+  const [notifSheetVisible, setNotifSheetVisible] = useState(false);
   const home = useQuery({ queryKey: ["home-anime", isAdultParam], queryFn: () => getHomeAnime(isAdultParam), retry: 3, retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000) });
   const topGenre = useUserTopGenre();
   const ongoing = useQuery({
@@ -179,13 +181,13 @@ export default function HomeScreen() {
     await Promise.all([home.refetch(), ongoing.refetch(), topMovies.refetch(), topGenreAnime.refetch()]);
     setRefreshing(false);
   };
+  if (home.isPending) return <NativeScreen><InAppEpisodeAlertMonitor /><NativeHeader eyebrow="ANIRAKU" title="Home" action={<View style={styles.topActions}><SearchAction /><NotificationAction onPress={() => setNotifSheetVisible(true)} /></View>} /><ScrollView contentContainerStyle={styles.skeletonContainer} showsVerticalScrollIndicator={false}><SkeletonHero /><Text style={styles.skeletonRailLabel}>TRENDING NOW</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.skeletonRailRow}>{Array.from({ length: 6 }).map((_, i) => <SkeletonRail key={i} />)}</ScrollView><Text style={styles.skeletonRailLabel}>POPULAR RELEASES</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.skeletonRailRow}>{Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}</ScrollView></ScrollView><NotificationSheet visible={notifSheetVisible} onClose={() => setNotifSheetVisible(false)} /></NativeScreen>;
 
-  if (home.isPending) return <NativeScreen><InAppEpisodeAlertMonitor /><NativeHeader eyebrow="ANIRAKU" title="Home" action={<View style={styles.topActions}><SearchAction /><NotificationAction /></View>} /><ScrollView contentContainerStyle={styles.skeletonContainer} showsVerticalScrollIndicator={false}><SkeletonHero /><Text style={styles.skeletonRailLabel}>TRENDING NOW</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.skeletonRailRow}>{Array.from({ length: 6 }).map((_, i) => <SkeletonRail key={i} />)}</ScrollView><Text style={styles.skeletonRailLabel}>POPULAR RELEASES</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.skeletonRailRow}>{Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}</ScrollView></ScrollView></NativeScreen>;
-  if (home.isError || !home.data) return <NativeScreen><InAppEpisodeAlertMonitor /><NativeHeader eyebrow="ANIRAKU" title="Home" action={<View style={styles.topActions}><SearchAction /><NotificationAction /></View>} /><ErrorState message={home.error?.message ?? "We could not load anime right now."} onRetry={() => void home.refetch()} /></NativeScreen>;
+  if (home.isError || !home.data) return <NativeScreen><InAppEpisodeAlertMonitor /><NativeHeader eyebrow="ANIRAKU" title="Home" action={<View style={styles.topActions}><SearchAction /><NotificationAction onPress={() => setNotifSheetVisible(true)} /></View>} /><ErrorState message={home.error?.message ?? "We could not load anime right now."} onRetry={() => void home.refetch()} /><NotificationSheet visible={notifSheetVisible} onClose={() => setNotifSheetVisible(false)} /></NativeScreen>;
 
   const hero = !home.isPending ? home.data.trending[0] : null;
   return <NativeScreen><InAppEpisodeAlertMonitor />
-    <NativeHeader eyebrow="ANIRAKU" title="Home" action={<View style={styles.topActions}><SearchAction /><NotificationAction /></View>} />
+    <NativeHeader eyebrow="ANIRAKU" title="Home" action={<View style={styles.topActions}><SearchAction /><NotificationAction onPress={() => setNotifSheetVisible(true)} /></View>} />
     {home.isPending ? <ScrollView contentContainerStyle={styles.skeletonContainer} showsVerticalScrollIndicator={false}>
       <View style={styles.skeletonHeroRow}>{Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}</View>
       <Text style={styles.skeletonRailLabel}>TRENDING NOW</Text>
@@ -217,12 +219,13 @@ export default function HomeScreen() {
       </Pressable> : null}
       <ContinueWatchingRail />
       <TrendingGrid items={home.data.trending.slice(1)} />
-      {ongoing.data?.media?.length ? <AnimeRail label="02" title="Ongoing" items={ongoing.data.media} /> : null}
-      {home.data.popular.length ? <AnimeRail label="03" title="Popular releases" items={home.data.popular} /> : null}
-      {topMovies.data?.media?.length ? <AnimeRail label="04" title="Top movies" items={topMovies.data.media} /> : null}
-      {topGenreAnime.data?.media?.length ? <AnimeRail label="05" title={`Top in ${topGenre}`} items={topGenreAnime.data.media} /> : null}
-      {home.data.upcoming.length ? <AnimeRail label="06" title="Coming soon" items={home.data.upcoming} /> : null}
+      {ongoing.data?.media?.length ? <AnimeRail label="02" title="Ongoing" items={ongoing.data.media} seeAllParams={{ status: "RELEASING", sort: "POPULARITY_DESC", title: "Ongoing" }} /> : null}
+      {home.data.popular.length ? <AnimeRail label="03" title="Popular releases" items={home.data.popular} seeAllParams={{ sort: "POPULARITY_DESC", title: "Popular Releases" }} /> : null}
+      {topMovies.data?.media?.length ? <AnimeRail label="04" title="Top movies" items={topMovies.data.media} seeAllParams={{ format: "MOVIE", sort: "SCORE_DESC", title: "Top Movies" }} /> : null}
+      {topGenreAnime.data?.media?.length ? <AnimeRail label="05" title={`Top in ${topGenre}`} items={topGenreAnime.data.media} seeAllParams={{ genre: String(topGenre), sort: "SCORE_DESC", title: `Top in ${topGenre}` }} /> : null}
+      {home.data.upcoming.length ? <AnimeRail label="06" title="Coming soon" items={home.data.upcoming} seeAllParams={{ status: "NOT_YET_RELEASED", sort: "POPULARITY_DESC", title: "Coming Soon" }} /> : null}
     </ScrollView>}
+    <NotificationSheet visible={notifSheetVisible} onClose={() => setNotifSheetVisible(false)} />
   </NativeScreen>;
 }
 

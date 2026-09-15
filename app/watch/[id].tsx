@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocalSearchParams, router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery } from "@tanstack/react-query";
-import { ActivityIndicator, Animated, BackHandler, Dimensions, FlatList, LayoutChangeEvent, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, BackHandler, Dimensions, FlatList, LayoutChangeEvent, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Image } from "expo-image";
 import Video, { type OnProgressData, type OnLoadData, type OnBufferData, type VideoRef } from "react-native-video";
 import { useKeepAwake } from "expo-keep-awake";
@@ -66,7 +66,7 @@ import { useEpisodeRatings } from "@/hooks/use-episode-ratings";
 import { AnimeComments } from "@/components/anime-comments";
 import { useProviderSync } from "@/hooks/use-provider-sync";
 import { useAnirakuAuth } from "@/providers/auth-provider";
-import { findOfflineDownload, removeOfflineDownload, selectDownloadSourceForQuality, selectMaximumQualityDownload, startMaximumQualityDownload, type OfflineDownload } from "@/lib/downloads";
+import { findOfflineDownload, removeOfflineDownload, selectDownloadSourceForQuality, selectMaximumQualityDownload, startMaximumQualityDownload, buildBackendDownloadOptions, hasQualityBackendDownloads, sortBackendDownloadOptions, type BackendDownloadOption, type OfflineDownload } from "@/lib/downloads";
 import { adaptiveBitrateCapOptions, selectedWatchQuality, watchQualityOptions, type WatchQualityOption } from "@/lib/watch-quality";
 import { buildDashQualityOptions, buildHlsQualityOptions, hlsVariantsCacheKey, originalStreamUrl, parseDashRepresentations, parseHlsMasterVariants, shouldRefetchVariants, shouldRefreshMasterOnVariantError, variantUrlForHeight, type HlsVariant, type VariantsCacheScope } from "@/lib/hls-variants";
 import { AppIcon } from "@/components/app-icon";
@@ -84,8 +84,16 @@ import { t } from "@/lib/i18n";
 const EPISODE_PAGE_SIZE = 50;
 const RESUME_MIN_TIME = 30;
 const DOUBLE_TAP_WINDOW_MS = 300;
+const TRIPLE_TAP_WINDOW_MS = 500;
 const SKIP_HOLD_MS = 400;
-const UP_NEXT_SECONDS = 10;
+// ── Gesture boundaries: each gesture owns its zone, no overlaps ──
+const TAP_SLOP_PX = 10; // max move to still count as a tap
+const SWIPE_ACTIVATE_PX = 22; // vertical travel before brightness/volume engages
+const SWIPE_DIRECTION_RATIO = 1.4; // |dy| must dominate |dx| or swipe is ignored
+const HORIZONTAL_CANCEL_PX = 18; // horizontal drift kills pending/hold
+const LONG_PRESS_MS = 550; // still-finger delay before center-hold → 2x
+const EDGE_ZONE = 0.35; // x < 35% = brightness · x > 65% = volume · middle = 2x zone
+const SEEK_ZONE = 0.4; // x < 40% = rewind · x > 60% = forward · middle = play/pause
 const STREAM_CACHE_TTL_MS = 30_000;
 const STARTUP_WATCHDOG_MS = 6_000;
 const SKIP_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -93,7 +101,7 @@ const ANISKIP_TIMEOUT_MS = 8_000;
 const EMPTY_EPISODES: Episode[] = [];
 
 type CachedStream = { savedAt: number; data: StreamResponse };
-type WatchPreferences = { autoNext?: boolean; autoSkip?: boolean; speed?: number };
+type WatchPreferences = { speed?: number };
 
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -213,12 +221,10 @@ export default function WatchScreen() {
   const [error, setError] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [sourceRevision, setSourceRevision] = useState(0);
-  const [autoNext, setAutoNext] = useState(true);
-  const [autoSkip, setAutoSkip] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [showControls, setShowControls] = useState(true);
-  type ActivePanel = "settings" | "subtitles" | "speed" | "server" | "chapters" | "source" | "quality" | null;
+  type ActivePanel = "settings" | "subtitles" | "speed" | "server" | "chapters" | "source" | "quality" | "download" | null;
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const [manualFullscreen, setManualFullscreen] = useState(false);
   const [episodeSearch, setEpisodeSearch] = useState("");
@@ -244,14 +250,16 @@ export default function WatchScreen() {
   const [sleepRemaining, setSleepRemaining] = useState<number | null>(null);
   const [is2xSeeking, setIs2xSeeking] = useState(false);
   const [doubleTapSide, setDoubleTapSide] = useState<"left" | "right" | null>(null);
+  const [doubleTapSeconds, setDoubleTapSeconds] = useState(10);
   const doubleTapAnim = useRef(new Animated.Value(0)).current;
-  // Single-flash generation: a new double-tap replaces the previous flash
-  // instead of stacking a second ripple on top of it.
   const doubleTapGen = useRef(0);
-  // Double-tap-and-hold: +10s every 400ms while the second tap stays down.
   const skipHoldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipHoldSide = useRef<"left" | "right" | null>(null);
   const doubleTapTouch = useRef(false);
+  // Triple-tap tracking
+  const tapCountRef = useRef(0);
+  const tapCountTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingTripleTapRef = useRef<{ side: "left" | "right"; x: number } | null>(null);
   // PiP hardening: availability is probed (button hides where enter fails),
   // activity pauses UI updates while the system owns the frame.
   const [pipAvailable, setPipAvailable] = useState(true);
@@ -259,9 +267,9 @@ export default function WatchScreen() {
   const pipActiveRef = useRef(false);
   // Live ExoPlayer rendition feeding the `Auto · 720p` line.
   const [liveHeight, setLiveHeight] = useState<number | null>(null);
-  // Up-next end-card: quiet 10s countdown, cancellable, autoNext-aware.
+  // Up-next card: appears near the finish line, waits for the user — never
+  // auto-plays. Manual PLAY NOW or dismiss.
   const [upNextVisible, setUpNextVisible] = useState(false);
-  const [upNextCountdown, setUpNextCountdown] = useState(10);
   const upNextShownFor = useRef<string | null>(null);
   const [volumeHud, setVolumeHud] = useState<number | null>(null);
   const [brightnessHud, setBrightnessHud] = useState<number | null>(null);
@@ -315,7 +323,6 @@ export default function WatchScreen() {
   const sourceFailureHandled = useRef<string | null>(null);
   const lastHistorySync = useRef(0);
   const lastProviderSync = useRef(0);
-  const autoSkipped = useRef<Record<SkipKind, boolean>>({ intro: false, outro: false });
   const skipSegmentsRef = useRef(skipSegments);
   const pendingResume = useRef<number | null>(null);
   const historyResumeRequestedFor = useRef<string | null>(null);
@@ -358,6 +365,12 @@ export default function WatchScreen() {
   const activeAdaptiveCap = adaptiveCapOptions.find((option) => option.maxVideoBitrate === adaptiveBitrateCap);
   const displayedQuality = activeAdaptiveCap?.label ?? selectedWatchQuality(source, requestedQuality);
   const maximumDownloadSource = useMemo(() => selectMaximumQualityDownload(stream?.sources ?? activeProvider?.sources ?? []), [activeProvider?.sources, stream?.sources]);
+  // Backend per-quality file links, collected across ALL providers for the
+  // current language — SUB and DUB option lists stay separate because
+  // activeProviders is already language-filtered. Labels with a quality
+  // ("Kiwi 1080p") become picker rows; plain labels ("Zoko") become the
+  // single default option.
+  const backendDownloadOptions = useMemo(() => sortBackendDownloadOptions(buildBackendDownloadOptions(activeProviders)), [activeProviders]);
   const backendDownloads = activeProvider?.downloads ?? [];
   const currentRating = ratings.scoreFor(episode) ?? 0;
   const skipKind = activeSkipKind(skipSegments, currentTime);
@@ -476,7 +489,6 @@ export default function WatchScreen() {
     setUseSourceProxy(false);
     setPlaybackHeaders(undefined);
     setSkipSegments({ intro: null, outro: null });
-    autoSkipped.current = { intro: false, outro: false };
     blockedProviders.current.clear();
     refreshAttempted.current.clear();
     variantTokenRefreshAttempted.current = null;
@@ -556,8 +568,6 @@ export default function WatchScreen() {
       if (!active || !stored) return;
       try {
         const preferences = JSON.parse(stored) as WatchPreferences;
-        if (typeof preferences.autoNext === "boolean") setAutoNext(preferences.autoNext);
-        if (typeof preferences.autoSkip === "boolean") setAutoSkip(preferences.autoSkip);
         if (typeof preferences.speed === "number" && [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].includes(preferences.speed)) setSpeed(preferences.speed);
       } catch { /* ignore malformed */ }
     }).catch(() => {}).finally(() => { if (active) setPreferencesReady(true); });
@@ -566,8 +576,8 @@ export default function WatchScreen() {
 
   useEffect(() => {
     if (!preferencesReady) return;
-      void AsyncStorage.setItem("aniraku.watch.preferences", JSON.stringify({ autoNext, autoSkip, speed })).catch(() => {});
-  }, [autoNext, autoSkip, preferencesReady, speed]);
+      void AsyncStorage.setItem("aniraku.watch.preferences", JSON.stringify({ speed })).catch(() => {});
+  }, [preferencesReady, speed]);
 
   // ── Server discovery ──
   useEffect(() => {
@@ -586,6 +596,7 @@ export default function WatchScreen() {
 
     const fetchServers = async (attempt: number) => {
       setServerAttempt(attempt + 1);
+      const languageFallback = "sub" as Language;
       const [subs, dubs] = await Promise.all([
         getServers(animeId, episode, "sub").catch(() => [] as Server[]),
         getServers(animeId, episode, "dub").catch(() => [] as Server[]),
@@ -600,11 +611,25 @@ export default function WatchScreen() {
       if (preferred === "dub" && dubs.length) { setLanguage("dub"); }
       else if (preferred === "sub" && subs.length) { setLanguage("sub"); }
       else if (!subs.length && dubs.length) { setLanguage("dub"); }
-      else if (!subs.length && !dubs.length) { setError("We don't have streaming for this episode."); }
+      else if (!subs.length && !dubs.length) {
+        // Hentai tags ship embed-only sources: discovery often lists no
+        // servers, so seed the anikoto fallback slots and let /stream surface
+        // the embed — it mounts inline in the WebView, never externally.
+        if (isHentai) {
+          const phantom: Server[] = [
+            { id: `momo:${languageFallback}`, provider: "momo", label: "MOMO", lang: languageFallback },
+            { id: `niko:${languageFallback}`, provider: "niko", label: "NIKO", lang: languageFallback },
+          ];
+          setProviders({ sub: languageFallback === "sub" ? phantom : [], dub: languageFallback === "dub" ? phantom : [] });
+          setLanguage(languageFallback);
+        } else {
+          setError("We don't have streaming for this episode.");
+        }
+      }
     };
     void fetchServers(0);
     return () => { cancelled = true; };
-  }, [animeId, animeQuery.isPending, canonicalEpisodes.length, clearEpisodePlayback, episode, episodeQuery.isPending, futureRelease, invalidEpisode]);
+  }, [animeId, animeQuery.isPending, canonicalEpisodes.length, clearEpisodePlayback, episode, episodeQuery.isPending, futureRelease, invalidEpisode, isHentai]);
 
   // ── Stream loading ──
   useEffect(() => {
@@ -992,15 +1017,6 @@ export default function WatchScreen() {
     }
   }, [animeId, auth.user, currentTime, duration, episode, history.save, image, providerSync.connected.length, providerSync.pushProgress, source, title]);
 
-  // ── Auto-skip ──
-  useEffect(() => {
-    if (!skipKind || !autoSkip) return;
-    const interval = skipSegments[skipKind];
-    if (!interval || autoSkipped.current[skipKind]) return;
-    autoSkipped.current[skipKind] = true;
-    videoRef.current?.seek(interval.endTime);
-  }, [skipKind, skipSegments, autoSkip]);
-
   // ── Video source URL ──
   // Backend stream URLs are already proxied (/api/v1/proxy?...). Those must
   // play as-is — re-wrapping yields a proxy-of-proxy URL the backend rejects
@@ -1383,10 +1399,48 @@ export default function WatchScreen() {
     }
   }, []);
 
-  // ── PanResponder gesture handler (replaces GestureLayer component) ──
+  // ── PanResponder gesture handler — zoned state machine ──
+  // Each gesture owns a screen zone so they can never fire together:
+  //   outer-left  (x < 35%)  → vertical swipe = brightness (never 2x, never seek-hold)
+  //   outer-right (x > 65%)  → vertical swipe = volume     (never 2x, never seek-hold)
+  //   center      (35–65%)   → hold still 550ms = 2x speed  (never brightness/volume)
+  //   left 40% double/triple → -10s / -20s · right 40% → +10s / +30s · center double → play/pause
+  // Modes are exclusive: pending → swiping | holding | released-as-tap. Moving
+  // cancels holding, holding ignores swipes, taps require <10px movement.
+  type GestureMode = "idle" | "pending" | "swiping" | "holding";
+  type GestureZone = "left" | "center" | "right";
+  const gestureModeRef = useRef<GestureMode>("idle");
+  const gestureStartX = useRef(0);
+  const gestureStartY = useRef(0);
+  const gestureStartTime = useRef(0);
+  const gestureZoneRef = useRef<GestureZone>("center");
   const lastTapRef = useRef<{ time: number; x: number } | null>(null);
   const singleTapTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentBrightnessVal = useRef(0.5);
+  const currentVolumeVal = useRef(1.0);
+
+  const zoneForX = (x: number): GestureZone => {
+    const w = Dimensions.get("window").width || 1;
+    if (x < w * EDGE_ZONE) return "left";
+    if (x > w * (1 - EDGE_ZONE)) return "right";
+    return "center";
+  };
+
+  const seekZoneForX = (x: number): "left" | "center" | "right" => {
+    const w = Dimensions.get("window").width || 1;
+    if (x < w * SEEK_ZONE) return "left";
+    if (x > w * (1 - SEEK_ZONE)) return "right";
+    return "center";
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimeout.current) { clearTimeout(longPressTimeout.current); longPressTimeout.current = null; }
+  };
+
+  const stopHoldSpeed = useCallback(() => {
+    if (is2xSeeking) { setIs2xSeeking(false); endHoldSpeed(); }
+  }, [is2xSeeking, endHoldSpeed]);
 
   useEffect(() => {
     return () => {
@@ -1394,17 +1448,14 @@ export default function WatchScreen() {
       if (longPressTimeout.current) clearTimeout(longPressTimeout.current);
       if (skipHoldTimer.current) clearTimeout(skipHoldTimer.current);
       if (unlockArmTimer.current) clearTimeout(unlockArmTimer.current);
+      if (tapCountTimer.current) clearTimeout(tapCountTimer.current);
     };
   }, []);
-  const gestureStartY = useRef(0);
-  const currentBrightnessVal = useRef(0.5);
-  const currentVolumeVal = useRef(1.0);
 
-  const triggerDoubleTapAnimation = useCallback((side: "left" | "right") => {
-    // A new double-tap replaces the previous flash (generation guard) — rapid
-    // taps show one ±10s label, never stacked ripples.
+  const triggerDoubleTapAnimation = useCallback((side: "left" | "right", seconds = 10) => {
     const gen = ++doubleTapGen.current;
     setDoubleTapSide(side);
+    setDoubleTapSeconds(seconds);
     doubleTapAnim.stopAnimation();
     doubleTapAnim.setValue(1);
     Animated.timing(doubleTapAnim, { toValue: 0, duration: 600, useNativeDriver: Platform.OS !== "web" }).start(() => {
@@ -1421,7 +1472,6 @@ export default function WatchScreen() {
     });
   }, [duration, markIntentionalSeek]);
 
-  // Ref mirrors so the hold-repeat timer never captures a stale closure.
   const seekRelativeRef = useRef(seekRelative);
   useEffect(() => { seekRelativeRef.current = seekRelative; }, [seekRelative]);
   const flashRef = useRef(triggerDoubleTapAnimation);
@@ -1432,17 +1482,14 @@ export default function WatchScreen() {
     skipHoldSide.current = null;
   }, []);
 
-  // Double-tap-and-hold: the second tap already jumped ±10s; while the finger
-  // stays down, keep skipping every 400ms. Ticks are silent (no haptic) and
-  // refresh the single flash label instead of stacking ripples.
-  const armSkipHold = useCallback((side: "left" | "right") => {
+  const armSkipHold = useCallback((side: "left" | "right", seconds = 10) => {
     clearSkipHold();
     skipHoldSide.current = side;
-    const delta = side === "left" ? -10 : 10;
+    const delta = side === "left" ? -seconds : seconds;
     const tick = () => {
       if (!skipHoldSide.current) return;
       seekRelativeRef.current(delta);
-      flashRef.current(side);
+      flashRef.current(side, seconds);
       skipHoldTimer.current = setTimeout(tick, SKIP_HOLD_MS);
     };
     skipHoldTimer.current = setTimeout(tick, SKIP_HOLD_MS);
@@ -1451,87 +1498,216 @@ export default function WatchScreen() {
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 12,
+        // Claim on touch-down so taps reliably reach grant/release. Chrome
+        // buttons sit above this overlay (higher zIndex) so they still win.
+        onStartShouldSetPanResponder: () => !playerLocked,
+        onMoveShouldSetPanResponder: () => !playerLocked,
+
         onPanResponderGrant: (_evt, gesture) => {
+          if (playerLocked) { gestureModeRef.current = "idle"; return; }
+          const now = Date.now();
+          gestureStartX.current = gesture.x0;
           gestureStartY.current = gesture.y0;
+          gestureStartTime.current = now;
+          gestureZoneRef.current = zoneForX(gesture.x0);
           currentBrightnessVal.current = brightness;
           currentVolumeVal.current = volume;
-          // Double-tap is detected at touch-down (not release) so the second
-          // tap can be held to keep skipping. The pending single-tap toggle
-          // is cancelled and the 2x long-press is suppressed for this touch.
+          doubleTapTouch.current = false;
+          cancelLongPress();
+
+          // ── Multi-tap counting happens on touch-DOWN (not release) so the
+          // seek feels instant and double-tap-and-hold keeps skipping while
+          // the finger stays down. ──
           const prior = lastTapRef.current;
-          if (!playerLocked && prior && Date.now() - prior.time < DOUBLE_TAP_WINDOW_MS && Math.abs(gesture.x0 - prior.x) < 80) {
+          const isFollowUp = Boolean(prior && (now - prior.time) < TRIPLE_TAP_WINDOW_MS && Math.abs(gesture.x0 - prior.x) < 80);
+          if (isFollowUp) {
+            // Second tap down kills the pending single-tap toggle immediately —
+            // otherwise controls flash on every double-tap.
             if (singleTapTimeout.current) { clearTimeout(singleTapTimeout.current); singleTapTimeout.current = null; }
-            if (longPressTimeout.current) { clearTimeout(longPressTimeout.current); longPressTimeout.current = null; }
-            lastTapRef.current = null;
+            if (tapCountTimer.current) clearTimeout(tapCountTimer.current);
+            tapCountRef.current += 1;
+            const zone = seekZoneForX(gesture.x0);
+
+            if (tapCountRef.current >= 3) {
+              // Triple-tap confirmed on the 3rd touch-down. The 2nd tap
+              // already jumped ±10s, so add the difference to land exactly on
+              // the labeled totals (-20s left / +30s right).
+              lastTapRef.current = null;
+              tapCountRef.current = 0;
+              doubleTapTouch.current = true;
+              gestureModeRef.current = "pending";
+              if (zone === "left") {
+                seekRelativeRef.current(-10);
+                flashRef.current("left", 20);
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                armSkipHold("left", 10);
+              } else if (zone === "right") {
+                seekRelativeRef.current(20);
+                flashRef.current("right", 30);
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                armSkipHold("right", 10);
+              } else {
+                // Center triple = play/pause, no skip-hold.
+                setIsPlaying((p) => !p);
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              }
+              return;
+            }
+
+            // Second tap down: seek instantly, hold continues skipping.
             doubleTapTouch.current = true;
-            const side = gesture.x0 < Dimensions.get("window").width / 2 ? "left" : "right";
-            seekRelativeRef.current(side === "left" ? -10 : 10);
-            flashRef.current(side);
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-            armSkipHold(side);
+            gestureModeRef.current = "pending";
+            if (zone === "left") {
+              seekRelativeRef.current(-10);
+              flashRef.current("left", 10);
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              armSkipHold("left", 10);
+            } else if (zone === "right") {
+              seekRelativeRef.current(10);
+              flashRef.current("right", 10);
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              armSkipHold("right", 10);
+            } else {
+              setIsPlaying((p) => !p);
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            }
+            // If no 3rd tap lands in the window, the count simply resets.
+            tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; }, TRIPLE_TAP_WINDOW_MS);
             return;
           }
-          doubleTapTouch.current = false;
-          longPressTimeout.current = setTimeout(() => {
-            if (!playerLocked) {
+
+          // ── First touch: this IS tap #1 — enter PENDING, arm center-only
+          // long-press for 2x. Outer zones never arm 2x — a brightness/volume
+          // swipe can never trigger speed, and a center hold can never touch
+          // brightness.
+          tapCountRef.current = 1;
+          gestureModeRef.current = "pending";
+          if (gestureZoneRef.current === "center") {
+            longPressTimeout.current = setTimeout(() => {
+              if (gestureModeRef.current !== "pending") return;
+              gestureModeRef.current = "holding";
               setIs2xSeeking(true);
               beginHoldSpeed();
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-            }
-          }, 450);
+            }, LONG_PRESS_MS);
+          }
         },
+
         onPanResponderMove: (_evt, gesture) => {
-          if (playerLocked) return;
-          if (Math.abs(gesture.dx) > 10 && longPressTimeout.current) {
-            clearTimeout(longPressTimeout.current);
-            longPressTimeout.current = null;
+          if (playerLocked || gestureModeRef.current === "idle") return;
+          const mode = gestureModeRef.current;
+          // Movement from the touch-down point (not cumulative drift).
+          const dxFromStart = gesture.moveX - gestureStartX.current;
+          const dyFromStart = gesture.moveY - gestureStartY.current;
+          const absDx = Math.abs(dxFromStart);
+          const absDy = Math.abs(dyFromStart);
+
+          // Any real movement kills a center hold before it starts, and ends
+          // it if it already started — swipes and 2x never coexist.
+          if (mode === "pending" && (absDx > TAP_SLOP_PX || absDy > TAP_SLOP_PX)) cancelLongPress();
+          if (mode === "holding" && (absDx > TAP_SLOP_PX || absDy > TAP_SLOP_PX)) {
+            gestureModeRef.current = "idle";
+            stopHoldSpeed();
+            clearSkipHold();
+            return;
           }
-          // A real swipe is not a hold — stop the skip repeater.
-          if ((Math.abs(gesture.dx) > 10 || Math.abs(gesture.dy) > 10) && skipHoldSide.current) clearSkipHold();
-          const screenWidth = Dimensions.get("window").width;
-          const delta = -gesture.dy / 250;
-          // 5% steps: the HUD stops flickering through every integer and the
-          // value matches what the bar shows.
-          const snapToStep = (value: number) => Math.max(0, Math.min(1, Math.round(value * 20) / 20));
-          if (gesture.x0 < screenWidth / 2) {
-            const newBrightness = snapToStep(currentBrightnessVal.current + delta);
-            if (newBrightness !== brightness) {
-              setBrightness(newBrightness);
-              if (Platform.OS !== "web") Brightness.setBrightnessAsync(newBrightness).catch(() => {});
+
+          // Horizontal drift cancels pending taps — this is not our gesture.
+          if (mode === "pending" && absDx > HORIZONTAL_CANCEL_PX && absDy < SWIPE_ACTIVATE_PX) {
+            gestureModeRef.current = "idle";
+            cancelLongPress();
+            clearSkipHold();
+            return;
+          }
+
+          // Vertical swipe engages ONLY from an outer-zone start with a
+          // dominant vertical direction. Center starts never swipe.
+          if (mode === "pending") {
+            const startZone = gestureZoneRef.current;
+            const verticalDominant = absDy > SWIPE_ACTIVATE_PX && absDy > absDx * SWIPE_DIRECTION_RATIO;
+            if (!verticalDominant) return;
+            if (startZone === "center") return; // center vertical = dead, stays pending
+            gestureModeRef.current = "swiping";
+            cancelLongPress();
+            stopHoldSpeed();
+            clearSkipHold();
+          }
+
+          if (gestureModeRef.current === "swiping") {
+            const startZone = gestureZoneRef.current;
+            if (startZone === "center") return;
+            // Subtract the activation deadzone so the value doesn't jump.
+            const effectiveDy = dyFromStart - Math.sign(dyFromStart) * SWIPE_ACTIVATE_PX;
+            const delta = -effectiveDy / 250;
+            const snapToStep = (value: number) => Math.max(0, Math.min(1, Math.round(value * 20) / 20));
+            if (startZone === "left") {
+              const newBrightness = snapToStep(currentBrightnessVal.current + delta);
+              if (newBrightness !== brightness) {
+                setBrightness(newBrightness);
+                if (Platform.OS !== "web") Brightness.setBrightnessAsync(newBrightness).catch(() => {});
+              }
+              setBrightnessHud(Math.round(newBrightness * 100));
+            } else {
+              const newVol = snapToStep(currentVolumeVal.current + delta);
+              if (newVol !== volume) setVolume(newVol);
+              setVolumeHud(Math.round(newVol * 100));
             }
-            setBrightnessHud(Math.round(newBrightness * 100));
-          } else {
-            const newVol = snapToStep(currentVolumeVal.current + delta);
-            if (newVol !== volume) setVolume(newVol);
-            setVolumeHud(Math.round(newVol * 100));
           }
         },
+
         onPanResponderRelease: (_evt, gesture) => {
-          if (longPressTimeout.current) { clearTimeout(longPressTimeout.current); longPressTimeout.current = null; }
-          if (is2xSeeking) { setIs2xSeeking(false); endHoldSpeed(); }
+          const mode = gestureModeRef.current;
+          gestureModeRef.current = "idle";
+          cancelLongPress();
+
+          if (mode === "holding") {
+            stopHoldSpeed();
+            clearSkipHold();
+            setTimeout(() => { setVolumeHud(null); setBrightnessHud(null); }, 800);
+            return;
+          }
+          if (mode === "swiping") {
+            stopHoldSpeed();
+            clearSkipHold();
+            setTimeout(() => { setVolumeHud(null); setBrightnessHud(null); }, 800);
+            return;
+          }
+          if (mode !== "pending") return;
+
+          // A multi-tap touch already consumed this release for seeking.
+          if (doubleTapTouch.current) {
+            doubleTapTouch.current = false;
+            clearSkipHold();
+            return;
+          }
           clearSkipHold();
-          setTimeout(() => { setVolumeHud(null); setBrightnessHud(null); }, 800);
-          // This touch was the second tap of a double-tap (seek already
-          // applied at touch-down) — release only ends the hold.
-          if (doubleTapTouch.current) { doubleTapTouch.current = false; return; }
-          if (Math.abs(gesture.dx) < 8 && Math.abs(gesture.dy) < 8) {
+
+          // Single tap: tiny movement + quick lift, otherwise ignore.
+          const dxFromStart = gesture.moveX - gestureStartX.current;
+          const dyFromStart = gesture.moveY - gestureStartY.current;
+          const quick = Date.now() - gestureStartTime.current < 400;
+          if (Math.abs(dxFromStart) < TAP_SLOP_PX && Math.abs(dyFromStart) < TAP_SLOP_PX && quick) {
             const now = Date.now();
-            const { locationX } = _evt.nativeEvent;
             if (singleTapTimeout.current) clearTimeout(singleTapTimeout.current);
-            lastTapRef.current = { time: now, x: locationX };
-            singleTapTimeout.current = setTimeout(() => { setShowControls((prev) => !prev); lastTapRef.current = null; }, DOUBLE_TAP_WINDOW_MS);
+            lastTapRef.current = { time: now, x: gestureStartX.current };
+            if (tapCountTimer.current) clearTimeout(tapCountTimer.current);
+            tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; }, TRIPLE_TAP_WINDOW_MS);
+            // Delayed past the double-tap window so a 2nd tap can cancel it.
+            singleTapTimeout.current = setTimeout(() => { setShowControls((prev) => !prev); }, DOUBLE_TAP_WINDOW_MS);
+          } else {
+            lastTapRef.current = null;
           }
         },
+
         onPanResponderTerminate: () => {
-          if (longPressTimeout.current) { clearTimeout(longPressTimeout.current); longPressTimeout.current = null; }
-          if (is2xSeeking) { setIs2xSeeking(false); endHoldSpeed(); }
+          gestureModeRef.current = "idle";
+          cancelLongPress();
+          stopHoldSpeed();
           clearSkipHold();
           doubleTapTouch.current = false;
         },
       }),
-    [armSkipHold, brightness, clearSkipHold, is2xSeeking, playerLocked, seekRelative, volume, beginHoldSpeed, endHoldSpeed, triggerDoubleTapAnimation],
+    [armSkipHold, brightness, clearSkipHold, playerLocked, volume, beginHoldSpeed, stopHoldSpeed, triggerDoubleTapAnimation],
   );
 
   const skip = (kind: SkipKind) => {
@@ -1558,6 +1734,41 @@ export default function WatchScreen() {
     setLastPlayerError(null);
     setError(null);
     setRefreshNonce((v) => v + 1);
+  };
+
+  // Backend `downloads[]` links are external download pages (e.g. provider
+  // file hosts), not direct files — they open in the external browser, never
+  // through the in-app proxy saver. Every tap confirms with a "leaving the
+  // app" popup first. SUB and DUB option lists stay separate because they are
+  // built from the language-filtered provider list.
+  const openBackendDownload = (option: BackendDownloadOption) => {
+    setActivePanel(null);
+    const quality = String(option.quality ?? option.label).toUpperCase();
+    Alert.alert("You're leaving Aniraku", `Open the external ${quality} download page in your browser?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Continue",
+        onPress: () => {
+          void (async () => {
+            try {
+              await Linking.openURL(option.url);
+              setDownloadMessage(`OPENING ${quality} DOWNLOAD…`);
+            } catch {
+              setDownloadMessage("COULD NOT OPEN DOWNLOAD LINK.");
+            }
+          })();
+        },
+      },
+    ]);
+  };
+
+  // Download icon behavior: quality options → picker modal; exactly one
+  // default-label link → open it directly; nothing from the backend → legacy
+  // in-app save of the playing stream source below.
+  const onDownloadPress = () => {
+    if (backendDownloadOptions.length === 0) { void startDownload(); return; }
+    if (hasQualityBackendDownloads(backendDownloadOptions)) { setActivePanel("download"); return; }
+    void openBackendDownload(backendDownloadOptions[0]);
   };
 
   const startDownload = async () => {
@@ -1628,17 +1839,17 @@ export default function WatchScreen() {
 
   const nextEpisode = useCallback(() => { if (nextKnownEpisode) goToEpisode(nextKnownEpisode); }, [goToEpisode, nextKnownEpisode]);
 
-  // ── Up-next end-card: quiet 10s countdown, cancellable, autoNext-aware ──
+  // ── Up-next card: surfaces near the finish line (or at the end) and waits
+  // for the user. No countdown, no auto-play — PLAY NOW or dismiss.
   const upNextKey = `${animeId}:${episode}`;
   const nextEpisodeDisplay = nextKnownEpisode ? displayEpisodes.find((item) => item.number === nextKnownEpisode) : undefined;
 
   const showUpNext = useCallback(() => {
-    if (!autoNext || !nextKnownEpisode) return;
+    if (!nextKnownEpisode) return;
     if (upNextShownFor.current === upNextKey) return;
     upNextShownFor.current = upNextKey;
-    setUpNextCountdown(UP_NEXT_SECONDS);
     setUpNextVisible(true);
-  }, [autoNext, nextKnownEpisode, upNextKey]);
+  }, [nextKnownEpisode, upNextKey]);
 
   const dismissUpNext = useCallback(() => { setUpNextVisible(false); }, []);
 
@@ -1654,18 +1865,7 @@ export default function WatchScreen() {
     if (currentTime > 0 && currentTime / duration >= 0.9) showUpNext();
   }, [currentTime, duration, showUpNext, source, upNextKey, upNextVisible]);
 
-  useEffect(() => {
-    if (!upNextVisible) return;
-    if (upNextCountdown <= 0) {
-      setUpNextVisible(false);
-      if (nextKnownEpisode) goToEpisode(nextKnownEpisode);
-      return;
-    }
-    const id = setTimeout(() => setUpNextCountdown((value) => value - 1), 1000);
-    return () => clearTimeout(id);
-  }, [goToEpisode, nextKnownEpisode, upNextCountdown, upNextVisible]);
-
-  useEffect(() => { setUpNextVisible(false); setUpNextCountdown(UP_NEXT_SECONDS); }, [animeId, episode]);
+  useEffect(() => { setUpNextVisible(false); }, [animeId, episode]);
 
   // ── Swipe between episodes ──
   const swipeOffsetX = useRef(new Animated.Value(0)).current;
@@ -1930,7 +2130,7 @@ export default function WatchScreen() {
       {doubleTapSide ? (
         <Animated.View style={[styles.doubleTapOverlay, { left: doubleTapSide === "left" ? "12%" : undefined, right: doubleTapSide === "right" ? "12%" : undefined, opacity: doubleTapAnim }]} pointerEvents="none">
           {doubleTapSide === "left" ? <Rewind size={36} color="#FFF" weight="bold" /> : <FastForward size={36} color="#FFF" weight="bold" />}
-          <Text style={styles.doubleTapText}>{doubleTapSide === "left" ? "-10s" : "+10s"}</Text>
+          <Text style={styles.doubleTapText}>{doubleTapSide === "left" ? `-${doubleTapSeconds}s` : `+${doubleTapSeconds}s`}</Text>
         </Animated.View>
       ) : null}
 
@@ -2039,7 +2239,7 @@ export default function WatchScreen() {
                     <DownloadSimple size={19} color={nothing.green} weight="bold" />
                   </Pressable>
                 ) : (
-                  <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); void startDownload(); }} accessibilityRole="button" accessibilityLabel="Download episode" style={styles.railBtn} hitSlop={8}>
+                  <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); onDownloadPress(); }} accessibilityRole="button" accessibilityLabel="Download episode" accessibilityHint="Opens quality options when the provider offers them" style={styles.railBtn} hitSlop={8}>
                     <Download size={19} color="#FFF" weight="bold" />
                   </Pressable>
                 )}
@@ -2068,12 +2268,12 @@ export default function WatchScreen() {
         </Pressable>
       ) : null}
 
-      {/* Up-next end-card: next poster + title, 10s countdown, cancellable. */}
+      {/* Up-next card: next poster + title, waits for the user. No auto-play. */}
       {source && upNextVisible && nextKnownEpisode && !playerLocked ? (
         <View style={styles.upNextCard}>
           {nextEpisodeDisplay?.thumbnail ? <Image source={{ uri: nextEpisodeDisplay.thumbnail }} style={styles.upNextPoster} contentFit="cover" cachePolicy="memory-disk" /> : null}
           <View style={styles.upNextCopy}>
-            <Text style={styles.upNextKicker}>{`UP NEXT · ${upNextCountdown}S`}</Text>
+            <Text style={styles.upNextKicker}>UP NEXT</Text>
             <Text numberOfLines={1} style={styles.upNextTitle}>{`EP ${nextKnownEpisode}${nextEpisodeDisplay?.title ? ` · ${nextEpisodeDisplay.title}` : ""}`}</Text>
             <View style={styles.upNextRow}>
               <Pressable onPress={() => { setUpNextVisible(false); goToEpisode(nextKnownEpisode); }} accessibilityRole="button" accessibilityLabel="Play next episode now" style={styles.upNextPlay} hitSlop={8}>
@@ -2267,6 +2467,11 @@ export default function WatchScreen() {
     <Modal visible={activePanel === "server"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>{t("player.selectServer")}</Text>{providers.sub.length > 0 && providers.dub.length > 0 ? <View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} onPress={() => selectLanguage(item)} style={[styles.language, language === item && styles.languageActive]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${providers.sub.length}` : `DUB · ${providers.dub.length}`}</Text></Pressable>)}</View> : null}
       {activeProviders.map((provider, index) => <Pressable key={provider.id} onPress={() => { selectServer(index); setActivePanel(null); }} style={[styles.modalItem, index === serverIndex && styles.modalItemActive]}><Text style={[styles.modalItemText, index === serverIndex && styles.modalItemTextActive]}>{provider.label}</Text>{index === serverIndex && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
 
+    {/* Download quality picker: backend per-quality file links for this language */}
+    <Modal visible={activePanel === "download"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>DOWNLOAD · {language.toUpperCase()} · EP {episode}</Text>
+      {backendDownloadOptions.map((option) => <Pressable key={option.url} onPress={() => { void openBackendDownload(option); }} style={styles.modalItem}><View style={{ flex: 1 }}><Text style={styles.modalItemText}>{option.quality ?? option.label}</Text>{option.quality ? <Text style={styles.modalItemSub}>{option.label}</Text> : null}</View><Download size={18} color={nothing.muted} weight="bold" /></Pressable>)}
+    </View></Pressable></Modal>
+
     {/* Chapter List Modal */}
     <Modal visible={activePanel === "chapters" && !playerLocked} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.chapterModalSheet}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={styles.modalTitle}>{t("player.chapters")}</Text><Pressable onPress={() => setActivePanel(null)}><X size={20} color={nothing.muted} weight="bold" /></Pressable></View>
@@ -2406,6 +2611,7 @@ const styles = StyleSheet.create({
   modalItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" },
   modalItemActive: { backgroundColor: "rgba(255,77,77,0.06)" },
   modalItemText: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600" },
+  modalItemSub: { color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: "600", marginTop: 1 },
   modalItemTextActive: { color: nothing.red, fontWeight: "700" },
   chapterModalSheet: { backgroundColor: "rgba(9,9,9,0.96)", borderTopLeftRadius: 2, borderTopRightRadius: 2, padding: 14, gap: 4, maxHeight: "70%", borderWidth: 1, borderColor: "rgba(255,255,255,0.06)" },
   chapterList: { gap: 1 },

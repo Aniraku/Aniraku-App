@@ -6,6 +6,19 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.6.2 — Player gestures, downloads & playback honesty
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- Player gestures rewritten as a zoned state machine: outer-left swipe = brightness, outer-right swipe = volume, center hold = 2x, double/triple-tap = seek (−10s/+10s, −20s/+30s), center taps = play/pause. Gestures can no longer fire together.
+- Downloads match the backend: quality picker (1080p/720p/…) when offered, direct open otherwise; external pages open in the browser behind a "You're leaving Aniraku" confirmation; SUB/DUB lists separate.
+- Hentai embed fallback: embed-only titles no longer die at server discovery — the embed mounts inline in the WebView.
+- Removed auto-next and auto-skip: a persistent UP NEXT card near the finish line waits for manual PLAY NOW or dismiss. Manual Skip Intro/Outro unchanged.
+- Notification bell opens an in-app bottom sheet (unread/all, mark-read) instead of the profile page.
+- VIEW ALL / See all open filtered search (Trending, Ongoing, Popular, Top Movies, Top in genre, Coming Soon).
+- Ships three builds: `arm64`, `arm32`, and `universal` (universal contains all architectures).
+- Bumps the Android versionCode to 59.
+
 ## v5.6.0 — Anilab successor: animated UI, GOATED player, onboarding
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`

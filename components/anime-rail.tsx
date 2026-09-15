@@ -4,11 +4,11 @@ import type { Anime } from "@/lib/types";
 import { AnimeCard } from "@/components/anime-card";
 import { nothing } from "@/components/nothing-ui";
 
-export function AnimeRail({ label, title, items }: { label: string; title: string; items: Anime[] }) {
+export function AnimeRail({ label, title, items, seeAllParams }: { label: string; title: string; items: Anime[]; seeAllParams?: Record<string, string> }) {
   return <View style={styles.section}>
     <View style={styles.heading}>
       <View style={styles.headingCopy}><Text style={styles.label}>{label}</Text><Text style={styles.title}>{title}</Text></View>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title} catalog`} accessibilityHint="Double tap to browse the full catalog" onPress={() => router.push("/catalog" as never)} style={styles.browse}><Text style={styles.browseText}>VIEW ALL</Text><Text style={styles.browseArrow}>↗</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title} catalog`} accessibilityHint="Double tap to browse the full catalog" onPress={() => { if (seeAllParams) router.push({ pathname: "/search", params: seeAllParams } as never); else router.push("/catalog" as never); }} style={styles.browse}><Text style={styles.browseText}>VIEW ALL</Text><Text style={styles.browseArrow}>↗</Text></Pressable>
     </View>
     <FlatList
       horizontal

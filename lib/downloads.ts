@@ -8,6 +8,7 @@ import type { StreamSource } from "@/lib/types";
 import { downloadLabel, filterExistingDownloadEntries, isDownloadableSource, publicDownloadFilename, selectDownloadSourceForQuality, selectMaximumQualityDownload } from "@/lib/download-policy";
 
 export { downloadLabel, filterExistingDownloadEntries, isDownloadableSource, publicDownloadFilename, selectDownloadSourceForQuality, selectMaximumQualityDownload } from "@/lib/download-policy";
+export { buildBackendDownloadOptions, hasQualityBackendDownloads, parseBackendDownloadQuality, sortBackendDownloadOptions, type BackendDownloadOption } from "@/lib/download-policy";
 
 const INDEX_KEY = "aniraku.offline-downloads.v1";
 const PUBLIC_DOWNLOADS_DIRECTORY_KEY = "aniraku.public-downloads-directory.v1";

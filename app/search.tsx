@@ -65,8 +65,12 @@ function SearchResultRow({ anime, onPress }: { anime: any; onPress: () => void }
 }
 
 export default function SearchScreen() {
-  const params = useLocalSearchParams<{ genre?: string }>();
+  const params = useLocalSearchParams<{ genre?: string; sort?: string; status?: string; format?: string; title?: string }>();
   const genreFilter = params.genre || null;
+  const sortFilter = params.sort ? params.sort.split(",").map((s) => s.trim()).filter(Boolean) : null;
+  const statusFilter = params.status || null;
+  const formatFilter = params.format || null;
+  const categoryTitle = params.title || null;
   const nsfw = useNsfwPreference();
   const isAdultParam = nsfwFilterParam(nsfw.enabled);
   const [input, setInput] = useState("");
@@ -98,12 +102,15 @@ export default function SearchScreen() {
   }, [normalizedInput]);
 
   const waitingForInput = normalizedInput.length > 1 && query !== normalizedInput;
+  const hasCategory = Boolean(genreFilter || sortFilter || statusFilter || formatFilter);
   const isGenreMode = Boolean(genreFilter);
-  const searchQuery = isGenreMode ? (query || " ") : query;
+  const isCategoryMode = hasCategory;
+  const categoryLabel = categoryTitle || genreFilter || "BROWSE";
+  const searchQuery = isCategoryMode ? (query || " ") : query;
   const results = useQuery({
-    queryKey: ["search", searchQuery, genreFilter, isAdultParam],
-    queryFn: () => getAnimePage({ search: isGenreMode && !query ? undefined : searchQuery, genre: genreFilter || undefined, perPage: 20, sort: ["SEARCH_MATCH"], isAdult: isAdultParam }),
-    enabled: isGenreMode || query.length > 1,
+    queryKey: ["search", searchQuery, genreFilter, sortFilter?.join(","), statusFilter, formatFilter, isAdultParam],
+    queryFn: () => getAnimePage({ search: isCategoryMode && !query ? undefined : searchQuery, genre: genreFilter || undefined, sort: sortFilter || ["SEARCH_MATCH"], status: statusFilter || undefined, format: formatFilter || undefined, perPage: 20, isAdult: isAdultParam }),
+    enabled: isCategoryMode || query.length > 1,
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     refetchOnMount: false,
@@ -162,7 +169,7 @@ export default function SearchScreen() {
     ]);
   }, []);
 
-  const isIdle = !isGenreMode && normalizedInput.length <= 1;
+  const isIdle = !isCategoryMode && normalizedInput.length <= 1;
 
   return <NativeScreen scroll={false} style={styles.fill}>
     <View style={styles.header}>
@@ -171,8 +178,8 @@ export default function SearchScreen() {
       </Pressable>
       <View style={styles.searchInputWrap}>
         <AppIcon name="magnify" size={18} color={nothing.muted} />
-        <TextInput autoFocus={!isGenreMode} value={input} onChangeText={setInput} placeholder={genreFilter ? `Search in ${genreFilter}...` : "Search anime..."} placeholderTextColor={nothing.dim} style={styles.input} returnKeyType="search" />
-        {genreFilter ? <Pressable onPress={() => router.back()} style={styles.genreClear}><Text style={styles.genreClearText}>{genreFilter.toUpperCase()}</Text><AppIcon name="close" size={14} color={nothing.red} /></Pressable> : null}
+        <TextInput autoFocus={!isCategoryMode} value={input} onChangeText={setInput} placeholder={hasCategory ? `Search in ${categoryLabel}...` : "Search anime..."} placeholderTextColor={nothing.dim} style={styles.input} returnKeyType="search" />
+        {hasCategory ? <Pressable onPress={() => router.back()} style={styles.genreClear}><Text style={styles.genreClearText}>{categoryLabel.toUpperCase()}</Text><AppIcon name="close" size={14} color={nothing.red} /></Pressable> : null}
       </View>
     </View>
 
@@ -210,15 +217,15 @@ export default function SearchScreen() {
         </View>
       </View>
     ) : waitingForInput || results.isPending ? (
-      <LoadingState label={isGenreMode ? `Loading ${genreFilter} anime` : `Searching for "${normalizedInput}"`} />
+      <LoadingState label={isCategoryMode ? `Loading ${categoryLabel} anime` : `Searching for "${normalizedInput}"`} />
     ) : results.isError || !results.data ? (
       <ErrorState message={results.error?.message ?? "Search is unavailable."} onRetry={retrySearch} retryDisabled={retryIsBlocked} retryLabel={retryIsBlocked ? `TRY AGAIN IN ${retrySeconds}S` : "TRY AGAIN"} />
     ) : results.data.media.length === 0 ? (
-      <EmptyState label={isGenreMode ? `No ${genreFilter} anime found.` : `No titles found for "${query}".`} action={!retryIsBlocked ? { label: "Retry", onPress: retrySearch } : undefined} />
+      <EmptyState label={isCategoryMode ? `No ${categoryLabel} anime found.` : `No titles found for "${query}".`} action={!retryIsBlocked ? { label: "Retry", onPress: retrySearch } : undefined} />
     ) : (
       <View style={styles.resultsWrap}>
         <View style={styles.resultsHead}>
-          <DotLabel tone="live">{isGenreMode ? genreFilter?.toUpperCase() : "TOP SEARCH"}</DotLabel>
+          <DotLabel tone="live">{isCategoryMode ? categoryLabel?.toUpperCase() : "TOP SEARCH"}</DotLabel>
         </View>
         <FlatList
           data={results.data.media}
