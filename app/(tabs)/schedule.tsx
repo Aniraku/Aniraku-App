@@ -24,7 +24,12 @@ export default function ScheduleScreen() {
     if (total <= 50) return page1;
     const page2 = await getAiringSchedule(2, 50, window);
     return { ...page1, airingSchedules: [...page1.airingSchedules, ...page2.airingSchedules] };
-  } });
+  },
+    // A 7-day window barely moves minute to minute — cache so tab switches
+    // are instant instead of re-paying two serial backend rounds.
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+  });
   const groups = useMemo(() => {
     const result = new Map<string, AiringScheduleItem[]>();
     schedule.data?.airingSchedules.forEach((item) => { const key = new Date(item.airingAt * 1000).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }); const current = result.get(key) ?? []; result.set(key, [...current, item]); });

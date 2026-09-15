@@ -6,6 +6,20 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.6.3 — Embed parity, backend-only providers & player fixes
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- Embed player wears the same frame as the native inline player: scrimmed top bar (back / title / EMBED pill) and scrimmed bottom deck (provider line / fullscreen).
+- Providers strictly backend-listed: no fixed fallback names anywhere; server picker only shows servers carrying sources or download links.
+- Embed routing fix: embed page URLs can no longer leak into the native direct/proxy chain; hentai embed-only responses mount immediately.
+- Tap show/hide fixed (stale tap coordinate), fullscreen forces landscape on entry, chrome auto-hide restored.
+- Schedule/Random faster: AniList throttle 2.1s → 0.9s, 5-min cache on both tabs.
+- Read episodes never re-trigger outside notifications (episode-stable dedupe, immune to Sub→Sub&Dub flip).
+- Avatars never render blank: new AvatarImage with error fallback, used in profile, grid, and comments.
+- Ships three builds: `arm64`, `arm32`, and `universal` (universal contains all architectures).
+- Bumps the Android versionCode to 60.
+
 ## v5.6.2 — Player gestures, downloads & playback honesty
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`

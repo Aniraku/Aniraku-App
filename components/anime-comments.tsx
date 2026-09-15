@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { router } from "expo-router";
 import { ActivityIndicator, Alert, Animated, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppIcon } from "@/components/app-icon";
+import { AvatarImage } from "@/components/avatar-image";
 import { ErrorState, LoadingState } from "@/components/async-state";
 import { DotLabel, NothingButton, NothingCard, nothing } from "@/components/nothing-ui";
 import { useComments, type SharedComment } from "@/hooks/use-comments";
@@ -24,7 +25,7 @@ function elapsedTime(iso: string) {
 function CommentAuthor({ comment }: { comment: SharedComment }) {
   const avatar = avatarUrl(comment.author?.avatar_url);
   const name = authorName(comment);
-  return <View style={styles.commentAuthor}>{avatar ? <Image source={{ uri: avatar }} style={styles.avatar} /> : <View style={styles.initialAvatar}><Text style={styles.initialAvatarText}>{name.slice(0, 1).toUpperCase()}</Text></View>}<View style={styles.authorCopy}><Text style={styles.authorName} numberOfLines={1}>{name}</Text><Text style={styles.authorMeta}>{comment.episode_number ? `EP ${comment.episode_number} · ` : ""}{elapsedTime(comment.created_at)}</Text></View></View>;
+  return <View style={styles.commentAuthor}><AvatarImage uri={avatar} name={name} size={28} rounded /><View style={styles.authorCopy}><Text style={styles.authorName} numberOfLines={1}>{name}</Text><Text style={styles.authorMeta}>{comment.episode_number ? `EP ${comment.episode_number} · ` : ""}{elapsedTime(comment.created_at)}</Text></View></View>;
 }
 
 function SpoilerContent({ children }: { children: React.ReactNode }) {

@@ -1,7 +1,12 @@
 import { APP_CONFIG } from "@/lib/app-config";
 import type { AiringSchedulePage, Anime, AnimePage } from "@/lib/types";
 
-const CLIENT_REQUEST_INTERVAL_MS = process.env.VITEST ? 0 : 2_100;
+// AniList allows 90 req/min. The global slot serializes every query in the
+// app (home chain, schedule pages, search), so this interval dominates perceived
+// speed: 2.1s × 4 serial home queries ≈ 8s of pure waiting. 900ms stays well
+// under the limit (~65/min worst case) with the remaining<=2 guard + 429
+// backoff below as safety nets.
+const CLIENT_REQUEST_INTERVAL_MS = process.env.VITEST ? 0 : 900;
 const REQUEST_CACHE_TTL_MS = 5 * 60_000;
 const STALE_CACHE_TTL_MS = 30 * 60_000;
 const responseCache = new Map<string, { expiresAt: number; staleUntil: number; value: unknown }>();

@@ -301,6 +301,20 @@ export default function WatchScreen() {
     void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
   }, []);
 
+  // Fullscreen entry forces landscape even with system auto-rotate OFF (a
+  // sensor lock alone keeps portrait when the user holds the phone upright,
+  // which read as "fullscreen does nothing"). Fixed normal landscape;
+  // exiting fullscreen unlocks again.
+  const lockForceLandscape = useCallback(() => {
+    if (Platform.OS === "web") return;
+    if (Platform.OS === "android") {
+      // ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+      void ScreenOrientation.lockPlatformAsync({ screenOrientationConstantAndroid: 0 }).catch(() => {});
+      return;
+    }
+    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+  }, []);
+
   const toggleOrientationLock = useCallback(() => {
     setOrientationLocked((prev) => {
       const next = !prev;
@@ -372,6 +386,14 @@ export default function WatchScreen() {
   // single default option.
   const backendDownloadOptions = useMemo(() => sortBackendDownloadOptions(buildBackendDownloadOptions(activeProviders)), [activeProviders]);
   const backendDownloads = activeProvider?.downloads ?? [];
+  // Server picker lists only providers that actually carry something to play
+  // (stream sources or backend download links) — every row is backend-listed,
+  // never a fixed fallback name. Original indices are kept so selectServer
+  // stays aligned with activeProviders.
+  const selectableProviders = useMemo(() => activeProviders
+    .map((provider, index) => ({ provider, index }))
+    .filter(({ provider }) => (provider.sources?.length ?? 0) > 0 || (provider.downloads?.length ?? 0) > 0),
+  [activeProviders]);
   const currentRating = ratings.scoreFor(episode) ?? 0;
   const skipKind = activeSkipKind(skipSegments, currentTime);
 
@@ -596,7 +618,6 @@ export default function WatchScreen() {
 
     const fetchServers = async (attempt: number) => {
       setServerAttempt(attempt + 1);
-      const languageFallback = "sub" as Language;
       const [subs, dubs] = await Promise.all([
         getServers(animeId, episode, "sub").catch(() => [] as Server[]),
         getServers(animeId, episode, "dub").catch(() => [] as Server[]),
@@ -611,25 +632,14 @@ export default function WatchScreen() {
       if (preferred === "dub" && dubs.length) { setLanguage("dub"); }
       else if (preferred === "sub" && subs.length) { setLanguage("sub"); }
       else if (!subs.length && dubs.length) { setLanguage("dub"); }
-      else if (!subs.length && !dubs.length) {
-        // Hentai tags ship embed-only sources: discovery often lists no
-        // servers, so seed the anikoto fallback slots and let /stream surface
-        // the embed — it mounts inline in the WebView, never externally.
-        if (isHentai) {
-          const phantom: Server[] = [
-            { id: `momo:${languageFallback}`, provider: "momo", label: "MOMO", lang: languageFallback },
-            { id: `niko:${languageFallback}`, provider: "niko", label: "NIKO", lang: languageFallback },
-          ];
-          setProviders({ sub: languageFallback === "sub" ? phantom : [], dub: languageFallback === "dub" ? phantom : [] });
-          setLanguage(languageFallback);
-        } else {
-          setError("We don't have streaming for this episode.");
-        }
-      }
+      // Providers come from the backend only — no fixed fallback names. When
+      // it lists nothing (hentai tags often list zero servers), the honest
+      // error below stands and no phantom rows ever appear.
+      else if (!subs.length && !dubs.length) { setError("We don't have streaming for this episode."); }
     };
     void fetchServers(0);
     return () => { cancelled = true; };
-  }, [animeId, animeQuery.isPending, canonicalEpisodes.length, clearEpisodePlayback, episode, episodeQuery.isPending, futureRelease, invalidEpisode, isHentai]);
+  }, [animeId, animeQuery.isPending, canonicalEpisodes.length, clearEpisodePlayback, episode, episodeQuery.isPending, futureRelease, invalidEpisode]);
 
   // ── Stream loading ──
   useEffect(() => {
@@ -745,6 +755,18 @@ export default function WatchScreen() {
           // handleProviderBlocked can read embed sources from `stream`.
           streamCache.current.set(cacheKey, { savedAt: Date.now(), data: response });
           setStream(response);
+          setPlaybackHeaders(response.headers ?? activeProvider.headers);
+          applySkipSegments(providerSkipSegments(response));
+          // Hentai is embed-only by definition: mount the embed straight away
+          // instead of burning refresh + rotation rounds on a heavy backend.
+          if (isHentai && refreshedEmbeds.length > 0 && shouldMountReplacementSource(sourceMounted.current, forceThisRequest)) {
+            sourceMounted.current = true;
+            setSource(null);
+            setEmbedSource(refreshedEmbeds[0]);
+            setSourceRevision((v) => v + 1);
+            setLoadingStream(false);
+            return;
+          }
           handleProviderBlockedRef.current("stream");
           return;
         }
@@ -1596,11 +1618,11 @@ export default function WatchScreen() {
         onPanResponderMove: (_evt, gesture) => {
           if (playerLocked || gestureModeRef.current === "idle") return;
           const mode = gestureModeRef.current;
-          // Movement from the touch-down point (not cumulative drift).
-          const dxFromStart = gesture.moveX - gestureStartX.current;
-          const dyFromStart = gesture.moveY - gestureStartY.current;
-          const absDx = Math.abs(dxFromStart);
-          const absDy = Math.abs(dyFromStart);
+          // Cumulative travel from touch-down. (moveX/moveY are only updated
+          // by move events, so dx/dy is the reliable measure — especially for
+          // taps, where moveX can be stale.)
+          const absDx = Math.abs(gesture.dx);
+          const absDy = Math.abs(gesture.dy);
 
           // Any real movement kills a center hold before it starts, and ends
           // it if it already started — swipes and 2x never coexist.
@@ -1637,7 +1659,7 @@ export default function WatchScreen() {
             const startZone = gestureZoneRef.current;
             if (startZone === "center") return;
             // Subtract the activation deadzone so the value doesn't jump.
-            const effectiveDy = dyFromStart - Math.sign(dyFromStart) * SWIPE_ACTIVATE_PX;
+            const effectiveDy = gesture.dy - Math.sign(gesture.dy) * SWIPE_ACTIVATE_PX;
             const delta = -effectiveDy / 250;
             const snapToStep = (value: number) => Math.max(0, Math.min(1, Math.round(value * 20) / 20));
             if (startZone === "left") {
@@ -1683,10 +1705,10 @@ export default function WatchScreen() {
           clearSkipHold();
 
           // Single tap: tiny movement + quick lift, otherwise ignore.
-          const dxFromStart = gesture.moveX - gestureStartX.current;
-          const dyFromStart = gesture.moveY - gestureStartY.current;
+          // dx/dy are cumulative from touch-down (0,0 for a pure tap) — never
+          // moveX/moveY here, which are stale when no move events fired.
           const quick = Date.now() - gestureStartTime.current < 400;
-          if (Math.abs(dxFromStart) < TAP_SLOP_PX && Math.abs(dyFromStart) < TAP_SLOP_PX && quick) {
+          if (Math.abs(gesture.dx) < TAP_SLOP_PX && Math.abs(gesture.dy) < TAP_SLOP_PX && quick) {
             const now = Date.now();
             if (singleTapTimeout.current) clearTimeout(singleTapTimeout.current);
             lastTapRef.current = { time: now, x: gestureStartX.current };
@@ -1939,8 +1961,8 @@ export default function WatchScreen() {
     setActivePanel(null);
     setShowControls(true);
     setManualFullscreen(true);
-    if (Platform.OS !== "web") lockSensorLandscape();
-  }, [lockSensorLandscape]);
+    if (Platform.OS !== "web") lockForceLandscape();
+  }, [lockForceLandscape]);
 
   const exitFullscreen = useCallback(() => {
     setManualFullscreen(false);
@@ -2014,9 +2036,11 @@ export default function WatchScreen() {
   useEffect(() => {
     if (!source || !showControls || activePanel) return;
     if (dragPct !== null) return; // never hide the chrome out from under a scrub
+    // NOTE: currentTime is deliberately NOT a dep — progress ticks every
+    // second and would reset this timer forever, so chrome could never hide.
     const timer = setTimeout(() => setShowControls(false), 3_500);
     return () => clearTimeout(timer);
-  }, [showControls, activePanel, manualFullscreen, currentTime, source?.url, dragPct]);
+  }, [showControls, activePanel, manualFullscreen, source?.url, dragPct]);
 
   // Controls fade instead of popping — 180ms opacity, cause → effect only.
   const controlsOpacity = useRef(new Animated.Value(0)).current;
@@ -2090,20 +2114,36 @@ export default function WatchScreen() {
         </View>
       ) : null}
 
-      {/* ── Embed chrome: WebView has its own internal controls, but we always
-          show back + title + EMBED badge so it never looks like "no UI". */}
+      {/* ── Embed frame: the same player silhouette as native inline — scrimmed
+          top bar (back / title / EMBED pill) and scrimmed bottom deck
+          (provider line / fullscreen). The WebView keeps its own playback
+          controls; this frame only makes it read as the same player. Taps
+          pass through to the WebView (box-none), buttons stay hittable. */}
       {embedSource && !source ? (
-        <View style={styles.embedChrome} pointerEvents="box-none">
-          <Pressable onPress={() => { if (manualFullscreen) exitFullscreen(); else router.back(); }} accessibilityRole="button" accessibilityLabel="Go back" style={styles.iconButton} hitSlop={10}>
-            <ArrowLeft size={22} color="#FFF" weight="bold" />
-          </Pressable>
-          <Text style={styles.playerTitle} numberOfLines={1}>{`${title} - Episode ${episode}`}</Text>
-          <View style={styles.subPillBadge}>
-            <Text style={styles.subPillBadgeText}>EMBED</Text>
+        <View style={styles.embedFrame} pointerEvents="box-none">
+          <View pointerEvents="none" style={styles.scrimTopSoft} />
+          <View pointerEvents="none" style={styles.scrimTopMain} />
+          <View pointerEvents="none" style={styles.scrimBottomSoft} />
+          <View pointerEvents="none" style={styles.scrimBottomMain} />
+          <View style={styles.embedTopBar}>
+            <Pressable onPress={() => { if (manualFullscreen) exitFullscreen(); else router.back(); }} accessibilityRole="button" accessibilityLabel="Go back" style={styles.iconButton} hitSlop={10}>
+              <ArrowLeft size={22} color="#FFF" weight="bold" />
+            </Pressable>
+            <Text style={styles.playerTitle} numberOfLines={1} ellipsizeMode="tail">{`${title} - Episode ${episode}`}</Text>
+            <View style={styles.topRightRow}>
+              <View style={styles.subPillBadge}>
+                <Text style={styles.subPillBadgeText}>EMBED</Text>
+              </View>
+            </View>
           </View>
-          <Pressable onPress={manualFullscreen ? exitFullscreen : enterFullscreen} accessibilityRole="button" accessibilityLabel={manualFullscreen ? "Exit fullscreen" : "Enter fullscreen"} style={styles.iconButton} hitSlop={8}>
-            {manualFullscreen ? <ArrowsIn size={20} color="#FFF" weight="bold" /> : <ArrowsOut size={20} color="#FFF" weight="bold" />}
-          </Pressable>
+          <View style={styles.embedBottomDeck}>
+            <View style={styles.embedBottomInfo}>
+              <Text style={styles.embedBottomLabel} numberOfLines={1}>{activeProvider ? `${activeProvider.label} · EMBEDDED STREAM` : "EMBEDDED STREAM"}</Text>
+            </View>
+            <Pressable onPress={manualFullscreen ? exitFullscreen : enterFullscreen} accessibilityRole="button" accessibilityLabel={manualFullscreen ? "Exit fullscreen" : "Enter fullscreen"} style={styles.iconButton} hitSlop={8}>
+              {manualFullscreen ? <ArrowsIn size={20} color="#FFF" weight="bold" /> : <ArrowsOut size={20} color="#FFF" weight="bold" />}
+            </Pressable>
+          </View>
         </View>
       ) : null}
 
@@ -2465,7 +2505,7 @@ export default function WatchScreen() {
     <Modal visible={activePanel === "speed"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>{t("player.playbackSpeed")}</Text>{[0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((val) => <Pressable key={val} style={[styles.modalItem, speed === val && styles.modalItemActive]} onPress={() => { setSpeed(val); lockedSpeed.current = val; setActivePanel(null); }}><Text style={[styles.modalItemText, speed === val && styles.modalItemTextActive]}>{val === 1.0 ? "1.0x (Normal)" : `${val}x`}</Text>{speed === val && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
 
     <Modal visible={activePanel === "server"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>{t("player.selectServer")}</Text>{providers.sub.length > 0 && providers.dub.length > 0 ? <View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} onPress={() => selectLanguage(item)} style={[styles.language, language === item && styles.languageActive]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${providers.sub.length}` : `DUB · ${providers.dub.length}`}</Text></Pressable>)}</View> : null}
-      {activeProviders.map((provider, index) => <Pressable key={provider.id} onPress={() => { selectServer(index); setActivePanel(null); }} style={[styles.modalItem, index === serverIndex && styles.modalItemActive]}><Text style={[styles.modalItemText, index === serverIndex && styles.modalItemTextActive]}>{provider.label}</Text>{index === serverIndex && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
+      {selectableProviders.length ? selectableProviders.map(({ provider, index }) => <Pressable key={provider.id} onPress={() => { selectServer(index); setActivePanel(null); }} style={[styles.modalItem, index === serverIndex && styles.modalItemActive]}><Text style={[styles.modalItemText, index === serverIndex && styles.modalItemTextActive]}>{provider.label}</Text>{index === serverIndex && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>) : <Text style={styles.modalItemSub}>Looking for a working server…</Text>}</View></Pressable></Modal>
 
     {/* Download quality picker: backend per-quality file links for this language */}
     <Modal visible={activePanel === "download"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>DOWNLOAD · {language.toUpperCase()} · EP {episode}</Text>
@@ -2540,6 +2580,11 @@ const styles = StyleSheet.create({
   video: { flex: 1 },
   gestureOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 2 },
   embedChrome: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 5, flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 8, backgroundColor: "rgba(0,0,0,0.55)" },
+  embedFrame: { ...StyleSheet.absoluteFillObject, zIndex: 3, justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 6 },
+  embedTopBar: { flexDirection: "row", alignItems: "center", flexWrap: "nowrap", width: "100%" },
+  embedBottomDeck: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%" },
+  embedBottomInfo: { flex: 1, flexShrink: 1, marginRight: 6 },
+  embedBottomLabel: { color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: "700", letterSpacing: 0.3 },
   miniProgress: { position: "absolute", left: 0, right: 0, bottom: 0, height: 2, backgroundColor: "rgba(255,255,255,0.22)", zIndex: 2 },
   miniProgressBuffered: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.35)" },
   miniProgressPlayed: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "#FF4D4D" },
@@ -2755,7 +2800,7 @@ function ProviderDiscoveryLoader({ attempt }: { attempt: number }) {
     <ActivityIndicator size="small" color={nothing.red} />
     <View style={styles.providerDiscoveryCopy}>
       <Text style={styles.providerDiscoveryTitle}>FINDING PROVIDERS</Text>
-      <Text style={styles.providerDiscoveryDetail}>CHECKING MOMO & NIKO</Text>
+      <Text style={styles.providerDiscoveryDetail}>CHECKING SERVERS</Text>
     </View>
   </View>;
 }

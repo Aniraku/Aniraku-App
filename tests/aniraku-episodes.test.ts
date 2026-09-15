@@ -94,4 +94,9 @@ describe("Aniraku episode contract", () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: true, text: async () => "null" }) as typeof fetch;
     await expect(getServers(16498, 63, "sub")).resolves.toEqual([]);
   });
+
+  it("returns empty on request failure instead of fixed fallback providers", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("network down")) as unknown as typeof fetch;
+    await expect(getServers(16498, 1, "sub")).resolves.toEqual([]);
+  });
 });

@@ -33,6 +33,9 @@ export default function RandomScreen() {
     },
     retry: 2,
     retryDelay: 1_500,
+    // Keyed per seed/genre: cache so back-navigation is instant.
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
   });
 
   const pickAnother = useCallback(() => {

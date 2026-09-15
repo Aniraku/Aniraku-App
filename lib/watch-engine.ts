@@ -136,11 +136,11 @@ function uniqueAndRankSources(sources: StreamSource[]) {
 }
 
 export function directSources(response: Pick<StreamResponse, "sources">) {
-  return uniqueAndRankSources(validSources(response).filter((source) => !isProxySource(source)));
+  return uniqueAndRankSources(validSources(response).filter((source) => !isProxySource(source) && getPlaybackType(source) !== "embed"));
 }
 
 export function proxySources(response: Pick<StreamResponse, "sources">) {
-  return uniqueAndRankSources(validSources(response).filter(isProxySource));
+  return uniqueAndRankSources(validSources(response).filter((source) => isProxySource(source) && getPlaybackType(source) !== "embed"));
 }
 
 export function nativeSources(response: Pick<StreamResponse, "sources">) {

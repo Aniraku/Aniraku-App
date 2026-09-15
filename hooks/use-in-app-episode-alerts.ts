@@ -85,27 +85,47 @@ export function InAppEpisodeAlertMonitor() {
           const hasDub = dubServers.length > 0;
           const message = `Episode ${releasedEpisode} of ${title} is now available${hasDub ? " (Sub & Dub)" : " (Sub)"}`;
 
+          // Episode-stable dedupe: the message suffix flips when dub lands
+          // later ("(Sub)" → "(Sub & Dub)"), so match any existing row for
+          // this episode — never a second row, and never an outside
+          // notification for an episode the user already read.
           const { data: existing, error: lookupError } = await supabase
             .from("notifications")
-            .select("id")
+            .select("id,read")
             .eq("user_id", user.id)
             .eq("type", "new_episode")
             .eq("anime_id", animeId)
-            .eq("message", message)
-            .limit(1);
+            .like("message", `Episode ${releasedEpisode} of %`)
+            .limit(5);
           if (lookupError) continue;
+          const alreadyNotified = (existing?.length ?? 0) > 0;
+          const alreadyRead = alreadyNotified && (existing as Array<{ read?: boolean }>).every((row) => row.read);
 
-          if (!existing?.length) {
+          // Marker always advances once this episode is resolved (notified or
+          // already-read) so it is never re-checked…
+          const resolveMarker = () => {
+            markers[String(animeId)] = { episode: releasedEpisode, checkedAt: now };
+            changed = true;
+          };
+          // …but nothing else happens for an already-read episode: no new
+          // row, no outside notification.
+          if (alreadyRead) { resolveMarker(); continue; }
+
+          if (!alreadyNotified) {
             const { error: insertError } = await supabase.from("notifications").insert({
               user_id: user.id,
               type: "new_episode",
               message,
               anime_id: animeId,
             });
+            // Non-conflict failure: leave the marker so the next check retries.
+            // 23505 = unique conflict: the row exists now, treat as notified.
             if (insertError && insertError.code !== "23505") continue;
           }
-          markers[String(animeId)] = { episode: releasedEpisode, checkedAt: now };
-          changed = true;
+          resolveMarker();
+          // Unread-existing rows (e.g. notified on another device) still get
+          // the outside ping once — the scheduler's own per-episode device
+          // key dedupes repeats on this device.
           void scheduleNewEpisodeNotification({
             animeId,
             title,

@@ -166,16 +166,11 @@ export async function getServers(animeId: number, episode: number, lang: "sub" |
       }
       if (servers.length > 0) return servers;
     }
-    // Backend answered but has nothing for this language (e.g. no DUB exists)
-    // — return empty so the tab stays disabled instead of showing phantom rows.
+    // Backend owns provider truth: request failures return empty (never fixed
+    // fallback names) so the UI only ever shows servers the backend listed.
     return [];
   } catch {
-    // Request itself failed: last-resort provider names so /stream can still
-    // be attempted directly by name.
-    return [
-      { id: `momo:${lang}`, provider: "momo", label: "MOMO", lang },
-      { id: `niko:${lang}`, provider: "niko", label: "NIKO", lang },
-    ];
+    return [];
   }
 }
 

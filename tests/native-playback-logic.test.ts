@@ -96,6 +96,19 @@ describe("Aniraku native playback coordination", () => {
     expect(isProxySource(response.sources[1])).toBe(true);
   });
 
+  it("never treats embed pages as native direct/proxy sources", () => {
+    const response = {
+      sources: [
+        { url: "https://embed.example/watch", type: "embed", verification: "embed" },
+        { url: "https://cdn.example/720.m3u8", quality: "720p", verification: "proxy" },
+      ],
+    };
+    expect(directSources(response).map((source) => source.url)).toEqual([]);
+    expect(proxySources(response).map((source) => source.url)).toEqual(["https://cdn.example/720.m3u8"]);
+    expect(nativeSources(response).map((source) => source.url)).toEqual(["https://cdn.example/720.m3u8"]);
+    expect(embedSources(response).map((source) => source.url)).toEqual(["https://embed.example/watch"]);
+  });
+
   it("blocks confirmed future episodes and movies", () => {
     const released = [{ number: 1 }, { number: 2 }, { number: 3 }];
     expect(isConfirmedFutureRelease({ episodeNumber: 4, episodes: released, status: "RELEASING", hasConfirmedEpisodeList: true })).toBe(true);

@@ -24,7 +24,7 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.6.2">v5.6.2 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.6.3">v5.6.3 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
@@ -62,28 +62,15 @@
 
 ---
 
-### v5.6.2 is out
+### v5.6.3 is out
 
-### Player gestures rewritten (zoned state machine)
-- **No more all-at-once triggers**: brightness, volume, 2x hold, and seek each own a screen zone and can never fire together.
-- Outer-left swipe = brightness, outer-right swipe = volume (22px activation, direction-locked).
-- Center hold 550ms = 2x speed — outer zones can never trigger it.
-- Double-tap left/right = −10s/+10s, triple-tap = −20s/+30s totals, center double/triple = play/pause. Seek fires on touch-down, double-tap-and-hold keeps skipping.
-- Single tap toggles controls without flashing on double-taps.
-
-### Downloads that match the backend
-- Download icon now opens the backend's real file links: quality picker (1080p/720p/…) when offered, direct open when only a default label exists.
-- Backend links are external pages, so they open in the browser behind a "You're leaving Aniraku" confirmation. SUB and DUB lists stay separate.
-- Legacy in-app save remains as fallback when the backend offers no download links.
-### Home & search
-- **Notification bell** opens an in-app bottom sheet (unread/all, mark-read) instead of dumping you on the profile page.
-- **VIEW ALL / See all** open filtered search (Trending, Ongoing, Popular, Top Movies, Top in genre, Coming Soon) instead of the plain catalog.
+Embed player wears the same chrome as the native inline player, providers are strictly backend-listed (no fixed fallbacks), tap show/hide fixed, fullscreen forces landscape, schedule/random load faster, read episodes never re-ping outside, avatars never render blank. Three builds for full coverage.
 
 | APK |
 |:--|
-| [Aniraku-v5.6.2-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.2/aniraku-v5.6.2-arm64.apk) |
-| [Aniraku-v5.6.2-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.2-arm32.apk) |
-| [Aniraku-v5.6.2-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.2-universal.apk) |
+| [Aniraku-v5.6.3-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.3/aniraku-v5.6.3-arm64.apk) |
+| [Aniraku-v5.6.3-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.3/aniraku-v5.6.3-arm32.apk) |
+| [Aniraku-v5.6.3-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.3/aniraku-v5.6.3-universal.apk) |
 
 <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 

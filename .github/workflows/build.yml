@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.6.2"
+        default: "v5.6.3"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -115,36 +115,33 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.6.2 — Player Gestures, Downloads & Playback Honesty
+            ## v5.6.3 — Embed Parity, Backend-Only Providers & Player Fixes
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.6.2-arm64.apk`
-            - `aniraku-v5.6.2-arm32.apk`
-            - `aniraku-v5.6.2-universal.apk`
+            - `aniraku-v5.6.3-arm64.apk`
+            - `aniraku-v5.6.3-arm32.apk`
+            - `aniraku-v5.6.3-universal.apk`
 
-            ### Player gestures rewritten (zoned state machine)
-            - **No more all-at-once triggers**: brightness, volume, 2x hold, and seek each own a screen zone and can never fire together.
-            - Outer-left swipe = brightness, outer-right swipe = volume (22px activation, direction-locked).
-            - Center hold 550ms = 2x speed — outer zones can never trigger it.
-            - Double-tap left/right = −10s/+10s, triple-tap = −20s/+30s totals, center double/triple = play/pause. Seek fires on touch-down, double-tap-and-hold keeps skipping.
-            - Single tap toggles controls without flashing on double-taps.
+            ### Embed player looks like the player now
+            - The embedded WebView wears the same frame as the native inline player: scrimmed top bar (back / title / EMBED pill) and scrimmed bottom deck (provider line / fullscreen). Same 16/9 shell, same fullscreen behavior.
 
-            ### Downloads that match the backend
-            - Download icon now opens the backend's real file links: quality picker (1080p/720p/…) when offered, direct open when only a default label exists.
-            - Backend links are external pages, so they open in the browser behind a "You're leaving Aniraku" confirmation. SUB and DUB lists stay separate.
-            - Legacy in-app save remains as fallback when the backend offers no download links.
+            ### Providers strictly backend-listed
+            - Removed every fixed fallback name: failed discovery returns empty, the server picker only lists backend-provided servers carrying sources or download links, and the loader copy no longer names names.
 
-            ### Hentai & playback
-            - **Hentai embed fallback**: titles with embed-only sources no longer die at server discovery — the player now attempts the stream and mounts the embed inline in the WebView.
-            - **No more auto-play/auto-skip**: removed both. Near the finish line a persistent UP NEXT card waits for you — PLAY NOW or dismiss, your call. Manual Skip Intro/Outro buttons unchanged.
+            ### Player bug fixes
+            - **Embed routing**: embed page URLs can no longer leak into the native direct/proxy chain (they mounted in ExoPlayer and died). Hentai embed-only responses mount the embed immediately instead of burning refresh + rotation rounds.
+            - **Tap show/hide fixed**: tap detection measured a stale coordinate and discarded every pure tap. Now uses cumulative gesture travel.
+            - **Fullscreen forces landscape**: entry used a sensor lock that does nothing with auto-rotate off. Now forces landscape on entry, unlocks on exit.
+            - **Chrome auto-hide restored**: progress ticks reset the hide timer forever, so chrome could never fade. Timer fixed.
 
-            ### Home & search
-            - **Notification bell** opens an in-app bottom sheet (unread/all, mark-read) instead of dumping you on the profile page.
-            - **VIEW ALL / See all** open filtered search (Trending, Ongoing, Popular, Top Movies, Top in genre, Coming Soon) instead of the plain catalog.
+            ### Speed, notifications, avatars
+            - **Schedule/Random faster**: global AniList throttle 2.1s → 0.9s (still under the 90/min limit), 5-min cache on both tabs so switches are instant.
+            - **Read episodes never re-ping**: episode-stable dedupe (immune to the Sub→Sub&Dub label flip), no new row and no outside notification for already-read episodes.
+            - **Avatars never blank**: new AvatarImage (recycled-cell safe, error fallback to initial tile) in profile, grid, and comments.
 
             ### Housekeeping
-            - **Android versionCode**: 59.
+            - **Android versionCode**: 60.
 
             Download the APK, install, and allow *install from unknown sources* if prompted.
           files: ./artifacts/*.apk
