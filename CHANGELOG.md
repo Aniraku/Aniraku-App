@@ -6,7 +6,20 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
-## v5.6.6 — Hentai fix: flixcloud kept when it is the only backend server
+## v5.6.7 — Avatar file-cache, embed fix, duplicate UI cleanup, Random tab, speed
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- AvatarImage rewritten to bypass expo-image/Coil entirely: bytes are fetched with the app's own fetch stack into the cache directory and rendered from `file://` via React Native's native Image. Avatar changes sync immediately (new URI → re-download → re-render). Initial-letter fallback tile always mounted underneath — never a blank box.
+- Embed player fix: the "PREPARING VIDEO" placeholder was sharing the layout with the WebView (in-flow flex shell split the area), leaving a permanent panel that also stole touches. Shell is now `absoluteFill` so the WebView owns the full area; placeholder is hidden during embed playback.
+- Duplicate SKIP INTRO/OUTRO buttons removed — only the single floating overlay button renders now.
+- Duplicate EPISODE ACTIVITY heading removed — `AnimeComments` owns the heading, the redundant `DotLabel` in the watch page was dropped.
+- Random tab registered with dice icon (Phosphor `DiceOne`). Random is truly random: `ID_DESC` sort across pages 1–500 (no popularity bias, no genre clustering).
+- Schedule and Random compact AniList queries: dropped description, banner, trailer, duration, score, popularity, nextAiringEpisode, relations — 50% payload reduction (164KB → 82KB for 150-title pool, 27KB for 7-day schedule).
+- Startup prefetch fires on mount: schedule + random pool are warm before the user taps either tab.
+- Bumps the Android versionCode to 64.
+
+## v5.6.6 — NSFW fix: flixcloud kept when it is the only backend server
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
 
@@ -14,12 +27,12 @@ This is the public record of meaningful native Android releases. For the current
 - `getServers` still filters flixcloud when alternatives exist, but keeps it as a last resort when it is the ONLY thing the backend lists — the v5.6.5 embed-first path then mounts it immediately.
 - Bumps the Android versionCode to 63.
 
-## v5.6.5 — Gestures restored, hentai embed-first, Random/Schedule batch, avatar fix
+## v5.6.5 — Gestures restored, NSFW embed-first, Random/Schedule batch, avatar fix
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
 
 - Double/triple-tap seek restored and hardened: ±10s / −20s / +30s fire on touch-UP (never touch-DOWN), hold-to-keep-skipping works via a 350ms hold timer, fast triple-tap chains never eat the third jump, swipes can no longer trigger seeks.
-- Hentai plays like the website: server discovery polls with backoff (2s → 5s → 10s) for cold backend scrapes, and embed-only catalogs mount the first embed immediately without refresh/rotation rounds — no longer gated on the metadata flag.
+- NSFW plays like the website: server discovery polls with backoff (2s → 5s → 10s) for cold backend scrapes, and embed-only catalogs mount the first embed immediately without refresh/rotation rounds — no longer gated on the metadata flag.
 - Random rewritten: one batched AniList request deals a 150-title pool, picks are instant client-side shuffle-bag deals (no repeats, no per-pick loading, no blank screen).
 - Schedule loads in one batched AniList round trip (two aliased pages, one throttle slot).
 - AvatarImage rebuilt: fallback tile always mounted underneath (never blank), error state resets on URI change, expo-image caching like all other art.
@@ -40,7 +53,7 @@ This is the public record of meaningful native Android releases. For the current
 - Controls backdrop: removed hard backgroundColor — only edge scrims remain for button readability.
 - Controls conditionally rendered via `controlsRendered` state (unmounted when hidden to avoid blocking gesture touches).
 - Fullscreen restored: `lockPlatformAsync` for Android with try-catch fallback to `lockAsync`; exit locks portrait before unlock.
-- Hentai retry: first empty server attempt waits 1.2s and retries once.
+- NSFW retry: first empty server attempt waits 1.2s and retries once.
 - Bumps the Android versionCode to 61.
 
 ## v5.6.3 — Embed parity, backend-only providers & player fixes
@@ -49,7 +62,7 @@ This is the public record of meaningful native Android releases. For the current
 
 - Embed player wears the same frame as the native inline player: scrimmed top bar (back / title / EMBED pill) and scrimmed bottom deck (provider line / fullscreen).
 - Providers strictly backend-listed: no fixed fallback names anywhere; server picker only shows servers carrying sources or download links.
-- Embed routing fix: embed page URLs can no longer leak into the native direct/proxy chain; hentai embed-only responses mount immediately.
+- Embed routing fix: embed page URLs can no longer leak into the native direct/proxy chain; NSFW embed-only responses mount immediately.
 - Tap show/hide fixed (stale tap coordinate), fullscreen forces landscape on entry, chrome auto-hide restored.
 - Schedule/Random faster: AniList throttle 2.1s → 0.9s, 5-min cache on both tabs.
 - Read episodes never re-trigger outside notifications (episode-stable dedupe, immune to Sub→Sub&Dub flip).
@@ -63,7 +76,7 @@ This is the public record of meaningful native Android releases. For the current
 
 - Player gestures rewritten as a zoned state machine: outer-left swipe = brightness, outer-right swipe = volume, center hold = 2x, double/triple-tap = seek (−10s/+10s, −20s/+30s), center taps = play/pause. Gestures can no longer fire together.
 - Downloads match the backend: quality picker (1080p/720p/…) when offered, direct open otherwise; external pages open in the browser behind a "You're leaving Aniraku" confirmation; SUB/DUB lists separate.
-- Hentai embed fallback: embed-only titles no longer die at server discovery — the embed mounts inline in the WebView.
+- NSFW embed fallback: embed-only titles no longer die at server discovery — the embed mounts inline in the WebView.
 - Removed auto-next and auto-skip: a persistent UP NEXT card near the finish line waits for manual PLAY NOW or dismiss. Manual Skip Intro/Outro unchanged.
 - Notification bell opens an in-app bottom sheet (unread/all, mark-read) instead of the profile page.
 - VIEW ALL / See all open filtered search (Trending, Ongoing, Popular, Top Movies, Top in genre, Coming Soon).

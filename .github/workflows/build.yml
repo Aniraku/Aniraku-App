@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.6.6"
+        default: "v5.6.7"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -115,23 +115,34 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.6.6 — Hentai Fix: Flixcloud Kept When It Is the Only Backend Server
+            ## v5.6.7 — Avatar File-Cache, Embed Fix, Duplicate UI Cleanup, Random Tab, Speed
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.6.6-arm64.apk`
-            - `aniraku-v5.6.6-arm32.apk`
-            - `aniraku-v5.6.6-universal.apk`
+            - `aniraku-v5.6.7-arm64.apk`
+            - `aniraku-v5.6.7-arm32.apk`
+            - `aniraku-v5.6.7-universal.apk`
 
-            ### Hentai fixed at the root
-            - **Traced live on title 113417**: the backend lists exactly one server (Yuta/flixcloud, embed) and the app filtered it as unsupported → empty → "no streaming", while the website played it (embed page verified HTTP 200).
-            - **Last-resort keep**: flixcloud is still filtered when alternatives exist, but kept when it is the ONLY thing the backend lists. The embed-first path then mounts it immediately.
+            ### Avatar grid finally renders
+            - **File-cache bypass**: AvatarImage fetches bytes with the app's own stack into cache, renders from `file://` via React Native native Image. Avatar changes sync immediately.
+            - Initial-letter fallback tile always mounted underneath — never a blank box.
 
-            ### Includes everything from v5.6.5
-            - Restored double/triple-tap seek (fires on release, hold keeps skipping), backoff-polled discovery, instant Random shuffle-bag picks, one-trip Schedule, never-blank avatars, numbers-only episode grid with History thumbnails, lighter scrims.
+            ### Embed player fix
+            - The "PREPARING VIDEO" placeholder was sharing layout with the WebView (in-flow flex split). Shell is now `absoluteFill`; placeholder hidden during embed playback.
+
+            ### Duplicate UI cleanup
+            - Duplicate SKIP INTRO/OUTRO buttons removed — only the single floating overlay renders.
+            - Duplicate EPISODE ACTIVITY heading removed — `AnimeComments` owns it.
+
+            ### Random tab + truly random picks
+            - Registered with dice icon (Phosphor `DiceOne`). `ID_DESC` sort across pages 1–500 — no popularity bias, no genre clustering.
+
+            ### Speed
+            - Compact AniList queries: 50% payload reduction (164KB → 82KB pool, 27KB schedule).
+            - Startup prefetch: schedule + random pool warm before user taps either tab.
 
             ### Housekeeping
-            - **Android versionCode**: 63.
+            - **Android versionCode**: 64.
 
             Download the APK, install, and allow *install from unknown sources* if prompted.
           files: ./artifacts/*.apk

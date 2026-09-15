@@ -24,7 +24,7 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.6.6">v5.6.6 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.6.7">v5.6.7 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
@@ -62,15 +62,15 @@
 
 ---
 
-### v5.6.6 is out
+### v5.6.7 is out
 
-NSFW fixed at the root: flixcloud is kept when it is the only server the backend lists, mounting embed-first. Includes everything from v5.6.5 — restored double/triple-tap seek, backoff-polled discovery, instant Random picks, one-trip Schedule, never-blank avatars, numbers-only episode grid, lighter scrims. Three builds for full coverage.
+Avatar grid finally renders — file-cache bypasses Coil for Supabase URLs. Duplicate skip buttons and duplicate EPISODE ACTIVITY heading cleaned up. Random tab added (dice icon, truly random across 500 pages). Schedule and Random load 50% faster (compact AniList queries, startup prefetch). Three builds for full coverage.
 
 | APK |
 |:--|
-| [Aniraku-v5.6.6-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.6/aniraku-v5.6.6-arm64.apk) |
-| [Aniraku-v5.6.6-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.6/aniraku-v5.6.6-arm32.apk) |
-| [Aniraku-v5.6.6-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.6/aniraku-v5.6.6-universal.apk) |
+| [Aniraku-v5.6.7-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.7/aniraku-v5.6.7-arm64.apk) |
+| [Aniraku-v5.6.7-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.7/aniraku-v5.6.7-arm32.apk) |
+| [Aniraku-v5.6.7-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.7/aniraku-v5.6.7-universal.apk) |
 
 <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 

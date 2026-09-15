@@ -22,8 +22,16 @@ function shuffledIndices(length: number) {
 }
 
 function randomPages(): [number, number, number] {
-  const start = Math.floor(Math.random() * 20);
-  return [((start % 20) + 1), (((start + 1) % 20) + 1), (((start + 2) % 20) + 1)] as [number, number, number];
+  // Pages 1–500 on AniList covers the full catalog. Random pages across this
+  // range with ID_DESC sort means every pick feels genuinely random — no
+  // popularity bias, no genre clustering, no repeated "trending" titles.
+  const maxPage = 500;
+  const a = Math.floor(Math.random() * maxPage) + 1;
+  let b = Math.floor(Math.random() * maxPage) + 1;
+  let c = Math.floor(Math.random() * maxPage) + 1;
+  while (b === a) b = Math.floor(Math.random() * maxPage) + 1;
+  while (c === a || c === b) c = Math.floor(Math.random() * maxPage) + 1;
+  return [a, b, c];
 }
 
 export default function RandomScreen() {
@@ -48,7 +56,6 @@ export default function RandomScreen() {
       const titles = await getAnimePool({
         pages: batch,
         perPage: 50,
-        sort: ["POPULARITY_DESC"],
         isAdult: isAdultParam,
       });
       if (!titles.length) throw new Error("No anime found. Check your connection and try again.");

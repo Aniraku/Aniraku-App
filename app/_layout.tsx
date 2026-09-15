@@ -13,6 +13,7 @@ import { AppUpdatePrompt } from "@/components/app-update-prompt";
 import { SupportPrompt } from "@/components/support-prompt";
 import { AniListDownBanner } from "@/components/anilist-down-banner";
 import { FirstRunOnboarding } from "@/components/first-run-onboarding";
+import { useStartupPrefetch } from "@/hooks/use-startup-prefetch";
 
 // Set Space Grotesk as the global default font (Nothing OS system font).
 // Text and TextInput are class components in RN so defaultProps works at runtime.
@@ -34,6 +35,8 @@ export default function RootLayout() {
     "Caveat-SemiBold": require("../assets/fonts/Caveat-SemiBold.ttf"),
     "HennyPenny-Regular": require("../assets/fonts/HennyPenny-Regular.ttf"),
   });
+
+  useStartupPrefetch();
 
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(nothing.black).catch(() => {});

@@ -2236,7 +2236,7 @@ export default function WatchScreen() {
         onPictureInPictureStatusChanged={onPipStatusChanged}
         onError={(event: any) => { const detail = event?.error?.errorString || event?.error?.errorCode || "Unknown player error"; const mountedUrl = source?.url ?? null; if (shouldRefreshMasterOnVariantError({ errorDetail: String(detail), variantUrl: mountedUrl, refreshedAlready: variantTokenRefreshAttempted.current === mountedUrl })) { variantTokenRefreshAttempted.current = mountedUrl; void refreshVariantFromMaster(); return; } setLastPlayerError(String(detail)); setPlayerStatus("error"); if (!useSourceProxy) { setUseSourceProxy(true); setSourceRevision((v) => v + 1); return; } handleProviderBlockedRef.current("player"); }}
         onEnd={() => { const reachedEnd = duration > 30 && currentTime >= Math.max(1, duration - 2); if (!sourceStarted.current || !reachedEnd) return; if (auth.user) { history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, episodeTitle: selectedEpisode?.title || null, episodeThumbnail: selectedEpisode?.thumbnail || null, progress: duration || currentTime, duration: duration || currentTime }); if (providerSync.connected.length) providerSync.pushProgress.mutate({ animeId, episode, progress: Math.floor(duration || currentTime), status: "completed" }); } showUpNext(); }}
-      /> : <View style={styles.videoPlaceholder}>
+      /> : (embedSource && !error) ? null : <View style={styles.videoPlaceholder}>
         {loadingServers ? <ProviderDiscoveryLoader attempt={serverAttempt} /> : loadingStream ? <View style={styles.thumbnailLoading}>
           <Image source={{ uri: selectedEpisode?.thumbnail || watchBackdrop || image || "" }} style={StyleSheet.absoluteFillObject} contentFit="cover" cachePolicy="memory-disk" />
           <View style={styles.thumbnailLoadingShade} />
@@ -2356,21 +2356,15 @@ export default function WatchScreen() {
 
           {/* BOTTOM CONTROLS */}
           <View style={styles.bottomDeck}>
-            {/* Resume / Skip pills — resume hides near the end (there is nothing
-                left to resume), skip shows seconds remaining in the segment. */}
-            {(resumePosition && (duration <= 0 || resumePosition < duration * 0.9)) || skipKind ? (
+            {/* Resume pill — resume hides near the end (there is nothing left
+                to resume). Skip lives in the single floating overlay button
+                below so it never renders twice. */}
+            {(resumePosition && (duration <= 0 || resumePosition < duration * 0.9)) ? (
               <View style={styles.contextActions}>
-                {resumePosition && (duration <= 0 || resumePosition < duration * 0.9) ? (
-                  <Pressable onPress={() => { pendingResume.current = resumePosition; videoRef.current?.seek(resumePosition); setResumePosition(null); }} accessibilityRole="button" style={styles.resumeBtn}>
-                    <Play size={12} color="#FFF" weight="fill" />
-                    <Text style={styles.resumeBtnText}>{`RESUME ${formatTime(resumePosition)}`}</Text>
-                  </Pressable>
-                ) : null}
-                {skipKind ? (
-                  <Pressable onPress={() => skip(skipKind)} accessibilityRole="button" style={styles.skipBtn}>
-                    <Text style={styles.skipBtnText}>{`SKIP ${skipKind.toUpperCase()} · ${Math.max(0, Math.round((skipSegments[skipKind]?.endTime ?? currentTime) - currentTime))}s`}</Text>
-                  </Pressable>
-                ) : null}
+                <Pressable onPress={() => { pendingResume.current = resumePosition; videoRef.current?.seek(resumePosition); setResumePosition(null); }} accessibilityRole="button" style={styles.resumeBtn}>
+                  <Play size={12} color="#FFF" weight="fill" />
+                  <Text style={styles.resumeBtnText}>{`RESUME ${formatTime(resumePosition)}`}</Text>
+                </Pressable>
               </View>
             ) : null}
 
@@ -2644,7 +2638,6 @@ export default function WatchScreen() {
         </> : <Text style={styles.emptyEpisodeText}>{episodeSearch ? "No episodes match your search." : "No episodes are listed for this title."}</Text>}
       </View>
       <View style={styles.watchCommunitySection}>
-        <DotLabel>EPISODE ACTIVITY</DotLabel>
         <View style={styles.ratingRow}><Text style={styles.ratingPrompt}>{currentRating ? `${t("player.youRated")} ${currentRating}/10` : t("player.rateEpisode")}</Text><View style={styles.ratingChoices}>{Array.from({ length: 10 }, (_, index) => index + 1).map((score) => <Pressable key={score} onPress={() => { if (!auth.user) { router.push("/auth" as never); return; } ratings.setRating.mutate({ episode, score }); }} style={[styles.ratingChoice, currentRating >= score && styles.ratingChoiceActive]}><Text style={[styles.ratingChoiceText, currentRating >= score && styles.ratingChoiceTextActive]}>{score}</Text></Pressable>)}</View></View>
         <AnimeComments animeId={animeId} episodeNumber={episode} />
       </View>
@@ -2868,8 +2861,6 @@ const styles = StyleSheet.create({
   th3EpBtnFiller: { color: nothing.muted },
   resumeBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: "rgba(0,0,0,0.7)" },
   resumeBtnText: { color: nothing.white, fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
-  skipBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 3, backgroundColor: nothing.red },
-  skipBtnText: { color: nothing.white, fontSize: 11, fontWeight: "900", letterSpacing: 0.3, textTransform: "uppercase" },
   lockedRow: { flex: 1, alignItems: "flex-end", justifyContent: "center" },
   errorBtnRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   errorAction: { paddingHorizontal: 12, paddingTop: 10 },

@@ -38,6 +38,8 @@ import {
   X,
   CalendarBlank,
   BookmarkSimple,
+  DiceOne,
+  ShuffleSimple,
 } from "phosphor-react-native";
 
 export type AppIconName = string;
@@ -101,6 +103,8 @@ export function AppIcon({ name, size = 20, color, style }: { name: AppIconName |
     case "delete-forever-outline": return <Trash {...props} />;
     case "logout": return <ArrowBendUpLeft {...props} />;
     case "cellphone-arrow-down": return <DownloadSimple {...props} />;
+    case "dice": return <DiceOne {...props} />;
+    case "shuffle": return <ShuffleSimple {...props} />;
     case "information": return <Eye {...props} />;
     case "file-document-outline": return <Copy {...props} />;
     default: return <X {...props} />;

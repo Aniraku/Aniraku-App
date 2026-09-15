@@ -109,6 +109,30 @@ const airingScheduleQuery = `query AiringSchedule($page: Int!, $perPage: Int!, $
   Page(page: $page, perPage: $perPage) { pageInfo { currentPage hasNextPage total } airingSchedules(notYetAired: true, airingAt_greater: $startAt, airingAt_lesser: $endAt, sort: [TIME]) { airingAt episode media { ${fields} } } }
 }`;
 
+/**
+ * Slim fragments for the discovery tabs. Descriptions, banners, and trailers
+ * are kilobytes per title — dropping them shrinks the 7-day schedule and the
+ * 150-title pool payloads by an order of magnitude, which is what makes
+ * first paint fast on mobile networks. Full detail still loads on demand via
+ * getAnimeById when a title is opened.
+ */
+const scheduleMediaFields = `
+  id type title { romaji english native } coverImage { large extraLarge } format status
+`;
+
+const poolFields = `
+  id type title { romaji english native } coverImage { large extraLarge color } format status episodes genres season seasonYear isAdult
+`;
+
+/** Start-of-today → +7 days window shared by the Schedule tab and its startup prefetch. */
+export function currentWeekWindow(): AiringScheduleWindow {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+  return { startAt: Math.floor(start.getTime() / 1000), endAt: Math.floor(end.getTime() / 1000) };
+}
+
 async function request<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
   const providedVariables = Object.fromEntries(Object.entries(variables).filter(([, value]) => value != null));
   const requestBody = JSON.stringify({ query, variables: providedVariables });
@@ -223,8 +247,8 @@ export async function getAiringSchedule(page = 1, perPage = 40, window?: AiringS
 }
 
 const airingScheduleBatchQuery = `query AiringScheduleBatch($perPage: Int!, $startAt: Int, $endAt: Int) {
-  first: Page(page: 1, perPage: $perPage) { pageInfo { currentPage hasNextPage total } airingSchedules(notYetAired: true, airingAt_greater: $startAt, airingAt_lesser: $endAt, sort: [TIME]) { airingAt episode media { ${fields} } } }
-  second: Page(page: 2, perPage: $perPage) { pageInfo { currentPage hasNextPage total } airingSchedules(notYetAired: true, airingAt_greater: $startAt, airingAt_lesser: $endAt, sort: [TIME]) { airingAt episode media { ${fields} } } }
+  first: Page(page: 1, perPage: $perPage) { pageInfo { currentPage hasNextPage total } airingSchedules(notYetAired: true, airingAt_greater: $startAt, airingAt_lesser: $endAt, sort: [TIME]) { airingAt episode media { ${scheduleMediaFields} } } }
+  second: Page(page: 2, perPage: $perPage) { pageInfo { currentPage hasNextPage total } airingSchedules(notYetAired: true, airingAt_greater: $startAt, airingAt_lesser: $endAt, sort: [TIME]) { airingAt episode media { ${scheduleMediaFields} } } }
 }`;
 
 /**
@@ -245,9 +269,9 @@ export async function getAiringScheduleWindow(window?: AiringScheduleWindow): Pr
 }
 
 const animePoolQuery = `query AnimePool($perPage: Int!, $pageA: Int!, $pageB: Int!, $pageC: Int!, $sort: [MediaSort], $genre: String, $isAdult: Boolean) {
-  a: Page(page: $pageA, perPage: $perPage) { media(type: ANIME, isAdult: $isAdult, sort: $sort, genre: $genre) { ${fields} } }
-  b: Page(page: $pageB, perPage: $perPage) { media(type: ANIME, isAdult: $isAdult, sort: $sort, genre: $genre) { ${fields} } }
-  c: Page(page: $pageC, perPage: $perPage) { media(type: ANIME, isAdult: $isAdult, sort: $sort, genre: $genre) { ${fields} } }
+  a: Page(page: $pageA, perPage: $perPage) { media(type: ANIME, isAdult: $isAdult, sort: $sort, genre: $genre) { ${poolFields} } }
+  b: Page(page: $pageB, perPage: $perPage) { media(type: ANIME, isAdult: $isAdult, sort: $sort, genre: $genre) { ${poolFields} } }
+  c: Page(page: $pageC, perPage: $perPage) { media(type: ANIME, isAdult: $isAdult, sort: $sort, genre: $genre) { ${poolFields} } }
 }`;
 
 /**
@@ -267,7 +291,7 @@ export async function getAnimePool(options: {
     pageA: options.pages[0],
     pageB: options.pages[1],
     pageC: options.pages[2],
-    sort: options.sort ?? ["POPULARITY_DESC"],
+    sort: options.sort ?? ["ID_DESC"],
     genre: options.genre,
     isAdult: options.isAdult,
   });

@@ -9,6 +9,7 @@ const tabIcons = {
   catalog: "magnify",
   schedule: "calendar",
   library: "bookmark",
+  random: "dice",
   profile: "account",
 } as const;
 
@@ -35,6 +36,7 @@ export default function TabLayout() {
       <Tabs.Screen name="catalog" options={{ title: "Search" }} />
       <Tabs.Screen name="schedule" options={{ title: "Schedule" }} />
       <Tabs.Screen name="library" options={{ title: "Library" }} />
+      <Tabs.Screen name="random" options={{ title: "Random" }} />
       <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>
   );

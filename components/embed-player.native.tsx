@@ -36,4 +36,13 @@ export function EmbedPlayer({ uri, headers, onError, onLoaded }: { uri: string; 
   </View>;
 }
 
-const styles = StyleSheet.create({ shell: { flex: 1, backgroundColor: "#000000" }, webview: { flex: 1, backgroundColor: "#000000" }, loading: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: "#000000" }, pointerNone: { pointerEvents: "none" }, loadingText: { color: "#A2A2A0", fontSize: 11, fontWeight: "600", letterSpacing: 0.4 } });
+const styles = StyleSheet.create({
+  // Absolute fill: the embed owns the whole video area. (An in-flow flex
+  // shell split the area with the placeholder, leaving a permanent
+  // "PREPARING VIDEO" panel under a squashed player that also stole touches.)
+  shell: { ...StyleSheet.absoluteFillObject, backgroundColor: "#000000" },
+  webview: { flex: 1, backgroundColor: "#000000" },
+  loading: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: "#000000" },
+  pointerNone: { pointerEvents: "none" },
+  loadingText: { color: "#A2A2A0", fontSize: 11, fontWeight: "600", letterSpacing: 0.4 },
+});
