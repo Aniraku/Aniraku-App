@@ -62,9 +62,22 @@
 
 ---
 
-### v5.6.0 is out
+### v5.6.2 is out
 
-Subtitle parser overhaul, fullscreen controls fix, dead control buttons restored, all servers accepted from backend, embed only as last resort. Three builds for full coverage. Chapter navigation, trending discovery, random anime with genre filters, spoiler tags, skeleton loading, swipe between episodes, pull to refresh, landscape auto-rotate, quick actions, performance monitoring, and more.
+### Player gestures rewritten (zoned state machine)
+- **No more all-at-once triggers**: brightness, volume, 2x hold, and seek each own a screen zone and can never fire together.
+- Outer-left swipe = brightness, outer-right swipe = volume (22px activation, direction-locked).
+- Center hold 550ms = 2x speed — outer zones can never trigger it.
+- Double-tap left/right = −10s/+10s, triple-tap = −20s/+30s totals, center double/triple = play/pause. Seek fires on touch-down, double-tap-and-hold keeps skipping.
+- Single tap toggles controls without flashing on double-taps.
+
+### Downloads that match the backend
+- Download icon now opens the backend's real file links: quality picker (1080p/720p/…) when offered, direct open when only a default label exists.
+- Backend links are external pages, so they open in the browser behind a "You're leaving Aniraku" confirmation. SUB and DUB lists stay separate.
+- Legacy in-app save remains as fallback when the backend offers no download links.
+### Home & search
+- **Notification bell** opens an in-app bottom sheet (unread/all, mark-read) instead of dumping you on the profile page.
+- **VIEW ALL / See all** open filtered search (Trending, Ongoing, Popular, Top Movies, Top in genre, Coming Soon) instead of the plain catalog.
 
 | APK |
 |:--|
