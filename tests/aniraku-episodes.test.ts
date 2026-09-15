@@ -82,12 +82,15 @@ describe("Aniraku episode contract", () => {
     expect(result[0].provider).toBe("momo");
   });
 
-  it("returns empty when the backend only lists flixcloud", async () => {
+  it("keeps flixcloud when it is the only server the backend lists (hentai embed-only)", async () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify([
-      { name: "flixcloud", provider: "flixcloud", lang: "sub" },
+      { name: "Yuta", provider: "flixcloud", lang: "sub", sources: [{ url: "https://flixcloud.cc/e/abc", type: "embed", verification: "embed" }] },
     ]) }) as typeof fetch;
 
-    await expect(getServers(16498, 1, "sub")).resolves.toEqual([]);
+    const result = await getServers(113417, 1, "sub");
+    expect(result).toHaveLength(1);
+    expect(result[0].provider).toBe("flixcloud");
+    expect(result[0].label).toBe("YUTA");
   });
 
   it("returns no providers for an out-of-range episode without fabricating a stream", async () => {

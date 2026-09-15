@@ -6,6 +6,14 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.6.6 — Hentai fix: flixcloud kept when it is the only backend server
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- Root-caused with title 113417: the backend lists exactly one server (Yuta/flixcloud, embed) and the app filtered it as unsupported → empty → "no streaming" while the website played it (embed page verified HTTP 200 live).
+- `getServers` still filters flixcloud when alternatives exist, but keeps it as a last resort when it is the ONLY thing the backend lists — the v5.6.5 embed-first path then mounts it immediately.
+- Bumps the Android versionCode to 63.
+
 ## v5.6.5 — Gestures restored, hentai embed-first, Random/Schedule batch, avatar fix
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`

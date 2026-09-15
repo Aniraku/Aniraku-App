@@ -24,7 +24,7 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.6.5">v5.6.5 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.6.6">v5.6.6 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
@@ -62,15 +62,15 @@
 
 ---
 
-### v5.6.5 is out
+### v5.6.6 is out
 
-Double/triple-tap seek restored (fires on release, hold keeps skipping), hentai mounts embed-first like the website with backoff-polled discovery, Random deals instant shuffle-bag picks from one batched request, Schedule loads in one round trip, avatars never blank, episode grid numbers-only with thumbnails in History, lighter player scrims. Three builds for full coverage.
+Hentai fixed at the root: flixcloud is kept when it is the only server the backend lists (traced live on title 113417), mounting embed-first. Includes everything from v5.6.5 — restored double/triple-tap seek, backoff-polled discovery, instant Random picks, one-trip Schedule, never-blank avatars, numbers-only episode grid, lighter scrims. Three builds for full coverage.
 
 | APK |
 |:--|
-| [Aniraku-v5.6.5-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.5/aniraku-v5.6.5-arm64.apk) |
-| [Aniraku-v5.6.5-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.5/aniraku-v5.6.5-arm32.apk) |
-| [Aniraku-v5.6.5-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.5/aniraku-v5.6.5-universal.apk) |
+| [Aniraku-v5.6.6-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.6/aniraku-v5.6.6-arm64.apk) |
+| [Aniraku-v5.6.6-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.6/aniraku-v5.6.6-arm32.apk) |
+| [Aniraku-v5.6.6-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.6/aniraku-v5.6.6-universal.apk) |
 
 <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 
