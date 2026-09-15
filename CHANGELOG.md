@@ -6,6 +6,19 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.6.5 — Gestures restored, hentai embed-first, Random/Schedule batch, avatar fix
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- Double/triple-tap seek restored and hardened: ±10s / −20s / +30s fire on touch-UP (never touch-DOWN), hold-to-keep-skipping works via a 350ms hold timer, fast triple-tap chains never eat the third jump, swipes can no longer trigger seeks.
+- Hentai plays like the website: server discovery polls with backoff (2s → 5s → 10s) for cold backend scrapes, and embed-only catalogs mount the first embed immediately without refresh/rotation rounds — no longer gated on the metadata flag.
+- Random rewritten: one batched AniList request deals a 150-title pool, picks are instant client-side shuffle-bag deals (no repeats, no per-pick loading, no blank screen).
+- Schedule loads in one batched AniList round trip (two aliased pages, one throttle slot).
+- AvatarImage rebuilt: fallback tile always mounted underneath (never blank), error state resets on URI change, expo-image caching like all other art.
+- Watch episode grid is numbers-only; episode thumbnails now surface in History rows.
+- Player scrims slimmed and lightened (0.22/0.10 bands), loading shade 0.52 → 0.32 — no more black veil over the picture.
+- Bumps the Android versionCode to 62.
+
 ## v5.6.4 — Gesture rewrite: seek deferred to release, avatar & fullscreen fixes
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`

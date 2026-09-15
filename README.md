@@ -24,7 +24,7 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.6.4">v5.6.4 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.6.5">v5.6.5 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
@@ -62,15 +62,15 @@
 
 ---
 
-### v5.6.4 is out
+### v5.6.5 is out
 
-Gesture rewrite: seek deferred to release (no accidental seek on quick taps), two quick taps both toggle controls, 150ms cooldown prevents double-fires, avatar image fix, fullscreen restore, controls conditional render, hentai retry. Three builds for full coverage.
+Double/triple-tap seek restored (fires on release, hold keeps skipping), hentai mounts embed-first like the website with backoff-polled discovery, Random deals instant shuffle-bag picks from one batched request, Schedule loads in one round trip, avatars never blank, episode grid numbers-only with thumbnails in History, lighter player scrims. Three builds for full coverage.
 
 | APK |
 |:--|
-| [Aniraku-v5.6.4-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.4/aniraku-v5.6.4-arm64.apk) |
-| [Aniraku-v5.6.4-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.4/aniraku-v5.6.4-arm32.apk) |
-| [Aniraku-v5.6.4-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.4/aniraku-v5.6.4-universal.apk) |
+| [Aniraku-v5.6.5-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.5/aniraku-v5.6.5-arm64.apk) |
+| [Aniraku-v5.6.5-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.5/aniraku-v5.6.5-arm32.apk) |
+| [Aniraku-v5.6.5-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.5/aniraku-v5.6.5-universal.apk) |
 
 <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 

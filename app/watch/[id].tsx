@@ -92,6 +92,7 @@ const SWIPE_ACTIVATE_PX = 22; // vertical travel before brightness/volume engage
 const SWIPE_DIRECTION_RATIO = 1.4; // |dy| must dominate |dx| or swipe is ignored
 const HORIZONTAL_CANCEL_PX = 22; // horizontal drift kills pending/hold
 const LONG_PRESS_MS = 550; // still-finger delay before center-hold → 2x
+const HOLD_SEEK_MS = 350; // still-finger delay before double/triple-tap-hold → continuous skip
 const TAP_ACTION_COOLDOWN_MS = 150; // min gap between any action (seek/toggle) and the next
 const EDGE_ZONE = 0.35; // x < 35% = brightness · x > 65% = volume · middle = 2x zone
 const SEEK_ZONE = 0.4; // x < 40% = rewind · x > 60% = forward · middle = play/pause
@@ -261,11 +262,13 @@ export default function WatchScreen() {
   const tapCountRef = useRef(0);
   const tapCountTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingTripleTapRef = useRef<{ side: "left" | "right"; x: number } | null>(null);
-  // Gesture rewrite: defer seek to release, cooldown between actions
-  const singleTapFiredRef = useRef(false);
-  const seekFiredRef = useRef(false);
+  // Multi-tap seek: the pending jump fires on touch-UP; a held 2nd/3rd touch
+  // fires it on the hold timer instead and keeps skipping while held.
   const lastActionTimeRef = useRef(0);
-  const pendingDeferredSeekRef = useRef<{ side: "left" | "right"; seconds: number } | null>(null);
+  const pendingMultiSeekRef = useRef<{ side: "left" | "right"; seconds: number } | null>(null);
+  const holdSeekTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdSeekFiredRef = useRef(false);
+  const chainSeekAppliedRef = useRef<{ side: "left" | "right"; seconds: number } | null>(null);
   // PiP hardening: availability is probed (button hides where enter fails),
   // activity pauses UI updates while the system owns the frame.
   const [pipAvailable, setPipAvailable] = useState(true);
@@ -372,6 +375,29 @@ export default function WatchScreen() {
 
   const activeProviders = providers[language] ?? [];
   const activeProvider = activeProviders[serverIndex];
+
+  // Embed-only catalog (hentai): the backend ships embed sources and zero
+  // native ones across EVERY discovered server. Mount the first embed
+  // immediately — no refresh + rotation rounds — exactly like the website.
+  // This does not depend on the isAdult metadata flag, so titles whose
+  // metadata lacks the flag still play.
+  const discoveredServers = useMemo(() => [...providers.sub, ...providers.dub], [providers]);
+  const discoveredNativeCount = useMemo(() => {
+    let count = 0;
+    for (const server of discoveredServers) {
+      const initial = { sources: server.sources ?? [] };
+      if (directSources(initial).length > 0 || proxySources(initial).length > 0) count += 1;
+    }
+    return count;
+  }, [discoveredServers]);
+  const discoveredEmbed = useMemo(() => {
+    for (const server of discoveredServers) {
+      const first = embedSources({ sources: server.sources ?? [] })[0];
+      if (first) return first;
+    }
+    return null;
+  }, [discoveredServers]);
+  const embedOnlyCatalog = discoveredServers.length > 0 && discoveredNativeCount === 0 && discoveredEmbed != null;
   const { filteredEpisodes, totalEpisodePages, safeEpisodePage, pagedEpisodes } = useMemo(() => {
     const term = episodeSearch.trim().toLowerCase();
     let filtered = term
@@ -624,6 +650,10 @@ export default function WatchScreen() {
     if (futureRelease) { setLoadingServers(false); setError(FUTURE_RELEASE_MESSAGE); return; }
     if (invalidEpisode) { setLoadingServers(false); setError(`Episode ${episode} is not available.`); return; }
 
+    // Cold backend scrapes (hentai / heavy titles) often return empty on the
+    // first hits while providers spin up — poll with backoff the way the
+    // website does instead of erroring after one quick retry.
+    const SERVER_RETRY_DELAYS_MS = [2000, 5000, 10000];
     const fetchServers = async (attempt: number) => {
       setServerAttempt(attempt + 1);
       const [subs, dubs] = await Promise.all([
@@ -631,12 +661,10 @@ export default function WatchScreen() {
         getServers(animeId, episode, "dub").catch(() => [] as Server[]),
       ]);
       if (cancelled) return;
-      // First attempt returned nothing — retry once before giving up. Hentai
-      // and heavy-back-end titles often return empty on the cold first hit.
-      if (!subs.length && !dubs.length && attempt === 0) {
-        await new Promise((resolve) => setTimeout(resolve, 1200));
+      if (!subs.length && !dubs.length && attempt < SERVER_RETRY_DELAYS_MS.length) {
+        await new Promise((resolve) => setTimeout(resolve, SERVER_RETRY_DELAYS_MS[attempt]));
         if (cancelled) return;
-        return fetchServers(1);
+        return fetchServers(attempt + 1);
       }
       setProviders({ sub: subs, dub: dubs });
       setLoadingServers(false);
@@ -647,6 +675,19 @@ export default function WatchScreen() {
       if (preferred === "dub" && dubs.length) { setLanguage("dub"); }
       else if (preferred === "sub" && subs.length) { setLanguage("sub"); }
       else if (!subs.length && dubs.length) { setLanguage("dub"); }
+      // Embed-only catalog (hentai): point the player at the first server
+      // that actually carries an embed so it mounts on the first pass.
+      const hasNativeInitial = (list: Server[]) => list.some((item) => {
+        const initial = { sources: item.sources ?? [] };
+        return directSources(initial).length > 0 || proxySources(initial).length > 0;
+      });
+      const hasEmbedInitial = (item: Server) => embedSources({ sources: item.sources ?? [] }).length > 0;
+      if ((subs.length > 0 || dubs.length > 0) && !hasNativeInitial(subs) && !hasNativeInitial(dubs)) {
+        const subIdx = subs.findIndex(hasEmbedInitial);
+        const dubIdx = dubs.findIndex(hasEmbedInitial);
+        if (subIdx >= 0 && (preferred !== "dub" || dubIdx < 0)) { setLanguage("sub"); setServerIndex(subIdx); }
+        else if (dubIdx >= 0) { setLanguage("dub"); setServerIndex(dubIdx); }
+      }
       // Providers come from the backend only — no fixed fallback names. When
       // it lists nothing (hentai tags often list zero servers), the honest
       // error below stands and no phantom rows ever appear.
@@ -677,6 +718,21 @@ export default function WatchScreen() {
       proxyCount: initialProxies.length,
       embedCount: initialEmbeds.length,
     });
+
+    // Embed-only catalog (hentai): mount the first embed and skip the native
+    // network round trip entirely — the website plays these the same way.
+    if (embedOnlyCatalog && !forceThisRequest && initialEmbeds.length > 0 && !alreadyMounted) {
+      setError(null);
+      setStream(initial);
+      setPlaybackHeaders(activeProvider.headers);
+      sourceMounted.current = true;
+      setSource(null);
+      setEmbedSource(initialEmbeds[0]);
+      setSourceRevision((v) => v + 1);
+      applySkipSegments(providerSkipSegments(initial));
+      setLoadingStream(false);
+      return () => { cancelled = true; };
+    }
 
     setError(null);
     // Embed mounts immediately only for Hentai. For normal titles the embed
@@ -772,9 +828,9 @@ export default function WatchScreen() {
           setStream(response);
           setPlaybackHeaders(response.headers ?? activeProvider.headers);
           applySkipSegments(providerSkipSegments(response));
-          // Hentai is embed-only by definition: mount the embed straight away
-          // instead of burning refresh + rotation rounds on a heavy backend.
-          if (isHentai && refreshedEmbeds.length > 0 && shouldMountReplacementSource(sourceMounted.current, forceThisRequest)) {
+          // Hentai / embed-only catalogs mount the embed straight away instead
+          // of burning refresh + rotation rounds on a heavy backend.
+          if ((isHentai || embedOnlyCatalog) && refreshedEmbeds.length > 0 && shouldMountReplacementSource(sourceMounted.current, forceThisRequest)) {
             sourceMounted.current = true;
             setSource(null);
             setEmbedSource(refreshedEmbeds[0]);
@@ -807,7 +863,7 @@ export default function WatchScreen() {
         if (!hasInitial || forceThisRequest) handleProviderBlockedRef.current("stream");
       });
     return () => { cancelled = true; };
-  }, [activeProvider, animeId, applySkipSegments, episode, futureRelease, isHentai, language, refreshNonce]);
+  }, [activeProvider, animeId, applySkipSegments, embedOnlyCatalog, episode, futureRelease, isHentai, language, refreshNonce]);
 
   // ── Source loading with direct → proxy fallback ──
   // Offline saved copies never touch the stream path: no watchdog, no
@@ -1486,7 +1542,8 @@ export default function WatchScreen() {
       if (skipHoldTimer.current) clearTimeout(skipHoldTimer.current);
       if (unlockArmTimer.current) clearTimeout(unlockArmTimer.current);
       if (tapCountTimer.current) clearTimeout(tapCountTimer.current);
-      if (pendingDeferredSeekRef.current) pendingDeferredSeekRef.current = null;
+      if (holdSeekTimeout.current) clearTimeout(holdSeekTimeout.current);
+      pendingMultiSeekRef.current = null;
     };
   }, []);
 
@@ -1550,73 +1607,92 @@ export default function WatchScreen() {
           currentVolumeVal.current = volume;
           doubleTapTouch.current = false;
           cancelLongPress();
+          // Stale multi-tap state from a previous gesture must never leak in.
+          if (holdSeekTimeout.current) { clearTimeout(holdSeekTimeout.current); holdSeekTimeout.current = null; }
+          holdSeekFiredRef.current = false;
+          pendingMultiSeekRef.current = null;
 
-          // Cancel any stale pending deferred seek from a previous gesture
-          if (pendingDeferredSeekRef.current) {
-            pendingDeferredSeekRef.current = null;
-          }
+          // Fires the pending jump when a 2nd/3rd touch is HELD: the jump
+          // lands once, then the skip loop keeps ticking while held.
+          const fireHeldSeek = (side: "left" | "right", tickSeconds: number) => {
+            if (gestureModeRef.current !== "pending") return;
+            holdSeekFiredRef.current = true;
+            const pending = pendingMultiSeekRef.current;
+            if (pending && pending.side === side && pending.seconds > 0) {
+              pendingMultiSeekRef.current = null;
+              const delta = side === "left" ? -pending.seconds : pending.seconds;
+              seekRelativeRef.current(delta);
+              flashRef.current(side, pending.seconds);
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+              const already = chainSeekAppliedRef.current?.side === side ? chainSeekAppliedRef.current.seconds : 0;
+              chainSeekAppliedRef.current = { side, seconds: already + pending.seconds };
+            }
+            armSkipHold(side, tickSeconds);
+          };
+          const armHoldSeek = (side: "left" | "right", tickSeconds: number) => {
+            if (holdSeekTimeout.current) clearTimeout(holdSeekTimeout.current);
+            holdSeekTimeout.current = setTimeout(() => fireHeldSeek(side, tickSeconds), HOLD_SEEK_MS);
+          };
 
           const prior = lastTapRef.current;
           const isFollowUp = Boolean(prior && (now - prior.time) < TRIPLE_TAP_WINDOW_MS && Math.abs(gesture.x0 - prior.x) < 80 && tapCountRef.current > 0);
 
           if (isFollowUp) {
+            // Second tap down kills the pending single-tap toggle immediately —
+            // otherwise controls flash on every double-tap.
             if (singleTapTimeout.current) { clearTimeout(singleTapTimeout.current); singleTapTimeout.current = null; }
             if (tapCountTimer.current) clearTimeout(tapCountTimer.current);
             tapCountRef.current += 1;
             const zone = seekZoneForX(gesture.x0);
 
-            if (tapCountRef.current >= 3) {
-              // ── Triple tap: execute on release, not here ──
+            if (zone === "center") {
+              // Center multi-tap = play/pause. The 2nd tap toggles; a 3rd is
+              // already answered so it only resets the chain.
+              const isTriple = tapCountRef.current >= 3;
               lastTapRef.current = null;
               tapCountRef.current = 0;
               doubleTapTouch.current = true;
-              seekFiredRef.current = false;
               gestureModeRef.current = "pending";
-              if (zone === "left") {
-                pendingDeferredSeekRef.current = { side: "left", seconds: 20 };
-              } else if (zone === "right") {
-                pendingDeferredSeekRef.current = { side: "right", seconds: 30 };
-              } else {
-                pendingDeferredSeekRef.current = null;
+              if (!isTriple) {
                 setIsPlaying((p) => !p);
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
               }
-              tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; }, TRIPLE_TAP_WINDOW_MS);
               return;
             }
 
-            // ── Two quick taps: both toggle controls, no seek ──
-            // Two taps fast enough (< DOUBLE_TAP_WINDOW_MS apart) both toggle
-            // controls. Only when a tap is followed by a hold (singleTapFired)
-            // do we seek on release.
-            if (!singleTapFiredRef.current) {
-              // Both taps within double-tap window → toggle controls only
+            if (tapCountRef.current >= 3) {
+              // ── Triple tap: land exactly on the labeled totals (-20s left /
+              // +30s right), minus whatever this chain already applied when
+              // the 2nd touch released. Executes on release; a hold keeps
+              // skipping while the finger stays down. ──
+              const total = zone === "left" ? 20 : 30;
+              const applied = chainSeekAppliedRef.current?.side === zone ? chainSeekAppliedRef.current.seconds : 0;
+              lastTapRef.current = null;
+              tapCountRef.current = 0;
               doubleTapTouch.current = true;
               gestureModeRef.current = "pending";
-              seekFiredRef.current = false;
-              tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; }, TRIPLE_TAP_WINDOW_MS);
+              pendingMultiSeekRef.current = { side: zone, seconds: Math.max(0, total - applied) };
+              armHoldSeek(zone, 10);
+              tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; chainSeekAppliedRef.current = null; }, TRIPLE_TAP_WINDOW_MS);
               return;
             }
 
-            // ── Tap then delayed tap (singleTapFired): seek on release ──
+            // ── Double tap: ±10s on RELEASE (never on touch-down, so taps
+            // meant to toggle controls can't trigger a seek), hold to keep
+            // skipping while the finger stays down. ──
             doubleTapTouch.current = true;
-            seekFiredRef.current = false;
             gestureModeRef.current = "pending";
-            if (zone === "left") {
-              pendingDeferredSeekRef.current = { side: "left", seconds: 10 };
-            } else if (zone === "right") {
-              pendingDeferredSeekRef.current = { side: "right", seconds: 10 };
-            } else {
-              pendingDeferredSeekRef.current = null;
-              setIsPlaying((p) => !p);
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-            }
-            tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; }, TRIPLE_TAP_WINDOW_MS);
+            pendingMultiSeekRef.current = { side: zone, seconds: 10 };
+            armHoldSeek(zone, 10);
+            tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; chainSeekAppliedRef.current = null; }, TRIPLE_TAP_WINDOW_MS);
             return;
           }
 
-          // ── First touch: tap #1 ──
-          singleTapFiredRef.current = false;
+          // ── First touch: this IS tap #1 — enter PENDING, arm center-only
+          // long-press for 2x. Outer zones never arm 2x — a brightness/volume
+          // swipe can never trigger speed, and a center hold can never touch
+          // brightness.
+          chainSeekAppliedRef.current = null;
           if (singleTapTimeout.current) { clearTimeout(singleTapTimeout.current); singleTapTimeout.current = null; }
           tapCountRef.current = 1;
           gestureModeRef.current = "pending";
@@ -1637,7 +1713,15 @@ export default function WatchScreen() {
           const absDx = Math.abs(gesture.dx);
           const absDy = Math.abs(gesture.dy);
 
-          if (mode === "pending" && (absDx > TAP_SLOP_PX || absDy > TAP_SLOP_PX)) cancelLongPress();
+          // Any drift kills a pending multi-tap seek — a swipe must never jump.
+          const cancelHoldSeek = () => {
+            if (holdSeekTimeout.current) { clearTimeout(holdSeekTimeout.current); holdSeekTimeout.current = null; }
+            pendingMultiSeekRef.current = null;
+          };
+          if (mode === "pending" && (absDx > TAP_SLOP_PX || absDy > TAP_SLOP_PX)) {
+            cancelLongPress();
+            cancelHoldSeek();
+          }
           if (mode === "holding" && (absDx > TAP_SLOP_PX || absDy > TAP_SLOP_PX)) {
             gestureModeRef.current = "idle";
             stopHoldSpeed();
@@ -1648,6 +1732,7 @@ export default function WatchScreen() {
           if (mode === "pending" && absDx > HORIZONTAL_CANCEL_PX && absDy < SWIPE_ACTIVATE_PX) {
             gestureModeRef.current = "idle";
             cancelLongPress();
+            cancelHoldSeek();
             clearSkipHold();
             return;
           }
@@ -1659,6 +1744,7 @@ export default function WatchScreen() {
             if (startZone === "center") return;
             gestureModeRef.current = "swiping";
             cancelLongPress();
+            cancelHoldSeek();
             stopHoldSpeed();
             clearSkipHold();
           }
@@ -1703,34 +1789,36 @@ export default function WatchScreen() {
           }
           if (mode !== "pending") return;
 
-          // A multi-tap gesture already consumed this release
+          // ── Multi-tap release: fire the pending jump (double ±10s, triple
+          // to the labeled totals). Chained seeks always execute — no
+          // cooldown — so a fast triple-tap never eats its third jump.
           if (doubleTapTouch.current) {
             doubleTapTouch.current = false;
-
-            // Execute any deferred seek now (double-tap or triple-tap)
-            const deferred = pendingDeferredSeekRef.current;
-            if (deferred) {
-              pendingDeferredSeekRef.current = null;
-              const now = Date.now();
-              if (now - lastActionTimeRef.current < TAP_ACTION_COOLDOWN_MS) {
-                // Cooldown active — skip this seek
-              } else {
-                seekFiredRef.current = true;
-                lastActionTimeRef.current = now;
-                const delta = deferred.side === "left" ? -deferred.seconds : deferred.seconds;
-                seekRelativeRef.current(delta);
-                flashRef.current(deferred.side, deferred.seconds);
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-                armSkipHold(deferred.side, deferred.seconds);
-              }
+            const holdFired = holdSeekFiredRef.current;
+            holdSeekFiredRef.current = false;
+            if (holdSeekTimeout.current) { clearTimeout(holdSeekTimeout.current); holdSeekTimeout.current = null; }
+            if (holdFired) {
+              // The held touch already jumped + looped; lifting stops the loop.
+              clearSkipHold();
+              return;
+            }
+            const pending = pendingMultiSeekRef.current;
+            pendingMultiSeekRef.current = null;
+            const drifted = Math.abs(gesture.dx) >= TAP_SLOP_PX || Math.abs(gesture.dy) >= TAP_SLOP_PX;
+            if (pending && pending.seconds > 0 && !drifted) {
+              const delta = pending.side === "left" ? -pending.seconds : pending.seconds;
+              seekRelativeRef.current(delta);
+              flashRef.current(pending.side, pending.seconds);
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              const already = chainSeekAppliedRef.current?.side === pending.side ? chainSeekAppliedRef.current.seconds : 0;
+              chainSeekAppliedRef.current = { side: pending.side, seconds: already + pending.seconds };
+              // Window the 3rd tap from THIS release, not the first one.
+              lastTapRef.current = { time: Date.now(), x: gestureStartX.current };
+              if (tapCountTimer.current) clearTimeout(tapCountTimer.current);
+              tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; chainSeekAppliedRef.current = null; }, TRIPLE_TAP_WINDOW_MS);
             } else {
-              // Two quick taps (no seek) → toggle controls
-              const now = Date.now();
-              if (now - lastActionTimeRef.current >= TAP_ACTION_COOLDOWN_MS) {
-                lastActionTimeRef.current = now;
-                setShowControls((prev) => !prev);
-                lastTapRef.current = null;
-              }
+              // Center multi-tap already toggled play/pause on touch-down.
+              lastTapRef.current = null;
             }
             clearSkipHold();
             return;
@@ -1745,10 +1833,12 @@ export default function WatchScreen() {
             if (singleTapTimeout.current) clearTimeout(singleTapTimeout.current);
             lastTapRef.current = { time: now, x: gestureStartX.current };
             if (tapCountTimer.current) clearTimeout(tapCountTimer.current);
-            tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; }, TRIPLE_TAP_WINDOW_MS);
+            tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; chainSeekAppliedRef.current = null; }, TRIPLE_TAP_WINDOW_MS);
             // Delayed past the double-tap window so a 2nd tap can cancel it
             singleTapTimeout.current = setTimeout(() => {
-              singleTapFiredRef.current = true;
+              const firedAt = Date.now();
+              if (firedAt - lastActionTimeRef.current < TAP_ACTION_COOLDOWN_MS) return;
+              lastActionTimeRef.current = firedAt;
               setShowControls((prev) => !prev);
               lastTapRef.current = null;
             }, DOUBLE_TAP_WINDOW_MS);
@@ -1763,7 +1853,9 @@ export default function WatchScreen() {
           stopHoldSpeed();
           clearSkipHold();
           doubleTapTouch.current = false;
-          pendingDeferredSeekRef.current = null;
+          holdSeekFiredRef.current = false;
+          if (holdSeekTimeout.current) { clearTimeout(holdSeekTimeout.current); holdSeekTimeout.current = null; }
+          pendingMultiSeekRef.current = null;
         },
       }),
     [armSkipHold, brightness, clearSkipHold, playerLocked, volume, beginHoldSpeed, stopHoldSpeed, triggerDoubleTapAnimation],
@@ -2652,10 +2744,12 @@ const styles = StyleSheet.create({
   subtitleWrapperFullscreen: { paddingBottom: 24 },
   controlsBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: 3, justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 6 },
   controlsBackdropFullscreen: { paddingHorizontal: 20, paddingVertical: 12 },
-  scrimTopMain: { position: "absolute", top: 0, left: 0, right: 0, height: 64, backgroundColor: "rgba(0,0,0,0.28)" },
-  scrimTopSoft: { position: "absolute", top: 0, left: 0, right: 0, height: 132, backgroundColor: "rgba(0,0,0,0.14)" },
-  scrimBottomMain: { position: "absolute", bottom: 0, left: 0, right: 0, height: 88, backgroundColor: "rgba(0,0,0,0.28)" },
-  scrimBottomSoft: { position: "absolute", bottom: 0, left: 0, right: 0, height: 156, backgroundColor: "rgba(0,0,0,0.14)" },
+  // Edge scrims stay light on purpose: readability bands only, never a veil
+  // over the picture. They mount solely with the chrome and unmount with it.
+  scrimTopMain: { position: "absolute", top: 0, left: 0, right: 0, height: 56, backgroundColor: "rgba(0,0,0,0.22)" },
+  scrimTopSoft: { position: "absolute", top: 0, left: 0, right: 0, height: 96, backgroundColor: "rgba(0,0,0,0.10)" },
+  scrimBottomMain: { position: "absolute", bottom: 0, left: 0, right: 0, height: 80, backgroundColor: "rgba(0,0,0,0.22)" },
+  scrimBottomSoft: { position: "absolute", bottom: 0, left: 0, right: 0, height: 110, backgroundColor: "rgba(0,0,0,0.10)" },
   topBar: { flexDirection: "row", alignItems: "center", flexWrap: "nowrap", width: "100%" },
   playerTitle: { flex: 1, flexShrink: 1, color: "#FFF", fontSize: 13, fontWeight: "600", marginLeft: 8, marginRight: 6 },
   topRightRow: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
@@ -2734,7 +2828,7 @@ const styles = StyleSheet.create({
   contextActions: { alignSelf: "flex-end", alignItems: "flex-end", gap: 4 },
   videoPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: "#090909" },
   thumbnailLoading: { ...StyleSheet.absoluteFillObject, overflow: "hidden", justifyContent: "flex-end", backgroundColor: "#090909" },
-  thumbnailLoadingShade: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.52)" },
+  thumbnailLoadingShade: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.32)" },
   thumbnailLoadingContent: { zIndex: 1, gap: 6, padding: 14, paddingTop: 48, backgroundColor: "rgba(9,9,9,0.68)" },
   thumbnailPlay: { width: 34, height: 34, alignItems: "center", justifyContent: "center", backgroundColor: nothing.white, borderRadius: 4 },
   thumbnailEpisode: { color: nothing.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
@@ -2769,8 +2863,6 @@ const styles = StyleSheet.create({
   th3Grid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   th3EpBtn: { width: 56, height: 56, alignItems: "center", justifyContent: "center", borderRadius: 8, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface, overflow: "hidden" },
   th3EpBtnActive: { backgroundColor: nothing.red, borderColor: nothing.red },
-  th3EpBtnThumb: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
-  th3EpBtnThumbShade: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
   th3EpBtnText: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 13, fontWeight: "800", zIndex: 1 },
   th3EpBtnTextActive: { color: nothing.black, fontWeight: "900" },
   th3EpBtnFiller: { color: nothing.muted },
@@ -2835,7 +2927,6 @@ const EpisodeGrid = memo(function EpisodeGrid({ episodes, activeEpisode, totalPa
         renderItem={({ item }) => {
           const active = item.number === activeEpisode;
           return <Pressable key={item.number} accessibilityRole="button" accessibilityLabel={`Episode ${item.number}${item.title ? `: ${item.title}` : ""}`} accessibilityHint={active ? "Currently playing" : "Double tap to play this episode"} onPress={() => onSelect(item.number)} onLongPress={() => onInfo(item.number)} style={[styles.th3EpBtn, active && styles.th3EpBtnActive]}>
-            {item.thumbnail ? <><Image source={{ uri: item.thumbnail }} style={styles.th3EpBtnThumb} contentFit="cover" cachePolicy="memory-disk" /><View style={styles.th3EpBtnThumbShade} /></> : null}
             <Text style={[styles.th3EpBtnText, active ? styles.th3EpBtnTextActive : item.isFiller ? styles.th3EpBtnFiller : null]}>{item.number}</Text>
           </Pressable>;
         }}
@@ -2845,7 +2936,6 @@ const EpisodeGrid = memo(function EpisodeGrid({ episodes, activeEpisode, totalPa
   }
   return <>
     <View style={styles.th3Grid}>{episodes.map((item) => { const active = item.number === activeEpisode; return <Pressable key={item.number} accessibilityRole="button" accessibilityLabel={`Episode ${item.number}${item.title ? `: ${item.title}` : ""}`} accessibilityHint={active ? "Currently playing" : "Double tap to play this episode"} onPress={() => onSelect(item.number)} onLongPress={() => onInfo(item.number)} style={[styles.th3EpBtn, active && styles.th3EpBtnActive]}>
-      {item.thumbnail ? <><Image source={{ uri: item.thumbnail }} style={styles.th3EpBtnThumb} contentFit="cover" cachePolicy="memory-disk" /><View style={styles.th3EpBtnThumbShade} /></> : null}
       <Text style={[styles.th3EpBtnText, active ? styles.th3EpBtnTextActive : item.isFiller ? styles.th3EpBtnFiller : null]}>{item.number}</Text>
     </Pressable>; })}</View>
     {totalPages > 1 ? <View style={styles.episodePager}><Pressable disabled={page === 0} onPress={() => onPageChange((v) => Math.max(0, v - 1))} accessibilityRole="button" accessibilityLabel="Previous page" accessibilityHint="Shows the previous page of episodes" style={[styles.episodePagerButton, page === 0 && styles.episodePagerDisabled]}><AppIcon name="chevron-left" size={17} color={nothing.white} /><Text style={styles.episodePagerText}>PREV</Text></Pressable><Text style={styles.episodePagerIndicator}>{page + 1} / {totalPages}</Text><Pressable disabled={page >= totalPages - 1} onPress={() => onPageChange((v) => Math.min(totalPages - 1, v + 1))} accessibilityRole="button" accessibilityLabel="Next page" accessibilityHint="Shows the next page of episodes" style={[styles.episodePagerButton, page >= totalPages - 1 && styles.episodePagerDisabled]}><Text style={styles.episodePagerText}>NEXT</Text><AppIcon name="chevron-right" size={17} color={nothing.white} /></Pressable></View> : null}

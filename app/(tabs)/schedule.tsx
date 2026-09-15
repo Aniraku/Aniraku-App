@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
-import { getAiringSchedule } from "@/lib/anilist";
+import { getAiringScheduleWindow } from "@/lib/anilist";
 import { animeTitle } from "@/lib/types";
 import type { AiringScheduleItem } from "@/lib/types";
 import { ErrorState, LoadingState } from "@/components/async-state";
@@ -18,15 +18,9 @@ export default function ScheduleScreen() {
     end.setDate(end.getDate() + 7);
     return { startAt: Math.floor(start.getTime() / 1000), endAt: Math.floor(end.getTime() / 1000) };
   }, []);
-  const schedule = useQuery({ queryKey: ["schedule", window.startAt, window.endAt], queryFn: async () => {
-    const page1 = await getAiringSchedule(1, 50, window);
-    const total = page1.pageInfo?.total ?? page1.airingSchedules.length;
-    if (total <= 50) return page1;
-    const page2 = await getAiringSchedule(2, 50, window);
-    return { ...page1, airingSchedules: [...page1.airingSchedules, ...page2.airingSchedules] };
-  },
+  const schedule = useQuery({ queryKey: ["schedule", window.startAt, window.endAt], queryFn: async () => getAiringScheduleWindow(window),
     // A 7-day window barely moves minute to minute — cache so tab switches
-    // are instant instead of re-paying two serial backend rounds.
+    // are instant instead of re-paying the backend round.
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
   });

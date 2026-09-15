@@ -222,6 +222,67 @@ export async function getAiringSchedule(page = 1, perPage = 40, window?: AiringS
   return data.Page;
 }
 
+const airingScheduleBatchQuery = `query AiringScheduleBatch($perPage: Int!, $startAt: Int, $endAt: Int) {
+  first: Page(page: 1, perPage: $perPage) { pageInfo { currentPage hasNextPage total } airingSchedules(notYetAired: true, airingAt_greater: $startAt, airingAt_lesser: $endAt, sort: [TIME]) { airingAt episode media { ${fields} } } }
+  second: Page(page: 2, perPage: $perPage) { pageInfo { currentPage hasNextPage total } airingSchedules(notYetAired: true, airingAt_greater: $startAt, airingAt_lesser: $endAt, sort: [TIME]) { airingAt episode media { ${fields} } } }
+}`;
+
+/**
+ * The 7-day schedule in ONE AniList round trip. Two aliased pages ride the
+ * same HTTP request through the same throttle slot, so the tab pays ~1x
+ * latency instead of 2x serial waits.
+ */
+export async function getAiringScheduleWindow(window?: AiringScheduleWindow): Promise<AiringSchedulePage> {
+  const data = await request<{ first: AiringSchedulePage; second: AiringSchedulePage }>(
+    airingScheduleBatchQuery,
+    { perPage: 50, startAt: window?.startAt, endAt: window?.endAt },
+  );
+  const total = data.first.pageInfo?.total ?? data.first.airingSchedules.length;
+  const schedules = total <= 50
+    ? data.first.airingSchedules
+    : [...data.first.airingSchedules, ...data.second.airingSchedules];
+  return { ...data.first, airingSchedules: schedules };
+}
+
+const animePoolQuery = `query AnimePool($perPage: Int!, $pageA: Int!, $pageB: Int!, $pageC: Int!, $sort: [MediaSort], $genre: String, $isAdult: Boolean) {
+  a: Page(page: $pageA, perPage: $perPage) { media(type: ANIME, isAdult: $isAdult, sort: $sort, genre: $genre) { ${fields} } }
+  b: Page(page: $pageB, perPage: $perPage) { media(type: ANIME, isAdult: $isAdult, sort: $sort, genre: $genre) { ${fields} } }
+  c: Page(page: $pageC, perPage: $perPage) { media(type: ANIME, isAdult: $isAdult, sort: $sort, genre: $genre) { ${fields} } }
+}`;
+
+/**
+ * A 150-title surprise pool in ONE AniList round trip. Three aliased pages
+ * share one HTTP request and one throttle slot; the Random screen then deals
+ * from the pool client-side with zero network per pick.
+ */
+export async function getAnimePool(options: {
+  pages: [number, number, number];
+  perPage?: number;
+  sort?: string[];
+  genre?: string;
+  isAdult?: boolean | null;
+} = { pages: [1, 2, 3] }): Promise<Anime[]> {
+  const data = await request<{ a: AnimePage; b: AnimePage; c: AnimePage }>(animePoolQuery, {
+    perPage: options.perPage ?? 50,
+    pageA: options.pages[0],
+    pageB: options.pages[1],
+    pageC: options.pages[2],
+    sort: options.sort ?? ["POPULARITY_DESC"],
+    genre: options.genre,
+    isAdult: options.isAdult,
+  });
+  const seen = new Set<number>();
+  const pool: Anime[] = [];
+  for (const page of [data.a, data.b, data.c]) {
+    for (const item of page?.media ?? []) {
+      if (!item || seen.has(item.id)) continue;
+      seen.add(item.id);
+      pool.push(item);
+    }
+  }
+  return pool;
+}
+
 export async function getRecommendations(animeId: number): Promise<Anime[]> {
   const query = `query Recommendations($mediaId: Int!) {
     MediaRecommendations(mediaId: $mediaId, sort: RATING_DESC, perPage: 12) {

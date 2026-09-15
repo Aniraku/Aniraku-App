@@ -1,9 +1,10 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
-import { getAnimePage } from "@/lib/anilist";
+import { getAnimePool } from "@/lib/anilist";
+import type { Anime } from "@/lib/types";
 import { nsfwFilterParam, useNsfwPreference } from "@/lib/nsfw-preference";
 import { animeTitle } from "@/lib/types";
 import { ErrorState, LoadingState } from "@/components/async-state";
@@ -11,89 +12,133 @@ import { nothing } from "@/components/nothing-ui";
 import { NativeHeader, NativeScreen } from "@/components/screen";
 import { AppIcon } from "@/components/app-icon";
 
+function shuffledIndices(length: number) {
+  const order = Array.from({ length }, (_, index) => index);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j] as number, order[i] as number];
+  }
+  return order;
+}
+
+function randomPages(): [number, number, number] {
+  const start = Math.floor(Math.random() * 20);
+  return [((start % 20) + 1), (((start + 1) % 20) + 1), (((start + 2) % 20) + 1)] as [number, number, number];
+}
+
 export default function RandomScreen() {
   const nsfw = useNsfwPreference();
   const isAdultParam = nsfwFilterParam(nsfw.enabled);
-  const [seed, setSeed] = useState(1);
-  const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
+  // Each batch pulls 3 fresh random pages in ONE AniList request. Bumping the
+  // batch deals a brand-new 150-title pool when the current one runs dry.
+  const [batch, setBatch] = useState(() => randomPages());
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  // Shuffle bag: every title shows once before any repeat, so picks never
+  // feel cached. Dealt client-side — zero network per pick, always instant.
+  const bagRef = useRef<number[]>([]);
+  // Last good pool, kept across background refetches so picks keep working
+  // (from the old bag) while the fresh batch loads — never a dead button.
+  const titlesRef = useRef<Anime[]>([]);
+  const [cursor, setCursor] = useState(0);
+  const [current, setCurrent] = useState<Anime | null>(null);
 
-  const suggestion = useQuery({
-    queryKey: ["random", seed, selectedGenre, isAdultParam],
+  const pool = useQuery({
+    queryKey: ["random-pool", batch[0], batch[1], batch[2], isAdultParam],
     queryFn: async () => {
-      const page = await getAnimePage({
-        page: (seed % 20) + 1,
-        perPage: 20,
+      const titles = await getAnimePool({
+        pages: batch,
+        perPage: 50,
         sort: ["POPULARITY_DESC"],
         isAdult: isAdultParam,
-        ...(selectedGenre ? { genre: selectedGenre } : {}),
       });
-      if (!page.media.length) throw new Error("No anime found. Check your connection and try again.");
-      return page.media[Math.floor(Math.random() * page.media.length)];
+      if (!titles.length) throw new Error("No anime found. Check your connection and try again.");
+      return titles;
     },
     retry: 2,
     retryDelay: 1_500,
-    // Keyed per seed/genre: cache so back-navigation is instant.
-    staleTime: 5 * 60_000,
+    staleTime: 10 * 60_000,
     gcTime: 30 * 60_000,
   });
 
-  const pickAnother = useCallback(() => {
-    Animated.timing(fadeAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => {
-      setSeed((v) => v + 1);
-      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
-    });
+  // Fresh pool (or first load): shuffle the bag and deal the top card.
+  useEffect(() => {
+    if (!pool.data?.length) return;
+    titlesRef.current = pool.data;
+    bagRef.current = shuffledIndices(pool.data.length);
+    setCursor(0);
+    setCurrent(pool.data[bagRef.current[0] as number] ?? null);
+  }, [pool.data]);
+
+  const crossfadeTo = useCallback((next: Anime | null) => {
+    if (!next) return;
+    setCurrent(next);
+    // Single 0→1 flight that always completes — rapid taps restart it but can
+    // never strand the card at opacity 0 (the old chained fade-out/in could).
+    fadeAnim.stopAnimation();
+    fadeAnim.setValue(0);
+    Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
   }, [fadeAnim]);
 
-  const pickGenre = useCallback((genre: string | null) => {
-    Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
-      setSelectedGenre(genre);
-      setSeed((v) => v + 1);
-      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
-    });
-  }, [fadeAnim]);
+  const pickAnother = useCallback(() => {
+    const titles = titlesRef.current.length ? titlesRef.current : pool.data;
+    if (!titles?.length) {
+      void pool.refetch();
+      return;
+    }
+    const nextCursor = cursor + 1;
+    if (nextCursor < bagRef.current.length) {
+      setCursor(nextCursor);
+      crossfadeTo(titles[bagRef.current[nextCursor] as number] ?? null);
+      return;
+    }
+    // Bag exhausted after ~150 picks: deal a fresh pool in the background and
+    // keep showing the current card — never a blank screen while it loads.
+    setBatch(randomPages());
+  }, [cursor, crossfadeTo, pool]);
+
+  const anime = current ?? pool.data?.[0] ?? null;
 
   return (
     <NativeScreen>
       <NativeHeader eyebrow="PICK FOR ME" title="Surprise me" />
 
-      {suggestion.isPending ? (
+      {pool.isPending && !anime ? (
         <LoadingState label="Finding something you might like" />
-      ) : suggestion.isError || !suggestion.data ? (
+      ) : pool.isError && !anime ? (
         <ErrorState
-          message={suggestion.error?.message ?? "We could not pick an anime right now."}
-          onRetry={pickAnother}
+          message={pool.error?.message ?? "We could not pick an anime right now."}
+          onRetry={() => void pool.refetch()}
         />
-      ) : (
+      ) : anime ? (
         <Animated.View style={[styles.wrapper, { opacity: fadeAnim }]}>
           <View style={styles.art}>
             <View style={styles.artFallback}>
-              <Text style={styles.fallbackInitial}>{animeTitle(suggestion.data).charAt(0)}</Text>
+              <Text style={styles.fallbackInitial}>{animeTitle(anime).charAt(0)}</Text>
             </View>
             <Image
-              source={{ uri: suggestion.data.coverImage?.extraLarge || suggestion.data.coverImage?.large || "" }}
+              source={{ uri: anime.coverImage?.extraLarge || anime.coverImage?.large || "" }}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
               transition={0}
               cachePolicy="memory-disk"
-              accessibilityLabel={`Cover image for ${animeTitle(suggestion.data)}`}
+              accessibilityLabel={`Cover image for ${animeTitle(anime)}`}
             />
             <View style={styles.artMask} />
           </View>
 
           <View style={styles.content}>
-            <Text style={styles.title} accessibilityLabel={`Title: ${animeTitle(suggestion.data)}`}>
-              {animeTitle(suggestion.data)}
+            <Text style={styles.title} accessibilityLabel={`Title: ${animeTitle(anime)}`}>
+              {animeTitle(anime)}
             </Text>
 
             <Text style={styles.meta}>
-              {(suggestion.data.genres || []).slice(0, 3).join(" · ") || "Anime for tonight"}
+              {(anime.genres || []).slice(0, 3).join(" · ") || "Anime for tonight"}
             </Text>
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`View ${animeTitle(suggestion.data)}`}
-              onPress={() => router.push((`/anime/${suggestion.data.id}`) as never)}
+              accessibilityLabel={`View ${animeTitle(anime)}`}
+              onPress={() => router.push((`/anime/${anime.id}`) as never)}
               style={({ pressed }) => [styles.open, pressed && styles.pressed]}
             >
               <Text style={styles.openText}>VIEW ANIME</Text>
@@ -110,6 +155,8 @@ export default function RandomScreen() {
             </Pressable>
           </View>
         </Animated.View>
+      ) : (
+        <LoadingState label="Finding something you might like" />
       )}
     </NativeScreen>
   );
