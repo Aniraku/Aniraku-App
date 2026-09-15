@@ -64,7 +64,7 @@
 
 ### v5.6.6 is out
 
-Hentai fixed at the root: flixcloud is kept when it is the only server the backend lists (traced live on title 113417), mounting embed-first. Includes everything from v5.6.5 — restored double/triple-tap seek, backoff-polled discovery, instant Random picks, one-trip Schedule, never-blank avatars, numbers-only episode grid, lighter scrims. Three builds for full coverage.
+NSFW fixed at the root: flixcloud is kept when it is the only server the backend lists, mounting embed-first. Includes everything from v5.6.5 — restored double/triple-tap seek, backoff-polled discovery, instant Random picks, one-trip Schedule, never-blank avatars, numbers-only episode grid, lighter scrims. Three builds for full coverage.
 
 | APK |
 |:--|
