@@ -6,6 +6,22 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.6.4 — Gesture rewrite: seek deferred to release, avatar & fullscreen fixes
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- Gesture rewrite: seek actions (double-tap ±10s, triple-tap −20s/+30s) are now deferred to touch-UP instead of firing on touch-DOWN — eliminates accidental seek when taps meant to toggle controls.
+- Two quick taps (<200ms each) both toggle controls, no seek. Only a tap-then-hold (singleTapFired) triggers seek on release.
+- 150ms cooldown between any gesture action (seek or toggle) prevents rapid double-fires.
+- Stale pending seeks canceled on new touch-down; `seekFiredRef` prevents duplicate seeks during hold.
+- AvatarImage rewritten to use React Native's built-in Image (removes expo-image recyclingKey/contentFit/transition/cachePolicy).
+- getServers now propagates network errors instead of silently catching; test updated to `rejects.toThrow()`.
+- Controls backdrop: removed hard backgroundColor — only edge scrims remain for button readability.
+- Controls conditionally rendered via `controlsRendered` state (unmounted when hidden to avoid blocking gesture touches).
+- Fullscreen restored: `lockPlatformAsync` for Android with try-catch fallback to `lockAsync`; exit locks portrait before unlock.
+- Hentai retry: first empty server attempt waits 1.2s and retries once.
+- Bumps the Android versionCode to 61.
+
 ## v5.6.3 — Embed parity, backend-only providers & player fixes
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`

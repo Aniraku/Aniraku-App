@@ -141,37 +141,33 @@ const UNSUPPORTED_PROVIDERS = new Set(["flixcloud"]);
  *  (flixcloud) are filtered. Deduplicates by display name so the UI never
  *  shows the same provider twice. */
 export async function getServers(animeId: number, episode: number, lang: "sub" | "dub"): Promise<Server[]> {
-  try {
-    const payload = await apiRequest<any[]>(`/api/v1/servers?animeId=${animeId}&episode=${episode}&lang=${lang}`, undefined, 30_000);
-    if (Array.isArray(payload) && payload.length > 0) {
-      const seen = new Set<string>();
-      const servers: Server[] = [];
-      for (const server of payload) {
-        const providerName = String(server.provider || "").trim().toLowerCase();
-        const displayName = String(server.name || server.provider || "anikoto").trim().toLowerCase();
-        if (UNSUPPORTED_PROVIDERS.has(providerName) || UNSUPPORTED_PROVIDERS.has(displayName)) continue;
-        const dedupeKey = displayName || providerName;
-        if (seen.has(dedupeKey)) continue;
-        seen.add(dedupeKey);
-        servers.push({
-          id: server.id || `${dedupeKey}:${lang}:${servers.length}`,
-          provider: providerName || dedupeKey,
-          label: String(server.name || server.provider || "ANIKOTO").toUpperCase(),
-          lang: (server.lang || lang) as "sub" | "dub",
-          sources: server.sources,
-          headers: server.headers,
-          downloads: server.downloads,
-          subtitles: server.subtitles,
-        });
-      }
-      if (servers.length > 0) return servers;
-    }
-    // Backend owns provider truth: request failures return empty (never fixed
-    // fallback names) so the UI only ever shows servers the backend listed.
-    return [];
-  } catch {
+  const payload = await apiRequest<any[]>(`/api/v1/servers?animeId=${animeId}&episode=${episode}&lang=${lang}`, undefined, 30_000);
+  if (!Array.isArray(payload) || payload.length === 0) {
+    // Empty array is a legitimate "no servers for this language" response —
+    // not an error. The caller decides what to do with zero servers.
     return [];
   }
+  const seen = new Set<string>();
+  const servers: Server[] = [];
+  for (const server of payload) {
+    const providerName = String(server.provider || "").trim().toLowerCase();
+    const displayName = String(server.name || server.provider || "anikoto").trim().toLowerCase();
+    if (UNSUPPORTED_PROVIDERS.has(providerName) || UNSUPPORTED_PROVIDERS.has(displayName)) continue;
+    const dedupeKey = displayName || providerName;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    servers.push({
+      id: server.id || `${dedupeKey}:${lang}:${servers.length}`,
+      provider: providerName || dedupeKey,
+      label: String(server.name || server.provider || "ANIKOTO").toUpperCase(),
+      lang: (server.lang || lang) as "sub" | "dub",
+      sources: server.sources,
+      headers: server.headers,
+      downloads: server.downloads,
+      subtitles: server.subtitles,
+    });
+  }
+  return servers;
 }
 
 export async function getStream(input: { animeId: number; episode: number; provider: string; lang: "sub" | "dub"; quality?: string; refresh?: boolean }): Promise<StreamResponse> {

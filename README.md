@@ -24,7 +24,7 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.6.3">v5.6.3 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.6.4">v5.6.4 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
@@ -62,15 +62,15 @@
 
 ---
 
-### v5.6.3 is out
+### v5.6.4 is out
 
-Embed player wears the same chrome as the native inline player, providers are strictly backend-listed (no fixed fallbacks), tap show/hide fixed, fullscreen forces landscape, schedule/random load faster, read episodes never re-ping outside, avatars never render blank. Three builds for full coverage.
+Gesture rewrite: seek deferred to release (no accidental seek on quick taps), two quick taps both toggle controls, 150ms cooldown prevents double-fires, avatar image fix, fullscreen restore, controls conditional render, hentai retry. Three builds for full coverage.
 
 | APK |
 |:--|
-| [Aniraku-v5.6.3-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.3/aniraku-v5.6.3-arm64.apk) |
-| [Aniraku-v5.6.3-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.3/aniraku-v5.6.3-arm32.apk) |
-| [Aniraku-v5.6.3-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.3/aniraku-v5.6.3-universal.apk) |
+| [Aniraku-v5.6.4-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.4/aniraku-v5.6.4-arm64.apk) |
+| [Aniraku-v5.6.4-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.4/aniraku-v5.6.4-arm32.apk) |
+| [Aniraku-v5.6.4-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.4/aniraku-v5.6.4-universal.apk) |
 
 <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 

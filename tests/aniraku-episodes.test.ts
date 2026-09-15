@@ -95,8 +95,8 @@ describe("Aniraku episode contract", () => {
     await expect(getServers(16498, 63, "sub")).resolves.toEqual([]);
   });
 
-  it("returns empty on request failure instead of fixed fallback providers", async () => {
+  it("propagates network errors so the caller can retry", async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error("network down")) as unknown as typeof fetch;
-    await expect(getServers(16498, 1, "sub")).resolves.toEqual([]);
+    await expect(getServers(16498, 1, "sub")).rejects.toThrow();
   });
 });

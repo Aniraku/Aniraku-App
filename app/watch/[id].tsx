@@ -83,15 +83,16 @@ import { t } from "@/lib/i18n";
 
 const EPISODE_PAGE_SIZE = 50;
 const RESUME_MIN_TIME = 30;
-const DOUBLE_TAP_WINDOW_MS = 300;
-const TRIPLE_TAP_WINDOW_MS = 500;
+const DOUBLE_TAP_WINDOW_MS = 200;
+const TRIPLE_TAP_WINDOW_MS = 350;
 const SKIP_HOLD_MS = 400;
 // ── Gesture boundaries: each gesture owns its zone, no overlaps ──
-const TAP_SLOP_PX = 10; // max move to still count as a tap
+const TAP_SLOP_PX = 14; // max move to still count as a tap
 const SWIPE_ACTIVATE_PX = 22; // vertical travel before brightness/volume engages
 const SWIPE_DIRECTION_RATIO = 1.4; // |dy| must dominate |dx| or swipe is ignored
-const HORIZONTAL_CANCEL_PX = 18; // horizontal drift kills pending/hold
+const HORIZONTAL_CANCEL_PX = 22; // horizontal drift kills pending/hold
 const LONG_PRESS_MS = 550; // still-finger delay before center-hold → 2x
+const TAP_ACTION_COOLDOWN_MS = 150; // min gap between any action (seek/toggle) and the next
 const EDGE_ZONE = 0.35; // x < 35% = brightness · x > 65% = volume · middle = 2x zone
 const SEEK_ZONE = 0.4; // x < 40% = rewind · x > 60% = forward · middle = play/pause
 const STREAM_CACHE_TTL_MS = 30_000;
@@ -260,6 +261,11 @@ export default function WatchScreen() {
   const tapCountRef = useRef(0);
   const tapCountTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingTripleTapRef = useRef<{ side: "left" | "right"; x: number } | null>(null);
+  // Gesture rewrite: defer seek to release, cooldown between actions
+  const singleTapFiredRef = useRef(false);
+  const seekFiredRef = useRef(false);
+  const lastActionTimeRef = useRef(0);
+  const pendingDeferredSeekRef = useRef<{ side: "left" | "right"; seconds: number } | null>(null);
   // PiP hardening: availability is probed (button hides where enter fails),
   // activity pauses UI updates while the system owns the frame.
   const [pipAvailable, setPipAvailable] = useState(true);
@@ -294,8 +300,9 @@ export default function WatchScreen() {
   const lockSensorLandscape = useCallback(() => {
     if (Platform.OS === "web") return;
     if (Platform.OS === "android") {
-      // ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-      void ScreenOrientation.lockPlatformAsync({ screenOrientationConstantAndroid: 6 }).catch(() => {});
+      void ScreenOrientation.lockPlatformAsync({ screenOrientationConstantAndroid: 6 }).catch(() => {
+        void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+      });
       return;
     }
     void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
@@ -308,8 +315,9 @@ export default function WatchScreen() {
   const lockForceLandscape = useCallback(() => {
     if (Platform.OS === "web") return;
     if (Platform.OS === "android") {
-      // ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-      void ScreenOrientation.lockPlatformAsync({ screenOrientationConstantAndroid: 0 }).catch(() => {});
+      void ScreenOrientation.lockPlatformAsync({ screenOrientationConstantAndroid: 0 }).catch(() => {
+        void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+      });
       return;
     }
     void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
@@ -623,6 +631,13 @@ export default function WatchScreen() {
         getServers(animeId, episode, "dub").catch(() => [] as Server[]),
       ]);
       if (cancelled) return;
+      // First attempt returned nothing — retry once before giving up. Hentai
+      // and heavy-back-end titles often return empty on the cold first hit.
+      if (!subs.length && !dubs.length && attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        if (cancelled) return;
+        return fetchServers(1);
+      }
       setProviders({ sub: subs, dub: dubs });
       setLoadingServers(false);
       // Auto-select: preferred language > available language
@@ -1471,6 +1486,7 @@ export default function WatchScreen() {
       if (skipHoldTimer.current) clearTimeout(skipHoldTimer.current);
       if (unlockArmTimer.current) clearTimeout(unlockArmTimer.current);
       if (tapCountTimer.current) clearTimeout(tapCountTimer.current);
+      if (pendingDeferredSeekRef.current) pendingDeferredSeekRef.current = null;
     };
   }, []);
 
@@ -1520,8 +1536,6 @@ export default function WatchScreen() {
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        // Claim on touch-down so taps reliably reach grant/release. Chrome
-        // buttons sit above this overlay (higher zIndex) so they still win.
         onStartShouldSetPanResponder: () => !playerLocked,
         onMoveShouldSetPanResponder: () => !playerLocked,
 
@@ -1537,71 +1551,73 @@ export default function WatchScreen() {
           doubleTapTouch.current = false;
           cancelLongPress();
 
-          // ── Multi-tap counting happens on touch-DOWN (not release) so the
-          // seek feels instant and double-tap-and-hold keeps skipping while
-          // the finger stays down. ──
+          // Cancel any stale pending deferred seek from a previous gesture
+          if (pendingDeferredSeekRef.current) {
+            pendingDeferredSeekRef.current = null;
+          }
+
           const prior = lastTapRef.current;
-          const isFollowUp = Boolean(prior && (now - prior.time) < TRIPLE_TAP_WINDOW_MS && Math.abs(gesture.x0 - prior.x) < 80);
+          const isFollowUp = Boolean(prior && (now - prior.time) < TRIPLE_TAP_WINDOW_MS && Math.abs(gesture.x0 - prior.x) < 80 && tapCountRef.current > 0);
+
           if (isFollowUp) {
-            // Second tap down kills the pending single-tap toggle immediately —
-            // otherwise controls flash on every double-tap.
             if (singleTapTimeout.current) { clearTimeout(singleTapTimeout.current); singleTapTimeout.current = null; }
             if (tapCountTimer.current) clearTimeout(tapCountTimer.current);
             tapCountRef.current += 1;
             const zone = seekZoneForX(gesture.x0);
 
             if (tapCountRef.current >= 3) {
-              // Triple-tap confirmed on the 3rd touch-down. The 2nd tap
-              // already jumped ±10s, so add the difference to land exactly on
-              // the labeled totals (-20s left / +30s right).
+              // ── Triple tap: execute on release, not here ──
               lastTapRef.current = null;
               tapCountRef.current = 0;
               doubleTapTouch.current = true;
+              seekFiredRef.current = false;
               gestureModeRef.current = "pending";
               if (zone === "left") {
-                seekRelativeRef.current(-10);
-                flashRef.current("left", 20);
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-                armSkipHold("left", 10);
+                pendingDeferredSeekRef.current = { side: "left", seconds: 20 };
               } else if (zone === "right") {
-                seekRelativeRef.current(20);
-                flashRef.current("right", 30);
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-                armSkipHold("right", 10);
+                pendingDeferredSeekRef.current = { side: "right", seconds: 30 };
               } else {
-                // Center triple = play/pause, no skip-hold.
+                pendingDeferredSeekRef.current = null;
                 setIsPlaying((p) => !p);
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
               }
+              tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; }, TRIPLE_TAP_WINDOW_MS);
               return;
             }
 
-            // Second tap down: seek instantly, hold continues skipping.
+            // ── Two quick taps: both toggle controls, no seek ──
+            // Two taps fast enough (< DOUBLE_TAP_WINDOW_MS apart) both toggle
+            // controls. Only when a tap is followed by a hold (singleTapFired)
+            // do we seek on release.
+            if (!singleTapFiredRef.current) {
+              // Both taps within double-tap window → toggle controls only
+              doubleTapTouch.current = true;
+              gestureModeRef.current = "pending";
+              seekFiredRef.current = false;
+              tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; }, TRIPLE_TAP_WINDOW_MS);
+              return;
+            }
+
+            // ── Tap then delayed tap (singleTapFired): seek on release ──
             doubleTapTouch.current = true;
+            seekFiredRef.current = false;
             gestureModeRef.current = "pending";
             if (zone === "left") {
-              seekRelativeRef.current(-10);
-              flashRef.current("left", 10);
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-              armSkipHold("left", 10);
+              pendingDeferredSeekRef.current = { side: "left", seconds: 10 };
             } else if (zone === "right") {
-              seekRelativeRef.current(10);
-              flashRef.current("right", 10);
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-              armSkipHold("right", 10);
+              pendingDeferredSeekRef.current = { side: "right", seconds: 10 };
             } else {
+              pendingDeferredSeekRef.current = null;
               setIsPlaying((p) => !p);
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
             }
-            // If no 3rd tap lands in the window, the count simply resets.
             tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; }, TRIPLE_TAP_WINDOW_MS);
             return;
           }
 
-          // ── First touch: this IS tap #1 — enter PENDING, arm center-only
-          // long-press for 2x. Outer zones never arm 2x — a brightness/volume
-          // swipe can never trigger speed, and a center hold can never touch
-          // brightness.
+          // ── First touch: tap #1 ──
+          singleTapFiredRef.current = false;
+          if (singleTapTimeout.current) { clearTimeout(singleTapTimeout.current); singleTapTimeout.current = null; }
           tapCountRef.current = 1;
           gestureModeRef.current = "pending";
           if (gestureZoneRef.current === "center") {
@@ -1618,14 +1634,9 @@ export default function WatchScreen() {
         onPanResponderMove: (_evt, gesture) => {
           if (playerLocked || gestureModeRef.current === "idle") return;
           const mode = gestureModeRef.current;
-          // Cumulative travel from touch-down. (moveX/moveY are only updated
-          // by move events, so dx/dy is the reliable measure — especially for
-          // taps, where moveX can be stale.)
           const absDx = Math.abs(gesture.dx);
           const absDy = Math.abs(gesture.dy);
 
-          // Any real movement kills a center hold before it starts, and ends
-          // it if it already started — swipes and 2x never coexist.
           if (mode === "pending" && (absDx > TAP_SLOP_PX || absDy > TAP_SLOP_PX)) cancelLongPress();
           if (mode === "holding" && (absDx > TAP_SLOP_PX || absDy > TAP_SLOP_PX)) {
             gestureModeRef.current = "idle";
@@ -1634,7 +1645,6 @@ export default function WatchScreen() {
             return;
           }
 
-          // Horizontal drift cancels pending taps — this is not our gesture.
           if (mode === "pending" && absDx > HORIZONTAL_CANCEL_PX && absDy < SWIPE_ACTIVATE_PX) {
             gestureModeRef.current = "idle";
             cancelLongPress();
@@ -1642,13 +1652,11 @@ export default function WatchScreen() {
             return;
           }
 
-          // Vertical swipe engages ONLY from an outer-zone start with a
-          // dominant vertical direction. Center starts never swipe.
           if (mode === "pending") {
             const startZone = gestureZoneRef.current;
             const verticalDominant = absDy > SWIPE_ACTIVATE_PX && absDy > absDx * SWIPE_DIRECTION_RATIO;
             if (!verticalDominant) return;
-            if (startZone === "center") return; // center vertical = dead, stays pending
+            if (startZone === "center") return;
             gestureModeRef.current = "swiping";
             cancelLongPress();
             stopHoldSpeed();
@@ -1658,7 +1666,6 @@ export default function WatchScreen() {
           if (gestureModeRef.current === "swiping") {
             const startZone = gestureZoneRef.current;
             if (startZone === "center") return;
-            // Subtract the activation deadzone so the value doesn't jump.
             const effectiveDy = gesture.dy - Math.sign(gesture.dy) * SWIPE_ACTIVATE_PX;
             const delta = -effectiveDy / 250;
             const snapToStep = (value: number) => Math.max(0, Math.min(1, Math.round(value * 20) / 20));
@@ -1696,17 +1703,42 @@ export default function WatchScreen() {
           }
           if (mode !== "pending") return;
 
-          // A multi-tap touch already consumed this release for seeking.
+          // A multi-tap gesture already consumed this release
           if (doubleTapTouch.current) {
             doubleTapTouch.current = false;
+
+            // Execute any deferred seek now (double-tap or triple-tap)
+            const deferred = pendingDeferredSeekRef.current;
+            if (deferred) {
+              pendingDeferredSeekRef.current = null;
+              const now = Date.now();
+              if (now - lastActionTimeRef.current < TAP_ACTION_COOLDOWN_MS) {
+                // Cooldown active — skip this seek
+              } else {
+                seekFiredRef.current = true;
+                lastActionTimeRef.current = now;
+                const delta = deferred.side === "left" ? -deferred.seconds : deferred.seconds;
+                seekRelativeRef.current(delta);
+                flashRef.current(deferred.side, deferred.seconds);
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                armSkipHold(deferred.side, deferred.seconds);
+              }
+            } else {
+              // Two quick taps (no seek) → toggle controls
+              const now = Date.now();
+              if (now - lastActionTimeRef.current >= TAP_ACTION_COOLDOWN_MS) {
+                lastActionTimeRef.current = now;
+                setShowControls((prev) => !prev);
+                lastTapRef.current = null;
+              }
+            }
             clearSkipHold();
             return;
           }
+
           clearSkipHold();
 
-          // Single tap: tiny movement + quick lift, otherwise ignore.
-          // dx/dy are cumulative from touch-down (0,0 for a pure tap) — never
-          // moveX/moveY here, which are stale when no move events fired.
+          // Single tap: tiny movement + quick lift
           const quick = Date.now() - gestureStartTime.current < 400;
           if (Math.abs(gesture.dx) < TAP_SLOP_PX && Math.abs(gesture.dy) < TAP_SLOP_PX && quick) {
             const now = Date.now();
@@ -1714,8 +1746,12 @@ export default function WatchScreen() {
             lastTapRef.current = { time: now, x: gestureStartX.current };
             if (tapCountTimer.current) clearTimeout(tapCountTimer.current);
             tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; }, TRIPLE_TAP_WINDOW_MS);
-            // Delayed past the double-tap window so a 2nd tap can cancel it.
-            singleTapTimeout.current = setTimeout(() => { setShowControls((prev) => !prev); }, DOUBLE_TAP_WINDOW_MS);
+            // Delayed past the double-tap window so a 2nd tap can cancel it
+            singleTapTimeout.current = setTimeout(() => {
+              singleTapFiredRef.current = true;
+              setShowControls((prev) => !prev);
+              lastTapRef.current = null;
+            }, DOUBLE_TAP_WINDOW_MS);
           } else {
             lastTapRef.current = null;
           }
@@ -1727,6 +1763,7 @@ export default function WatchScreen() {
           stopHoldSpeed();
           clearSkipHold();
           doubleTapTouch.current = false;
+          pendingDeferredSeekRef.current = null;
         },
       }),
     [armSkipHold, brightness, clearSkipHold, playerLocked, volume, beginHoldSpeed, stopHoldSpeed, triggerDoubleTapAnimation],
@@ -1968,7 +2005,13 @@ export default function WatchScreen() {
     setManualFullscreen(false);
     // Keep chrome visible on exit so the inline player never looks dead.
     setShowControls(true);
-    if (Platform.OS !== "web") void ScreenOrientation.unlockAsync().catch(() => {});
+    if (Platform.OS !== "web") {
+      // Lock portrait briefly before unlocking so Android doesn't stay stuck
+      // in the last forced landscape when auto-rotate is OFF.
+      void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT).catch(() => {}).finally(() => {
+        void ScreenOrientation.unlockAsync().catch(() => {});
+      });
+    }
   }, []);
 
   const enterPiP = useCallback(() => {
@@ -2044,8 +2087,21 @@ export default function WatchScreen() {
 
   // Controls fade instead of popping — 180ms opacity, cause → effect only.
   const controlsOpacity = useRef(new Animated.Value(0)).current;
+  const [controlsRendered, setControlsRendered] = useState(true);
+  const controlsFadeJob = useRef<Animated.CompositeAnimation | null>(null);
   useEffect(() => {
-    Animated.timing(controlsOpacity, { toValue: showControls && !playerLocked ? 1 : 0, duration: 180, useNativeDriver: true }).start();
+    if (controlsFadeJob.current) { controlsFadeJob.current.stop(); controlsFadeJob.current = null; }
+    if (showControls && !playerLocked) {
+      setControlsRendered(true);
+      controlsOpacity.setValue(0);
+      const job = Animated.timing(controlsOpacity, { toValue: 1, duration: 180, useNativeDriver: true });
+      controlsFadeJob.current = job;
+      job.start(() => { controlsFadeJob.current = null; });
+    } else {
+      const job = Animated.timing(controlsOpacity, { toValue: 0, duration: 180, useNativeDriver: true });
+      controlsFadeJob.current = job;
+      job.start(({ finished }) => { controlsFadeJob.current = null; if (finished) setControlsRendered(false); });
+    }
   }, [controlsOpacity, playerLocked, showControls]);
 
   const onProgressLayout = (event: LayoutChangeEvent) => setProgressWidth(event.nativeEvent.layout.width);
@@ -2174,10 +2230,11 @@ export default function WatchScreen() {
         </Animated.View>
       ) : null}
 
-      {/* Main controls — mounted for the whole source lifetime; visibility is
-          an animated opacity so chrome never pops. pointerEvents switches with
-          it, so gestures still reach the overlay while faded out. */}
-      {source ? (
+      {/* Main controls — mounted only while visible (fading in or visible).
+          When hidden they are fully unmounted so they never block touches
+          on the gesture layer. pointerEvents switches with visibility, so
+          buttons still win hit-test when chrome is up. */}
+      {source && controlsRendered ? (
         <Animated.View style={[styles.controlsBackdrop, manualFullscreen && styles.controlsBackdropFullscreen, { opacity: controlsOpacity }]} pointerEvents={showControls && !playerLocked ? "box-none" : "none"}>
           {/* Edge scrims — layered bands fake a gradient without adding a
               native dependency; keeps top/bottom rows readable like the
@@ -2593,7 +2650,7 @@ const styles = StyleSheet.create({
   subtitleWrapper: { ...StyleSheet.absoluteFillObject, justifyContent: "flex-end", alignItems: "center", paddingBottom: 68, zIndex: 1 },
   subtitleWrapperWithControls: { paddingBottom: 144 },
   subtitleWrapperFullscreen: { paddingBottom: 24 },
-  controlsBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: 3, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 6 },
+  controlsBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: 3, justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 6 },
   controlsBackdropFullscreen: { paddingHorizontal: 20, paddingVertical: 12 },
   scrimTopMain: { position: "absolute", top: 0, left: 0, right: 0, height: 64, backgroundColor: "rgba(0,0,0,0.28)" },
   scrimTopSoft: { position: "absolute", top: 0, left: 0, right: 0, height: 132, backgroundColor: "rgba(0,0,0,0.14)" },
