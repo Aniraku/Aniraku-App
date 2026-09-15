@@ -81,9 +81,9 @@
 
 | APK |
 |:--|
-| [Aniraku-v5.6.0-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.0-arm64.apk) |
-| [Aniraku-v5.6.0-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.0-arm32.apk) |
-| [Aniraku-v5.6.0-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.0-universal.apk) |
+| [Aniraku-v5.6.2-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.2/aniraku-v5.6.2-arm64.apk) |
+| [Aniraku-v5.6.2-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.2-arm32.apk) |
+| [Aniraku-v5.6.2-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.2-universal.apk) |
 
 <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 
