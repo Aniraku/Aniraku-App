@@ -4,14 +4,12 @@ import { currentWeekWindow, getAiringScheduleWindow, getAnimePool } from "@/lib/
 
 /**
  * Fires AniList prefetches on mount so both the Schedule and Random tabs
- * open instantly. Guarded by `ready` — the hook must not call useQueryClient
- * before the QueryClientProvider is mounted (i.e. before fonts load and the
- * AppProviders tree renders).
+ * open instantly. This hook MUST be called from inside the provider tree
+ * (after QueryClientProvider mounts) — calling it outside throws.
  */
-export function useStartupPrefetch(ready: boolean) {
+export function useStartupPrefetch() {
   const queryClient = useQueryClient();
   useEffect(() => {
-    if (!ready) return;
     const window = currentWeekWindow();
     queryClient.prefetchQuery({
       queryKey: ["schedule", window.startAt, window.endAt],
@@ -23,5 +21,5 @@ export function useStartupPrefetch(ready: boolean) {
       queryFn: () => getAnimePool({ pages: [1, 2, 3], perPage: 50, isAdult: null }),
       staleTime: 10 * 60_000,
     });
-  }, [ready, queryClient]);
+  }, [queryClient]);
 }

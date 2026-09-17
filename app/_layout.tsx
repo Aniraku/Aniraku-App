@@ -15,6 +15,12 @@ import { AniListDownBanner } from "@/components/anilist-down-banner";
 import { FirstRunOnboarding } from "@/components/first-run-onboarding";
 import { useStartupPrefetch } from "@/hooks/use-startup-prefetch";
 
+/** Must render inside AppProviders — calls useQueryClient. */
+function StartupPrefetcher() {
+  useStartupPrefetch();
+  return null;
+}
+
 // Set Space Grotesk as the global default font (Nothing OS system font).
 // Text and TextInput are class components in RN so defaultProps works at runtime.
 // @ts-expect-error — defaultProps is removed from RN 0.81 types but still functions
@@ -36,8 +42,6 @@ export default function RootLayout() {
     "HennyPenny-Regular": require("../assets/fonts/HennyPenny-Regular.ttf"),
   });
 
-  useStartupPrefetch(fontsLoaded);
-
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(nothing.black).catch(() => {});
   }, []);
@@ -46,7 +50,7 @@ export default function RootLayout() {
     return <GestureHandlerRootView style={{ flex: 1, backgroundColor: nothing.black }}><StatusBar style="light" translucent backgroundColor="transparent" /><View style={{ flex: 1, backgroundColor: nothing.black }} /></GestureHandlerRootView>;
   }
 
-  return <GestureHandlerRootView style={{ flex: 1, backgroundColor: nothing.black }}><SafeAreaProvider><AppProviders><StatusBar style="light" translucent backgroundColor="transparent" /><Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: nothing.black } }}><Stack.Screen name="(tabs)" /><Stack.Screen name="anime/[id]" /><Stack.Screen name="watch/[id]" /><Stack.Screen name="search" options={{ presentation: "card" }} /><Stack.Screen name="auth" options={{ presentation: "modal" }} /><Stack.Screen name="settings" options={{ presentation: "modal" }} /><Stack.Screen name="support" options={{ presentation: "modal" }} /><Stack.Screen name="library" /><Stack.Screen name="legal" options={{ presentation: "modal" }} /></Stack><ConnectivitySignal /><AppUpdatePrompt /><SupportPrompt /><AniListDownBanner /><FirstRunOnboarding onComplete={() => {}} /></AppProviders></SafeAreaProvider></GestureHandlerRootView>;
+  return <GestureHandlerRootView style={{ flex: 1, backgroundColor: nothing.black }}><SafeAreaProvider><AppProviders><StartupPrefetcher /><StatusBar style="light" translucent backgroundColor="transparent" /><Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: nothing.black } }}><Stack.Screen name="(tabs)" /><Stack.Screen name="anime/[id]" /><Stack.Screen name="watch/[id]" /><Stack.Screen name="search" options={{ presentation: "card" }} /><Stack.Screen name="auth" options={{ presentation: "modal" }} /><Stack.Screen name="settings" options={{ presentation: "modal" }} /><Stack.Screen name="support" options={{ presentation: "modal" }} /><Stack.Screen name="library" /><Stack.Screen name="legal" options={{ presentation: "modal" }} /></Stack><ConnectivitySignal /><AppUpdatePrompt /><SupportPrompt /><AniListDownBanner /><FirstRunOnboarding onComplete={() => {}} /></AppProviders></SafeAreaProvider></GestureHandlerRootView>;
 }
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
