@@ -3,13 +3,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import { currentWeekWindow, getAiringScheduleWindow, getAnimePool } from "@/lib/anilist";
 
 /**
- * Fires a single AniList round-trip on mount that pre-warms both the schedule
- * and the random pool caches. Both use the slim batched queries now, so the
- * total payload is small and the tabs open instantly once the prefetch lands.
+ * Fires AniList prefetches on mount so both the Schedule and Random tabs
+ * open instantly. Guarded by `ready` — the hook must not call useQueryClient
+ * before the QueryClientProvider is mounted (i.e. before fonts load and the
+ * AppProviders tree renders).
  */
-export function useStartupPrefetch() {
+export function useStartupPrefetch(ready: boolean) {
   const queryClient = useQueryClient();
   useEffect(() => {
+    if (!ready) return;
     const window = currentWeekWindow();
     queryClient.prefetchQuery({
       queryKey: ["schedule", window.startAt, window.endAt],
@@ -21,5 +23,5 @@ export function useStartupPrefetch() {
       queryFn: () => getAnimePool({ pages: [1, 2, 3], perPage: 50, isAdult: null }),
       staleTime: 10 * 60_000,
     });
-  }, [queryClient]);
+  }, [ready, queryClient]);
 }

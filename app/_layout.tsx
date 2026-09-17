@@ -36,7 +36,7 @@ export default function RootLayout() {
     "HennyPenny-Regular": require("../assets/fonts/HennyPenny-Regular.ttf"),
   });
 
-  useStartupPrefetch();
+  useStartupPrefetch(fontsLoaded);
 
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(nothing.black).catch(() => {});
