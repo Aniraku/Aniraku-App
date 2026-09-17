@@ -24,7 +24,7 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.6.7">v5.6.7 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.6.8">v5.6.8 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
@@ -62,15 +62,15 @@
 
 ---
 
-### v5.6.7 is out
+### v5.6.8 is out
 
-Avatar grid finally renders — file-cache bypasses Coil for Supabase URLs. Duplicate skip buttons and duplicate EPISODE ACTIVITY heading cleaned up. Random tab added (dice icon, truly random across 500 pages). Schedule and Random load 50% faster (compact AniList queries, startup prefetch). Three builds for full coverage.
+Crash fix: APPLICATION STATE error on launch caused by startup prefetch firing before the provider tree mounted. Now guarded behind fontsLoaded. Everything from v5.6.7 included — avatar file-cache, embed fix, duplicate cleanup, Random tab, speed.
 
 | APK |
 |:--|
-| [Aniraku-v5.6.7-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.7/aniraku-v5.6.7-arm64.apk) |
-| [Aniraku-v5.6.7-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.7/aniraku-v5.6.7-arm32.apk) |
-| [Aniraku-v5.6.7-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.7/aniraku-v5.6.7-universal.apk) |
+| [Aniraku-v5.6.8-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.8/aniraku-v5.6.8-arm64.apk) |
+| [Aniraku-v5.6.8-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.8/aniraku-v5.6.8-arm32.apk) |
+| [Aniraku-v5.6.8-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.8/aniraku-v5.6.8-universal.apk) |
 
 <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 

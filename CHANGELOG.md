@@ -6,6 +6,13 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.6.8 — Crash fix: startup prefetch guarded behind provider tree
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- Fixed APPLICATION STATE crash on launch: `useStartupPrefetch` called `useQueryClient()` before `AppProviders` (QueryClientProvider) was mounted during the font loading phase. Prefetch is now guarded behind `fontsLoaded` — only fires after the provider tree renders.
+- Bumps the Android versionCode to 65.
+
 ## v5.6.7 — Avatar file-cache, embed fix, duplicate UI cleanup, Random tab, speed
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`

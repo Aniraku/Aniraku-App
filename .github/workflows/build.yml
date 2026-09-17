@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.6.7"
+        default: "v5.6.8"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -115,34 +115,27 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.6.7 — Avatar File-Cache, Embed Fix, Duplicate UI Cleanup, Random Tab, Speed
+            ## v5.6.8 — Crash Fix: Startup Prefetch Guarded Behind Provider Tree
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.6.7-arm64.apk`
-            - `aniraku-v5.6.7-arm32.apk`
-            - `aniraku-v5.6.7-universal.apk`
+            - `aniraku-v5.6.8-arm64.apk`
+            - `aniraku-v5.6.8-arm32.apk`
+            - `aniraku-v5.6.8-universal.apk`
 
-            ### Avatar grid finally renders
-            - **File-cache bypass**: AvatarImage fetches bytes with the app's own stack into cache, renders from `file://` via React Native native Image. Avatar changes sync immediately.
-            - Initial-letter fallback tile always mounted underneath — never a blank box.
+            ### APPLICATION STATE crash fix
+            - **Root cause**: `useStartupPrefetch` called `useQueryClient()` before `AppProviders` (QueryClientProvider) was mounted during the font loading phase. The hook threw on mount because no provider existed in the tree.
+            - **Fix**: Prefetch is now guarded behind `fontsLoaded` — only fires after the provider tree renders.
 
-            ### Embed player fix
-            - The "PREPARING VIDEO" placeholder was sharing layout with the WebView (in-flow flex split). Shell is now `absoluteFill`; placeholder hidden during embed playback.
-
-            ### Duplicate UI cleanup
-            - Duplicate SKIP INTRO/OUTRO buttons removed — only the single floating overlay renders.
-            - Duplicate EPISODE ACTIVITY heading removed — `AnimeComments` owns it.
-
-            ### Random tab + truly random picks
-            - Registered with dice icon (Phosphor `DiceOne`). `ID_DESC` sort across pages 1–500 — no popularity bias, no genre clustering.
-
-            ### Speed
-            - Compact AniList queries: 50% payload reduction (164KB → 82KB pool, 27KB schedule).
-            - Startup prefetch: schedule + random pool warm before user taps either tab.
+            ### Includes everything from v5.6.7
+            - Avatar file-cache (bypasses Coil for Supabase URLs, never blank).
+            - Embed player fix (absoluteFill shell, placeholder hidden).
+            - Duplicate skip buttons and EPISODE ACTIVITY heading removed.
+            - Random tab (dice icon, truly random across 500 pages).
+            - Compact AniList queries (50% payload reduction, startup prefetch).
 
             ### Housekeeping
-            - **Android versionCode**: 64.
+            - **Android versionCode**: 65.
 
             Download the APK, install, and allow *install from unknown sources* if prompted.
           files: ./artifacts/*.apk
