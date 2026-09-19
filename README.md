@@ -34,7 +34,7 @@
 
 ### How Aniraku Compares
 
-| Feature | Aniraku | Old Anilab | Th3-Anime | AniStream | Animyx |
+| Feature | Aniraku | Old Anilab | [Th3-Anime](https://github.com/Th3-Anime/Th3-Anime) | AniStream | [Anymex](https://github.com/RyanYuuki/AnymeX) |
 |:--|:--:|:--:|:--:|:--:|:--:|
 | **Open Source** | Yes | No | No | No | No |
 | **Multi-Provider** | Yes | Yes | Yes | Limited | Yes |
