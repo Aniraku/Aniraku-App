@@ -189,34 +189,6 @@ export async function getStream(input: { animeId: number; episode: number; provi
   return normalizeStreamResponse(payload);
 }
 
-export async function getSubDubEpisodeCounts(animeId: number, totalEpisodes: number): Promise<{ sub: number; dub: number }> {
-  if (!Number.isFinite(animeId) || totalEpisodes <= 0) return { sub: 0, dub: 0 };
-  const BATCH = 20;
-  async function countForLang(lang: "sub" | "dub"): Promise<number> {
-    let count = 0;
-    const batches: Promise<boolean[]>[] = [];
-    for (let start = 1; start <= totalEpisodes; start += BATCH) {
-      const end = Math.min(start + BATCH - 1, totalEpisodes);
-      const episodeNums = Array.from({ length: end - start + 1 }, (_, i) => start + i);
-      batches.push(
-        Promise.all(episodeNums.map((ep) => {
-          if (lang === "sub") return Promise.resolve(true);
-          return hasDubForEpisode(animeId, ep).catch(() => false);
-        }))
-      );
-    }
-    const results = await Promise.all(batches);
-    for (const batch of results) {
-      if (lang === "sub") { count += batch.length; } else {
-        for (const has of batch) { if (has) count++; }
-      }
-    }
-    return count;
-  }
-  const [sub, dub] = await Promise.all([countForLang("sub"), countForLang("dub")]);
-  return { sub, dub };
-}
-
 export async function healthCheck() {
   return apiRequest<{ status: string }>("/api/v1/health");
 }

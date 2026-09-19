@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { getAnimePool } from "@/lib/anilist";
+import { regenerateRandomPages, sessionRandomPages, shouldFallbackToFirstPages } from "@/lib/random-pool";
 import type { Anime } from "@/lib/types";
 import { nsfwFilterParam, useNsfwPreference } from "@/lib/nsfw-preference";
 import { animeTitle } from "@/lib/types";
@@ -21,25 +22,13 @@ function shuffledIndices(length: number) {
   return order;
 }
 
-function randomPages(): [number, number, number] {
-  // Pages 1–500 on AniList covers the full catalog. Random pages across this
-  // range with ID_DESC sort means every pick feels genuinely random — no
-  // popularity bias, no genre clustering, no repeated "trending" titles.
-  const maxPage = 500;
-  const a = Math.floor(Math.random() * maxPage) + 1;
-  let b = Math.floor(Math.random() * maxPage) + 1;
-  let c = Math.floor(Math.random() * maxPage) + 1;
-  while (b === a) b = Math.floor(Math.random() * maxPage) + 1;
-  while (c === a || c === b) c = Math.floor(Math.random() * maxPage) + 1;
-  return [a, b, c];
-}
-
 export default function RandomScreen() {
   const nsfw = useNsfwPreference();
   const isAdultParam = nsfwFilterParam(nsfw.enabled);
-  // Each batch pulls 3 fresh random pages in ONE AniList request. Bumping the
-  // batch deals a brand-new 150-title pool when the current one runs dry.
-  const [batch, setBatch] = useState(() => randomPages());
+  // Session-stable pages: the startup prefetch and this tab share the exact
+  // same triple, so the prefetched pool IS the pool shown here (its query key
+  // matches — no wasted request under the temporary 30 req/min cap).
+  const [batch, setBatch] = useState(() => sessionRandomPages());
   const fadeAnim = useRef(new Animated.Value(1)).current;
   // Shuffle bag: every title shows once before any repeat, so picks never
   // feel cached. Dealt client-side — zero network per pick, always instant.
@@ -58,6 +47,12 @@ export default function RandomScreen() {
         perPage: 50,
         isAdult: isAdultParam,
       });
+      // Deep random pages can legitimately return a thin pool (sparse tail of
+      // the catalog). One known-good retry on pages [1,2,3] keeps the error
+      // banner for real failures only — AniList unreachable or rate limited.
+      if (shouldFallbackToFirstPages(titles.length)) {
+        return getAnimePool({ pages: [1, 2, 3], perPage: 50, isAdult: isAdultParam });
+      }
       if (!titles.length) throw new Error("No anime found. Check your connection and try again.");
       return titles;
     },
@@ -100,7 +95,7 @@ export default function RandomScreen() {
     }
     // Bag exhausted after ~150 picks: deal a fresh pool in the background and
     // keep showing the current card — never a blank screen while it loads.
-    setBatch(randomPages());
+    setBatch(regenerateRandomPages());
   }, [cursor, crossfadeTo, pool]);
 
   const anime = current ?? pool.data?.[0] ?? null;

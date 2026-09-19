@@ -6,6 +6,19 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.6.9 — Rate-limit optimization: AniList 30 req/min cap
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- AniList is temporarily rate-limited to 30 req/min (down from 90). The request governor retuned to 2.1s spacing (~28/min worst case) with a flat cooldown when the remaining budget runs low — fixes the 429 cascade that error-bannered the Random tab.
+- Home now costs 2 AniList requests total: Trending/Popular/Upcoming plus ONE merged aliased request for Ongoing, Top Movies, and Just Finished. Top Movies loads with the hero instead of seconds later.
+- "Top in {your genre}" replaced by a "Just finished" rail (FINISHED_AIRING, newest finale first). Removes the hidden genre hook that fired up to 30 parallel AniList requests on every Home mount.
+- Notification checks batched: one aliased `id_in` AniList request per 50 bookmarks instead of one full-detail request per bookmark — a 30-bookmark library no longer burns a third of the minute's budget on a single foreground.
+- Search commits when a word or sentence finishes (trailing space/punctuation commits fast, mid-word pauses wait, Enter is instant) instead of a flat 450ms debounce — fewer wasted queries under the cap.
+- Random fixed: pool pages capped at 1–300 (inside the real catalog — page 500 overshot and returned empty pools), a thin pool retries once on known-good front pages before showing the error banner, and the startup prefetch now requests the exact pages and NSFW flag the tab uses (the old prefetch warmed a query key nothing read).
+- Dead code removed: unused `getSubDubEpisodeCounts`, test-only single-page `getAiringSchedule`, and the `use-user-top-genre` hook.
+- Bumps the Android versionCode to 66.
+
 ## v5.6.8 — Crash fix: startup prefetch guarded behind provider tree
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`

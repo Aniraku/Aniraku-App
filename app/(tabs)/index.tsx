@@ -3,12 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { getHomeAnime, getAnimePage } from "@/lib/anilist";
+import { getHomeAnime, getHomeRailAnime } from "@/lib/anilist";
 import { nsfwFilterParam, useNsfwPreference } from "@/lib/nsfw-preference";
 import { animeTitle } from "@/lib/types";
 import { hapticLight } from "@/lib/haptics";
 import { usePrefetchAnime } from "@/lib/prefetch";
-import { useUserTopGenre } from "@/hooks/use-user-top-genre";
 import { AnimeRail } from "@/components/anime-rail";
 import { ErrorState } from "@/components/async-state";
 import { nothing } from "@/components/nothing-ui";
@@ -149,27 +148,12 @@ export default function HomeScreen() {
   const isAdultParam = nsfwFilterParam(nsfw.enabled);
   const [notifSheetVisible, setNotifSheetVisible] = useState(false);
   const home = useQuery({ queryKey: ["home-anime", isAdultParam], queryFn: () => getHomeAnime(isAdultParam), retry: 3, retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000) });
-  const topGenre = useUserTopGenre();
-  const ongoing = useQuery({
-    queryKey: ["ongoing-anime", isAdultParam],
-    queryFn: () => getAnimePage({ status: "RELEASING", sort: ["POPULARITY_DESC"], perPage: 12, isAdult: isAdultParam }),
-    enabled: home.isSuccess,
-    staleTime: 10 * 60_000,
-    retry: 2,
-    retryDelay: 1_500,
-  });
-  const topMovies = useQuery({
-    queryKey: ["top-movies", isAdultParam],
-    queryFn: () => getAnimePage({ format: "MOVIE", sort: ["SCORE_DESC"], perPage: 12, isAdult: isAdultParam }),
-    enabled: home.isSuccess,
-    staleTime: 10 * 60_000,
-    retry: 2,
-    retryDelay: 1_500,
-  });
-  const topGenreAnime = useQuery({
-    queryKey: ["top-genre-anime", topGenre, isAdultParam],
-    queryFn: () => getAnimePage({ genre: topGenre!, sort: ["SCORE_DESC"], perPage: 12, isAdult: isAdultParam }),
-    enabled: home.isSuccess && Boolean(topGenre),
+  // Home costs 2 AniList requests total under the temporary 30 req/min cap:
+  // this merged rails call fires at start (no serial gating behind `home`),
+  // so Top Movies paints with the hero instead of seconds later.
+  const rails = useQuery({
+    queryKey: ["home-rails", isAdultParam],
+    queryFn: () => getHomeRailAnime(isAdultParam),
     staleTime: 10 * 60_000,
     retry: 2,
     retryDelay: 1_500,
@@ -178,7 +162,7 @@ export default function HomeScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([home.refetch(), ongoing.refetch(), topMovies.refetch(), topGenreAnime.refetch()]);
+    await Promise.all([home.refetch(), rails.refetch()]);
     setRefreshing(false);
   };
   if (home.isPending) return <NativeScreen><InAppEpisodeAlertMonitor /><NativeHeader eyebrow="ANIRAKU" title="Home" action={<View style={styles.topActions}><SearchAction /><NotificationAction onPress={() => setNotifSheetVisible(true)} /></View>} /><ScrollView contentContainerStyle={styles.skeletonContainer} showsVerticalScrollIndicator={false}><SkeletonHero /><Text style={styles.skeletonRailLabel}>TRENDING NOW</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.skeletonRailRow}>{Array.from({ length: 6 }).map((_, i) => <SkeletonRail key={i} />)}</ScrollView><Text style={styles.skeletonRailLabel}>POPULAR RELEASES</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.skeletonRailRow}>{Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}</ScrollView></ScrollView><NotificationSheet visible={notifSheetVisible} onClose={() => setNotifSheetVisible(false)} /></NativeScreen>;
@@ -219,10 +203,10 @@ export default function HomeScreen() {
       </Pressable> : null}
       <ContinueWatchingRail />
       <TrendingGrid items={home.data.trending.slice(1)} />
-      {ongoing.data?.media?.length ? <AnimeRail label="02" title="Ongoing" items={ongoing.data.media} seeAllParams={{ status: "RELEASING", sort: "POPULARITY_DESC", title: "Ongoing" }} /> : null}
+      {rails.data?.ongoing?.length ? <AnimeRail label="02" title="Ongoing" items={rails.data.ongoing} seeAllParams={{ status: "RELEASING", sort: "POPULARITY_DESC", title: "Ongoing" }} /> : null}
       {home.data.popular.length ? <AnimeRail label="03" title="Popular releases" items={home.data.popular} seeAllParams={{ sort: "POPULARITY_DESC", title: "Popular Releases" }} /> : null}
-      {topMovies.data?.media?.length ? <AnimeRail label="04" title="Top movies" items={topMovies.data.media} seeAllParams={{ format: "MOVIE", sort: "SCORE_DESC", title: "Top Movies" }} /> : null}
-      {topGenreAnime.data?.media?.length ? <AnimeRail label="05" title={`Top in ${topGenre}`} items={topGenreAnime.data.media} seeAllParams={{ genre: String(topGenre), sort: "SCORE_DESC", title: `Top in ${topGenre}` }} /> : null}
+      {rails.data?.topMovies?.length ? <AnimeRail label="04" title="Top movies" items={rails.data.topMovies} seeAllParams={{ format: "MOVIE", sort: "SCORE_DESC", title: "Top Movies" }} /> : null}
+      {rails.data?.justFinished?.length ? <AnimeRail label="05" title="Just finished" items={rails.data.justFinished} seeAllParams={{ status: "FINISHED_AIRING", sort: "END_DATE_DESC", title: "Just Finished" }} /> : null}
       {home.data.upcoming.length ? <AnimeRail label="06" title="Coming soon" items={home.data.upcoming} seeAllParams={{ status: "NOT_YET_RELEASED", sort: "POPULARITY_DESC", title: "Coming Soon" }} /> : null}
     </ScrollView>}
     <NotificationSheet visible={notifSheetVisible} onClose={() => setNotifSheetVisible(false)} />

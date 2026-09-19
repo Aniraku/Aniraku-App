@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.6.8"
+        default: "v5.6.9"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -115,27 +115,25 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.6.8 — Crash Fix: Startup Prefetch Guarded Behind Provider Tree
+            ## v5.6.9 — Rate-Limit Optimization: AniList 30 req/min Cap
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.6.8-arm64.apk`
-            - `aniraku-v5.6.8-arm32.apk`
-            - `aniraku-v5.6.8-universal.apk`
+            - `aniraku-v5.6.9-arm64.apk`
+            - `aniraku-v5.6.9-arm32.apk`
+            - `aniraku-v5.6.9-universal.apk`
 
-            ### APPLICATION STATE crash fix
-            - **Root cause**: `useStartupPrefetch` called `useQueryClient()` before `AppProviders` (QueryClientProvider) was mounted during the font loading phase. The hook threw on mount because no provider existed in the tree.
-            - **Fix**: Prefetch is now guarded behind `fontsLoaded` — only fires after the provider tree renders.
-
-            ### Includes everything from v5.6.7
-            - Avatar file-cache (bypasses Coil for Supabase URLs, never blank).
-            - Embed player fix (absoluteFill shell, placeholder hidden).
-            - Duplicate skip buttons and EPISODE ACTIVITY heading removed.
-            - Random tab (dice icon, truly random across 500 pages).
-            - Compact AniList queries (50% payload reduction, startup prefetch).
+            ### Built for the temporary 30 req/min limit
+            - **Governor retuned**: 2.1s request spacing (~28/min) with a flat cooldown when the remaining budget runs low — fixes the 429 cascade that error-bannered the Random tab.
+            - **Home = 2 requests**: Trending/Popular/Upcoming plus ONE merged aliased request for Ongoing, Top Movies, and Just Finished. Top Movies loads with the hero.
+            - **"Just finished" rail**: FINISHED_AIRING, newest finale first — replaces "Top in {your genre}" and the hidden hook that fired up to 30 parallel requests per Home mount.
+            - **Notifications batched**: one `id_in` request per 50 bookmarks instead of one per bookmark.
+            - **Search on word finish**: commits on trailing space/punctuation (fast) or mid-word pause; Enter is instant.
+            - **Random fixed**: pool pages 1–300, thin-pool retry on front pages, startup prefetch aligned with the tab's exact query key.
+            - **Dead code removed**: unused dub-count helper, test-only schedule fetch, genre hook.
 
             ### Housekeeping
-            - **Android versionCode**: 65.
+            - **Android versionCode**: 66.
 
             Download the APK, install, and allow *install from unknown sources* if prompted.
           files: ./artifacts/*.apk

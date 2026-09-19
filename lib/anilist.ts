@@ -1,12 +1,12 @@
 import { APP_CONFIG } from "@/lib/app-config";
 import type { AiringSchedulePage, Anime, AnimePage } from "@/lib/types";
 
-// AniList allows 90 req/min. The global slot serializes every query in the
-// app (home chain, schedule pages, search), so this interval dominates perceived
-// speed: 2.1s × 4 serial home queries ≈ 8s of pure waiting. 900ms stays well
-// under the limit (~65/min worst case) with the remaining<=2 guard + 429
-// backoff below as safety nets.
-const CLIENT_REQUEST_INTERVAL_MS = process.env.VITEST ? 0 : 900;
+// AniList is TEMPORARILY rate-limited to 30 req/min (normal is 90). The global
+// slot serializes every query in the app, so 60s ÷ 30 = 2s minimum spacing;
+// 2.1s keeps a small safety margin. Batching (aliased pages / id_in) is what
+// keeps screens fast under this cap — not faster request firing. When AniList
+// restores 90 req/min, 900ms was the proven value.
+const CLIENT_REQUEST_INTERVAL_MS = process.env.VITEST ? 0 : 2_100;
 const REQUEST_CACHE_TTL_MS = 5 * 60_000;
 const STALE_CACHE_TTL_MS = 30 * 60_000;
 const responseCache = new Map<string, { expiresAt: number; staleUntil: number; value: unknown }>();
@@ -58,9 +58,9 @@ function getRetryAfterMs(headers?: Headers): number | null {
 
 function updateAniListRateState(headers?: Headers) {
   const remaining = Number(headers?.get("x-ratelimit-remaining"));
-  const limit = Number(headers?.get("x-ratelimit-limit"));
   if (Number.isFinite(remaining) && remaining <= 2) {
-    nextAniListRequestAt = Math.max(nextAniListRequestAt, Date.now() + (Number.isFinite(limit) && limit <= 30 ? 2_500 : 1_200));
+    // Flat cooldown while the temporary 30 req/min limit is active.
+    nextAniListRequestAt = Math.max(nextAniListRequestAt, Date.now() + 2_500);
   }
   const retryAfterMs = getRetryAfterMs(headers);
   if (retryAfterMs !== null && remaining === 0) blockedUntil = Math.max(blockedUntil, Date.now() + retryAfterMs);
@@ -118,6 +118,15 @@ const airingScheduleQuery = `query AiringSchedule($page: Int!, $perPage: Int!, $
  */
 const scheduleMediaFields = `
   id type title { romaji english native } coverImage { large extraLarge } format status
+`;
+
+/**
+ * Slim shared fragment for id-batch and home-rail lookups. Details load on
+ * demand via getAnimeById when a title is opened — rails never ship kilobyte
+ * descriptions per row.
+ */
+const slimAnimeFields = `
+  id type title { romaji english native } coverImage { large extraLarge } format status episodes
 `;
 
 const poolFields = `
@@ -241,9 +250,42 @@ export function getKnownMalId(anime: Pick<Anime, "idMal" | "malId" | "mal_id" | 
   return Number.isInteger(malId) && malId > 0 ? malId : null;
 }
 
-export async function getAiringSchedule(page = 1, perPage = 40, window?: AiringScheduleWindow): Promise<AiringSchedulePage> {
-  const data = await request<{ Page: AiringSchedulePage }>(airingScheduleQuery, { page, perPage, startAt: window?.startAt, endAt: window?.endAt });
-  return data.Page;
+/**
+ * Splits ids into chunks of `size` for aliased `media(id_in: [...])` batches.
+ * AniList caps a single Page at 50 per_page, so 50 is the natural chunk.
+ */
+export function chunkIds(ids: readonly number[], size = 50): number[][] {
+  const chunks: number[][] = [];
+  const unique: number[] = [];
+  const seen = new Set<number>();
+  for (const id of ids) {
+    const parsed = Number(id);
+    if (!Number.isInteger(parsed) || parsed <= 0 || seen.has(parsed)) continue;
+    seen.add(parsed);
+    unique.push(parsed);
+  }
+  for (let offset = 0; offset < unique.length; offset += Math.max(1, size)) {
+    chunks.push(unique.slice(offset, offset + Math.max(1, size)));
+  }
+  return chunks;
+}
+
+const animeByIdsQuery = `query AnimeByIds($ids: [Int!]!) {
+  Page(perPage: 50) { media(type: ANIME, id_in: $ids) { ${slimAnimeFields} } }
+}`;
+
+/**
+ * N bookmark metadata lookups in ONE AniList request per 50 ids. The episode
+ * alert monitor previously fired one getAnimeById per bookmark — a 30-bookmark
+ * user burned the entire temporary 30 req/min budget in one foreground.
+ */
+export async function getAnimeByIds(ids: readonly number[]): Promise<Anime[]> {
+  const chunks = chunkIds(ids);
+  if (!chunks.length) return [];
+  const pages = await Promise.all(chunks.map((chunk) =>
+    request<{ Page: AnimePage }>(animeByIdsQuery, { ids: chunk }).then((data) => data.Page.media),
+  ));
+  return pages.flat();
 }
 
 const airingScheduleBatchQuery = `query AiringScheduleBatch($perPage: Int!, $startAt: Int, $endAt: Int) {
@@ -305,6 +347,26 @@ export async function getAnimePool(options: {
     }
   }
   return pool;
+}
+
+const homeRailsQuery = `query HomeRails($isAdult: Boolean) {
+  ongoing: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: $isAdult, status: RELEASING, sort: [POPULARITY_DESC]) { ${slimAnimeFields} } }
+  topMovies: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: $isAdult, format: MOVIE, sort: [SCORE_DESC]) { ${slimAnimeFields} } }
+  justFinished: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: $isAdult, status: FINISHED_AIRING, sort: [END_DATE_DESC]) { ${slimAnimeFields} } }
+}`;
+
+/**
+ * Home's three lower rails in ONE AniList round trip. Under the temporary
+ * 30 req/min cap this keeps the whole Home screen at 2 requests total:
+ * getHomeAnime (hero/trending/popular/upcoming) + this.
+ */
+export async function getHomeRailAnime(isAdult?: boolean | null): Promise<{ ongoing: Anime[]; topMovies: Anime[]; justFinished: Anime[] }> {
+  const data = await request<{ ongoing: AnimePage; topMovies: AnimePage; justFinished: AnimePage }>(homeRailsQuery, { isAdult });
+  return {
+    ongoing: data.ongoing.media,
+    topMovies: data.topMovies.media,
+    justFinished: data.justFinished.media,
+  };
 }
 
 export async function getRecommendations(animeId: number): Promise<Anime[]> {

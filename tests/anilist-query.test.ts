@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AniListRateLimitError, AniListUnavailableError, getAiringSchedule, getAnimeById, getAnimePage, getHomeAnime, resetAniListRequestStateForTests } from "../lib/anilist";
+import { AniListRateLimitError, AniListUnavailableError, chunkIds, getAnimeByIds, getAnimeById, getAnimePage, getHomeAnime, getHomeRailAnime, resetAniListRequestStateForTests } from "../lib/anilist";
 import { APP_CONFIG } from "../lib/app-config";
 
 const originalFetch = global.fetch;
@@ -24,19 +24,6 @@ describe("AniList query construction", () => {
     expect(body.variables).not.toHaveProperty("search");
     expect(body.variables).not.toHaveProperty("status");
     expect(body.variables).not.toHaveProperty("season");
-  });
-
-  it("uses the documented bounded AiringSchedule TIME sort for upcoming episodes", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ data: { Page: { airingSchedules: [], pageInfo: { currentPage: 1, hasNextPage: false, total: 0 } } } }) });
-    global.fetch = fetchMock as typeof fetch;
-
-    await getAiringSchedule(1, 12);
-
-    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
-    const body = JSON.parse(String(request.body)) as { query: string; variables: Record<string, unknown> };
-    expect(body.query).toContain("airingSchedules(notYetAired: true, airingAt_greater: $startAt, airingAt_lesser: $endAt, sort: [TIME])");
-    expect(body.query).not.toContain("NEXT_AIRING_EPISODE_ASC");
-    expect(body.variables).toEqual({ page: 1, perPage: 12 });
   });
 
   it("loads all Home shelves through one direct AniList query", async () => {
@@ -145,5 +132,58 @@ describe("AniList query construction", () => {
     global.fetch = fetchMock as typeof fetch;
 
     await expect(getAnimePage()).rejects.toBeInstanceOf(AniListUnavailableError);
+  });
+
+  it("chunks id batches at 50 and dedupes/drops invalid ids", () => {
+    expect(chunkIds([], 50)).toEqual([]);
+    expect(chunkIds([1, 2, 3], 50)).toEqual([[1, 2, 3]]);
+    expect(chunkIds(Array.from({ length: 120 }, (_, i) => i + 1), 50)).toEqual([
+      Array.from({ length: 50 }, (_, i) => i + 1),
+      Array.from({ length: 50 }, (_, i) => i + 51),
+      Array.from({ length: 20 }, (_, i) => i + 101),
+    ]);
+    expect(chunkIds([5, 5, 0, -3, Number.NaN, 7])).toEqual([[5, 7]]);
+  });
+
+  it("resolves N bookmark lookups through one id_in request per 50 ids", async () => {
+    const media = [{ id: 11 }, { id: 12 }];
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ data: { Page: { media, pageInfo: { currentPage: 1, hasNextPage: false, total: media.length } } } }) });
+    global.fetch = fetchMock as typeof fetch;
+
+    const result = await getAnimeByIds([11, 12]);
+
+    expect(result).toMatchObject([{ id: 11 }, { id: 12 }]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const body = JSON.parse(String(request.body)) as { query: string; variables: Record<string, unknown> };
+    expect(body.query).toContain("id_in: $ids");
+    expect(body.variables).toEqual({ ids: [11, 12] });
+  });
+
+  it("fetches Home's lower rails in one aliased request with the expected filters", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers(),
+      text: async () => JSON.stringify({ data: {
+        ongoing: { media: [{ id: 1 }], pageInfo: { currentPage: 1, hasNextPage: false, total: 1 } },
+        topMovies: { media: [{ id: 2 }], pageInfo: { currentPage: 1, hasNextPage: false, total: 1 } },
+        justFinished: { media: [{ id: 3 }], pageInfo: { currentPage: 1, hasNextPage: false, total: 1 } },
+      } }),
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    const rails = await getHomeRailAnime(false);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const body = JSON.parse(String(request.body)) as { query: string; variables: Record<string, unknown> };
+    expect(body.query).toContain("ongoing:");
+    expect(body.query).toContain("topMovies:");
+    expect(body.query).toContain("justFinished:");
+    expect(body.query).toContain("status: RELEASING");
+    expect(body.query).toContain("format: MOVIE");
+    expect(body.query).toContain("status: FINISHED_AIRING");
+    expect(body.query).toContain("sort: [END_DATE_DESC]");
+    expect(rails).toMatchObject({ ongoing: [{ id: 1 }], topMovies: [{ id: 2 }], justFinished: [{ id: 3 }] });
   });
 });

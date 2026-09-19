@@ -6,6 +6,7 @@ import { useLocalSearchParams, router } from "expo-router";
 import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { getAnimePage, isAniListRateLimitError } from "@/lib/anilist";
+import { searchCommitDelayMs } from "@/lib/search-input";
 import { nsfwFilterParam, useNsfwPreference } from "@/lib/nsfw-preference";
 import { animeTitle } from "@/lib/types";
 import { ErrorState, LoadingState, EmptyState } from "@/components/async-state";
@@ -97,7 +98,12 @@ export default function SearchScreen() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => setQuery(normalizedInput), 450);
+    // Word-boundary commit: the query fires when a word/sentence unit finishes
+    // (trailing space/punctuation → quick confirm) or when typing pauses
+    // mid-word. Enter still commits instantly. Cheaper than a flat debounce
+    // under the temporary 30 req/min AniList cap.
+    const delay = searchCommitDelayMs(normalizedInput);
+    const timer = setTimeout(() => setQuery(normalizedInput), delay);
     return () => clearTimeout(timer);
   }, [normalizedInput]);
 
@@ -178,7 +184,7 @@ export default function SearchScreen() {
       </Pressable>
       <View style={styles.searchInputWrap}>
         <AppIcon name="magnify" size={18} color={nothing.muted} />
-        <TextInput autoFocus={!isCategoryMode} value={input} onChangeText={setInput} placeholder={hasCategory ? `Search in ${categoryLabel}...` : "Search anime..."} placeholderTextColor={nothing.dim} style={styles.input} returnKeyType="search" />
+        <TextInput autoFocus={!isCategoryMode} value={input} onChangeText={setInput} onSubmitEditing={() => setQuery(normalizedInput)} placeholder={hasCategory ? `Search in ${categoryLabel}...` : "Search anime..."} placeholderTextColor={nothing.dim} style={styles.input} returnKeyType="search" />
         {hasCategory ? <Pressable onPress={() => router.back()} style={styles.genreClear}><Text style={styles.genreClearText}>{categoryLabel.toUpperCase()}</Text><AppIcon name="close" size={14} color={nothing.red} /></Pressable> : null}
       </View>
     </View>

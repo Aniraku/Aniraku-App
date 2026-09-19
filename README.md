@@ -24,7 +24,7 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.6.8">v5.6.8 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.6.9">v5.6.9 Notes</a
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
@@ -62,15 +62,15 @@
 
 ---
 
-### v5.6.8 is out
+### v5.6.9 is out
 
-Crash fix: APPLICATION STATE error on launch caused by startup prefetch firing before the provider tree mounted. Now guarded behind fontsLoaded. Everything from v5.6.7 included — avatar file-cache, embed fix, duplicate cleanup, Random tab, speed.
+Rate-limit optimization for AniList's temporary 30 req/min cap: Home now costs 2 requests total (merged rails incl. a new "Just finished" shelf), notifications batch 50 bookmarks per request, search commits on word finish, and Random is fixed (pool pages 1–300, aligned startup prefetch). Dead code removed.
 
 | APK |
 |:--|
-| [Aniraku-v5.6.8-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.8/aniraku-v5.6.8-arm64.apk) |
-| [Aniraku-v5.6.8-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.8/aniraku-v5.6.8-arm32.apk) |
-| [Aniraku-v5.6.8-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.8/aniraku-v5.6.8-universal.apk) |
+| [Aniraku-v5.6.9-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.9/aniraku-v5.6.9-arm64.apk) |
+| [Aniraku-v5.6.9-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.9/aniraku-v5.6.9-arm32.apk) |
+| [Aniraku-v5.6.9-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.9/aniraku-v5.6.9-universal.apk) |
 
 <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 

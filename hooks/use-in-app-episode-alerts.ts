@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { AppState } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { getEpisodes, getServers } from "@/lib/aniraku-api";
-import { getAnimeById } from "@/lib/anilist";
+import { getAnimeByIds } from "@/lib/anilist";
 import { availableReleasedEpisode, shouldCreateEpisodeAlert, type EpisodeAlertMarker } from "@/lib/in-app-alerts";
 import { scheduleNewEpisodeNotification } from "@/providers/notifications-provider";
 import { supabase } from "@/lib/supabase";
@@ -63,9 +63,24 @@ export function InAppEpisodeAlertMonitor() {
       const markers = parseMarkers(await AsyncStorage.getItem(markerKey(user.id)).catch(() => null));
       let changed = false;
 
+      // ONE batched AniList request per 50 ids (temporary 30 req/min limit):
+      // the old per-bookmark getAnimeById loop burned the whole budget on
+      // foreground for heavy bookmark lists.
+      const animeById = new Map<number, Awaited<ReturnType<typeof getAnimeByIds>>[number]>();
+      try {
+        for (const anime of await getAnimeByIds(allAnimeIds)) {
+          animeById.set(Number(anime.id), anime);
+        }
+      } catch {
+        // AniList down/limited: skip this cycle entirely instead of hitting
+        // every remaining endpoint for zero benefit. Markers stay untouched.
+        return;
+      }
+
       for (const animeId of allAnimeIds) {
         try {
-          const anime = await getAnimeById(animeId);
+          const anime = animeById.get(animeId);
+          if (!anime) continue;
           const releasedEpisode = availableReleasedEpisode(anime);
           const marker = markers[String(animeId)];
           if (!releasedEpisode || !shouldCreateEpisodeAlert(marker, releasedEpisode, now)) continue;
