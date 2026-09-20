@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { APP_CONFIG } from "../lib/app-config";
 
-const apiBase = process.env.EXPO_PUBLIC_API_BASE_URL;
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+// Read through the app's config (not raw process.env): APP_CONFIG trims
+// pasted-secret whitespace, so this validates exactly what the app ships.
+const apiBase = APP_CONFIG.apiBaseUrl;
+const supabaseUrl = APP_CONFIG.supabaseUrl;
+const supabaseAnonKey = APP_CONFIG.supabaseAnonKey;
 
 describe("Aniraku production service configuration", () => {
   it("reaches the Aniraku health endpoint and validates the Supabase public client key", async () => {
