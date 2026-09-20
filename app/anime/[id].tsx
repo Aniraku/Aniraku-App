@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, useWindowDimensions } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useWindowDimensions } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";

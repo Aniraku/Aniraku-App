@@ -2219,7 +2219,6 @@ export default function WatchScreen() {
       {embedSource && !source ? <EmbedPlayer uri={embedSource.url} headers={nativePlaybackHeaders(playbackHeaders)} onError={() => handleProviderBlockedRef.current("player")} onLoaded={() => { embedReadyRef.current = true; }} /> : null}
       {source ? <Video key={activeProvider?.id ?? "default"} ref={videoRef} style={StyleSheet.absoluteFill} source={{ uri: videoSourceUri, headers: videoSourceHeaders, type: videoContentType, bufferConfig: videoBufferConfig }}
         paused={!isPlaying} rate={is2xSeeking ? 2.0 : speed} resizeMode="contain" muted={muted} volume={volume}
-        pictureInPicture
         maxBitRate={adaptiveBitrateCap ?? undefined}
         onLoad={(data: OnLoadData) => { if (__DEV__) console.log(`[watch] first-frame t=${Date.now() - _watchMountTime}ms provider=${activeProvider?.id ?? "?"}`); setDuration(data.duration); sourceFirstFrame.current = true; sourceStarted.current = true; setPlayerStatus("playing"); setIsPlaying(true); setLastPlayerError(null); setShowControls(true); }}
         onProgress={handleVideoProgress}
