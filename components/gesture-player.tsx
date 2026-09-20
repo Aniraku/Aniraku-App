@@ -119,22 +119,6 @@ function FastForwardBadge({ active }: { active: boolean }) {
   );
 }
 
-function LoadingSpinner() {
-  const rotation = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(Animated.timing(rotation, { toValue: 1, duration: 800, useNativeDriver: true }));
-    loop.start();
-    return () => loop.stop();
-  }, []);
-  return (
-    <View style={loadingStyles.container}>
-      <Animated.View style={{ transform: [{ rotate: rotation.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] }) }] }}>
-        <AppIcon name="loading" size={32} color={nothing.white} />
-      </Animated.View>
-    </View>
-  );
-}
-
 export function GestureLayer({
   currentTime, duration, onSeek,
   onDoubleTapLeft, onDoubleTapRight,
@@ -191,11 +175,6 @@ export function GestureLayer({
       setShowBrightness(false);
       setShowVolume(false);
     }, 1500);
-  }, []);
-
-  const cancelHold = useCallback(() => {
-    if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; }
-    if (holdEngaged.current) { holdEngaged.current = false; setFastForward(false); onHoldEndRef.current?.(); }
   }, []);
 
   const handleDoubleTap = useCallback((x: number) => {

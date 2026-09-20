@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
@@ -6,7 +6,7 @@ import { useBookmarks } from "@/hooks/use-bookmarks";
 import { useWatchHistory } from "@/hooks/use-watch-history";
 import { EmptyState, ErrorState, LoadingState } from "@/components/async-state";
 import { AppIcon } from "@/components/app-icon";
-import { DotLabel, nothing, Signal } from "@/components/nothing-ui";
+import { nothing, Signal } from "@/components/nothing-ui";
 import { NativeHeader, NativeScreen } from "@/components/screen";
 
 type LibraryTab = "history" | "bookmarks";

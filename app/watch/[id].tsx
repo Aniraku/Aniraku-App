@@ -15,8 +15,8 @@ import * as Haptics from "expo-haptics";
 import {
   ArrowLeft, Gear, Speedometer, Subtitles, SpeakerHigh, SpeakerNone,
   SkipBack, SkipForward, Play, Pause, ArrowsOut, ArrowsIn, Check, X,
-  Lock, Rewind, FastForward, Download, DownloadSimple, CaretLeft, CaretRight,
-  Sun
+  Lock, Rewind, FastForward, Download, DownloadSimple, CaretRight,
+  Sun, PictureInPicture
 } from "phosphor-react-native";
 import { anirakuProxyUrl, getAnimeMetadata, getEpisodes, getServers, getStream, getPlaybackType, isAnirakuProxyUrl, nativePlaybackHeaders } from "@/lib/aniraku-api";
 import { getAnimeById, getKnownMalId, getMalIdByAnimeId } from "@/lib/anilist";
@@ -72,7 +72,7 @@ import { adaptiveBitrateCapOptions, selectedWatchQuality, watchQualityOptions, t
 import { buildDashQualityOptions, buildHlsQualityOptions, hlsVariantsCacheKey, originalStreamUrl, parseDashRepresentations, parseHlsMasterVariants, shouldRefetchVariants, shouldRefreshMasterOnVariantError, variantUrlForHeight, type HlsVariant, type VariantsCacheScope } from "@/lib/hls-variants";
 import { AppIcon } from "@/components/app-icon";
 import { EmbedPlayer } from "@/components/embed-player";
-import { DotLabel, NothingButton, NothingCard, nothing, Signal } from "@/components/nothing-ui";
+import { DotLabel, NothingButton, NothingCard, nothing } from "@/components/nothing-ui";
 import { NativeScreen } from "@/components/screen";
 import { SubtitleRenderer } from "@/components/subtitle-renderer";
 import { SleepTimerPill } from "@/components/sleep-timer";
@@ -247,8 +247,6 @@ export default function WatchScreen() {
   const [adaptiveBitrateCap, setAdaptiveBitrateCap] = useState<number | null>(null);
   const [subtitlePrefs, setSubtitlePrefs] = useState<SubtitlePreferences | null>(null);
   const [activeSubtitles, setActiveSubtitles] = useState<SubtitleCue[]>([]);
-  const [rotationLocked, setRotationLocked] = useState(false);
-  const [orientationLocked, setOrientationLocked] = useState(false);
   const [playerLocked, setPlayerLocked] = useState(false);
   const [lastPlayerError, setLastPlayerError] = useState<string | null>(null);
   const [sleepRemaining, setSleepRemaining] = useState<number | null>(null);
@@ -263,7 +261,6 @@ export default function WatchScreen() {
   // Triple-tap tracking
   const tapCountRef = useRef(0);
   const tapCountTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingTripleTapRef = useRef<{ side: "left" | "right"; x: number } | null>(null);
   // Multi-tap seek: the pending jump fires on touch-UP; a held 2nd/3rd touch
   // fires it on the hold timer instead and keeps skipping while held.
   const lastActionTimeRef = useRef(0);
@@ -271,10 +268,12 @@ export default function WatchScreen() {
   const holdSeekTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdSeekFiredRef = useRef(false);
   const chainSeekAppliedRef = useRef<{ side: "left" | "right"; seconds: number } | null>(null);
-  // PiP hardening: availability is probed (button hides where enter fails),
-  // activity pauses UI updates while the system owns the frame.
+  // PiP entry: probed on first use — the button hides where the device
+  // reports no enterPictureInPicture API. Status tracking below keeps
+  // refs (not state) current while the system owns the frame.
   const [pipAvailable, setPipAvailable] = useState(true);
-  const [pipActive, setPipActive] = useState(false);
+  // PiP status: while the system owns the frame, activity pauses UI updates.
+  const [, setPipActive] = useState(false);
   const pipActiveRef = useRef(false);
   // Live ExoPlayer rendition feeding the `Auto · 720p` line.
   const [liveHeight, setLiveHeight] = useState<number | null>(null);
@@ -298,21 +297,6 @@ export default function WatchScreen() {
   // Fullscreen is entered explicitly via enterFullscreen() only.
   useEffect(() => () => { if (Platform.OS !== "web") void ScreenOrientation.unlockAsync().catch(() => {}); }, []);
 
-  // Sensor landscape (normal + reversed), never a hard single-sided lock.
-  // Expo's LANDSCAPE already resolves to SENSOR_LANDSCAPE on Android, but the
-  // explicit platform constant keeps reversed-landscape working regardless of
-  // how the mapping evolves. iOS LANDSCAPE spans both sides natively.
-  const lockSensorLandscape = useCallback(() => {
-    if (Platform.OS === "web") return;
-    if (Platform.OS === "android") {
-      void ScreenOrientation.lockPlatformAsync({ screenOrientationConstantAndroid: 6 }).catch(() => {
-        void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
-      });
-      return;
-    }
-    void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
-  }, []);
-
   // Fullscreen entry forces landscape even with system auto-rotate OFF (a
   // sensor lock alone keeps portrait when the user holds the phone upright,
   // which read as "fullscreen does nothing"). Fixed normal landscape;
@@ -327,17 +311,6 @@ export default function WatchScreen() {
     }
     void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
   }, []);
-
-  const toggleOrientationLock = useCallback(() => {
-    setOrientationLocked((prev) => {
-      const next = !prev;
-      if (Platform.OS !== "web") {
-        if (next) lockSensorLandscape();
-        else void ScreenOrientation.unlockAsync().catch(() => {});
-      }
-      return next;
-    });
-  }, [lockSensorLandscape]);
 
   const streamCache = useRef(new Map<string, CachedStream>());
   const blockedProviders = useRef(new Set<string>());
@@ -421,7 +394,6 @@ export default function WatchScreen() {
   // ("Kiwi 1080p") become picker rows; plain labels ("Zoko") become the
   // single default option.
   const backendDownloadOptions = useMemo(() => sortBackendDownloadOptions(buildBackendDownloadOptions(activeProviders)), [activeProviders]);
-  const backendDownloads = activeProvider?.downloads ?? [];
   // Server picker lists only providers that actually carry something to play
   // (stream sources or backend download links) — every row is backend-listed,
   // never a fixed fallback name. Original indices are kept so selectServer
@@ -816,12 +788,6 @@ export default function WatchScreen() {
         const refreshedDirect = directSources(response);
         const refreshedProxies = proxySources(response);
         const refreshedEmbeds = embedSources(response);
-        const preferRefreshedEmbed = shouldPreferEmbed({
-          isHentai,
-          directCount: refreshedDirect.length,
-          proxyCount: refreshedProxies.length,
-          embedCount: refreshedEmbeds.length,
-        });
         const hasNative = refreshedDirect.length > 0 || refreshedProxies.length > 0;
         if (!hasNative) {
           // No direct/proxy from this provider — cache the response so
@@ -877,7 +843,6 @@ export default function WatchScreen() {
     sourceStarted.current = false;
     sourceFirstFrame.current = false;
     const attempt = ++sourceAttempt.current;
-    const directHeaders = nativePlaybackHeaders(playbackHeaders);
     // Video source: try direct, proxy already handled by useSourceProxy state
     const watchdog = setTimeout(() => {
       if (sourceAttempt.current !== attempt || sourceStarted.current) return;
@@ -1469,7 +1434,7 @@ export default function WatchScreen() {
     setPlayableDuration(data.playableDuration);
   }, []);
 
-  const handleVideoTracks = useCallback((event: { videoTracks?: Array<{ height?: number; selected?: boolean }> }) => {
+  const handleVideoTracks = useCallback((event: { videoTracks?: { height?: number; selected?: boolean }[] }) => {
     const tracks = event?.videoTracks ?? [];
     setVideoTracks(tracks);
     const height = liveRenditionHeight(tracks);
@@ -2254,6 +2219,7 @@ export default function WatchScreen() {
       {embedSource && !source ? <EmbedPlayer uri={embedSource.url} headers={nativePlaybackHeaders(playbackHeaders)} onError={() => handleProviderBlockedRef.current("player")} onLoaded={() => { embedReadyRef.current = true; }} /> : null}
       {source ? <Video key={activeProvider?.id ?? "default"} ref={videoRef} style={StyleSheet.absoluteFill} source={{ uri: videoSourceUri, headers: videoSourceHeaders, type: videoContentType, bufferConfig: videoBufferConfig }}
         paused={!isPlaying} rate={is2xSeeking ? 2.0 : speed} resizeMode="contain" muted={muted} volume={volume}
+        pictureInPicture
         maxBitRate={adaptiveBitrateCap ?? undefined}
         onLoad={(data: OnLoadData) => { if (__DEV__) console.log(`[watch] first-frame t=${Date.now() - _watchMountTime}ms provider=${activeProvider?.id ?? "?"}`); setDuration(data.duration); sourceFirstFrame.current = true; sourceStarted.current = true; setPlayerStatus("playing"); setIsPlaying(true); setLastPlayerError(null); setShowControls(true); }}
         onProgress={handleVideoProgress}
@@ -2453,6 +2419,11 @@ export default function WatchScreen() {
                     <Download size={19} color="#FFF" weight="bold" />
                   </Pressable>
                 )}
+                {pipAvailable && source ? (
+                  <Pressable onPress={() => enterPiP()} accessibilityRole="button" accessibilityLabel="Picture in picture" style={styles.railBtn} hitSlop={8}>
+                    <PictureInPicture size={18} color="#FFF" weight="bold" />
+                  </Pressable>
+                ) : null}
                 <Pressable onPress={manualFullscreen ? exitFullscreen : enterFullscreen} accessibilityRole="button" accessibilityLabel={manualFullscreen ? "Exit fullscreen" : "Enter fullscreen"} style={styles.railBtn} hitSlop={8}>
                   {manualFullscreen ? <ArrowsIn size={18} color="#FFF" weight="bold" /> : <ArrowsOut size={18} color="#FFF" weight="bold" />}
                 </Pressable>
@@ -2687,7 +2658,7 @@ export default function WatchScreen() {
       {duration <= 0 ? <Text style={styles.chapterEmptyText}>No duration data available yet.</Text> : (
         <View style={styles.chapterList}>
           {(() => {
-            const chapters: Array<{ name: string; startTime: number; endTime: number; kind: SkipKind }> = [];
+            const chapters: { name: string; startTime: number; endTime: number; kind: SkipKind }[] = [];
             if (skipSegments.intro) chapters.push({ name: "Intro", startTime: skipSegments.intro.startTime, endTime: skipSegments.intro.endTime, kind: "intro" });
             if (skipSegments.outro) chapters.push({ name: "Outro", startTime: skipSegments.outro.startTime, endTime: skipSegments.outro.endTime, kind: "outro" });
             if (chapters.length === 0) return <Text style={styles.chapterEmptyText}>No chapters detected for this episode.</Text>;

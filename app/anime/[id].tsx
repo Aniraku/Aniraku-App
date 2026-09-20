@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import { useWindowDimensions } from "react-native";
+import { useEffect, useMemo, useState, useWindowDimensions } from "react";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
-import * as WebBrowser from "expo-web-browser";
 import { getAnimeById, getRecommendations } from "@/lib/anilist";
 import { parseRouteId } from "@/lib/route-params";
 import { getEpisodes } from "@/lib/aniraku-api";

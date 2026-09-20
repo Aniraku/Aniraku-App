@@ -113,7 +113,6 @@ export default function SearchScreen() {
 
   const waitingForInput = normalizedInput.length > 1 && query !== normalizedInput;
   const hasCategory = Boolean(genreFilter || sortFilter || statusFilter || formatFilter);
-  const isGenreMode = Boolean(genreFilter);
   const isCategoryMode = hasCategory;
   const categoryLabel = categoryTitle || genreFilter || "BROWSE";
   const searchQuery = isCategoryMode ? (query || " ") : query;

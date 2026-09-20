@@ -1,5 +1,4 @@
-import { useCallback, useRef, useState } from "react";
-import { Animated, PanResponder, RefreshControl, ScrollView, StyleSheet, type ScrollViewProps } from "react-native";
+import { RefreshControl, ScrollView, type ScrollViewProps } from "react-native";
 import { nothing } from "@/components/nothing-ui";
 
 type PullRefreshProps = ScrollViewProps & {

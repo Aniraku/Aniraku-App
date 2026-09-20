@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Platform, Pressable, Text, TextInput, View } from "react-native";
+import { useEffect } from "react";
+import { Pressable, Text, TextInput, View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";

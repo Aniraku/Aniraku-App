@@ -22,20 +22,6 @@ function titleFacts(format?: string | null, episodes?: number | null, score?: nu
   return [format, episodes ? `${episodes} EP` : null, score ? `${Math.round(score)}%` : null].filter(Boolean).join(" · ");
 }
 
-function timeAgo(timestamp?: number | null): string {
-  if (!timestamp) return "";
-  const diff = Date.now() - timestamp;
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  const weeks = Math.floor(days / 7);
-  return `${weeks}w ago`;
-}
-
 function ContinueCard({ entry }: {
   entry: { anime_id: number; episode_number: number; progress: number; duration?: number | null; anime_title?: string | null; anime_cover?: string | null; episode_thumbnail?: string | null; timestamp?: number | null };
 }) {
@@ -100,25 +86,7 @@ function ContinueWatchingRail() {
   );
 }
 
-function TrendingRow({ item, index }: { item: { id: number; coverImage?: { large?: string | null; extraLarge?: string | null } | null; bannerImage?: string | null; averageScore?: number | null; format?: string | null; episodes?: number | null; title?: { romaji?: string | null; english?: string | null; native?: string | null } | null }; index: number }) {
-  const prefetch = usePrefetchAnime();
-  return (
-    <Pressable onPress={() => { hapticLight(); prefetch(item.id); router.push((`/anime/${item.id}`) as never); }} style={({ pressed }) => [styles.trendingRow, pressed && styles.pressed]}>
-      <View style={styles.trendingThumb}>
-        <Image source={{ uri: item.coverImage?.extraLarge || item.coverImage?.large || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" />
-      </View>
-      <View style={styles.trendingBody}>
-        <Text style={styles.trendingTitle} numberOfLines={1}>{animeTitle(item as any)}</Text>
-        <Text style={styles.trendingMeta}>{titleFacts(item.format, item.episodes, item.averageScore)}</Text>
-      </View>
-      <View style={styles.trendingBadge}>
-        <Text style={styles.trendingBadgeText}>HD</Text>
-      </View>
-    </Pressable>
-  );
-}
-
-function TrendingGrid({ items }: { items: Array<{ id: number; coverImage?: { large?: string | null; extraLarge?: string | null } | null; bannerImage?: string | null; averageScore?: number | null; format?: string | null; episodes?: number | null; [key: string]: any }> }) {
+function TrendingGrid({ items }: { items: { id: number; coverImage?: { large?: string | null; extraLarge?: string | null } | null; bannerImage?: string | null; averageScore?: number | null; format?: string | null; episodes?: number | null; [key: string]: any }[] }) {
   const prefetch = usePrefetchAnime();
   if (!items.length) return null;
   return (

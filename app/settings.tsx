@@ -17,7 +17,7 @@ import { AppIcon } from "@/components/app-icon";
 import { Toggle } from "@/components/toggle";
 import { PROVIDER_LABELS, ProviderMark, type SyncProvider } from "@/components/provider-mark";
 import { useNsfwPreference } from "@/lib/nsfw-preference";
-import { DotLabel, NothingButton, nothing, Signal } from "@/components/nothing-ui";
+import { DotLabel, nothing, Signal } from "@/components/nothing-ui";
 import { NativeScreen } from "@/components/screen";
 import { t } from "@/lib/i18n";
 

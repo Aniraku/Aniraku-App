@@ -4,14 +4,11 @@ import { AppIcon } from "@/components/app-icon";
 import { nothing } from "@/components/nothing-ui";
 import { APP_CONFIG } from "@/lib/app-config";
 
-const DISMISS_KEY = "anilist-down-dismissed";
-
 let lastCheckAt = 0;
 const CHECK_INTERVAL_MS = 5 * 60_000;
 
 export function AniListDownBanner() {
   const [visible, setVisible] = useState(false);
-  const [checking, setChecking] = useState(false);
   const scale = useRef(new Animated.Value(0.92)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -28,7 +25,6 @@ export function AniListDownBanner() {
     lastCheckAt = now;
 
     try {
-      setChecking(true);
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
       const res = await fetch(APP_CONFIG.anilistGraphqlUrl, {
@@ -49,8 +45,6 @@ export function AniListDownBanner() {
       }
     } catch {
       // Network error — don't show banner, could be user's connection
-    } finally {
-      setChecking(false);
     }
   };
 

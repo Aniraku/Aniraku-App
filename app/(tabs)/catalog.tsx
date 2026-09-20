@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
@@ -11,7 +11,7 @@ import { animeTitle } from "@/lib/types";
 import { usePrefetchAnime } from "@/lib/prefetch";
 import { ErrorState, LoadingState, EmptyState } from "@/components/async-state";
 import { AppIcon } from "@/components/app-icon";
-import { DotLabel, NothingButton, nothing } from "@/components/nothing-ui";
+import { DotLabel, nothing } from "@/components/nothing-ui";
 import { NativeHeader, NativeScreen } from "@/components/screen";
 
 type HistoryEntry = { term: string; timestamp: number };
@@ -74,7 +74,6 @@ export default function CatalogScreen() {
   const [retryAt, setRetryAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   const [recent, setRecent] = useState<HistoryEntry[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     void AsyncStorage.getItem(STORAGE_KEY).then((stored) => {
@@ -207,7 +206,7 @@ export default function CatalogScreen() {
           {topSearches.data?.media?.length ? (
             <View style={styles.topSection}>
               <DotLabel tone="live">TOP SEARCH</DotLabel>
-              <Text style={styles.sectionTitle}>What's trending right now</Text>
+              <Text style={styles.sectionTitle}>What’s trending right now</Text>
               <View style={styles.topGrid}>
                 {topSearches.data.media.slice(0, 8).map((anime, index) => {
                   const title = animeTitle(anime);
