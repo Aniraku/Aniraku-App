@@ -24,7 +24,7 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.6.8">v5.6.8 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.0">v5.7.0 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
