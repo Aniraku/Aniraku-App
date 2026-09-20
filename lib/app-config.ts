@@ -1,11 +1,26 @@
-const productionAnirakuApi = process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://api.aniraku.tech";
-const configuredMetadataResolverUrl = process.env.EXPO_PUBLIC_METADATA_RESOLVER_URL;
+/**
+ * Pasted secrets routinely carry a trailing newline (CI editors, dashboards).
+ * An untrimmed Supabase URL silently breaks every derived URL (avatars,
+ * storage, PostgREST) and fails strict shape checks — so every public env
+ * value is trimmed at this single boundary. Tokens and URLs never rely on
+ * significant surrounding whitespace.
+ */
+function cleanEnv(value: string | undefined): string {
+  return value?.trim() ?? "";
+}
+
+const productionAnirakuApi = cleanEnv(process.env.EXPO_PUBLIC_API_BASE_URL) || "https://api.aniraku.tech";
+const configuredMetadataResolverUrl = process.env.EXPO_PUBLIC_METADATA_RESOLVER_URL === undefined
+  ? undefined
+  : cleanEnv(process.env.EXPO_PUBLIC_METADATA_RESOLVER_URL);
 const metadataResolverUrl = configuredMetadataResolverUrl === undefined
   ? "https://www.aniraku.tech/api/mal"
   : configuredMetadataResolverUrl.startsWith("https://")
     ? configuredMetadataResolverUrl
     : "";
-const configuredTmdbEpisodesResolverUrl = process.env.EXPO_PUBLIC_TMDB_EPISODE_RESOLVER_URL;
+const configuredTmdbEpisodesResolverUrl = process.env.EXPO_PUBLIC_TMDB_EPISODE_RESOLVER_URL === undefined
+  ? undefined
+  : cleanEnv(process.env.EXPO_PUBLIC_TMDB_EPISODE_RESOLVER_URL);
 const tmdbEpisodesResolverUrl = configuredTmdbEpisodesResolverUrl === undefined
   ? "https://www.aniraku.tech/api/tmdb-episodes"
   : configuredTmdbEpisodesResolverUrl.startsWith("https://")
@@ -37,15 +52,15 @@ export const APP_CONFIG = {
   // browser preview uses a same-project forwarding route because api.aniraku.tech
   // deliberately restricts its browser CORS allow-list to trusted web origins.
   apiBaseUrl: previewAnirakuProxy() ?? productionAnirakuApi,
-  anilistGraphqlUrl: process.env.EXPO_PUBLIC_ANILIST_GRAPHQL_URL ?? "https://graphql.anilist.co",
+  anilistGraphqlUrl: cleanEnv(process.env.EXPO_PUBLIC_ANILIST_GRAPHQL_URL) || "https://graphql.anilist.co",
   metadataResolverUrl,
   // This public URL reaches the website's server-side TMDB resolver. It is not
   // a TMDB API URL and the TMDB read token never enters an Expo environment.
   tmdbEpisodesResolverUrl,
-  directMalEnabled: process.env.EXPO_PUBLIC_DIRECT_MAL === "true" && Boolean(process.env.EXPO_PUBLIC_MAL_CLIENT_ID),
-  malClientId: process.env.EXPO_PUBLIC_MAL_CLIENT_ID ?? "",
-  supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
-  supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
+  directMalEnabled: cleanEnv(process.env.EXPO_PUBLIC_DIRECT_MAL) === "true" && Boolean(cleanEnv(process.env.EXPO_PUBLIC_MAL_CLIENT_ID)),
+  malClientId: cleanEnv(process.env.EXPO_PUBLIC_MAL_CLIENT_ID),
+  supabaseUrl: cleanEnv(process.env.EXPO_PUBLIC_SUPABASE_URL),
+  supabaseAnonKey: cleanEnv(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY),
   deepLinkScheme: "aniraku",
 } as const;
 
