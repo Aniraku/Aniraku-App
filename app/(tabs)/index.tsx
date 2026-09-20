@@ -142,6 +142,19 @@ function TrendingGrid({ items }: { items: Array<{ id: number; coverImage?: { lar
   );
 }
 
+function RailPlaceholder({ title }: { title: string }) {
+  return (
+    <View style={styles.section} accessibilityLabel={`Loading ${title}`}>
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trendingList}>
+        {Array.from({ length: 6 }).map((_, i) => <SkeletonRail key={i} />)}
+      </ScrollView>
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const prefetch = usePrefetchAnime();
   const nsfw = useNsfwPreference();
@@ -172,11 +185,7 @@ export default function HomeScreen() {
   const hero = !home.isPending ? home.data.trending[0] : null;
   return <NativeScreen><InAppEpisodeAlertMonitor />
     <NativeHeader eyebrow="ANIRAKU" title="Home" action={<View style={styles.topActions}><SearchAction /><NotificationAction onPress={() => setNotifSheetVisible(true)} /></View>} />
-    {home.isPending ? <ScrollView contentContainerStyle={styles.skeletonContainer} showsVerticalScrollIndicator={false}>
-      <View style={styles.skeletonHeroRow}>{Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}</View>
-      <Text style={styles.skeletonRailLabel}>TRENDING NOW</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.skeletonRailRow}>{Array.from({ length: 6 }).map((_, i) => <SkeletonRail key={i} />)}</ScrollView>
-    </ScrollView> : <ScrollView contentContainerStyle={styles.scrollContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={nothing.red} />} showsVerticalScrollIndicator={false}>
+    <ScrollView contentContainerStyle={styles.scrollContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={nothing.red} />} showsVerticalScrollIndicator={false}>
       {hero ?       <Pressable accessibilityRole="button" accessibilityLabel={`Open ${animeTitle(hero)}`} onPress={() => { hapticLight(); prefetch(hero.id); router.push((`/anime/${hero.id}`) as never); }} style={({ pressed }) => [styles.hero, pressed && styles.pressed]}>
         <View style={styles.heroFallback}><Text style={styles.heroFallbackText}>{animeTitle(hero).charAt(0)}</Text></View>
         <Image source={{ uri: hero.bannerImage || hero.coverImage?.extraLarge || hero.coverImage?.large || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" />
@@ -203,12 +212,12 @@ export default function HomeScreen() {
       </Pressable> : null}
       <ContinueWatchingRail />
       <TrendingGrid items={home.data.trending.slice(1)} />
-      {rails.data?.ongoing?.length ? <AnimeRail label="02" title="Ongoing" items={rails.data.ongoing} seeAllParams={{ status: "RELEASING", sort: "POPULARITY_DESC", title: "Ongoing" }} /> : null}
+      {rails.data?.ongoing?.length ? <AnimeRail label="02" title="Ongoing" items={rails.data.ongoing} seeAllParams={{ status: "RELEASING", sort: "POPULARITY_DESC", title: "Ongoing" }} /> : rails.isPending ? <RailPlaceholder title="Ongoing" /> : null}
       {home.data.popular.length ? <AnimeRail label="03" title="Popular releases" items={home.data.popular} seeAllParams={{ sort: "POPULARITY_DESC", title: "Popular Releases" }} /> : null}
-      {rails.data?.topMovies?.length ? <AnimeRail label="04" title="Top movies" items={rails.data.topMovies} seeAllParams={{ format: "MOVIE", sort: "SCORE_DESC", title: "Top Movies" }} /> : null}
-      {rails.data?.justFinished?.length ? <AnimeRail label="05" title="Just finished" items={rails.data.justFinished} seeAllParams={{ status: "FINISHED_AIRING", sort: "END_DATE_DESC", title: "Just Finished" }} /> : null}
+      {rails.data?.topMovies?.length ? <AnimeRail label="04" title="Top movies" items={rails.data.topMovies} seeAllParams={{ format: "MOVIE", sort: "SCORE_DESC", title: "Top Movies" }} /> : rails.isPending ? <RailPlaceholder title="Top movies" /> : null}
+      {rails.data?.justFinished?.length ? <AnimeRail label="05" title="Just finished" items={rails.data.justFinished} seeAllParams={{ status: "FINISHED", sort: "END_DATE_DESC", title: "Just Finished" }} /> : rails.isPending ? <RailPlaceholder title="Just finished" /> : null}
       {home.data.upcoming.length ? <AnimeRail label="06" title="Coming soon" items={home.data.upcoming} seeAllParams={{ status: "NOT_YET_RELEASED", sort: "POPULARITY_DESC", title: "Coming Soon" }} /> : null}
-    </ScrollView>}
+    </ScrollView>
     <NotificationSheet visible={notifSheetVisible} onClose={() => setNotifSheetVisible(false)} />
   </NativeScreen>;
 }

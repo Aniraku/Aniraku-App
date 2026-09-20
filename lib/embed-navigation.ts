@@ -33,13 +33,14 @@ function hasBlockedHost(hostname: string) {
  * known advertising and tracking navigation hosts.
  */
 export function shouldAllowEmbedNavigation(url: string) {
+  const dev = typeof __DEV__ !== "undefined" && __DEV__;
   try {
     const parsed = new URL(url);
     const allowed = parsed.protocol === "https:" && !hasBlockedHost(parsed.hostname);
-    if (!allowed) console.info(`[Aniraku embed] navigation blocked: ${parsed.protocol}//${parsed.hostname || "unknown"}`);
+    if (!allowed && dev) console.info(`[Aniraku embed] navigation blocked: ${parsed.protocol}//${parsed.hostname || "unknown"}`);
     return allowed;
   } catch {
-    console.info("[Aniraku embed] navigation blocked: invalid URL");
+    if (dev) console.info("[Aniraku embed] navigation blocked: invalid URL");
     return false;
   }
 }

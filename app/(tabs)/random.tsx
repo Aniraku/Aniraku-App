@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
-import { getAnimePool } from "@/lib/anilist";
+import { getAnimePool, isAniListPageDepthError, isAniListRateLimitError } from "@/lib/anilist";
 import { regenerateRandomPages, sessionRandomPages, shouldFallbackToFirstPages } from "@/lib/random-pool";
 import type { Anime } from "@/lib/types";
 import { nsfwFilterParam, useNsfwPreference } from "@/lib/nsfw-preference";
@@ -42,21 +42,35 @@ export default function RandomScreen() {
   const pool = useQuery({
     queryKey: ["random-pool", batch[0], batch[1], batch[2], isAdultParam],
     queryFn: async () => {
-      const titles = await getAnimePool({
-        pages: batch,
-        perPage: 50,
-        isAdult: isAdultParam,
-      });
-      // Deep random pages can legitimately return a thin pool (sparse tail of
-      // the catalog). One known-good retry on pages [1,2,3] keeps the error
-      // banner for real failures only — AniList unreachable or rate limited.
-      if (shouldFallbackToFirstPages(titles.length)) {
-        return getAnimePool({ pages: [1, 2, 3], perPage: 50, isAdult: isAdultParam });
+      try {
+        const titles = await getAnimePool({
+          pages: batch,
+          perPage: 50,
+          isAdult: isAdultParam,
+        });
+        // Deep random pages can legitimately return a thin pool (sparse tail of
+        // the catalog). One known-good retry on pages [1,2,3] keeps the error
+        // banner for real failures only — AniList unreachable or rate limited.
+        if (shouldFallbackToFirstPages(titles.length)) {
+          return getAnimePool({ pages: [1, 2, 3], perPage: 50, isAdult: isAdultParam });
+        }
+        if (!titles.length) throw new Error("No anime found. Check your connection and try again.");
+        return titles;
+      } catch (error) {
+        // Belt and suspenders with the getAnimePool clamp: a stale deep
+        // triple (or a future caller regression) falls back to known-good
+        // front pages instead of surfacing AniList's raw page-depth message.
+        if (isAniListPageDepthError(error)) {
+          return getAnimePool({ pages: [1, 2, 3], perPage: 50, isAdult: isAdultParam });
+        }
+        throw error;
       }
-      if (!titles.length) throw new Error("No anime found. Check your connection and try again.");
-      return titles;
     },
-    retry: 2,
+    // Depth errors are deterministic — retrying the same pages just burns
+    // the 30 req/min budget. Rate-limit errors cool down via the global
+    // slot instead of a blind retry here.
+    retry: (failureCount, error) =>
+      !isAniListRateLimitError(error) && !isAniListPageDepthError(error) && failureCount < 1,
     retryDelay: 1_500,
     staleTime: 10 * 60_000,
     gcTime: 30 * 60_000,

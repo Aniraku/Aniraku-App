@@ -61,15 +61,15 @@
 
 ---
 
-### v5.6.9 is out
+### v5.7.0 is out
 
-Rate-limit optimization for AniList's temporary 30 req/min cap: Home now costs 2 requests total (merged rails incl. a new "Just finished" shelf), notifications batch 50 bookmarks per request, search commits on word finish, and Random is fixed (pool pages 1–300, aligned startup prefetch). Dead code removed.
+Reliability, trust, and legal refresh: Random fixed at the root (pool pages capped for AniList's 5,000-entry depth limit with auto-recovery), Home rails restored (valid `FINISHED` filter, shimmer placeholders), deep-link-safe search, no more infinite loaders on bad links, self-healing avatars, 18+ gate on NSFW, hardened account deletion, comment fixes, and a full DMCA/Privacy/Terms refresh.
 
 | APK |
 |:--|
-| [Aniraku-v5.6.9-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.9/aniraku-v5.6.9-arm64.apk) |
-| [Aniraku-v5.6.9-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.9/aniraku-v5.6.9-arm32.apk) |
-| [Aniraku-v5.6.9-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.9/aniraku-v5.6.9-universal.apk) |
+| [Aniraku-v5.7.0-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.0/aniraku-v5.7.0-arm64.apk) |
+| [Aniraku-v5.7.0-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.0/aniraku-v5.7.0-arm32.apk) |
+| [Aniraku-v5.7.0-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.0/aniraku-v5.7.0-universal.apk) |
 
 <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 

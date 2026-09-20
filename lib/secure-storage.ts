@@ -2,9 +2,31 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
 const webFallback = {
-  getItem: (key: string) => (typeof localStorage === "undefined" ? null : localStorage.getItem(key)),
-  setItem: (key: string, value: string) => localStorage.setItem(key, value),
-  removeItem: (key: string) => localStorage.removeItem(key),
+  // sessionStorage (not localStorage): the token lives only for the tab
+  // lifetime, narrowing the XSS exfiltration window on web. Native still
+  // uses expo-secure-store (Keychain/Keystore). Long-lived web sessions
+  // should move to httpOnly cookies via the backend.
+  getItem: (key: string) => {
+    try {
+      return typeof sessionStorage === "undefined" ? null : sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (key: string, value: string) => {
+    try {
+      sessionStorage.setItem(key, value);
+    } catch {
+      // Private-mode quota errors must not break guest browsing.
+    }
+  },
+  removeItem: (key: string) => {
+    try {
+      sessionStorage.removeItem(key);
+    } catch {
+      // The session will be treated as absent on the next initialization.
+    }
+  },
 };
 
 export const secureStorage = {

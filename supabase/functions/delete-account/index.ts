@@ -8,22 +8,52 @@ const cors = {
 
 const json = (body: Record<string, unknown>, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
+/**
+ * A table that was renamed or never created must not brick deletion forever.
+ * PostgREST reports absent tables as PGRST205/42P01 (or a "not found" /
+ * "does not exist" message) — those are skipped, while every real error
+ * still aborts. Without this, one missing table fails EVERY attempt, the
+ * auth record is never removed, and the user can never finish deleting.
+ */
+function isMissingTableError(error: unknown): boolean {
+  const record = error as { code?: unknown; message?: unknown } | null;
+  const code = String(record?.code ?? "");
+  const message = String(record?.message ?? error ?? "").toLowerCase();
+  return (
+    code === "PGRST205" ||
+    code === "42P01" ||
+    message.includes("not found") ||
+    message.includes("does not exist") ||
+    message.includes("schema cache")
+  );
+}
+
+async function selectIds(
+  admin: ReturnType<typeof createClient>,
+  table: string,
+  column: string,
+  value: string,
+): Promise<Array<string | number>> {
+  const { data, error } = await admin.from(table).select("id").eq(column, value);
+  if (error) {
+    if (isMissingTableError(error)) return [];
+    throw error;
+  }
+  return (data ?? []).map((row) => (row as { id: string | number }).id);
+}
+
 async function removeUserData(admin: ReturnType<typeof createClient>, userId: string) {
-  const comments = await admin.from("comments").select("id").eq("user_id", userId);
-  if (comments.error) throw comments.error;
-  const commentIds = (comments.data ?? []).map((comment) => comment.id);
+  const commentIds = await selectIds(admin, "comments", "user_id", userId);
   if (commentIds.length) {
     const replies = await admin.from("comments").update({ parent_id: null }).in("parent_id", commentIds);
-    if (replies.error) throw replies.error;
+    if (replies.error && !isMissingTableError(replies.error)) throw replies.error;
     const likes = await admin.from("comment_likes").delete().in("comment_id", commentIds);
-    if (likes.error) throw likes.error;
+    if (likes.error && !isMissingTableError(likes.error)) throw likes.error;
   }
-  const ownedGroups = await admin.from("groups").select("id").eq("owner_id", userId);
-  if (ownedGroups.error) throw ownedGroups.error;
-  const groupIds = (ownedGroups.data ?? []).map((group) => group.id);
+  const groupIds = await selectIds(admin, "groups", "owner_id", userId);
   if (groupIds.length) {
     const members = await admin.from("group_members").delete().in("group_id", groupIds);
-    if (members.error) throw members.error;
+    if (members.error && !isMissingTableError(members.error)) throw members.error;
   }
   const requests = [
     admin.from("comment_likes").delete().eq("user_id", userId),
@@ -45,8 +75,8 @@ async function removeUserData(admin: ReturnType<typeof createClient>, userId: st
     admin.from("users").delete().eq("id", userId),
   ];
   const results = await Promise.all(requests);
-  const failure = results.find((result) => result.error)?.error;
-  if (failure) throw failure;
+  const fatal = results.find((result) => result.error && !isMissingTableError(result.error))?.error;
+  if (fatal) throw fatal;
 }
 
 Deno.serve(async (request) => {

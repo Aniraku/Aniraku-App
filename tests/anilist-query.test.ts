@@ -182,7 +182,7 @@ describe("AniList query construction", () => {
     expect(body.query).toContain("justFinished:");
     expect(body.query).toContain("status: RELEASING");
     expect(body.query).toContain("format: MOVIE");
-    expect(body.query).toContain("status: FINISHED_AIRING");
+    expect(body.query).toContain("status: FINISHED");
     expect(body.query).toContain("sort: [END_DATE_DESC]");
     expect(rails).toMatchObject({ ongoing: [{ id: 1 }], topMovies: [{ id: 2 }], justFinished: [{ id: 3 }] });
   });

@@ -35,6 +35,28 @@ export class AniListUnavailableError extends Error {
   }
 }
 
+/**
+ * AniList rejects `page × perPage > 5000` with
+ * "Page depth exceeds maximum allowed for API requests (5000 entries)".
+ * Surfaced as its own class so callers (Random pool) can auto-recover
+ * with known-good front pages instead of retrying the same deep pages
+ * and showing the raw upstream message.
+ */
+export class AniListPageDepthError extends Error {
+  constructor() {
+    super("Our random pool went too deep. We loaded safe picks instead — try again.");
+    this.name = "AniListPageDepthError";
+  }
+}
+
+export function isAniListPageDepthError(error: unknown): error is AniListPageDepthError {
+  return error instanceof AniListPageDepthError;
+}
+
+function isPageDepthMessage(message: string): boolean {
+  return /page depth exceeds maximum|5000 entries/i.test(message);
+}
+
 export function isAniListRateLimitError(error: unknown): error is AniListRateLimitError {
   return error instanceof AniListRateLimitError;
 }
@@ -56,14 +78,20 @@ function getRetryAfterMs(headers?: Headers): number | null {
   return null;
 }
 
-function updateAniListRateState(headers?: Headers) {
+function updateAniListRateState(headers?: Headers, status?: number) {
   const remaining = Number(headers?.get("x-ratelimit-remaining"));
   if (Number.isFinite(remaining) && remaining <= 2) {
     // Flat cooldown while the temporary 30 req/min limit is active.
     nextAniListRequestAt = Math.max(nextAniListRequestAt, Date.now() + 2_500);
   }
   const retryAfterMs = getRetryAfterMs(headers);
-  if (retryAfterMs !== null && remaining === 0) blockedUntil = Math.max(blockedUntil, Date.now() + retryAfterMs);
+  if (retryAfterMs !== null && (remaining === 0 || status === 429)) {
+    blockedUntil = Math.max(blockedUntil, Date.now() + retryAfterMs);
+  } else if (status === 429) {
+    // 429 without a Retry-After header still cools down for a minute so
+    // we don't spin through the minute's budget retrying the same slot.
+    blockedUntil = Math.max(blockedUntil, Date.now() + 60_000);
+  }
 }
 
 function sleep(ms: number) {
@@ -166,14 +194,18 @@ async function request<T>(query: string, variables: Record<string, unknown> = {}
       const rawPayload = await response.text();
       let payload: { data?: T; errors?: Array<{ message?: string }> } = {};
       try { payload = rawPayload ? JSON.parse(rawPayload) : {}; } catch { throw new Error("AniList returned an unreadable response."); }
-      updateAniListRateState(response.headers);
+      updateAniListRateState(response.headers, response.status);
       if (response.status === 429) throw new AniListRateLimitError(getRetryAfterMs(response.headers));
       const upstreamMessage = payload.errors?.[0]?.message || `AniList is unavailable (${response.status}).`;
+      if (isPageDepthMessage(upstreamMessage)) throw new AniListPageDepthError();
       if (response.status === 403 && /temporarily disabled|severe stability issues/i.test(upstreamMessage)) {
         throw new AniListUnavailableError("AniList is temporarily unavailable due to an upstream stability issue. Try again shortly.", response.status);
       }
       if (!response.ok) throw new Error(upstreamMessage);
-      if (payload.errors?.length) throw new Error(payload.errors[0]?.message || "AniList returned an invalid response.");
+      if (payload.errors?.length) {
+        if (isPageDepthMessage(payload.errors[0]?.message ?? "")) throw new AniListPageDepthError();
+        throw new Error(payload.errors[0]?.message || "AniList returned an invalid response.");
+      }
       const data = payload.data as T;
       responseCache.set(cacheKey, { expiresAt: Date.now() + REQUEST_CACHE_TTL_MS, staleUntil: Date.now() + STALE_CACHE_TTL_MS, value: data });
       return data;
@@ -197,6 +229,70 @@ export function resetAniListRequestStateForTests() {
   blockedUntil = 0;
 }
 
+// AniList caps: at most 50 items per Page, and page × perPage ≤ 5000.
+// Clamping here prevents "Page depth exceeds maximum" for every caller,
+// present and future — not just the Random pool.
+export const ANILIST_MAX_PER_PAGE = 50;
+export const ANILIST_MAX_PAGE_DEPTH = 5000;
+
+export function clampAniListPage(page: number, perPage: number): number {
+  const safePerPage = Math.min(Math.max(1, Math.floor(perPage) || 1), ANILIST_MAX_PER_PAGE);
+  const maxPage = Math.max(1, Math.floor(ANILIST_MAX_PAGE_DEPTH / safePerPage));
+  const parsed = Math.floor(Number(page));
+  if (!Number.isFinite(parsed) || parsed < 1) return 1;
+  return Math.min(parsed, maxPage);
+}
+
+export function clampAniListPerPage(perPage: number): number {
+  const parsed = Math.floor(Number(perPage));
+  if (!Number.isFinite(parsed)) return 20;
+  return Math.min(Math.max(parsed, 1), ANILIST_MAX_PER_PAGE);
+}
+
+/**
+ * Deep-link safety: rail "View all" links and shared URLs feed raw strings
+ * into GraphQL enum slots (`sort`, `status`, `format`). One unknown value
+ * fails the WHOLE request with a 400, so every param is allowlisted —
+ * garbage falls back instead of erroring the screen.
+ */
+const VALID_MEDIA_SORTS = new Set([
+  "ID", "ID_DESC",
+  "TITLE_ROMAJI", "TITLE_ROMAJI_DESC", "TITLE_ENGLISH", "TITLE_ENGLISH_DESC",
+  "TITLE_NATIVE", "TITLE_NATIVE_DESC", "TYPE", "TYPE_DESC", "FORMAT", "FORMAT_DESC",
+  "START_DATE", "START_DATE_DESC", "END_DATE", "END_DATE_DESC",
+  "SCORE", "SCORE_DESC", "POPULARITY", "POPULARITY_DESC",
+  "TRENDING", "TRENDING_DESC", "EPISODES", "EPISODES_DESC",
+  "DURATION", "DURATION_DESC", "STATUS", "STATUS_DESC",
+  "UPDATED_AT", "UPDATED_AT_DESC", "SEARCH_MATCH", "FAVOURITES", "FAVOURITES_DESC",
+]);
+
+const VALID_MEDIA_STATUSES = new Set(["FINISHED", "RELEASING", "NOT_YET_RELEASED", "CANCELLED", "HIATUS"]);
+
+const VALID_MEDIA_FORMATS = new Set(["TV", "TV_SHORT", "MOVIE", "SPECIAL", "OVA", "ONA", "MUSIC", "MANGA", "NOVEL", "ONE_SHOT"]);
+
+/** Allowlisted sort list, or null when nothing usable survives (caller falls back). Accepts the raw expo-router param shape. */
+export function sanitizeMediaSortList(value: string | readonly string[] | null | undefined): string[] | null {
+  const raw = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
+  const clean: string[] = [];
+  for (const entry of raw) {
+    const normalized = String(entry ?? "").trim().toUpperCase();
+    if (VALID_MEDIA_SORTS.has(normalized) && !clean.includes(normalized)) clean.push(normalized);
+  }
+  return clean.length ? clean : null;
+}
+
+/** Allowlisted status, or undefined when unusable (omitted from the query). */
+export function sanitizeMediaStatus(value: unknown): string | undefined {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  return VALID_MEDIA_STATUSES.has(normalized) ? normalized : undefined;
+}
+
+/** Allowlisted format, or undefined when unusable (omitted from the query). */
+export function sanitizeMediaFormat(value: unknown): string | undefined {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  return VALID_MEDIA_FORMATS.has(normalized) ? normalized : undefined;
+}
+
 export async function getAnimePage(options: {
   page?: number;
   perPage?: number;
@@ -209,9 +305,11 @@ export async function getAnimePage(options: {
   format?: string;
   isAdult?: boolean | null;
 } = {}): Promise<AnimePage> {
+  const perPage = clampAniListPerPage(options.perPage ?? 20);
+  const page = clampAniListPage(options.page ?? 1, perPage);
   const data = await request<{ Page: AnimePage }>(pageQuery, {
-    page: options.page ?? 1,
-    perPage: options.perPage ?? 20,
+    page,
+    perPage,
     sort: options.sort ?? ["POPULARITY_DESC"],
     search: options.search,
     status: options.status,
@@ -328,11 +426,20 @@ export async function getAnimePool(options: {
   genre?: string;
   isAdult?: boolean | null;
 } = { pages: [1, 2, 3] }): Promise<Anime[]> {
+  const perPage = clampAniListPerPage(options.perPage ?? 50);
+  // Defense in depth: even if a caller passes stale deep pages (e.g. a
+  // session triple from before the depth fix), clamp them so AniList
+  // never sees page × perPage > 5000.
+  const pages: [number, number, number] = [
+    clampAniListPage(options.pages[0], perPage),
+    clampAniListPage(options.pages[1], perPage),
+    clampAniListPage(options.pages[2], perPage),
+  ];
   const data = await request<{ a: AnimePage; b: AnimePage; c: AnimePage }>(animePoolQuery, {
-    perPage: options.perPage ?? 50,
-    pageA: options.pages[0],
-    pageB: options.pages[1],
-    pageC: options.pages[2],
+    perPage,
+    pageA: pages[0],
+    pageB: pages[1],
+    pageC: pages[2],
     sort: options.sort ?? ["ID_DESC"],
     genre: options.genre,
     isAdult: options.isAdult,
@@ -352,7 +459,7 @@ export async function getAnimePool(options: {
 const homeRailsQuery = `query HomeRails($isAdult: Boolean) {
   ongoing: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: $isAdult, status: RELEASING, sort: [POPULARITY_DESC]) { ${slimAnimeFields} } }
   topMovies: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: $isAdult, format: MOVIE, sort: [SCORE_DESC]) { ${slimAnimeFields} } }
-  justFinished: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: $isAdult, status: FINISHED_AIRING, sort: [END_DATE_DESC]) { ${slimAnimeFields} } }
+  justFinished: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: $isAdult, status: FINISHED, sort: [END_DATE_DESC]) { ${slimAnimeFields} } }
 }`;
 
 /**

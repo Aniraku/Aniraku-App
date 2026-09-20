@@ -5,6 +5,7 @@ import { Image } from "expo-image";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { getEpisodes } from "@/lib/aniraku-api";
 import { getAnimeById } from "@/lib/anilist";
+import { parseRouteEpisode, parseRouteId } from "@/lib/route-params";
 import { enrichEpisodesWithTmdb } from "@/lib/tmdb-episodes";
 import { animeTitle } from "@/lib/types";
 import { AppIcon } from "@/components/app-icon";
@@ -13,11 +14,12 @@ import { ErrorState, LoadingState } from "@/components/async-state";
 import { NativeHeader, NativeScreen } from "@/components/screen";
 
 export default function EpisodeInfoScreen() {
-  const params = useLocalSearchParams<{ id: string; episode?: string; title?: string; image?: string; episodeTitle?: string }>();
-  const animeId = Number(params.id);
-  const episodeNumber = Math.max(1, Number(params.episode ?? "1"));
-  const episodes = useQuery({ queryKey: ["episode-info", animeId], queryFn: () => getEpisodes(animeId), enabled: Number.isFinite(animeId) && animeId > 0, staleTime: 60_000 });
-  const anime = useQuery({ queryKey: ["episode-info-anime", animeId], queryFn: () => getAnimeById(animeId), enabled: Number.isFinite(animeId) && animeId > 0, staleTime: 10 * 60_000 });
+  const params = useLocalSearchParams<{ id?: string | string[]; episode?: string | string[]; title?: string; image?: string; episodeTitle?: string }>();
+  const animeId = parseRouteId(params.id) ?? -1;
+  const invalidId = animeId <= 0;
+  const episodeNumber = parseRouteEpisode(params.episode);
+  const episodes = useQuery({ queryKey: ["episode-info", animeId], queryFn: () => getEpisodes(animeId), enabled: !invalidId, staleTime: 60_000 });
+  const anime = useQuery({ queryKey: ["episode-info-anime", animeId], queryFn: () => getAnimeById(animeId), enabled: !invalidId, staleTime: 10 * 60_000 });
   const canonicalRows = useMemo(() => episodes.data ?? [], [episodes.data]);
   const episodeSignature = useMemo(() => canonicalRows.map((item) => `${item.number}:${item.title ?? ""}:${item.thumbnail ?? ""}`).join("|"), [canonicalRows]);
   const fallbackThumbnail = anime.data?.bannerImage || anime.data?.coverImage?.extraLarge || anime.data?.coverImage?.large || params.image || "";
@@ -38,6 +40,7 @@ export default function EpisodeInfoScreen() {
   const openWatch = (target = episodeNumber) => router.replace({ pathname: "/watch/[id]", params: { id: String(animeId), episode: String(target), title, image: params.image || anime.data?.coverImage?.extraLarge || anime.data?.coverImage?.large || "" } } as never);
   const goInfo = (target: number) => router.replace({ pathname: "/episode/[id]", params: { id: String(animeId), episode: String(target), title, image: params.image || "" } } as never);
 
+  if (invalidId) return <NativeScreen><NativeHeader eyebrow="WATCH" title="Episode info" /><ErrorState message="This episode link is invalid." onRetry={() => router.back()} retryLabel="GO BACK" /></NativeScreen>;
   if (episodes.isPending && anime.isPending) return <NativeScreen><NativeHeader eyebrow="WATCH" title="Episode info" /><LoadingState label="Loading episode information" /></NativeScreen>;
   if (episodes.isError) return <NativeScreen><NativeHeader eyebrow="WATCH" title="Episode info" /><ErrorState message={episodes.error.message || "We could not load episode information."} onRetry={() => void episodes.refetch()} /></NativeScreen>;
 

@@ -6,6 +6,7 @@ import { Image } from "expo-image";
 import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { getAnimeById, getRecommendations } from "@/lib/anilist";
+import { parseRouteId } from "@/lib/route-params";
 import { getEpisodes } from "@/lib/aniraku-api";
 import { enrichEpisodesWithTmdb } from "@/lib/tmdb-episodes";
 import { groupAnimeRelations } from "@/lib/anime-relations";
@@ -26,11 +27,15 @@ import { DotLabel, NothingButton, nothing, Signal } from "@/components/nothing-u
 import { NativeHeader, NativeScreen } from "@/components/screen";
 
 export default function AnimeDetailScreen() {
-  const params = useLocalSearchParams<{ id: string }>();
-  const id = Number(params.id);
+  const params = useLocalSearchParams<{ id?: string | string[] }>();
+  // Malformed deep links used to hang on the loading skeleton forever:
+  // disabled queries never leave `isPending`. -1 keeps query keys typed
+  // while every query stays disabled; the invalid branch below renders.
+  const id = parseRouteId(params.id) ?? -1;
+  const invalidId = id <= 0;
   const auth = useAnirakuAuth();
-  const anime = useQuery({ queryKey: ["anime", id], queryFn: () => getAnimeById(id), enabled: Number.isFinite(id) });
-  const episodes = useQuery({ queryKey: ["episodes", id], queryFn: () => getEpisodes(id), enabled: Number.isFinite(id) });
+  const anime = useQuery({ queryKey: ["anime", id], queryFn: () => getAnimeById(id), enabled: !invalidId });
+  const episodes = useQuery({ queryKey: ["episodes", id], queryFn: () => getEpisodes(id), enabled: !invalidId });
   const canonicalEpisodeRows = useMemo(() => episodes.data ?? [], [episodes.data]);
   const episodeSignature = useMemo(() => canonicalEpisodeRows.map((item) => `${item.number}:${item.title ?? ""}:${item.thumbnail ?? ""}`).join("|"), [canonicalEpisodeRows]);
   const fallbackThumbnail = anime.data?.bannerImage || anime.data?.coverImage?.extraLarge || anime.data?.coverImage?.large || "";
@@ -82,6 +87,7 @@ export default function AnimeDetailScreen() {
     setEpisodePage((current) => Math.min(current, totalEpisodePages - 1));
   }, [totalEpisodePages]);
 
+  if (invalidId) return <NativeScreen><NativeHeader eyebrow="ANIME" title="Anime" /><ErrorState message="This anime link is invalid." onRetry={() => router.back()} retryLabel="GO BACK" /></NativeScreen>;
   if (anime.isPending) return <NativeScreen><NativeHeader eyebrow="ANIME" title="Anime" /><LoadingState label="Loading anime details" /></NativeScreen>;
   if (anime.isError || !anime.data) return <NativeScreen><NativeHeader eyebrow="ANIME" title="Anime" /><ErrorState message={anime.error?.message ?? "We could not load this anime."} onRetry={() => void anime.refetch()} /></NativeScreen>;
   const data = anime.data;

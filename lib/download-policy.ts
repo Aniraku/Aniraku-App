@@ -88,6 +88,15 @@ export type BackendDownloadServer = { label?: string; lang?: string; downloads?:
  * language-filtered server list). Dedupes by URL, keeps provider order, and
  * tags each option with its parsed quality (null = default label).
  */
+export function isSafeExternalDownloadUrl(url: string): boolean {
+  try {
+    const parsed = new URL(String(url ?? "").trim());
+    return parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export function buildBackendDownloadOptions(servers: readonly BackendDownloadServer[]): BackendDownloadOption[] {
   const seen = new Set<string>();
   const options: BackendDownloadOption[] = [];
@@ -95,7 +104,10 @@ export function buildBackendDownloadOptions(servers: readonly BackendDownloadSer
     const providerLabel = String(server?.label ?? "").trim().toUpperCase() || "SERVER";
     for (const link of server?.downloads ?? []) {
       const url = String(link?.url ?? "").trim();
-      if (!url || seen.has(url)) continue;
+      // Trust boundary: these URLs come from the backend/provider hosts and
+      // are opened in the external browser. Accept https only — rejects
+      // javascript:, intent:, data:, and cleartext http: outright.
+      if (!url || !isSafeExternalDownloadUrl(url) || seen.has(url)) continue;
       seen.add(url);
       const label = String(link?.label ?? "").trim() || providerLabel;
       options.push({ url, label, quality: parseBackendDownloadQuality(label), providerLabel });

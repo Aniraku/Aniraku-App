@@ -20,6 +20,23 @@ export async function downloadAndInstallAnirakuUpdate(release: AppRelease) {
   if (!release.downloadUrl || !release.assetName || !Number.isSafeInteger(release.assetSize) || release.assetSize <= 0) {
     throw new Error("THE PUBLISHED UPDATE ASSET COULD NOT BE VERIFIED.");
   }
+  // Trust boundary: release metadata flows from the GitHub API into an
+  // ACTION_VIEW intent that triggers the package installer. Re-validate
+  // here (app-update already filters) so a compromised cache entry can't
+  // redirect the download or smuggle a path traversal filename.
+  let parsedDownload: URL;
+  try {
+    parsedDownload = new URL(release.downloadUrl);
+  } catch {
+    throw new Error("THE PUBLISHED UPDATE ASSET COULD NOT BE VERIFIED.");
+  }
+  const trustedDownload = parsedDownload.protocol === "https:"
+    && parsedDownload.origin === "https://github.com"
+    && parsedDownload.pathname.startsWith("/Aniraku/Aniraku-App/releases/download/");
+  const trustedName = /^[A-Za-z0-9._-]+\.apk$/.test(release.assetName) && !release.assetName.includes("..");
+  if (!trustedDownload || !trustedName) {
+    throw new Error("THE PUBLISHED UPDATE ASSET COULD NOT BE VERIFIED.");
+  }
 
   const destination = new File(updateDirectory(), release.assetName);
   if (destination.exists) destination.delete();

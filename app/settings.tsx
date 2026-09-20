@@ -117,6 +117,26 @@ export default function SettingsScreen() {
   const clearBookmarks = () => Alert.alert("Clear saved titles?", "This removes every synchronized bookmark from your Aniraku account.", [{ text: "Cancel", style: "cancel" }, { text: "Clear", style: "destructive", onPress: () => void bookmarks.clear.mutateAsync().catch((error) => Alert.alert("Could not clear bookmarks", error.message)) }]);
   const deleteAccount = () => Alert.alert("Delete Aniraku account?", "This permanently removes your profile, watch history, ratings, bookmarks, comments, notifications, preferences, and account. This cannot be undone.", [{ text: "Cancel", style: "cancel" }, { text: "Delete account", style: "destructive", onPress: () => void deleteCurrentAccount().then(() => router.replace("/(tabs)" as never)).catch((error) => Alert.alert("Account not deleted", error.message)) }]);
 
+  // Enabling adult content requires an explicit 18+ affirmation (one-time,
+  // persisted). Disabling is always instant and never prompts.
+  const requestNsfwChange = () => {
+    if (nsfw.enabled) {
+      nsfw.setEnabled(false);
+      return;
+    }
+    if (nsfw.ageVerified) {
+      nsfw.setEnabled(true);
+      return;
+    }
+    Alert.alert(t("settings.nsfwAgeTitle"), t("settings.nsfwAgeMessage"), [
+      { text: t("settings.nsfwAgeDecline"), style: "cancel" },
+      {
+        text: t("settings.nsfwAgeConfirm"),
+        onPress: () => void nsfw.verifyAge().then(() => nsfw.setEnabled(true)).catch(() => {}),
+      },
+    ]);
+  };
+
   return <NativeScreen>
     <View style={styles.top}>
       <Pressable accessibilityRole="button" accessibilityLabel="Close settings" onPress={() => router.back()} style={styles.close}>
@@ -165,13 +185,13 @@ export default function SettingsScreen() {
 
     {/* ── Content ── */}
     <View style={styles.section}><DotLabel>{t("settings.content")}</DotLabel></View>
-    <Pressable accessibilityRole="button" onPress={nsfw.toggle} style={styles.row}>
+    <Pressable accessibilityRole="button" onPress={requestNsfwChange} style={styles.row}>
       <View style={styles.rowIcon}><AppIcon name="eye" size={18} color={nsfw.enabled ? nothing.red : nothing.muted} /></View>
       <View style={styles.rowBody}>
         <Text style={styles.rowLabel}>{t("settings.nsfwContent")}</Text>
         <Text style={styles.rowMeta}>{t("settings.nsfwContentDetail")}</Text>
       </View>
-      <Toggle enabled={nsfw.enabled} onToggle={nsfw.toggle} label={t("settings.nsfwContent")} />
+      <Toggle enabled={nsfw.enabled} onToggle={requestNsfwChange} label={t("settings.nsfwContent")} />
     </Pressable>
     {nsfw.enabled ? <View style={styles.row}><View style={styles.rowIcon} /><Text style={styles.nsfwWarning}>{t("settings.nsfwWarning")}</Text></View> : null}
 

@@ -6,6 +6,21 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.7.0 — Reliability, trust, and legal refresh
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- Random fixed at the root: the pool exceeded AniList's 5,000-entry page-depth limit (300 × 50). Pages capped at 90, every request clamped, deep-pool failures auto-recover to safe front pages with a friendly message instead of the raw API error.
+- Home rails restored: the "Just finished" filter used an invalid `FINISHED_AIRING` status that failed the whole batched request — Ongoing, Top Movies, and Just Finished all blanked together. Now `FINISHED`, verified live; rails also show shimmer placeholders while loading.
+- Search hardened for deep links: sort/status/format params are allowlisted, so stale or crafted links degrade to default browse instead of erroring the screen.
+- Malformed anime/episode/watch links no longer hang on infinite loaders or render "EPISODE NaN" — invalid routes show an error with a go-back action (new `lib/route-params` + tests).
+- Avatars self-heal: poisoned cache entries are evicted on decode failure, and the remote image renders while the file cache catches up. Storage URLs verified healthy (HTTP 200).
+- NSFW toggle gated behind a one-time 18+ affirmation; disabling stays instant.
+- Account deletion hardened: the edge function skips missing tables instead of bricking deletion forever, the deploy artifact is resynced, and local watch caches clear on delete.
+- Comments fixed: guest like/reply buttons route to sign-in instead of dying silently, deletes ask first, malformed timestamps no longer render "NaND".
+- Schedule shows an empty state when the 7-day window has no airings.
+- Legal refresh: full §512 DMCA procedure (agent, takedown elements, counter-notice, repeat-infringer, misrepresentation), expanded Privacy Notice and Terms of Use, unified contacts, matching in-app legal screen, MIT licensing attribution aligned.
+
 ## v5.6.9 — Rate-limit optimization: AniList 30 req/min cap
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`

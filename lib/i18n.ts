@@ -49,6 +49,10 @@ const en = {
   "settings.nsfwContent": "NSFW content",
   "settings.nsfwContentDetail": "Show hentai and adult anime in browse, search, and random",
   "settings.nsfwWarning": "When enabled, adult and hentai titles may appear in your catalog, search results, and recommendations.",
+  "settings.nsfwAgeTitle": "Confirm your age",
+  "settings.nsfwAgeMessage": "Adult and hentai titles are only for viewers aged 18 or older. Confirm you meet the age requirement to show this content.",
+  "settings.nsfwAgeConfirm": "I am 18 or older",
+  "settings.nsfwAgeDecline": "Not now",
 } as const;
 
 export type I18nKey = keyof typeof en;

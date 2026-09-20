@@ -15,7 +15,10 @@ function authorName(comment: SharedComment) {
 }
 
 function elapsedTime(iso: string) {
-  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
+  const time = new Date(iso).getTime();
+  // Malformed timestamps used to render as "NaND" — fail silent instead.
+  if (!Number.isFinite(time)) return "";
+  const minutes = Math.max(0, Math.round((Date.now() - time) / 60_000));
   if (minutes < 1) return "NOW";
   if (minutes < 60) return `${minutes}M`;
   if (minutes < 1440) return `${Math.floor(minutes / 60)}H`;
@@ -74,6 +77,19 @@ export const AnimeComments = memo(function AnimeComments({ animeId, episodeNumbe
   }, [replyTo, sortedComments]);
 
   const post = () => comments.add.mutate({ content, spoiler, episode: episodeNumber, parentId: replyTo?.id ?? null }, { onSuccess: () => { setContent(""); setSpoiler(false); setReplyTo(null); } });
+  // Likes and replies need an account — without this gate guests tapped
+  // dead buttons (the mutations just threw "Sign in…" with no UI).
+  const requireUser = () => {
+    if (!auth.user) {
+      router.push("/auth" as never);
+      return false;
+    }
+    return true;
+  };
+  const confirmDelete = (commentId: string) => Alert.alert("Delete comment?", "This permanently removes your comment.", [
+    { text: "Cancel", style: "cancel" },
+    { text: "Delete", style: "destructive", onPress: () => void comments.remove.mutate(commentId) },
+  ]);
   const reveal = (id: string) => {
     Alert.alert("Spoiler Warning", "This comment contains spoilers. Reveal?", [
       { text: "Cancel", style: "cancel" },
@@ -97,13 +113,13 @@ export const AnimeComments = memo(function AnimeComments({ animeId, episodeNumbe
     </NothingCard> : <NothingCard style={styles.guest}><Text style={styles.guestText}>Sign in with a verified Aniraku account to join the discussion.</Text><NothingButton label="SIGN IN TO COMMENT" variant="outline" onPress={() => router.push("/auth" as never)} /></NothingCard>}
     {comments.comments.isPending ? <LoadingState label="Loading community comments" /> : comments.comments.isError ? <ErrorState message="Comments could not load right now." onRetry={() => void comments.comments.refetch()} /> : !sortedComments.length ? <NothingCard style={styles.empty}><Text style={styles.emptyTitle}>No discussion yet</Text><Text style={styles.emptyText}>Start the conversation without spoiling the story for everyone else.</Text></NothingCard> : <FlatList data={sortedComments} keyExtractor={(comment) => comment.id} scrollEnabled={false} contentContainerStyle={styles.list} renderItem={({ item: comment }) => { const hidden = comment.is_spoiler && (hideAllSpoilers || !revealed.has(comment.id)); const isLiked = comments.likedIds.has(comment.id); const isOwn = Boolean(auth.user) && auth.user!.id === comment.user_id; const thread = repliesByParent.get(comment.id) ?? []; return <NothingCard style={styles.commentCard}><CommentAuthor comment={comment} />{hidden ? <Pressable accessibilityRole="button" accessibilityLabel="Spoiler hidden. Reveal comment." onPress={() => reveal(comment.id)} style={({ pressed }) => [styles.spoilerShield, pressed && styles.pressed]}><AppIcon name="eye-off-outline" size={17} color={nothing.red} /><Text style={styles.spoilerText}>SPOILER HIDDEN · TAP TO REVEAL</Text></Pressable> : <>{comment.is_spoiler ? <SpoilerContent><Text style={styles.revealed}>SPOILER REVEALED</Text>{comment.content ? <Text style={styles.commentText}>{comment.content}</Text> : null}{comment.gif_url ? <Image source={{ uri: comment.gif_url }} style={styles.commentGif} resizeMode="contain" /> : null}</SpoilerContent> : <>{comment.content ? <Text style={styles.commentText}>{comment.content}</Text> : null}{comment.gif_url ? <Image source={{ uri: comment.gif_url }} style={styles.commentGif} resizeMode="contain" /> : null}</>}</>}
       <View style={styles.commentActions}>
-        <Pressable accessibilityRole="button" accessibilityLabel={isLiked ? "Unlike comment" : "Like comment"} disabled={comments.toggleLike.isPending} onPress={() => void comments.toggleLike.mutate(comment)} style={styles.commentAction}><AppIcon name={isLiked ? "heart" : "heart-outline"} size={16} color={isLiked ? nothing.red : nothing.muted} /><Text style={[styles.commentActionText, isLiked && styles.commentActionTextActive]}>{comment.likes ?? 0}</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Reply to comment" onPress={() => setReplyTo(comment)} style={styles.commentAction}><AppIcon name="reply-outline" size={16} color={nothing.muted} /><Text style={styles.commentActionText}>Reply</Text></Pressable>
-        {isOwn ? <Pressable accessibilityRole="button" accessibilityLabel="Delete comment" disabled={comments.remove.isPending} onPress={() => void comments.remove.mutate(comment.id)} style={styles.commentAction}><AppIcon name="trash-can-outline" size={16} color={nothing.muted} /></Pressable> : null}
+        <Pressable accessibilityRole="button" accessibilityLabel={isLiked ? "Unlike comment" : "Like comment"} disabled={comments.toggleLike.isPending} onPress={() => { if (requireUser()) void comments.toggleLike.mutate(comment); }} style={styles.commentAction}><AppIcon name={isLiked ? "heart" : "heart-outline"} size={16} color={isLiked ? nothing.red : nothing.muted} /><Text style={[styles.commentActionText, isLiked && styles.commentActionTextActive]}>{comment.likes ?? 0}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Reply to comment" onPress={() => { if (requireUser()) setReplyTo(comment); }} style={styles.commentAction}><AppIcon name="reply-outline" size={16} color={nothing.muted} /><Text style={styles.commentActionText}>Reply</Text></Pressable>
+        {isOwn ? <Pressable accessibilityRole="button" accessibilityLabel="Delete comment" disabled={comments.remove.isPending} onPress={() => confirmDelete(comment.id)} style={styles.commentAction}><AppIcon name="trash-can-outline" size={16} color={nothing.muted} /></Pressable> : null}
       </View>
       {thread.map((reply) => { const replyHidden = reply.is_spoiler && (hideAllSpoilers || !revealed.has(reply.id)); const replyOwn = Boolean(auth.user) && auth.user!.id === reply.user_id; return <View key={reply.id} style={styles.replyRow}><CommentAuthor comment={reply} />{replyHidden ? <Pressable accessibilityRole="button" accessibilityLabel="Spoiler hidden. Reveal reply." onPress={() => reveal(reply.id)} style={({ pressed }) => [styles.spoilerShield, pressed && styles.pressed]}><AppIcon name="eye-off-outline" size={15} color={nothing.red} /><Text style={styles.spoilerText}>SPOILER HIDDEN · TAP TO REVEAL</Text></Pressable> : <>{reply.content ? <Text style={styles.commentText}>{reply.content}</Text> : null}{reply.gif_url ? <Image source={{ uri: reply.gif_url }} style={styles.commentGif} resizeMode="contain" /> : null}</>}
         <View style={styles.commentActions}>
-          {replyOwn ? <Pressable accessibilityRole="button" accessibilityLabel="Delete reply" disabled={comments.remove.isPending} onPress={() => void comments.remove.mutate(reply.id)} style={styles.commentAction}><AppIcon name="trash-can-outline" size={15} color={nothing.muted} /></Pressable> : null}
+          {replyOwn ? <Pressable accessibilityRole="button" accessibilityLabel="Delete reply" disabled={comments.remove.isPending} onPress={() => confirmDelete(reply.id)} style={styles.commentAction}><AppIcon name="trash-can-outline" size={15} color={nothing.muted} /></Pressable> : null}
         </View>
       </View>; })}
     </NothingCard>; }} />}

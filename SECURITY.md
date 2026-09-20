@@ -4,7 +4,7 @@ If you find a vulnerability, report it privately before publishing details. Good
 
 ## Report a concern
 
-Send a concise report to **[Aniraku@Security](mailto:sho.islam0311@proton.me)**. Include the affected version or endpoint, a clear description, reproduction steps, impact, and a safe proof of concept where possible. Do not include credentials, access tokens, private keys, user data, or destructive payloads.
+Send a concise report to **[security@aniraku.tech](mailto:security@aniraku.tech)**. Include the affected version or endpoint, a clear description, reproduction steps, impact, and a safe proof of concept where possible. Do not include credentials, access tokens, private keys, user data, or destructive payloads.
 
 | `SUPPORTED LINE` | `TRIAGE` | `DISCLOSURE` |
 | --- | --- | --- |

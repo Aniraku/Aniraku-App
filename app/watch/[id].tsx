@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocalSearchParams, router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery } from "@tanstack/react-query";
+import { parseRouteEpisode, parseRouteId } from "@/lib/route-params";
 import { ActivityIndicator, Alert, Animated, BackHandler, Dimensions, FlatList, LayoutChangeEvent, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Image } from "expo-image";
 import Video, { type OnProgressData, type OnLoadData, type OnBufferData, type VideoRef } from "react-native-video";
@@ -146,9 +147,10 @@ const _watchMountTime = __DEV__ ? Date.now() : 0;
 if (__DEV__) console.log("[watch] mount t=0");
 
 export default function WatchScreen() {
-  const params = useLocalSearchParams<{ id: string; episode?: string; title?: string; image?: string }>();
-  const animeId = Number(params.id);
-  const episode = Math.max(1, Number(params.episode ?? "1"));
+  const params = useLocalSearchParams<{ id?: string | string[]; episode?: string | string[]; title?: string; image?: string }>();
+  const animeId = parseRouteId(params.id) ?? -1;
+  const invalidId = animeId <= 0;
+  const episode = parseRouteEpisode(params.episode);
   const animeQuery = useQuery({
     queryKey: ["watch-anime", animeId],
     queryFn: async () => { try { return await getAnimeMetadata(animeId); } catch { return getAnimeById(animeId); } },
@@ -1895,6 +1897,20 @@ export default function WatchScreen() {
   const openBackendDownload = (option: BackendDownloadOption) => {
     setActivePanel(null);
     const quality = String(option.quality ?? option.label).toUpperCase();
+    // Second gate beside buildBackendDownloadOptions' https-only filter:
+    // never hand a non-https URL to the OS browser, even if backend data
+    // changed shape.
+    let safeUrl: string | null = null;
+    try {
+      const parsed = new URL(String(option.url ?? "").trim());
+      if (parsed.protocol === "https:") safeUrl = parsed.toString();
+    } catch {
+      safeUrl = null;
+    }
+    if (!safeUrl) {
+      setDownloadMessage("THIS DOWNLOAD LINK IS NOT SUPPORTED.");
+      return;
+    }
     Alert.alert("You're leaving Aniraku", `Open the external ${quality} download page in your browser?`, [
       { text: "Cancel", style: "cancel" },
       {
@@ -1902,7 +1918,8 @@ export default function WatchScreen() {
         onPress: () => {
           void (async () => {
             try {
-              await Linking.openURL(option.url);
+              if (!(await Linking.canOpenURL(safeUrl))) throw new Error("unsupported");
+              await Linking.openURL(safeUrl);
               setDownloadMessage(`OPENING ${quality} DOWNLOAD…`);
             } catch {
               setDownloadMessage("COULD NOT OPEN DOWNLOAD LINK.");
@@ -2215,6 +2232,16 @@ export default function WatchScreen() {
   const bufferPct = duration > 0 && playableDuration > 0 ? Math.min(100, (playableDuration / duration) * 100) : 0;
   // Segmented track tint from real OP/ED ranges (provider + AniSkip merged).
   const chapterTrack = useMemo(() => chapterTrackSegments(skipSegments, duration), [skipSegments, duration]);
+
+  if (invalidId) {
+    return <NativeScreen scroll={false} style={styles.fill}>
+      <View style={styles.invalidWrap}>
+        <DotLabel tone="signal">COULDN’T LOAD THIS</DotLabel>
+        <Text style={styles.invalidTitle}>This watch link is invalid.</Text>
+        <NothingButton label="GO BACK" onPress={() => router.back()} variant="outline" />
+      </View>
+    </NativeScreen>;
+  }
 
   return <NativeScreen scroll={false} style={styles.fill}>
     <StatusBar hidden={manualFullscreen} />
@@ -2713,6 +2740,8 @@ const ps = StyleSheet.create({
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  invalidWrap: { flex: 1, alignItems: "flex-start", justifyContent: "center", gap: 12, paddingHorizontal: 24 },
+  invalidTitle: { color: nothing.white, fontSize: 20, fontWeight: "900", letterSpacing: -0.4 },
   top: { minHeight: 52, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 10 },
   closeButton: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 6 },
   topCopy: { flex: 1, gap: 2 },

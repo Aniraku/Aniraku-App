@@ -21,7 +21,7 @@ export function useComments(animeId?: number, episodeNumber?: number) {
   const { user } = useAnirakuAuth();
   const queryClient = useQueryClient();
   const queryKey = ["comments", animeId, episodeNumber ?? "all"];
-  const comments = useQuery<SharedComment[]>({ queryKey, enabled: Boolean(animeId), queryFn: async () => {
+  const comments = useQuery<SharedComment[]>({ queryKey, enabled: Boolean(animeId && animeId > 0), queryFn: async () => {
     let request = supabase.from("comments").select("id, user_id, content, gif_url, is_spoiler, episode_number, likes, created_at").eq("anime_id", animeId!).is("parent_id", null);
     if (typeof episodeNumber === "number") request = request.eq("episode_number", episodeNumber);
     const { data, error } = await request.order("created_at", { ascending: false }).limit(100);
@@ -36,13 +36,13 @@ export function useComments(animeId?: number, episodeNumber?: number) {
   } });
   const commentIds = (comments.data ?? []).map((comment) => comment.id);
   const likesKey = ["comment-likes", animeId, episodeNumber ?? "all", user?.id ?? "guest"];
-  const liked = useQuery<Set<string>>({ queryKey: likesKey, enabled: Boolean(animeId) && Boolean(user) && commentIds.length > 0, queryFn: async () => {
+  const liked = useQuery<Set<string>>({ queryKey: likesKey, enabled: Boolean(animeId && animeId > 0) && Boolean(user) && commentIds.length > 0, queryFn: async () => {
     const { data, error } = await supabase.from("comment_likes").select("comment_id").eq("user_id", user!.id).in("comment_id", commentIds);
     if (error) throw error;
     return new Set((data ?? []).map((row) => String(row.comment_id)));
   } });
   const repliesKey = ["comment-replies", animeId, episodeNumber ?? "all"];
-  const replies = useQuery<SharedReply[]>({ queryKey: repliesKey, enabled: Boolean(animeId) && commentIds.length > 0, queryFn: async () => {
+  const replies = useQuery<SharedReply[]>({ queryKey: repliesKey, enabled: Boolean(animeId && animeId > 0) && commentIds.length > 0, queryFn: async () => {
     const { data, error } = await supabase.from("comments").select("id, user_id, content, gif_url, is_spoiler, episode_number, likes, created_at, parent_id").eq("anime_id", animeId!).not("parent_id", "is", null).in("parent_id", commentIds).order("created_at", { ascending: true }).limit(200);
     if (error) throw error;
     const rows = (data ?? []) as SharedReply[];

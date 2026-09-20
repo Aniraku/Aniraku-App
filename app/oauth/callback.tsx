@@ -19,11 +19,23 @@ export default function OAuthCallback() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const redirectTimer = setTimeout(() => router.replace("/(tabs)"), 1000);
+    let cancelled = false;
     const handleCallback = async () => {
       try {
         if (params.sessionToken) {
           await Auth.setSessionToken(params.sessionToken);
+          // Trust boundary: a sessionToken arriving via deep link is
+          // client input — verify it with the server before treating the
+          // user as authenticated.
+          const verified = await Api.getMe().catch(() => null);
+          if (!verified) {
+            await Auth.removeSessionToken().catch(() => {});
+            if (!cancelled) {
+              setStatus("error");
+              setErrorMessage("This sign-in link is invalid or has expired.");
+            }
+            return;
+          }
           if (params.user) {
             try {
               const userJson =
@@ -31,20 +43,32 @@ export default function OAuthCallback() {
                   ? atob(params.user)
                   : Buffer.from(params.user, "base64").toString("utf-8");
               const userData = JSON.parse(userJson);
-              const userInfo: Auth.User = {
-                id: userData.id,
-                openId: userData.openId,
-                name: userData.name,
-                email: userData.email,
-                loginMethod: userData.loginMethod,
-                lastSignedIn: new Date(userData.lastSignedIn || Date.now()),
-              };
-              await Auth.setUserInfo(userInfo);
+              // Validate shape: deep-link user payload is unverified
+              // client input — only persist it when it carries the
+              // server's identity fields. The session itself was already
+              // verified via getMe() above.
+              if (
+                userData
+                && (typeof userData.openId === "string" || typeof userData.id === "number")
+              ) {
+                const userInfo: Auth.User = {
+                  id: typeof userData.id === "number" ? userData.id : verified.id,
+                  openId: typeof userData.openId === "string" ? userData.openId : verified.openId,
+                  name: typeof userData.name === "string" ? userData.name : verified.name,
+                  email: typeof userData.email === "string" ? userData.email : verified.email,
+                  loginMethod: typeof userData.loginMethod === "string" ? userData.loginMethod : verified.loginMethod,
+                  lastSignedIn: new Date(userData.lastSignedIn || Date.now()),
+                };
+                await Auth.setUserInfo(userInfo);
+              }
             } catch {
               // silently ignore
             }
           }
-          setStatus("success");
+          if (!cancelled) {
+            setStatus("success");
+            setTimeout(() => router.replace("/(tabs)"), 800);
+          }
           return;
         }
 
@@ -64,8 +88,10 @@ export default function OAuthCallback() {
         const error =
           params.error || (url ? new URL(url, "http://dummy").searchParams.get("error") : null);
         if (error) {
-          setStatus("error");
-          setErrorMessage(error || "OAuth error occurred");
+          if (!cancelled) {
+            setStatus("error");
+            setErrorMessage(error || "OAuth error occurred");
+          }
           return;
         }
 
@@ -97,13 +123,27 @@ export default function OAuthCallback() {
 
         if (sessionToken) {
           await Auth.setSessionToken(sessionToken);
-          setStatus("success");
+          const verified = await Api.getMe().catch(() => null);
+          if (!verified) {
+            await Auth.removeSessionToken().catch(() => {});
+            if (!cancelled) {
+              setStatus("error");
+              setErrorMessage("This sign-in link is invalid or has expired.");
+            }
+            return;
+          }
+          if (!cancelled) {
+            setStatus("success");
+            setTimeout(() => router.replace("/(tabs)"), 800);
+          }
           return;
         }
 
         if (!code || !state) {
-          setStatus("error");
-          setErrorMessage("Missing code or state parameter");
+          if (!cancelled) {
+            setStatus("error");
+            setErrorMessage("Missing code or state parameter");
+          }
           return;
         }
 
@@ -122,21 +162,26 @@ export default function OAuthCallback() {
             };
             await Auth.setUserInfo(userInfo);
           }
-          setStatus("success");
-        } else {
+          if (!cancelled) {
+            setStatus("success");
+            setTimeout(() => router.replace("/(tabs)"), 800);
+          }
+        } else if (!cancelled) {
           setStatus("error");
           setErrorMessage("No session token received");
         }
       } catch (error) {
-        setStatus("error");
-        setErrorMessage(
-          error instanceof Error ? error.message : "Failed to complete authentication",
-        );
+        if (!cancelled) {
+          setStatus("error");
+          setErrorMessage(
+            error instanceof Error ? error.message : "Failed to complete authentication",
+          );
+        }
       }
     };
 
     handleCallback();
-    return () => clearTimeout(redirectTimer);
+    return () => { cancelled = true; };
   }, [params.code, params.state, params.error, params.sessionToken, params.user, router]);
 
   return (

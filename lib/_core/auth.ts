@@ -42,7 +42,7 @@ export async function getUserInfo(): Promise<User | null> {
   try {
     let info: string | null = null;
     if (Platform.OS === "web") {
-      info = window.localStorage.getItem(USER_INFO_KEY);
+      info = window.sessionStorage.getItem(USER_INFO_KEY);
     } else {
       info = await SecureStore.getItemAsync(USER_INFO_KEY);
     }
@@ -56,7 +56,7 @@ export async function getUserInfo(): Promise<User | null> {
 export async function setUserInfo(user: User): Promise<void> {
   try {
     if (Platform.OS === "web") {
-      window.localStorage.setItem(USER_INFO_KEY, JSON.stringify(user));
+      window.sessionStorage.setItem(USER_INFO_KEY, JSON.stringify(user));
       return;
     }
     await SecureStore.setItemAsync(USER_INFO_KEY, JSON.stringify(user));
@@ -68,7 +68,7 @@ export async function setUserInfo(user: User): Promise<void> {
 export async function clearUserInfo(): Promise<void> {
   try {
     if (Platform.OS === "web") {
-      window.localStorage.removeItem(USER_INFO_KEY);
+      window.sessionStorage.removeItem(USER_INFO_KEY);
       return;
     }
     await SecureStore.deleteItemAsync(USER_INFO_KEY);

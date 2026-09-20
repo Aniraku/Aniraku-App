@@ -5,7 +5,7 @@ import { Image } from "expo-image";
 import { useLocalSearchParams, router } from "expo-router";
 import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Haptics from "expo-haptics";
-import { getAnimePage, isAniListRateLimitError } from "@/lib/anilist";
+import { getAnimePage, isAniListRateLimitError, sanitizeMediaFormat, sanitizeMediaSortList, sanitizeMediaStatus } from "@/lib/anilist";
 import { searchCommitDelayMs } from "@/lib/search-input";
 import { nsfwFilterParam, useNsfwPreference } from "@/lib/nsfw-preference";
 import { animeTitle } from "@/lib/types";
@@ -66,11 +66,15 @@ function SearchResultRow({ anime, onPress }: { anime: any; onPress: () => void }
 }
 
 export default function SearchScreen() {
-  const params = useLocalSearchParams<{ genre?: string; sort?: string; status?: string; format?: string; title?: string }>();
-  const genreFilter = params.genre || null;
-  const sortFilter = params.sort ? params.sort.split(",").map((s) => s.trim()).filter(Boolean) : null;
-  const statusFilter = params.status || null;
-  const formatFilter = params.format || null;
+  const params = useLocalSearchParams<{ genre?: string; sort?: string | string[]; status?: string; format?: string; title?: string }>();
+  const genreFilter = typeof params.genre === "string" && params.genre.trim() ? params.genre.trim().slice(0, 40) : null;
+  // Rail "View all" links, shared URLs, and typed deep links all land here —
+  // every enum slot is allowlisted so a stale/crafted param degrades to the
+  // default browse instead of 400ing the whole screen. sanitizeMediaSortList
+  // also tolerates expo-router's string[] shape (multi ?sort= params).
+  const sortFilter = sanitizeMediaSortList(params.sort ?? null);
+  const statusFilter = sanitizeMediaStatus(params.status);
+  const formatFilter = sanitizeMediaFormat(params.format);
   const categoryTitle = params.title || null;
   const nsfw = useNsfwPreference();
   const isAdultParam = nsfwFilterParam(nsfw.enabled);

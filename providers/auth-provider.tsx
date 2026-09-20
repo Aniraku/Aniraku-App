@@ -173,6 +173,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
     if (!user) throw new Error("Sign in to edit your profile.");
     const fields: ProfileUpdate = { ...updates };
     if (fields.username) fields.username = sanitizeUsername(fields.username);
+    if (fields.avatar_url !== undefined) {
+      // Trust boundary: the URL is persisted to the profile row and rendered
+      // by every client. Accept https only, capped in length — never data:,
+      // file:, or oversized payloads that bloat the row.
+      const url = String(fields.avatar_url ?? "").trim();
+      if (url && (!/^https:\/\//i.test(url) || url.length > 2048)) {
+        throw new Error("That avatar image is not supported.");
+      }
+      fields.avatar_url = url || null;
+    }
     const { error } = await supabase.from("profiles").update(fields).eq("id", user.id);
     if (error) throw error;
     if (fields.username || fields.display_name) {
