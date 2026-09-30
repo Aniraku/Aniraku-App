@@ -2151,13 +2151,18 @@ export default function WatchScreen() {
   }, [manualFullscreen, exitFullscreen]);
 
   useEffect(() => {
-    if (!source || !showControls || activePanel) return;
+    const hasPlayable = Boolean(source) || Boolean(embedSource);
+    if (!hasPlayable || !showControls || activePanel) return;
     if (dragPct !== null) return; // never hide the chrome out from under a scrub
     // NOTE: currentTime is deliberately NOT a dep — progress ticks every
     // second and would reset this timer forever, so chrome could never hide.
     const timer = setTimeout(() => setShowControls(false), 3_500);
     return () => clearTimeout(timer);
-  }, [showControls, activePanel, manualFullscreen, source?.url, dragPct]);
+  }, [showControls, activePanel, manualFullscreen, source?.url, embedSource?.url, dragPct]);
+
+  useEffect(() => {
+    if (embedSource && !source) setShowControls(true);
+  }, [embedSource?.url, source]);
 
   // Controls fade instead of popping — 180ms opacity, cause → effect only.
   const controlsOpacity = useRef(new Animated.Value(0)).current;
@@ -2216,7 +2221,7 @@ export default function WatchScreen() {
         Parent-level onStartShouldSetPanResponder stole Pressable touches and the
         native Video SurfaceView eats touches aimed behind it. */}
     <View style={[styles.videoShell, manualFullscreen && ps.videoShellFullscreen]}>
-      {embedSource && !source ? <EmbedPlayer uri={embedSource.url} headers={nativePlaybackHeaders(playbackHeaders)} onError={() => handleProviderBlockedRef.current("player")} onLoaded={() => { embedReadyRef.current = true; }} /> : null}
+      {embedSource && !source ? <EmbedPlayer uri={embedSource.url} headers={nativePlaybackHeaders(playbackHeaders)} onError={() => handleProviderBlockedRef.current("player")} onLoaded={() => { embedReadyRef.current = true; setShowControls(true); }} /> : null}
       {source ? <Video key={activeProvider?.id ?? "default"} ref={videoRef} style={StyleSheet.absoluteFill} source={{ uri: videoSourceUri, headers: videoSourceHeaders, type: videoContentType, bufferConfig: videoBufferConfig }}
         paused={!isPlaying} rate={is2xSeeking ? 2.0 : speed} resizeMode="contain" muted={muted} volume={volume}
         maxBitRate={adaptiveBitrateCap ?? undefined}
@@ -2261,29 +2266,42 @@ export default function WatchScreen() {
           pass through to the WebView (box-none), buttons stay hittable. */}
       {embedSource && !source ? (
         <View style={styles.embedFrame} pointerEvents="box-none">
-          <View pointerEvents="none" style={styles.scrimTopSoft} />
-          <View pointerEvents="none" style={styles.scrimTopMain} />
-          <View pointerEvents="none" style={styles.scrimBottomSoft} />
-          <View pointerEvents="none" style={styles.scrimBottomMain} />
-          <View style={styles.embedTopBar}>
-            <Pressable onPress={() => { if (manualFullscreen) exitFullscreen(); else router.back(); }} accessibilityRole="button" accessibilityLabel="Go back" style={styles.iconButton} hitSlop={10}>
-              <ArrowLeft size={22} color="#FFF" weight="bold" />
-            </Pressable>
-            <Text style={styles.playerTitle} numberOfLines={1} ellipsizeMode="tail">{`${title} - Episode ${episode}`}</Text>
-            <View style={styles.topRightRow}>
-              <View style={styles.subPillBadge}>
-                <Text style={styles.subPillBadgeText}>EMBED</Text>
+          {showControls && !playerLocked ? (
+            <View style={styles.embedChromeGroup} pointerEvents="box-none">
+              <View pointerEvents="none" style={styles.scrimTopSoft} />
+              <View pointerEvents="none" style={styles.scrimTopMain} />
+              <View pointerEvents="none" style={styles.scrimBottomSoft} />
+              <View pointerEvents="none" style={styles.scrimBottomMain} />
+              <View style={styles.embedTopBar} pointerEvents="box-none">
+                <Pressable onPress={() => { if (manualFullscreen) exitFullscreen(); else router.back(); }} accessibilityRole="button" accessibilityLabel="Go back" style={styles.iconButton} hitSlop={10}>
+                  <ArrowLeft size={22} color="#FFF" weight="bold" />
+                </Pressable>
+                <View pointerEvents="none" style={styles.playerTitleWrap}>
+                  <Text style={styles.playerTitle} numberOfLines={1} ellipsizeMode="tail">{`${title} - Episode ${episode}`}</Text>
+                </View>
+                <View pointerEvents="box-none" style={styles.topRightRow}>
+                  <Pressable onPress={() => setShowControls(false)} accessibilityRole="button" accessibilityLabel="Hide overlay" style={styles.subPillBadge} hitSlop={8}>
+                    <Text style={styles.subPillBadgeText}>EMBED</Text>
+                  </Pressable>
+                </View>
+              </View>
+              <View style={styles.embedBottomDeck} pointerEvents="box-none">
+                <View pointerEvents="none" style={styles.embedBottomInfo}>
+                  <Text style={styles.embedBottomLabel} numberOfLines={1}>{activeProvider ? `${activeProvider.label} · EMBEDDED STREAM` : "EMBEDDED STREAM"}</Text>
+                </View>
+                <Pressable onPress={manualFullscreen ? exitFullscreen : enterFullscreen} accessibilityRole="button" accessibilityLabel={manualFullscreen ? "Exit fullscreen" : "Enter fullscreen"} style={styles.iconButton} hitSlop={8}>
+                  {manualFullscreen ? <ArrowsIn size={20} color="#FFF" weight="bold" /> : <ArrowsOut size={20} color="#FFF" weight="bold" />}
+                </Pressable>
               </View>
             </View>
-          </View>
-          <View style={styles.embedBottomDeck}>
-            <View style={styles.embedBottomInfo}>
-              <Text style={styles.embedBottomLabel} numberOfLines={1}>{activeProvider ? `${activeProvider.label} · EMBEDDED STREAM` : "EMBEDDED STREAM"}</Text>
+          ) : null}
+          {!showControls && !playerLocked ? (
+            <View style={styles.embedHiddenToggle} pointerEvents="box-none">
+              <Pressable onPress={() => setShowControls(true)} accessibilityRole="button" accessibilityLabel="Show player overlay" style={styles.embedShowButton} hitSlop={10}>
+                <ArrowsOut size={16} color="#FFF" weight="bold" />
+              </Pressable>
             </View>
-            <Pressable onPress={manualFullscreen ? exitFullscreen : enterFullscreen} accessibilityRole="button" accessibilityLabel={manualFullscreen ? "Exit fullscreen" : "Enter fullscreen"} style={styles.iconButton} hitSlop={8}>
-              {manualFullscreen ? <ArrowsIn size={20} color="#FFF" weight="bold" /> : <ArrowsOut size={20} color="#FFF" weight="bold" />}
-            </Pressable>
-          </View>
+          ) : null}
         </View>
       ) : null}
 
@@ -2722,6 +2740,10 @@ const styles = StyleSheet.create({
   gestureOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 2 },
   embedChrome: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 5, flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 8, backgroundColor: "rgba(0,0,0,0.55)" },
   embedFrame: { ...StyleSheet.absoluteFillObject, zIndex: 3, justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 6 },
+  embedChromeGroup: { ...StyleSheet.absoluteFillObject, justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 6 },
+  embedHiddenToggle: { ...StyleSheet.absoluteFillObject, justifyContent: "flex-start", alignItems: "flex-end", paddingHorizontal: 8, paddingVertical: 6 },
+  embedShowButton: { width: 30, height: 30, borderRadius: 15, backgroundColor: "rgba(0,0,0,0.55)", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", justifyContent: "center", alignItems: "center" },
+  playerTitleWrap: { flex: 1, flexShrink: 1 },
   embedTopBar: { flexDirection: "row", alignItems: "center", flexWrap: "nowrap", width: "100%" },
   embedBottomDeck: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%" },
   embedBottomInfo: { flex: 1, flexShrink: 1, marginRight: 6 },

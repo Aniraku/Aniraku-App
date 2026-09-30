@@ -24,7 +24,7 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.0">v5.7.0 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.1">v5.7.1 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
@@ -61,15 +61,15 @@
 
 ---
 
-### v5.7.0 is out
+### v5.7.1 is out
 
-Reliability, trust, and legal refresh: Random fixed at the root (pool pages capped for AniList's 5,000-entry depth limit with auto-recovery), Home rails restored (valid `FINISHED` filter, shimmer placeholders), deep-link-safe search, no more infinite loaders on bad links, self-healing avatars, 18+ gate on NSFW, hardened account deletion, comment fixes, and a full DMCA/Privacy/Terms refresh.
+Saved list + embed overlay fixes: Saved rows show real titles again (`title/type` mapping), embed top/bottom overlay auto-hides and no longer blocks WebView touches, stuck black `OPENING EMBED PLAYER` veil fixed.
 
 | APK |
 |:--|
-| [Aniraku-v5.7.0-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.0/aniraku-v5.7.0-arm64.apk) |
-| [Aniraku-v5.7.0-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.0/aniraku-v5.7.0-arm32.apk) |
-| [Aniraku-v5.7.0-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.0/aniraku-v5.7.0-universal.apk) |
+| [Aniraku-v5.7.1-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.1/aniraku-v5.7.1-arm64.apk) |
+| [Aniraku-v5.7.1-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.1/aniraku-v5.7.1-arm32.apk) |
+| [Aniraku-v5.7.1-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.1/aniraku-v5.7.1-universal.apk) |
 
 <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 

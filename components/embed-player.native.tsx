@@ -1,10 +1,25 @@
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { WebView } from "react-native-webview";
 import { embeddedPopupGuardScript, shouldAllowEmbedNavigation } from "@/lib/embed-navigation";
 
 export function EmbedPlayer({ uri, headers, onError, onLoaded }: { uri: string; headers?: Record<string, string>; onError: () => void; onLoaded?: () => void }) {
   const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    setLoading(true);
+  }, [uri]);
+  // Fallback: some embed pages never fire onLoadEnd (ads / redirects /
+  // blocked subframes). Without this the opaque black loading veil stays
+  // forever and looks like a "black overlay for no reason".
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => setLoading(false), 8000);
+    return () => clearTimeout(timer);
+  }, [loading, uri]);
+  const handleError = () => {
+    setLoading(false);
+    onError();
+  };
   return <View style={styles.shell}>
     <WebView
       source={{ uri, headers }}
@@ -29,10 +44,11 @@ export function EmbedPlayer({ uri, headers, onError, onLoaded }: { uri: string; 
       onShouldStartLoadWithRequest={(request) => shouldAllowEmbedNavigation(request.url)}
       onLoadStart={() => setLoading(true)}
       onLoadEnd={() => { setLoading(false); onLoaded?.(); }}
-      onError={onError}
-      onRenderProcessGone={onError}
+      onError={handleError}
+      onRenderProcessGone={handleError}
+      onHttpError={() => setLoading(false)}
     />
-    {loading ? <View style={[styles.loading, styles.pointerNone]}><ActivityIndicator color="#F6F6F2" /><Text style={styles.loadingText}>OPENING EMBED PLAYER</Text></View> : null}
+    {loading ? <View style={[styles.loading, styles.pointerNone]} pointerEvents="none"><ActivityIndicator color="#F6F6F2" /><Text style={styles.loadingText}>OPENING EMBED PLAYER</Text></View> : null}
   </View>;
 }
 

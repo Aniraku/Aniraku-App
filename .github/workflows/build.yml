@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.7.0"
+        default: "v5.7.1"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -148,25 +148,21 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.7.0 — Reliability, trust, and legal refresh
+            ## v5.7.1 — Saved list + embed overlay fixes
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.7.0-arm64.apk`
-            - `aniraku-v5.7.0-arm32.apk`
-            - `aniraku-v5.7.0-universal.apk`
+            - `aniraku-v5.7.1-arm64.apk`
+            - `aniraku-v5.7.1-arm32.apk`
+            - `aniraku-v5.7.1-universal.apk`
 
-            ### Fixed and hardened
-            - **Random fixed at the root**: pool pages capped for AniList's 5,000-entry depth limit, every request clamped, deep-pool failures auto-recover with a friendly message.
-            - **Home rails restored**: valid `FINISHED` filter for Just Finished, shimmer placeholders while rails load.
-            - **Deep-link-safe search**: sort/status/format params allowlisted — bad links degrade instead of erroring.
-            - **No more infinite loaders**: malformed anime/episode/watch links show an error with go-back.
-            - **Self-healing avatars**: poisoned cache evicted, remote fallback, verified storage.
-            - **18+ gate on NSFW**, hardened account deletion, comment fixes (guest gating, delete confirm), schedule empty state.
-            - **Legal refresh**: full DMCA procedure, expanded Privacy Notice and Terms of Use, unified contacts, in-app legal screen updated.
+            ### Fixed
+            - **Saved list fixed**: `My List > Saved` rows show real titles again (`title/type` mapping instead of the `anime_title/format` fallback to "Anime / Anime").
+            - **Embed overlay no longer an unbreakable wall**: top bar + provider deck + scrims auto-hide after 3.5s like native chrome, tap EMBED to hide, floating button to re-show, touches pass through to the WebView.
+            - **Black overlay without reason fixed**: `OPENING EMBED PLAYER` veil clears on error plus an 8s fallback.
 
             ### Housekeeping
-            - **Android versionCode**: 67.
+            - **Android versionCode**: 68.
 
             Download the APK, install, and allow *install from unknown sources* if prompted.
           files: ./artifacts/*.apk

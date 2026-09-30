@@ -6,6 +6,15 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.7.1 — Saved list + embed overlay fixes
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- Saved list fixed: `My List > Saved` read `anime_title/format` while bookmarks save `title/type/image` — every row fell back to "Anime / Anime". Now reads `title || anime_title`, `type || format`, `image || anime_image`.
+- Embed overlay no longer an unbreakable wall: top bar + `YUTA · EMBEDDED STREAM` deck + scrims auto-hide after 3.5s like native chrome, tap EMBED pill to hide instantly, floating button to re-show. Bar containers use `box-none` so WebView controls receive touches.
+- Black overlay without reason fixed: `OPENING EMBED PLAYER` veil now clears on error/HTTP error plus an 8s fallback (some embeds never fire `onLoadEnd`), and resets per URI.
+- Bumps the Android versionCode to 68.
+
 ## v5.7.0 — Reliability, trust, and legal refresh
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
