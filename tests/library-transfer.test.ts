@@ -113,7 +113,8 @@ describe("Miruro library transfer port", () => {
 
   it("paces export chunks at 10 batched req/min with 6s floor", () => {
     expect(exportPaceDelayMs(0)).toBe(6000);
-    expect(exportPaceDelayMs(30)).toBe(6000);
+    expect(exportPaceDelayMs(3)).toBe(6000);
+    expect(exportPaceDelayMs(30)).toBe(60000);
     expect(exportPaceDelayMs(60)).toBe(120000);
     expect(exportPaceDelayMs(1000)).toBe(120000);
   });
