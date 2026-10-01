@@ -63,7 +63,7 @@
 
 ### v5.7.2 is out
 
-Miruro library import/export parity: full status-aware transfer, background paced export with Alerts receipt, inline results + export confirm in Settings.
+library import/export parity: full status-aware transfer, background paced export with Alerts receipt, inline results + export confirm in Settings.
 
 | APK |
 |:--|
