@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.7.1"
+        default: "v5.7.2"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -148,21 +148,21 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.7.1 — Saved list + embed overlay fixes
+            ## v5.7.2 — Miruro library import/export parity
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.7.1-arm64.apk`
-            - `aniraku-v5.7.1-arm32.apk`
-            - `aniraku-v5.7.1-universal.apk`
+            - `aniraku-v5.7.2-arm64.apk`
+            - `aniraku-v5.7.2-arm32.apk`
+            - `aniraku-v5.7.2-universal.apk`
 
             ### Fixed
-            - **Saved list fixed**: `My List > Saved` rows show real titles again (`title/type` mapping instead of the `anime_title/format` fallback to "Anime / Anime").
-            - **Embed overlay no longer an unbreakable wall**: top bar + provider deck + scrims auto-hide after 3.5s like native chrome, tap EMBED to hide, floating button to re-show, touches pass through to the WebView.
-            - **Black overlay without reason fixed**: `OPENING EMBED PLAYER` veil clears on error plus an 8s fallback.
+            - **Library transfer matches Miruro**: full status-aware import/export counts, `describe` summaries with Watching / Plan to Watch breakdown, 5-attempt export honoring `Retry-After`.
+            - **Background export**: paced chunk loop with progress inline and Alerts receipt (`export_complete` / `export_failed`) even after leaving Settings.
+            - **Settings Library rows**: per-provider `✓/⚠` result, amber export confirm, `already running` guard.
 
             ### Housekeeping
-            - **Android versionCode**: 68.
+            - **Android versionCode**: 69.
 
             Download the APK, install, and allow *install from unknown sources* if prompted.
           files: ./artifacts/*.apk

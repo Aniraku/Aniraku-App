@@ -24,7 +24,7 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.1">v5.7.1 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.2">v5.7.2 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
@@ -61,15 +61,15 @@
 
 ---
 
-### v5.7.1 is out
+### v5.7.2 is out
 
-Saved list + embed overlay fixes: Saved rows show real titles again (`title/type` mapping), embed top/bottom overlay auto-hides and no longer blocks WebView touches, stuck black `OPENING EMBED PLAYER` veil fixed.
+Miruro library import/export parity: full status-aware transfer, background paced export with Alerts receipt, inline results + export confirm in Settings.
 
 | APK |
 |:--|
-| [Aniraku-v5.7.1-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.1/aniraku-v5.7.1-arm64.apk) |
-| [Aniraku-v5.7.1-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.1/aniraku-v5.7.1-arm32.apk) |
-| [Aniraku-v5.7.1-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.1/aniraku-v5.7.1-universal.apk) |
+| [Aniraku-v5.7.2-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.2/aniraku-v5.7.2-arm64.apk) |
+| [Aniraku-v5.7.2-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.2/aniraku-v5.7.2-arm32.apk) |
+| [Aniraku-v5.7.2-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.2/aniraku-v5.7.2-universal.apk) |
 
 <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 

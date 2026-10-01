@@ -11,7 +11,7 @@ export function FirstRunImportPrompt() {
     <View style={styles.card}>
       <View style={styles.copy}>
         <Text style={styles.title}>Bring your {label} list here</Text>
-        <Text style={styles.detail}>One import seeds your library. Skip keeps this device as-is.</Text>
+        <Text style={styles.detail}>One import seeds favorites with list statuses (Watching, Plan to Watch, Completed, …), episode progress and scores. Skip keeps this device as-is.</Text>
         {firstRun.importError ? (
           <Text style={styles.error}>
             {firstRun.importError instanceof Error

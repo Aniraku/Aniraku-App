@@ -38,7 +38,9 @@ export function useFirstRunImport() {
     const provider = sync.connected[0];
     if (!provider) throw new Error("Connect a provider first.");
     const result = await sync.importLibrary.mutateAsync(provider);
-    dismiss();
+    // Miruro `limited` means more episodes remain — keep prompting so the
+    // user can continue; otherwise a single import dismisses the prompt.
+    if (!result.limited) dismiss();
     return result;
   }, [dismiss, sync.connected, sync.importLibrary]);
 

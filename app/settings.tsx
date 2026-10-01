@@ -1,6 +1,6 @@
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
@@ -16,15 +16,11 @@ import { downloadAndInstallAnirakuUpdate } from "@/lib/android-app-installer";
 import { AppIcon } from "@/components/app-icon";
 import { Toggle } from "@/components/toggle";
 import { PROVIDER_LABELS, ProviderMark, type SyncProvider } from "@/components/provider-mark";
+import { describeExport, describeImport, PROVIDER_LABELS as SYNC_LABELS } from "@/lib/provider-sync";
 import { useNsfwPreference } from "@/lib/nsfw-preference";
 import { DotLabel, nothing, Signal } from "@/components/nothing-ui";
 import { NativeScreen } from "@/components/screen";
 import { t } from "@/lib/i18n";
-
-function resultSummary(result: { imported?: number; already?: number; exported?: number; skipped?: number; limited?: boolean }, mode: "import" | "export") {
-  if (mode === "import") return `${result.imported || 0} IMPORTED · ${result.already || 0} ALREADY IN LIBRARY`;
-  return `${result.exported || 0} EXPORTED · ${result.skipped || 0} ALREADY SYNCED${result.limited ? " · MORE REMAIN" : ""}`;
-}
 
 export default function SettingsScreen() {
   const auth = useAnirakuAuth();
@@ -32,6 +28,39 @@ export default function SettingsScreen() {
   const bookmarks = useBookmarks();
   const sync = useProviderSync();
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  // Library import/export state (Miruro Profile.jsx:38-41): per-provider
+  // inline results + export confirm, rendered under each provider row.
+  const [syncResult, setSyncResult] = useState<
+    Record<string, { type: "ok" | "error"; text: string } | null>
+  >({});
+  const [confirmExport, setConfirmExport] = useState<SyncProvider | "">("");
+  const [transferBusy, setTransferBusy] = useState(""); // 'mal-import' | 'mal-export' | ...
+  // Background export terminal → inline result (Miruro Profile exportSeenRef).
+  const exportSeenRef = useRef<Record<string, string>>({});
+  useEffect(() => {
+    for (const [provider, job] of Object.entries(sync.exportJobs)) {
+      const prev = exportSeenRef.current[provider];
+      exportSeenRef.current[provider] = job.status;
+      if (prev !== "running") continue;
+      if (job.status === "done") {
+        const text =
+          job.message ??
+          describeExport({
+            exported: job.exported,
+            scores: job.scores,
+            skipped: job.skipped,
+            failed: job.failed,
+            limited: false,
+          });
+        setSyncResult((r) => ({ ...r, [provider]: { type: "ok", text } }));
+        setSyncMessage(text.toUpperCase());
+      } else if (job.status === "error") {
+        const text = job.message ?? "Export failed";
+        setSyncResult((r) => ({ ...r, [provider]: { type: "error", text } }));
+        setSyncMessage(text.toUpperCase());
+      }
+    }
+  }, [sync.exportJobs]);
   const [updateMessage, setUpdateMessage] = useState<string | null>(null);
   const [availableRelease, setAvailableRelease] = useState<AppRelease | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -103,14 +132,44 @@ export default function SettingsScreen() {
     }
   };
 
-  const runTransfer = async (provider: SyncProvider, mode: "import" | "export") => {
+  // ── Library import / export (Miruro Profile.jsx:267-315) ──
+  // Import is a single chunk POST with inline describeImport result.
+  // Export is a background paced loop (lib/provider-sync runner, ~30
+  // entries/min): fire-and-forget, progress renders below, terminal state
+  // inserts a notifications row so Alerts notifies even after navigating away.
+  const runImport = async (provider: SyncProvider) => {
+    const key = `${provider}-import`;
+    if (transferBusy) return;
+    setTransferBusy(key);
+    setSyncResult((r) => ({ ...r, [provider]: null }));
+    setSyncMessage(null);
     try {
-      setSyncMessage(null);
-      const result = mode === "import" ? await sync.importLibrary.mutateAsync(provider) : await sync.exportLibrary.mutateAsync(provider);
-      setSyncMessage(resultSummary(result, mode));
+      const data = await sync.importLibrary.mutateAsync(provider);
+      const text = describeImport(data);
+      setSyncResult((r) => ({ ...r, [provider]: { type: "ok", text } }));
+      setSyncMessage(text.toUpperCase());
     } catch (error) {
-      setSyncMessage(error instanceof Error ? error.message.toUpperCase() : "LIBRARY TRANSFER COULD NOT COMPLETE.");
+      const text = error instanceof Error ? error.message : "Import failed";
+      setSyncResult((r) => ({ ...r, [provider]: { type: "error", text } }));
+      setSyncMessage(text.toUpperCase());
+    } finally {
+      setTransferBusy("");
     }
+  };
+
+  const runExport = (provider: SyncProvider) => {
+    if (transferBusy) return;
+    setConfirmExport("");
+    const job = sync.exportJobs[provider];
+    if (job?.status === "running") {
+      const label = SYNC_LABELS[provider] ?? provider;
+      const text = `Export to ${label} is already running in the background`;
+      setSyncMessage(text.toUpperCase());
+      return;
+    }
+    setSyncResult((r) => ({ ...r, [provider]: null }));
+    setSyncMessage(null);
+    sync.startBackgroundExport(provider);
   };
 
   const clearHistory = () => Alert.alert("Clear watch history?", "This removes every synchronized history entry from your Aniraku account.", [{ text: "Cancel", style: "cancel" }, { text: "Clear", style: "destructive", onPress: () => void history.clear.mutateAsync().catch((error) => Alert.alert("Could not clear history", error.message)) }]);
@@ -232,27 +291,36 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
     </View>
-    <Text style={styles.lead}>The Aniraku service connects your MAL and AniList libraries. Provider tokens never enter the app.</Text>
+    <Text style={styles.lead}>Move your list between Aniraku and your streaming accounts. Import pulls a provider&apos;s library into Aniraku — favorites with their list statuses (Watching, Plan to Watch, Completed, …), episode progress and scores (progress only advances, existing ratings are kept). Export writes each title&apos;s current status, watch progress and average score there, skipping titles that already match.</Text>
 
     {(["mal", "anilist"] as SyncProvider[]).map((provider) => {
       const item = sync.status.data?.[provider];
-      const busy = sync.authorize.isPending || sync.disconnect.isPending || sync.importLibrary.isPending || sync.exportLibrary.isPending;
+      const result = syncResult[provider];
+      const job = sync.exportJobs[provider];
+      const jobRunning = job?.status === "running";
+      const busy =
+        transferBusy === `${provider}-import` ||
+        transferBusy === `${provider}-export` ||
+        sync.authorize.isPending ||
+        sync.disconnect.isPending ||
+        jobRunning;
+      const confirming = confirmExport === provider;
       const connected = Boolean(item?.configured && item?.connected);
       return <View key={provider}>
         <View style={styles.row}>
           <View style={styles.rowIcon}><ProviderMark provider={provider} size={18} muted={!connected} /></View>
           <View style={styles.rowBody}>
             <Text style={styles.rowLabel}>{PROVIDER_LABELS[provider]}</Text>
-            <Text style={styles.rowMeta}>{connected ? item?.username ? `SYNCING AS ${item.username}` : tokenHealth(item?.expires_at) : item?.configured ? "NOT CONNECTED" : "NOT CONFIGURED"}</Text>
+            <Text style={styles.rowMeta}>{connected ? item?.username ? `READY AS ${item.username.toUpperCase()}` : tokenHealth(item?.expires_at) : item?.configured ? "CONNECT THIS ACCOUNT TO IMPORT OR EXPORT" : "NOT CONFIGURED"}</Text>
           </View>
           <Signal label={connected ? "LIVE" : "OFF"} tone={connected ? "live" : "muted"} />
         </View>
         {connected ? <View style={styles.providerActions}>
-          <Pressable disabled={busy} accessibilityRole="button" onPress={() => void runTransfer(provider, "import")} style={[styles.providerBtn, busy && styles.btnDisabled]}>
-            <Text style={styles.providerBtnText}>{t("settings.import")}</Text>
+          <Pressable disabled={busy} accessibilityRole="button" onPress={() => void runImport(provider)} style={[styles.providerBtn, busy && styles.btnDisabled]}>
+            <Text style={styles.providerBtnText}>{transferBusy === `${provider}-import` ? "IMPORTING…" : t("settings.import")}</Text>
           </Pressable>
-          <Pressable disabled={busy} accessibilityRole="button" onPress={() => void runTransfer(provider, "export")} style={[styles.providerBtn, busy && styles.btnDisabled]}>
-            <Text style={styles.providerBtnText}>{t("settings.export")}</Text>
+          <Pressable disabled={busy} accessibilityRole="button" onPress={() => setConfirmExport(provider)} style={[styles.providerBtn, busy && styles.btnDisabled]}>
+            <Text style={styles.providerBtnText}>{jobRunning ? "EXPORTING…" : t("settings.export")}</Text>
           </Pressable>
           <Pressable disabled={busy} accessibilityRole="button" onPress={() => void sync.disconnect.mutateAsync(provider).then(() => setSyncMessage(`${PROVIDER_LABELS[provider].toUpperCase()} DISCONNECTED.`)).catch((error) => setSyncMessage(error.message.toUpperCase()))} style={[styles.providerBtn, styles.disconnectBtn, busy && styles.btnDisabled]}>
             <Text style={[styles.providerBtnText, styles.disconnectText]}>{t("settings.disconnect")}</Text>
@@ -262,6 +330,19 @@ export default function SettingsScreen() {
             <Text style={styles.connectBtnText}>{busy ? "OPENING LINK" : `CONNECT ${PROVIDER_LABELS[provider].toUpperCase()}`}</Text>
           </Pressable>
         </View>}
+        {result ? <Text style={result.type === "error" ? styles.syncError : styles.resultOk}>{result.type === "error" ? `⚠ ${result.text.toUpperCase()}` : `✓ ${result.text.toUpperCase()}`}</Text> : null}
+        {jobRunning ? <Text style={styles.resultOk}>EXPORTING TO {(SYNC_LABELS[provider] ?? provider).toUpperCase()} IN THE BACKGROUND… {job.exported} TITLES SO FAR (CHUNK {job.chunks}) — YOU CAN LEAVE THIS PAGE, THE BELL WILL NOTIFY YOU WHEN IT FINISHES.{job.note ? ` ${job.note.toUpperCase()}` : ""}</Text> : null}
+        {confirming ? <View style={styles.confirmBox}>
+          <Text style={styles.confirmCopy}>Add your Aniraku favorites to your {SYNC_LABELS[provider]} library, preserving list status, watch progress and scores? Titles that already match are skipped.</Text>
+          <View style={styles.confirmActions}>
+            <Pressable disabled={busy} accessibilityRole="button" onPress={() => runExport(provider)} style={[styles.providerBtn, busy && styles.btnDisabled]}>
+              <Text style={styles.providerBtnText}>{jobRunning ? "EXPORTING…" : "YES, EXPORT"}</Text>
+            </Pressable>
+            <Pressable disabled={busy} accessibilityRole="button" onPress={() => setConfirmExport("")} style={[styles.providerBtn, busy && styles.btnDisabled]}>
+              <Text style={styles.providerBtnText}>CANCEL</Text>
+            </Pressable>
+          </View>
+        </View> : null}
       </View>;
     })}
     {sync.status.isPending ? <Text style={styles.syncStatus}>CHECKING PROVIDER STATUS</Text> : sync.status.isError ? <Text style={styles.syncError}>{sync.status.error instanceof Error ? sync.status.error.message.toUpperCase() : "SYNC STATUS UNAVAILABLE"}</Text> : null}
@@ -362,6 +443,10 @@ const styles = StyleSheet.create({
 
   syncStatus: { color: nothing.white, fontWeight: "800", fontSize: 10, lineHeight: 14, letterSpacing: 0.3, paddingHorizontal: 4, paddingVertical: 4 },
   syncError: { color: nothing.red, fontWeight: "800", fontSize: 10, lineHeight: 14, letterSpacing: 0.3, paddingHorizontal: 4, paddingVertical: 4 },
+  resultOk: { color: "#86efac", fontWeight: "800", fontSize: 10, lineHeight: 15, letterSpacing: 0.3, paddingHorizontal: 4, paddingVertical: 4, marginTop: 6, borderWidth: 1, borderColor: "rgba(34,197,94,0.25)", backgroundColor: "rgba(34,197,94,0.08)", borderRadius: 8 },
+  confirmBox: { marginTop: 8, padding: 12, borderRadius: 8, backgroundColor: "rgba(234,179,8,0.08)", borderWidth: 1, borderColor: "rgba(234,179,8,0.3)", gap: 10 },
+  confirmCopy: { color: nothing.white, fontSize: 12, lineHeight: 18 },
+  confirmActions: { flexDirection: "row", gap: 8 },
 
   nsfwWarning: { flex: 1, color: nothing.red, fontSize: 11, lineHeight: 16, fontWeight: "700" },
 });

@@ -1,7 +1,22 @@
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SyncProvider } from "@/components/provider-mark";
 import { connectedProviders } from "@/lib/provider-sync-contract";
-import { disconnectProvider, exportProviderLibrary, getProviderAuthorizationUrl, getProviderSyncStatus, importProviderLibrary, pushProviderProgress, pushProviderScore } from "@/lib/provider-sync";
+import {
+  describeExport,
+  describeImport,
+  disconnectProvider,
+  exportProviderLibrary,
+  getExportJobs,
+  getProviderAuthorizationUrl,
+  getProviderSyncStatus,
+  importProviderLibrary,
+  pushProviderProgress,
+  pushProviderScore,
+  startExportJob,
+  subscribeExportJobs,
+  type ExportJobs,
+} from "@/lib/provider-sync";
 import { useAnirakuAuth } from "@/providers/auth-provider";
 
 export function useProviderSync() {
@@ -12,8 +27,43 @@ export function useProviderSync() {
   const refresh = () => queryClient.invalidateQueries({ queryKey });
   const authorize = useMutation({ mutationFn: (provider: SyncProvider) => getProviderAuthorizationUrl(provider) });
   const disconnect = useMutation({ mutationFn: disconnectProvider, onSuccess: refresh });
-  const importLibrary = useMutation({ mutationFn: importProviderLibrary, onSuccess: refresh });
-  const exportLibrary = useMutation({ mutationFn: exportProviderLibrary, onSuccess: refresh });
+  const importLibrary = useMutation({
+    mutationFn: importProviderLibrary,
+    onSuccess: () => {
+      refresh();
+      void queryClient.invalidateQueries({ queryKey: ["bookmarks"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+  const exportLibrary = useMutation({
+    mutationFn: exportProviderLibrary,
+    onSuccess: () => {
+      refresh();
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+  // Background export jobs (Miruro runner): progress renders in Settings,
+  // terminal transitions invalidate library caches + the Alerts bell.
+  const [exportJobs, setExportJobs] = useState<ExportJobs>(() => getExportJobs());
+  const exportSeenRef = useRef<Record<string, string>>({});
+  useEffect(
+    () =>
+      subscribeExportJobs((jobs) => {
+        setExportJobs({ ...jobs });
+        for (const [provider, job] of Object.entries(jobs)) {
+          const prev = exportSeenRef.current[provider];
+          exportSeenRef.current[provider] = job.status;
+          if (prev !== "running") continue;
+          if (job.status === "done" || job.status === "error") {
+            refresh();
+            void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+          }
+        }
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user?.id],
+  );
+  const startBackgroundExport = (provider: SyncProvider) => startExportJob(provider);
   const pushProgress = useMutation({
     mutationFn: async (input: { animeId: number; episode: number; progress: number; status: "watching" | "completed" }) => {
       const providers = connectedProviders(status.data);
@@ -30,5 +80,19 @@ export function useProviderSync() {
     },
     retry: false,
   });
-  return { status, refresh, authorize, disconnect, importLibrary, exportLibrary, pushProgress, pushScore, connected: connectedProviders(status.data) };
+  return {
+    status,
+    refresh,
+    authorize,
+    disconnect,
+    importLibrary,
+    exportLibrary,
+    exportJobs,
+    startBackgroundExport,
+    describeImport,
+    describeExport,
+    pushProgress,
+    pushScore,
+    connected: connectedProviders(status.data),
+  };
 }

@@ -6,6 +6,16 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.7.2 — Miruro library import/export parity
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- Library transfer matches `~/Miruro` exactly: full `ImportResult/ExportResult` (`imported/already/episodes/scores/unmapped/limited/statuses/statuses_updated`), `describeImport/describeExport` with status breakdown (`Watching · Plan to Watch · Completed …`), 5-attempt export with `Retry-After` + backoff.
+- Export runs in the background: paced chunk loop (~30 entries/min, 6s floor), rate-limit wait-and-retry instead of failing, progress inline, terminal `export_complete/export_failed` notification so Alerts fires even after leaving Settings.
+- Settings gains the Miruro Library rows: per-provider inline `✓/⚠` result, amber export confirm (`preserving list status, watch progress and scores — already-matched titles skipped`), `Exporting… N titles so far (chunk k)` progress.
+- New `lib/list-status.ts` (6-status model: `CURRENT/PLANNING/COMPLETED/PAUSED/DROPPED/REPEATING` + converters + `deriveStatusAfterWatch`); first-run import keeps prompting while `limited:true` so large libraries continue.
+- Bumps the Android versionCode to 69.
+
 ## v5.7.1 — Saved list + embed overlay fixes
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
