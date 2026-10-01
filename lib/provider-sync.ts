@@ -2,7 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { APP_CONFIG } from "@/lib/app-config";
 import { supabase } from "@/lib/supabase";
 import type { SyncProvider } from "@/components/provider-mark";
-import { normalizeSyncStatus, type ProviderSyncStatus } from "@/lib/provider-sync-contract";
+import { normalizeSyncStatus } from "@/lib/provider-sync-contract";
+import type { ProviderSyncStatus } from "@/lib/provider-sync-contract";
 import { LIST_STATUSES, LIST_STATUS_LABELS } from "@/lib/list-status";
 
 // Library import/export — exact port of Miruro `src/lib/sync.ts`

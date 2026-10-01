@@ -15,8 +15,8 @@ import {
   pushProviderScore,
   startExportJob,
   subscribeExportJobs,
-  type ExportJobs,
 } from "@/lib/provider-sync";
+import type { ExportJobs } from "@/lib/provider-sync";
 import { useAnirakuAuth } from "@/providers/auth-provider";
 
 export function useProviderSync() {

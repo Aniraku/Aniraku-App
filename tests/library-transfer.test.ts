@@ -1,4 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@react-native-async-storage/async-storage", () => ({
+  default: {
+    getItem: async () => null,
+    setItem: async () => {},
+    removeItem: async () => {},
+  },
+}));
+
+vi.mock("@/lib/supabase", () => ({
+  supabase: {
+    auth: { getSession: async () => ({ data: { session: null } }) },
+    from: () => ({ insert: async () => ({}) }),
+  },
+}));
+
 import {
   anilistToListStatus,
   deriveStatusAfterWatch,
