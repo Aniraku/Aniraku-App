@@ -1,18 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { getAnimePage, isAniListRateLimitError } from "@/lib/anilist";
 import { nsfwFilterParam, useNsfwPreference } from "@/lib/nsfw-preference";
-import { animeTitle } from "@/lib/types";
+import { EMPTY_FILTERS, QUICK_GENRES, countActiveFilters, filterSignature, hasActiveFilters, type SearchFilters } from "@/lib/search-filters";
+import { animeTitle, type Anime } from "@/lib/types";
 import { usePrefetchAnime } from "@/lib/prefetch";
 import { ErrorState, LoadingState, EmptyState } from "@/components/async-state";
 import { AppIcon } from "@/components/app-icon";
 import { DotLabel, nothing } from "@/components/nothing-ui";
 import { NativeHeader, NativeScreen } from "@/components/screen";
+import { SearchFilterSheet } from "@/components/search-filter-sheet";
+import { SearchResultRow } from "@/components/search-result-row";
 
 type HistoryEntry = { term: string; timestamp: number };
 const STORAGE_KEY = "aniraku.search.recent";
@@ -40,30 +43,6 @@ function upgradeLegacyEntries(raw: unknown): HistoryEntry[] {
   }).filter((e): e is HistoryEntry => e !== null);
 }
 
-const QUICK_GENRES = ["Action", "Romance", "Comedy", "Fantasy", "Sci-Fi", "Horror", "Slice of Life", "Sports"];
-
-function SearchResultRow({ anime, onPress }: { anime: any; onPress: () => void }) {
-  const title = animeTitle(anime);
-  const image = anime.coverImage?.extraLarge || anime.coverImage?.large || "";
-  const format = anime.format || "";
-  const episodes = anime.episodes;
-  const score = anime.averageScore;
-  const meta = [format, episodes ? `${episodes} EP` : null, score ? `${score}%` : null].filter(Boolean).join(" · ");
-  const prefetch = usePrefetchAnime();
-  return (
-    <Pressable onPress={() => { prefetch(anime.id); onPress(); }} style={({ pressed }) => [styles.resultRow, pressed && styles.pressed]}>
-      <View style={styles.resultThumb}>
-        <Image source={{ uri: image }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" />
-        <View style={styles.resultPlayBadge}><AppIcon name="play" size={14} color={nothing.white} /></View>
-      </View>
-      <View style={styles.resultBody}>
-        <Text style={styles.resultTitle} numberOfLines={2}>{title}</Text>
-        {meta ? <Text style={styles.resultMeta}>{meta}</Text> : null}
-      </View>
-    </Pressable>
-  );
-}
-
 export default function CatalogScreen() {
   const prefetch = usePrefetchAnime();
   const nsfw = useNsfwPreference();
@@ -74,6 +53,8 @@ export default function CatalogScreen() {
   const [retryAt, setRetryAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   const [recent, setRecent] = useState<HistoryEntry[]>([]);
+  const [filters, setFilters] = useState<SearchFilters>({ ...EMPTY_FILTERS });
+  const [filtersVisible, setFiltersVisible] = useState(false);
 
   useEffect(() => {
     void AsyncStorage.getItem(STORAGE_KEY).then((stored) => {
@@ -97,16 +78,43 @@ export default function CatalogScreen() {
   }, [normalizedInput]);
 
   const waitingForInput = normalizedInput.length > 1 && query !== normalizedInput;
-  const results = useQuery({
-    queryKey: ["search", query, isAdultParam],
-    queryFn: () => getAnimePage({ search: query, perPage: 20, sort: ["SEARCH_MATCH"], isAdult: isAdultParam }),
-    enabled: query.length > 1,
+  const hasQuery = query.length > 1;
+  const results = useInfiniteQuery({
+    queryKey: ["search", query, isAdultParam, filterSignature(filters)],
+    queryFn: ({ pageParam }) => getAnimePage({
+      search: hasQuery ? query : undefined,
+      page: pageParam,
+      perPage: 20,
+      sort: [filters.sort ?? (hasQuery ? "SEARCH_MATCH" : "POPULARITY_DESC")],
+      status: filters.status ?? undefined,
+      format: filters.format ?? undefined,
+      season: filters.season ?? undefined,
+      seasonYear: filters.year ? Number(filters.year) : undefined,
+      isAdult: isAdultParam,
+    }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => (lastPage?.pageInfo?.hasNextPage ? (lastPage.pageInfo.currentPage ?? 1) + 1 : undefined),
+    enabled: hasQuery || hasActiveFilters(filters),
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     refetchOnMount: false,
     retry: (failureCount, error) => !isAniListRateLimitError(error) && failureCount < 1,
     retryDelay: 1_200,
   });
+
+  /** Deduped across pages — a refetch mid-scroll can overlap ids. */
+  const media = useMemo(() => {
+    const seen = new Set<number>();
+    const merged: Anime[] = [];
+    for (const page of results.data?.pages ?? []) {
+      for (const item of page?.media ?? []) {
+        if (!item || seen.has(item.id)) continue;
+        seen.add(item.id);
+        merged.push(item);
+      }
+    }
+    return merged;
+  }, [results.data]);
 
   const topSearches = useQuery({
     queryKey: ["top-searches", isAdultParam],
@@ -166,14 +174,55 @@ export default function CatalogScreen() {
     ]);
   }, []);
 
-  const isIdle = normalizedInput.length <= 1;
+  const isIdle = normalizedInput.length <= 1 && !hasActiveFilters(filters);
+  const activeFilterCount = countActiveFilters(filters);
+
+  const openAnime = useCallback((id: number) => router.push((`/anime/${id}`) as never), []);
+  const renderResult = useCallback(({ item }: { item: Anime }) => (
+    <SearchResultRow anime={item} onPress={() => openAnime(item.id)} />
+  ), [openAnime]);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const refetchResults = results.refetch;
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    void refetchResults().finally(() => setRefreshing(false));
+  }, [refetchResults]);
+
+  const loadMore = useCallback(() => {
+    if (!results.hasNextPage || results.isFetchingNextPage || retryIsBlocked) return;
+    void results.fetchNextPage().catch(() => {});
+  }, [results.hasNextPage, results.isFetchingNextPage, results.fetchNextPage, retryIsBlocked]);
 
   return <NativeScreen scroll={false} style={styles.fill}>
     <View style={styles.header}>
       <NativeHeader eyebrow="DISCOVER" title="Search" />
-      <View style={styles.searchInputWrap}>
-        <AppIcon name="magnify" size={18} color={nothing.muted} />
-        <TextInput autoFocus value={input} onChangeText={setInput} placeholder="Search anime..." placeholderTextColor={nothing.dim} style={styles.input} returnKeyType="search" />
+      <View style={styles.inputRow}>
+        <View style={styles.searchInputWrap}>
+          <AppIcon name="magnify" size={18} color={nothing.muted} />
+          <TextInput
+            accessibilityRole="search"
+            accessibilityLabel="Search anime"
+            autoFocus
+            value={input}
+            onChangeText={setInput}
+            placeholder="Search anime..."
+            placeholderTextColor={nothing.dim}
+            style={styles.input}
+            returnKeyType="search"
+          />
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={activeFilterCount ? `Filters, ${activeFilterCount} active` : "Open filters"}
+          onPress={() => setFiltersVisible(true)}
+          style={({ pressed }) => [styles.filterBtn, pressed && styles.pressed]}
+        >
+          <AppIcon name="tune-variant" size={18} color={activeFilterCount ? nothing.red : nothing.muted} />
+          {activeFilterCount ? (
+            <View style={styles.filterBadge}><Text style={styles.filterBadgeText}>{activeFilterCount}</Text></View>
+          ) : null}
+        </Pressable>
       </View>
     </View>
 
@@ -191,7 +240,7 @@ export default function CatalogScreen() {
                 </Pressable>
               </View>
               {recent.map((entry) => (
-                <Pressable key={entry.term} onPress={() => setInput(entry.term)} onLongPress={() => deleteHistoryItem(entry.term)} delayLongPress={400} style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
+                <Pressable key={entry.term} accessibilityRole="button" accessibilityLabel={`Recent search: ${entry.term}`} accessibilityHint="Searches again. Long press to remove from history." onPress={() => setInput(entry.term)} onLongPress={() => deleteHistoryItem(entry.term)} delayLongPress={400} style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
                   <AppIcon name="clock-counter" size={16} color={nothing.dim} />
                   <View style={styles.historyBody}>
                     <Text style={styles.historyTerm}>{entry.term}</Text>
@@ -212,7 +261,7 @@ export default function CatalogScreen() {
                   const title = animeTitle(anime);
                   const image = anime.coverImage?.large || anime.coverImage?.extraLarge || "";
                   return (
-                    <Pressable key={anime.id} onPress={() => { prefetch(anime.id); router.push(`/anime/${anime.id}` as never); }} style={({ pressed }) => [styles.topCard, pressed && styles.pressed]}>
+                    <Pressable key={anime.id} accessibilityRole="button" accessibilityLabel={title} accessibilityHint="Opens anime details" onPress={() => { prefetch(anime.id); router.push(`/anime/${anime.id}` as never); }} style={({ pressed }) => [styles.topCard, pressed && styles.pressed]}>
                       <View style={styles.topCardImage}>
                         <Image source={{ uri: image }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" />
                         <View style={styles.topCardRank}><Text style={styles.topCardRankText}>{String(index + 1).padStart(2, "0")}</Text></View>
@@ -240,33 +289,63 @@ export default function CatalogScreen() {
         showsVerticalScrollIndicator={false}
       />
     ) : waitingForInput || results.isPending ? (
-      <LoadingState label={`Searching for "${normalizedInput}"`} />
-    ) : results.isError || !results.data ? (
+      <LoadingState label={hasQuery ? `Searching for "${normalizedInput}"` : "Loading browse results"} />
+    ) : results.isError && media.length === 0 ? (
       <ErrorState message={results.error?.message ?? "Search is unavailable."} onRetry={retrySearch} retryDisabled={retryIsBlocked} retryLabel={retryIsBlocked ? `TRY AGAIN IN ${retrySeconds}S` : "TRY AGAIN"} />
-    ) : results.data.media.length === 0 ? (
-      <EmptyState label={`No titles found for "${query}".`} />
+    ) : media.length === 0 ? (
+      <View style={styles.emptyWrap}>
+        <EmptyState
+          label={hasQuery ? `No titles found for "${query}".` : "No titles match these filters."}
+          action={activeFilterCount ? { label: "CLEAR FILTERS", onPress: () => setFilters({ ...EMPTY_FILTERS }) } : undefined}
+        />
+        <View style={styles.genreSection}>
+          <Text style={styles.genreLabel}>Try a genre instead</Text>
+          <View style={styles.genreGrid}>
+            {QUICK_GENRES.map((genre) => (
+              <Pressable key={genre} accessibilityRole="button" accessibilityLabel={`Browse ${genre}`} onPress={() => router.push({ pathname: "/search", params: { genre } } as never)} style={({ pressed }) => [styles.genreChip, pressed && styles.pressed]}>
+                <Text style={styles.genreChipText}>{genre}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      </View>
     ) : (
       <View style={styles.resultsWrap}>
         <View style={styles.resultsHead}>
           <DotLabel tone="live">TOP SEARCH</DotLabel>
         </View>
         <FlatList
-          data={results.data.media}
+          data={media}
           keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => <SearchResultRow anime={item} onPress={() => router.push((`/anime/${item.id}`) as never)} />}
+          renderItem={renderResult}
           contentContainerStyle={styles.resultsList}
           showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={nothing.red} colors={[nothing.red]} />}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.6}
+          ListFooterComponent={
+            results.hasNextPage ? (
+              <Pressable accessibilityRole="button" accessibilityLabel="Load more results" onPress={loadMore} style={({ pressed }) => [styles.loadMore, pressed && styles.pressed]}>
+                <Text style={styles.loadMoreText}>{results.isFetchingNextPage ? "LOADING…" : "LOAD MORE"}</Text>
+              </Pressable>
+            ) : null
+          }
         />
       </View>
     )}
+    <SearchFilterSheet visible={filtersVisible} filters={filters} onClose={() => setFiltersVisible(false)} onApply={setFilters} />
   </NativeScreen>;
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   header: { paddingHorizontal: 16, gap: 10, paddingBottom: 4 },
-  searchInputWrap: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
+  inputRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  searchInputWrap: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
   input: { flex: 1, minHeight: 44, color: nothing.white, fontSize: 15 },
+  filterBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface, alignItems: "center", justifyContent: "center" },
+  filterBadge: { position: "absolute", top: 4, right: 4, minWidth: 15, height: 15, paddingHorizontal: 3, borderRadius: 8, backgroundColor: nothing.red, alignItems: "center", justifyContent: "center" },
+  filterBadgeText: { color: nothing.white, fontSize: 9, fontWeight: "900" },
 
   idleContent: { paddingHorizontal: 16, gap: 28 },
   idleList: { paddingBottom: 112 },
@@ -299,12 +378,9 @@ const styles = StyleSheet.create({
   resultsHead: { paddingHorizontal: 16, paddingBottom: 8 },
   resultsList: { paddingHorizontal: 16, paddingBottom: 112 },
 
-  resultRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: nothing.line },
-  resultThumb: { width: 120, height: 68, borderRadius: 8, overflow: "hidden", backgroundColor: nothing.raised },
-  resultPlayBadge: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.3)" },
-  resultBody: { flex: 1, gap: 4 },
-  resultTitle: { color: nothing.white, fontSize: 15, fontWeight: "800", lineHeight: 19 },
-  resultMeta: { color: nothing.dim, fontSize: 12, fontWeight: "700" },
+  emptyWrap: { flex: 1, paddingHorizontal: 16, paddingTop: 8, gap: 28 },
+  loadMore: { minHeight: 46, marginTop: 10, marginBottom: 4, borderRadius: 10, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface, alignItems: "center", justifyContent: "center" },
+  loadMoreText: { color: nothing.muted, fontSize: 12, fontWeight: "900", letterSpacing: 0.6 },
 
   pressed: nothing.pressed,
 });

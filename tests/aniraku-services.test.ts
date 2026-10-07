@@ -7,8 +7,13 @@ const apiBase = APP_CONFIG.apiBaseUrl;
 const supabaseUrl = APP_CONFIG.supabaseUrl;
 const supabaseAnonKey = APP_CONFIG.supabaseAnonKey;
 
+// Live-service probe: skips cleanly when the build has no public Supabase
+// config (local/CI runs without EXPO_PUBLIC_* env), matching the
+// skip-if-unconfigured convention used by oauth-registration.test.ts.
+const configured = Boolean(supabaseUrl && supabaseAnonKey);
+
 describe("Aniraku production service configuration", () => {
-  it("reaches the Aniraku health endpoint and validates the Supabase public client key", async () => {
+  it.skipIf(!configured)("reaches the Aniraku health endpoint and validates the Supabase public client key", async () => {
     expect(apiBase).toMatch(/^https:\/\//);
     expect(supabaseUrl).toMatch(/^https:\/\/[^/]+\.supabase\.co$/);
     expect(supabaseAnonKey).toBeTruthy();

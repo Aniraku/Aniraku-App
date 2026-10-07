@@ -11,6 +11,8 @@ export type SubtitlePreferences = {
   bgOpacity: number;
   outlineThickness: number;
   fontFamily: SubtitleFont;
+  /** Seconds of timing shift. Positive delays subtitles, negative advances them. */
+  timeOffset: number;
 };
 
 const DEFAULTS: SubtitlePreferences = {
@@ -20,7 +22,25 @@ const DEFAULTS: SubtitlePreferences = {
   bgOpacity: 0.55,
   outlineThickness: 2,
   fontFamily: "default",
+  timeOffset: 0,
 };
+
+export const SUBTITLE_OFFSET_MIN = -5;
+export const SUBTITLE_OFFSET_MAX = 5;
+export const SUBTITLE_OFFSET_STEP = 0.1;
+
+/** Clamps to the supported range and snaps to 0.1s so float drift never
+ * shows up as "0.30000000000000004s" in the panel. */
+export function clampSubtitleOffset(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  const snapped = Math.round(value * 10) / 10;
+  return Math.min(SUBTITLE_OFFSET_MAX, Math.max(SUBTITLE_OFFSET_MIN, snapped));
+}
+
+export function formatSubtitleOffset(value: number): string {
+  const snapped = clampSubtitleOffset(value);
+  return `${snapped > 0 ? "+" : ""}${snapped.toFixed(1)}s`;
+}
 
 let cached: SubtitlePreferences | null = null;
 

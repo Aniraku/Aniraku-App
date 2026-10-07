@@ -1,5 +1,13 @@
 import { useMemo } from "react";
+import { useQueries } from "@tanstack/react-query";
 import { useWatchHistory } from "@/hooks/use-watch-history";
+import { getAnimeById } from "@/lib/anilist";
+
+/** Genre lookups ride the shared `["anime", id]` cache — only the most-watched
+ *  titles are worth a detail fetch under the temporary 30 req/min AniList cap. */
+const GENRE_LOOKUP_LIMIT = 8;
+const GENRE_STALE_TIME_MS = 30 * 60_000;
+const TOP_GENRE_LIMIT = 5;
 
 type WatchStats = {
   totalEpisodesWatched: number;
@@ -46,6 +54,41 @@ function computeStreak(timestamps: number[]): { current: number; longest: number
 export function useWatchStats(): WatchStats {
   const { history } = useWatchHistory();
   const entries = history.data ?? [];
+
+  // Most-watched titles first: their genres are the ones worth resolving.
+  const watchedIds = useMemo(() => {
+    const episodesByAnime = new Map<number, number>();
+    for (const entry of entries) {
+      const id = Number(entry?.anime_id);
+      if (!Number.isInteger(id) || id <= 0) continue;
+      episodesByAnime.set(id, (episodesByAnime.get(id) ?? 0) + 1);
+    }
+    return [...episodesByAnime.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, GENRE_LOOKUP_LIMIT)
+      .map(([id]) => id);
+  }, [entries]);
+
+  // Shares the ["anime", id] cache with the detail screen and card prefetch,
+  // so titles the user already opened never cost an extra AniList request.
+  const genreResults = useQueries({
+    queries: watchedIds.map((id) => ({
+      queryKey: ["anime", id],
+      queryFn: () => getAnimeById(id),
+      staleTime: GENRE_STALE_TIME_MS,
+      retry: 1,
+    })),
+  });
+
+  const genresById = useMemo(() => {
+    const map = new Map<number, string[]>();
+    genreResults.forEach((result, index) => {
+      const id = watchedIds[index];
+      const genres = result.data?.genres;
+      if (id !== undefined && Array.isArray(genres)) map.set(id, genres);
+    });
+    return map;
+  }, [genreResults, watchedIds]);
 
   return useMemo(() => {
     if (!entries.length) {
@@ -94,6 +137,21 @@ export function useWatchStats(): WatchStats {
 
     const averageSessionMinutes = totalEpisodesWatched > 0 ? Math.round(totalMinutesWatched / uniqueAnimeWatched) : 0;
 
+    // Genres of the resolved titles, weighted by episode-watches.
+    const genreCounts = new Map<string, number>();
+    for (const entry of entries) {
+      const genres = genresById.get(Number(entry.anime_id));
+      if (!genres?.length) continue;
+      for (const genre of genres) {
+        if (typeof genre !== "string" || !genre) continue;
+        genreCounts.set(genre, (genreCounts.get(genre) ?? 0) + 1);
+      }
+    }
+    const topGenres = [...genreCounts.entries()]
+      .map(([genre, count]) => ({ genre, count }))
+      .sort((a, b) => b.count - a.count || a.genre.localeCompare(b.genre))
+      .slice(0, TOP_GENRE_LIMIT);
+
     return {
       totalEpisodesWatched,
       totalMinutesWatched,
@@ -102,9 +160,9 @@ export function useWatchStats(): WatchStats {
       averageSessionMinutes,
       longestStreakDays: longest,
       currentStreakDays: current,
-      topGenres: [],
+      topGenres,
       favoriteAnime,
       recentlyWatched,
     };
-  }, [entries]);
+  }, [entries, genresById]);
 }

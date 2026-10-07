@@ -6,6 +6,23 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.7.3 — Offline AniList mirror + keyless closed-app notifications
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- Metadata now reads from **`graphql.aniraku.tech`, Aniraku's offline AniList mirror** — same database as AniList, no rate limits, verified field-identical against official for every query shape the app sends. The request governor relaxes from 2.1s spacing to 300ms; 429/`Retry-After` backoff stays as a safety net for endpoint overrides.
+- **Closed-app episode reminders with ZERO keys**: upcoming airings for Notify Me + bookmarked titles become local Android scheduled notifications (`aniraku.airing.<id>.<ep>`, firing at airing + 2min) that fire while the app is fully closed — no FCM, no push service, no server, no credentials. The schedule re-tops on launch/foreground/6h/first-run permission/bell toggle, dedupes per episode against the live stream-verified monitor, and disarms cleanly (releasing dedupe keys) when permission, prefs, or titles go away.
+- Search 2.0: infinite scroll via cursor pagination, filter + sort bottom sheet (genre/status/format/sort unified with Catalog), pull-to-refresh, helpful empty-state suggestions, shared memoized result rows.
+- Library reimagined: History / Saved / Alerts share one `LibraryView` (search, sort, grid/list toggle) with per-row history delete and Home Continue-rail long-press delete; new **Downloads screen** with queue, byte-level progress, Wi-Fi-only and quota settings.
+- Player: auto-play next episode (5s countdown, default off), subtitle timing offset, Fit/Crop aspect toggle, report-a-broken-source action.
+- Schedule: full day navigation including a past-day archive, midnight rollover fix, per-title remind-me bells, SectionList rendering.
+- Profile: inline display-name edit, sign-out, empty-stats encouragement state.
+- Home & detail polish: My List quick-toggle on cards, genre summary, long-press quick actions, incremental comments, image optimization across rails/hero/poster, query staleTimes (Home 10min / detail 15min / episodes 10min) with no-refetch stampede on reconnect or foreground.
+- **"More like this" restored**: recommendations used a root query field that no longer exists on official AniList either — rewritten against nested `Media.recommendations` and verified on both endpoints. Batched lookups now include `nextAiringEpisode` (release detection previously fell back to total episode count).
+- Accessibility pass: labels/roles/switch semantics across search, home, detail, settings, and onboarding.
+- Housekeeping: 794 lines of dead player code removed, unused `expo-video` dep + patch script removed, duplicate `package-lock.json` deleted (pnpm-only), ESLint config migrated to `eslint.config.mjs` (config load was crashing), CI validate job made blocking (`continue-on-error: false` + `needs: validate`), logout test un-skipped. 235 tests green; env-dependent suites skip cleanly without `EXPO_PUBLIC_*`.
+- Bumps the Android versionCode to 70.
+
 ## v5.7.2 — Miruro library import/export parity
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`

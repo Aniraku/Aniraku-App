@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.7.2"
+        default: "v5.7.3"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -22,16 +22,26 @@ jobs:
   validate:
     name: Validate (typecheck, lint, tests)
     runs-on: ubuntu-latest
-    # Advisory only: surfaces failures without blocking the APK while the
-    # suite is being brought to green. Flip to blocking once it is.
-    continue-on-error: true
-    # The suite asserts live configuration (Supabase URL/key, API base):
-    # without these, env-dependent tests fail on undefined values.
+    # Blocking validate gate: typecheck, lint, and tests must pass before the
+    # APK build starts (see `needs: validate` on the build job). Verified for
+    # Phase I:
+    #   - `pnpm install --frozen-lockfile` ✔ (lockfile re-synced after dropping expo-video)
+    #   - `pnpm check` ✔ (tsc clean)
+    #   - `pnpm lint` ✔ (ESLint 9 config fixed: eslint.config.mjs; 0 errors)
+    #   - `pnpm test` ✔ (tests/aniraku-services + aniraku-avatars now skip when
+    #     EXPO_PUBLIC_* env is absent; with the secrets below they run as live
+    #     smoke probes, so a production endpoint outage will also fail validation)
+    continue-on-error: false
+    # Live-configuration secrets: with these set, the suite asserts real
+    # Supabase/AniList endpoints; without them, those tests skip gracefully.
     env:
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
       EXPO_PUBLIC_ANILIST_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_ANILIST_CLIENT_ID }}
-      EXPO_PUBLIC_ANILIST_GRAPHQL_URL: ${{ secrets.EXPO_PUBLIC_ANILIST_GRAPHQL_URL }}
+      # Pinned, not secret: metadata ships from Aniraku's offline AniList
+      # mirror (same DB, no rate limits). Keeps validate/prebuild/build — and
+      # therefore the shipped APK — on the same endpoint as the app default.
+      EXPO_PUBLIC_ANILIST_GRAPHQL_URL: "https://graphql.aniraku.tech"
       EXPO_PUBLIC_API_BASE_URL: ${{ secrets.EXPO_PUBLIC_API_BASE_URL }}
       EXPO_PUBLIC_MAL_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_MAL_CLIENT_ID }}
     steps:
@@ -55,6 +65,9 @@ jobs:
   build:
     name: Build ${{ matrix.label }} APK (${{ github.event.inputs.tag || github.ref_name }})
     runs-on: ubuntu-latest
+    # Gate the release pipeline on validation: without this, flipping
+    # continue-on-error on the validate job would not block anything.
+    needs: validate
     strategy:
       matrix:
         include:
@@ -93,7 +106,7 @@ jobs:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
           EXPO_PUBLIC_ANILIST_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_ANILIST_CLIENT_ID }}
-          EXPO_PUBLIC_ANILIST_GRAPHQL_URL: ${{ secrets.EXPO_PUBLIC_ANILIST_GRAPHQL_URL }}
+          EXPO_PUBLIC_ANILIST_GRAPHQL_URL: "https://graphql.aniraku.tech"
           EXPO_PUBLIC_API_BASE_URL: ${{ secrets.EXPO_PUBLIC_API_BASE_URL }}
           EXPO_PUBLIC_MAL_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_MAL_CLIENT_ID }}
 
@@ -108,7 +121,7 @@ jobs:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
           EXPO_PUBLIC_ANILIST_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_ANILIST_CLIENT_ID }}
-          EXPO_PUBLIC_ANILIST_GRAPHQL_URL: ${{ secrets.EXPO_PUBLIC_ANILIST_GRAPHQL_URL }}
+          EXPO_PUBLIC_ANILIST_GRAPHQL_URL: "https://graphql.aniraku.tech"
           EXPO_PUBLIC_API_BASE_URL: ${{ secrets.EXPO_PUBLIC_API_BASE_URL }}
           EXPO_PUBLIC_MAL_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_MAL_CLIENT_ID }}
 
@@ -148,21 +161,35 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.7.2 — Miruro library import/export parity
+            ## v5.7.3 — Offline AniList mirror + keyless closed-app notifications
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.7.2-arm64.apk`
-            - `aniraku-v5.7.2-arm32.apk`
-            - `aniraku-v5.7.2-universal.apk`
+            - `aniraku-v5.7.3-arm64.apk`
+            - `aniraku-v5.7.3-arm32.apk`
+            - `aniraku-v5.7.3-universal.apk`
+
+            ### Added
+            - **Closed-app episode reminders (zero keys)**: local scheduled notifications fire for your Notify Me and bookmarked titles while the app is fully closed — no push accounts, no servers, no credentials.
+            - **Search 2.0**: infinite scroll, filter/sort bottom sheet, pull-to-refresh, smarter empty states.
+            - **Downloads screen**: queue with byte-level progress, Wi-Fi-only and quota settings.
+            - **Player upgrades**: auto-play next episode (opt-in, 5s countdown), subtitle timing offset, Fit/Crop toggle, report-a-broken-source.
+            - **Schedule**: past-day archive, midnight rollover fix, per-title remind-me bells.
+            - **Profile**: inline display-name edit, sign-out, empty-stats state.
+
+            ### Improved
+            - **Metadata on Aniraku's offline AniList mirror (`graphql.aniraku.tech`)**: same database as AniList with no rate limits — request spacing relaxed from 2.1s to 300ms for much faster browsing.
+            - **Library unified**: History / Saved / Alerts in one view with search, sort, grid/list toggle, and per-row delete.
+            - **Speed**: Home data cached up to 10 min and detail up to 15 min, no refetch stampedes on reconnect, optimized images, memoized rails.
 
             ### Fixed
-            - **Library transfer matches Miruro**: full status-aware import/export counts, `describe` summaries with Watching / Plan to Watch breakdown, 5-attempt export honoring `Retry-After`.
-            - **Background export**: paced chunk loop with progress inline and Alerts receipt (`export_complete` / `export_failed`) even after leaving Settings.
-            - **Settings Library rows**: per-provider `✓/⚠` result, amber export confirm, `already running` guard.
+            - **"More like this" recommendations restored**: the old query field no longer exists on official AniList either — the rail was silently dead.
+            - **Episode release detection** now uses real airing data instead of a total-episode fallback.
+            - **Accessibility**: labels, roles, and switch semantics across search, home, detail, settings, and onboarding.
 
             ### Housekeeping
-            - **Android versionCode**: 69.
+            - Dead code removed (794 lines), unused deps dropped, ESLint/CI gates hardened — 235 tests green.
+            - **Android versionCode**: 70.
 
             Download the APK, install, and allow *install from unknown sources* if prompted.
           files: ./artifacts/*.apk

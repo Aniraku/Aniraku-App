@@ -47,6 +47,9 @@ function SpoilerContent({ children }: { children: React.ReactNode }) {
 
 // Memoized: the watch screen re-renders every second; stable numeric props
 // let comments skip those renders entirely.
+const COMMENTS_PAGE_SIZE = 10;
+const COMMENTS_PAGE_STEP = 20;
+
 export const AnimeComments = memo(function AnimeComments({ animeId, episodeNumber }: { animeId: number; episodeNumber?: number }) {
   const auth = useAnirakuAuth();
   const comments = useComments(animeId, episodeNumber);
@@ -56,12 +59,20 @@ export const AnimeComments = memo(function AnimeComments({ animeId, episodeNumbe
   const [hideAllSpoilers, setHideAllSpoilers] = useState(false);
   const [sort, setSort] = useState<"popular" | "newest">("newest");
   const [replyTo, setReplyTo] = useState<SharedComment | null>(null);
+  // Incremental render: the thread can hold 100 top-level comments + 200
+  // replies; mounting them all inside the screen's ScrollView janks scroll on
+  // low-end devices. Show a window and expand on demand.
+  const [visibleCount, setVisibleCount] = useState(COMMENTS_PAGE_SIZE);
+  // Reset the window when the thread identity changes (new episode, new sort).
+  useEffect(() => { setVisibleCount(COMMENTS_PAGE_SIZE); }, [animeId, episodeNumber, sort]);
   const canPost = canSubmitSharedComment(content);
   const sortedComments = useMemo(() => {
     const rows = [...(comments.comments.data ?? [])];
     if (sort === "popular") rows.sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0));
     return rows;
   }, [comments.comments.data, sort]);
+  const visibleComments = useMemo(() => sortedComments.slice(0, visibleCount), [sortedComments, visibleCount]);
+  const remainingComments = Math.max(0, sortedComments.length - visibleCount);
   const repliesByParent = useMemo(() => {
     const grouped = new Map<string, typeof sortedComments>();
     for (const reply of comments.replies.data ?? []) {
@@ -111,7 +122,7 @@ export const AnimeComments = memo(function AnimeComments({ animeId, episodeNumbe
       </View>
       {comments.add.isError ? <Text style={styles.error}>{comments.add.error.message}</Text> : null}
     </NothingCard> : <NothingCard style={styles.guest}><Text style={styles.guestText}>Sign in with a verified Aniraku account to join the discussion.</Text><NothingButton label="SIGN IN TO COMMENT" variant="outline" onPress={() => router.push("/auth" as never)} /></NothingCard>}
-    {comments.comments.isPending ? <LoadingState label="Loading community comments" /> : comments.comments.isError ? <ErrorState message="Comments could not load right now." onRetry={() => void comments.comments.refetch()} /> : !sortedComments.length ? <NothingCard style={styles.empty}><Text style={styles.emptyTitle}>No discussion yet</Text><Text style={styles.emptyText}>Start the conversation without spoiling the story for everyone else.</Text></NothingCard> : <FlatList data={sortedComments} keyExtractor={(comment) => comment.id} scrollEnabled={false} contentContainerStyle={styles.list} renderItem={({ item: comment }) => { const hidden = comment.is_spoiler && (hideAllSpoilers || !revealed.has(comment.id)); const isLiked = comments.likedIds.has(comment.id); const isOwn = Boolean(auth.user) && auth.user!.id === comment.user_id; const thread = repliesByParent.get(comment.id) ?? []; return <NothingCard style={styles.commentCard}><CommentAuthor comment={comment} />{hidden ? <Pressable accessibilityRole="button" accessibilityLabel="Spoiler hidden. Reveal comment." onPress={() => reveal(comment.id)} style={({ pressed }) => [styles.spoilerShield, pressed && styles.pressed]}><AppIcon name="eye-off-outline" size={17} color={nothing.red} /><Text style={styles.spoilerText}>SPOILER HIDDEN · TAP TO REVEAL</Text></Pressable> : <>{comment.is_spoiler ? <SpoilerContent><Text style={styles.revealed}>SPOILER REVEALED</Text>{comment.content ? <Text style={styles.commentText}>{comment.content}</Text> : null}{comment.gif_url ? <Image source={{ uri: comment.gif_url }} style={styles.commentGif} resizeMode="contain" /> : null}</SpoilerContent> : <>{comment.content ? <Text style={styles.commentText}>{comment.content}</Text> : null}{comment.gif_url ? <Image source={{ uri: comment.gif_url }} style={styles.commentGif} resizeMode="contain" /> : null}</>}</>}
+    {comments.comments.isPending ? <LoadingState label="Loading community comments" /> : comments.comments.isError ? <ErrorState message="Comments could not load right now." onRetry={() => void comments.comments.refetch()} /> : !sortedComments.length ? <NothingCard style={styles.empty}><Text style={styles.emptyTitle}>No discussion yet</Text><Text style={styles.emptyText}>Start the conversation without spoiling the story for everyone else.</Text></NothingCard> : <FlatList data={visibleComments} keyExtractor={(comment) => comment.id} scrollEnabled={false} contentContainerStyle={styles.list} renderItem={({ item: comment }) => { const hidden = comment.is_spoiler && (hideAllSpoilers || !revealed.has(comment.id)); const isLiked = comments.likedIds.has(comment.id); const isOwn = Boolean(auth.user) && auth.user!.id === comment.user_id; const thread = repliesByParent.get(comment.id) ?? []; return <NothingCard style={styles.commentCard}><CommentAuthor comment={comment} />{hidden ? <Pressable accessibilityRole="button" accessibilityLabel="Spoiler hidden. Reveal comment." onPress={() => reveal(comment.id)} style={({ pressed }) => [styles.spoilerShield, pressed && styles.pressed]}><AppIcon name="eye-off-outline" size={17} color={nothing.red} /><Text style={styles.spoilerText}>SPOILER HIDDEN · TAP TO REVEAL</Text></Pressable> : <>{comment.is_spoiler ? <SpoilerContent><Text style={styles.revealed}>SPOILER REVEALED</Text>{comment.content ? <Text style={styles.commentText}>{comment.content}</Text> : null}{comment.gif_url ? <Image source={{ uri: comment.gif_url }} style={styles.commentGif} resizeMode="contain" /> : null}</SpoilerContent> : <>{comment.content ? <Text style={styles.commentText}>{comment.content}</Text> : null}{comment.gif_url ? <Image source={{ uri: comment.gif_url }} style={styles.commentGif} resizeMode="contain" /> : null}</>}</>}
       <View style={styles.commentActions}>
         <Pressable accessibilityRole="button" accessibilityLabel={isLiked ? "Unlike comment" : "Like comment"} disabled={comments.toggleLike.isPending} onPress={() => { if (requireUser()) void comments.toggleLike.mutate(comment); }} style={styles.commentAction}><AppIcon name={isLiked ? "heart" : "heart-outline"} size={16} color={isLiked ? nothing.red : nothing.muted} /><Text style={[styles.commentActionText, isLiked && styles.commentActionTextActive]}>{comment.likes ?? 0}</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Reply to comment" onPress={() => { if (requireUser()) setReplyTo(comment); }} style={styles.commentAction}><AppIcon name="reply-outline" size={16} color={nothing.muted} /><Text style={styles.commentActionText}>Reply</Text></Pressable>
@@ -122,7 +133,13 @@ export const AnimeComments = memo(function AnimeComments({ animeId, episodeNumbe
           {replyOwn ? <Pressable accessibilityRole="button" accessibilityLabel="Delete reply" disabled={comments.remove.isPending} onPress={() => confirmDelete(reply.id)} style={styles.commentAction}><AppIcon name="trash-can-outline" size={15} color={nothing.muted} /></Pressable> : null}
         </View>
       </View>; })}
-    </NothingCard>; }} />}
+    </NothingCard>; }}
+      ListFooterComponent={remainingComments > 0 ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={`Show ${Math.min(COMMENTS_PAGE_STEP, remainingComments)} more comments`} onPress={() => setVisibleCount((count) => count + COMMENTS_PAGE_STEP)} style={({ pressed }) => [styles.showMore, pressed && styles.pressed]}>
+          <Text style={styles.showMoreText}>SHOW MORE · {remainingComments} LEFT</Text>
+        </Pressable>
+      ) : null}
+    />}
   </View>;
 });
 
@@ -164,6 +181,8 @@ const styles = StyleSheet.create({
   emptyTitle: { color: nothing.white, fontSize: 14, fontWeight: "900" },
   emptyText: { color: nothing.muted, fontSize: 13, lineHeight: 18 },
   list: { gap: 8 },
+  showMore: { minHeight: 44, marginTop: 4, borderRadius: 9, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface, alignItems: "center", justifyContent: "center" },
+  showMoreText: { color: nothing.muted, fontSize: 11, fontWeight: "900", letterSpacing: 0.5 },
   commentCard: { gap: 9, padding: 11 },
   commentAuthor: { alignItems: "center", flexDirection: "row", gap: 8 },
   avatar: { backgroundColor: nothing.raised, borderRadius: 14, height: 28, width: 28 },

@@ -1,7 +1,7 @@
-import { useEffect, useState, type PropsWithChildren } from "react";
+import { useEffect, type PropsWithChildren } from "react";
 import * as Network from "expo-network";
 import { onlineManager, QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { AuthProvider } from "@/providers/auth-provider";
 import { NotificationsProvider } from "@/providers/notifications-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
@@ -29,16 +29,24 @@ export function AppProviders({ children }: PropsWithChildren) {
       .then((state) => { if (mounted) onlineManager.setOnline(state.isInternetReachable ?? state.isConnected ?? true); })
       .catch(() => { if (mounted) onlineManager.setOnline(true); });
 
-    // Listen for network changes and force refetch on reconnect
+    // Listen for network changes and refetch on reconnect. Deliberately NOT a
+    // blanket refetchQueries({type:"active"}): that stampedes every mounted
+    // screen at once and burns the temporary 30 req/min AniList budget. Only
+    // genuinely stale data (or failed queries) gets refetched; fresh data is
+    // left alone until its normal staleTime lapses.
     let subscription: ReturnType<typeof Network.addNetworkStateListener> | undefined;
     let wasOffline = false;
     try {
       subscription = Network.addNetworkStateListener((state) => {
         const isOnline = state.isInternetReachable ?? state.isConnected ?? true;
         onlineManager.setOnline(isOnline);
-        // Force refetch all queries when coming back online
         if (isOnline && wasOffline) {
-          void queryClient.refetchQueries({ type: "active" });
+          void queryClient.refetchQueries({
+            type: "active",
+            predicate: (query) =>
+              query.state.status === "error" ||
+              (query.state.dataUpdatedAt > 0 && Date.now() - query.state.dataUpdatedAt > 5 * 60_000),
+          });
         }
         wasOffline = !isOnline;
       });
@@ -46,10 +54,11 @@ export function AppProviders({ children }: PropsWithChildren) {
       onlineManager.setOnline(true);
     }
 
-    // Handle app focus state for React Query (mobile-specific)
+    // Handle app focus state for React Query (mobile-specific): refetch stale
+    // queries when the app returns to the foreground.
     if (Platform.OS !== "web") {
       focusManager.setEventListener((handleFocus) => {
-        const subscription = { remove: () => {} };
+        const subscription = AppState.addEventListener("change", (state) => handleFocus(state === "active"));
         return () => subscription.remove();
       });
     }

@@ -1,12 +1,13 @@
 import { APP_CONFIG } from "@/lib/app-config";
 import type { AiringSchedulePage, Anime, AnimePage } from "@/lib/types";
 
-// AniList is TEMPORARILY rate-limited to 30 req/min (normal is 90). The global
-// slot serializes every query in the app, so 60s ÷ 30 = 2s minimum spacing;
-// 2.1s keeps a small safety margin. Batching (aliased pages / id_in) is what
-// keeps screens fast under this cap — not faster request firing. When AniList
-// restores 90 req/min, 900ms was the proven value.
-const CLIENT_REQUEST_INTERVAL_MS = process.env.VITEST ? 0 : 2_100;
+// Metadata comes from Aniraku's offline AniList mirror (no rate limits), so
+// the global slot only exists to avoid stampeding the endpoint with parallel
+// bursts — 300ms spacing keeps screens snappy while still serializing. The
+// 429/Retry-After backoff below stays as a safety net, and the x-ratelimit
+// header pause still protects if EXPO_PUBLIC_ANILIST_GRAPHQL_URL points back
+// at official AniList (30 req/min → the header budget slows us to ~24/min).
+const CLIENT_REQUEST_INTERVAL_MS = process.env.VITEST ? 0 : 300;
 const REQUEST_CACHE_TTL_MS = 5 * 60_000;
 const STALE_CACHE_TTL_MS = 30 * 60_000;
 const responseCache = new Map<string, { expiresAt: number; staleUntil: number; value: unknown }>();
@@ -155,6 +156,7 @@ const scheduleMediaFields = `
  */
 const slimAnimeFields = `
   id type title { romaji english native } coverImage { large extraLarge } format status episodes
+  nextAiringEpisode { episode airingAt }
 `;
 
 const poolFields = `
@@ -477,16 +479,26 @@ export async function getHomeRailAnime(isAdult?: boolean | null): Promise<{ ongo
 }
 
 export async function getRecommendations(animeId: number): Promise<Anime[]> {
+  // Nested Media.recommendations — the old root-level `MediaRecommendations`
+  // field no longer exists on official AniList (and never did on the mirror),
+  // so the "More like this" rail silently errored. Verified against both
+  // endpoints.
   const query = `query Recommendations($mediaId: Int!) {
-    MediaRecommendations(mediaId: $mediaId, sort: RATING_DESC, perPage: 12) {
-      edges {
-        node {
-          rating
-          mediaRecommendation { ${fields} }
+    Media(id: $mediaId) {
+      recommendations(sort: RATING_DESC, perPage: 12) {
+        edges {
+          node {
+            rating
+            mediaRecommendation { ${fields} }
+          }
         }
       }
     }
   }`;
-  const data = await request<{ MediaRecommendations?: { edges?: Array<{ node: { rating: number; mediaRecommendation: Anime } }> } }>(query, { mediaId: animeId });
-  return (data.MediaRecommendations?.edges ?? []).map((edge) => edge.node.mediaRecommendation);
+  const data = await request<{
+    Media?: { recommendations?: { edges?: Array<{ node: { rating: number; mediaRecommendation?: Anime | null } }> } | null } | null;
+  }>(query, { mediaId: animeId });
+  return (data.Media?.recommendations?.edges ?? [])
+    .map((edge) => edge.node.mediaRecommendation)
+    .filter((item): item is Anime => Boolean(item && Number.isFinite(Number(item.id))));
 }

@@ -6,6 +6,7 @@ import Constants from "expo-constants";
 import * as WebBrowser from "expo-web-browser";
 
 import { useAnirakuAuth } from "@/providers/auth-provider";
+import { emitNotificationPrefsChanged } from "@/providers/notifications-provider";
 import { useBookmarks } from "@/hooks/use-bookmarks";
 import { useWatchHistory } from "@/hooks/use-watch-history";
 import { useProviderSync } from "@/hooks/use-provider-sync";
@@ -84,7 +85,7 @@ export default function SettingsScreen() {
   const toggleNotifPref = (key: "newEpisodes" | "commentReplies" | "systemAnnouncements") => {
     setNotifPrefs((prev) => {
       const next = { ...prev, [key]: !prev[key] };
-      AsyncStorage.setItem("aniraku.notificationprefs", JSON.stringify(next));
+      void AsyncStorage.setItem("aniraku.notificationprefs", JSON.stringify(next)).then(() => emitNotificationPrefsChanged());
       return next;
     });
   };
@@ -244,7 +245,7 @@ export default function SettingsScreen() {
 
     {/* ── Content ── */}
     <View style={styles.section}><DotLabel>{t("settings.content")}</DotLabel></View>
-    <Pressable accessibilityRole="button" onPress={requestNsfwChange} style={styles.row}>
+    <Pressable accessible accessibilityRole="switch" accessibilityState={{ checked: nsfw.enabled }} accessibilityLabel={t("settings.nsfwContent")} onPress={requestNsfwChange} style={styles.row}>
       <View style={styles.rowIcon}><AppIcon name="eye" size={18} color={nsfw.enabled ? nothing.red : nothing.muted} /></View>
       <View style={styles.rowBody}>
         <Text style={styles.rowLabel}>{t("settings.nsfwContent")}</Text>
@@ -256,7 +257,7 @@ export default function SettingsScreen() {
 
     {/* ── Notifications ── */}
     <View style={styles.section}><DotLabel>{t("settings.notifications")}</DotLabel></View>
-    <Pressable accessibilityRole="button" onPress={() => toggleNotifPref("newEpisodes")} style={styles.row}>
+    <Pressable accessible accessibilityRole="switch" accessibilityState={{ checked: notifPrefs.newEpisodes }} accessibilityLabel={t("settings.newEpisodes")} onPress={() => toggleNotifPref("newEpisodes")} style={styles.row}>
       <View style={styles.rowIcon}><AppIcon name="bell" size={18} color={notifPrefs.newEpisodes ? nothing.red : nothing.muted} /></View>
       <View style={styles.rowBody}>
         <Text style={styles.rowLabel}>{t("settings.newEpisodes")}</Text>
@@ -264,7 +265,7 @@ export default function SettingsScreen() {
       </View>
       <Toggle enabled={notifPrefs.newEpisodes} onToggle={() => toggleNotifPref("newEpisodes")} label={t("settings.newEpisodes")} />
     </Pressable>
-    <Pressable accessibilityRole="button" onPress={() => toggleNotifPref("commentReplies")} style={styles.row}>
+    <Pressable accessible accessibilityRole="switch" accessibilityState={{ checked: notifPrefs.commentReplies }} accessibilityLabel={t("settings.commentReplies")} onPress={() => toggleNotifPref("commentReplies")} style={styles.row}>
       <View style={styles.rowIcon}><AppIcon name="reply" size={18} color={notifPrefs.commentReplies ? nothing.red : nothing.muted} /></View>
       <View style={styles.rowBody}>
         <Text style={styles.rowLabel}>{t("settings.commentReplies")}</Text>
@@ -272,7 +273,7 @@ export default function SettingsScreen() {
       </View>
       <Toggle enabled={notifPrefs.commentReplies} onToggle={() => toggleNotifPref("commentReplies")} label={t("settings.commentReplies")} />
     </Pressable>
-    <Pressable accessibilityRole="button" onPress={() => toggleNotifPref("systemAnnouncements")} style={styles.row}>
+    <Pressable accessible accessibilityRole="switch" accessibilityState={{ checked: notifPrefs.systemAnnouncements }} accessibilityLabel={t("settings.systemAnnouncements")} onPress={() => toggleNotifPref("systemAnnouncements")} style={styles.row}>
       <View style={styles.rowIcon}><AppIcon name="information" size={18} color={notifPrefs.systemAnnouncements ? nothing.red : nothing.muted} /></View>
       <View style={styles.rowBody}>
         <Text style={styles.rowLabel}>{t("settings.systemAnnouncements")}</Text>
