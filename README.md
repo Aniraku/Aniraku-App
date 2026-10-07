@@ -30,6 +30,9 @@
 </div>
 <br>
 
+> [!IMPORTANT]
+> **v5.7.3 is currently a Pre-Release (testing build).** It has been published early for real-world verification — once it's confirmed stable it will be marked as the **Latest release**. If you want the proven build in the meantime, use **[v5.7.2](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.2)** or grab v5.7.3 from the table below to help test.
+
 ---
 
 ### How Aniraku Compares
