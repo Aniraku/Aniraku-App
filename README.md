@@ -24,7 +24,7 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.2">v5.7.2 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.3">v5.7.3 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
@@ -61,15 +61,15 @@
 
 ---
 
-### v5.7.2 is out
+### v5.7.3 is out
 
-library import/export parity: full status-aware transfer, background paced export with Alerts receipt, inline results + export confirm in Settings.
+Offline AniList mirror (no rate limits, much faster browsing) + keyless closed-app episode reminders, Search 2.0, unified Library, Downloads screen, and player upgrades.
 
 | APK |
 |:--|
-| [Aniraku-v5.7.2-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.2/aniraku-v5.7.2-arm64.apk) |
-| [Aniraku-v5.7.2-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.2/aniraku-v5.7.2-arm32.apk) |
-| [Aniraku-v5.7.2-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.2/aniraku-v5.7.2-universal.apk) |
+| [Aniraku-v5.7.3-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.3/aniraku-v5.7.3-arm64.apk) |
+| [Aniraku-v5.7.3-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.3/aniraku-v5.7.3-arm32.apk) |
+| [Aniraku-v5.7.3-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.3/aniraku-v5.7.3-universal.apk) |
 
 <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 
@@ -80,7 +80,7 @@ library import/export parity: full status-aware transfer, background paced expor
 | Feature | Status | Notes |
 |:--|:--|:--|
 | **Watch Party** | Planned | Social co-watching with synced playback. Requires backend infrastructure and real-time sync layer. |
-| **Chromecast/Casting** | Planned | Google Cast SDK integration for TV playback. |
+| **Chromecast/Casting** | Not planned | Removed from the roadmap — Android's built-in screen mirroring covers TV playback. |
 | **Background Audio** | Planned | Listen to anime audio while the app is backgrounded. |
 | **Light Theme** | Planned | Full light mode with the same "Nothing" design language. |
 

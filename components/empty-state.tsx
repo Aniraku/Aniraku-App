@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
 import { AppIcon } from "@/components/app-icon";
 import { nothing } from "@/components/nothing-ui";
 
@@ -8,6 +9,11 @@ type EmptyStateProps = {
   message: string;
   action?: { label: string; onPress: () => void };
 };
+
+/** Default CTA target: the catalog tab (browse/search). */
+function browseCatalog() {
+  router.push("/catalog" as never);
+}
 
 export function EmptyState({ icon, title, message, action }: EmptyStateProps) {
   return (
@@ -52,7 +58,7 @@ export function EmptyLibrary() {
       icon="bookmark-outline"
       title="Your library is empty"
       message="Save anime to your library to keep track of what you love."
-      action={{ label: "Browse anime", onPress: () => {} }}
+      action={{ label: "Browse anime", onPress: browseCatalog }}
     />
   );
 }
@@ -63,7 +69,7 @@ export function EmptyHistory() {
       icon="history"
       title="No watch history"
       message="Start watching anime to build your history here."
-      action={{ label: "Browse anime", onPress: () => {} }}
+      action={{ label: "Browse anime", onPress: browseCatalog }}
     />
   );
 }

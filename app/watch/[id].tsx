@@ -3,7 +3,7 @@ import { useLocalSearchParams, router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery } from "@tanstack/react-query";
 import { parseRouteEpisode, parseRouteId } from "@/lib/route-params";
-import { ActivityIndicator, Alert, Animated, BackHandler, Dimensions, FlatList, LayoutChangeEvent, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, BackHandler, Dimensions, FlatList, LayoutChangeEvent, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { Image } from "expo-image";
 import Video, { type OnProgressData, type OnLoadData, type OnBufferData, type VideoRef } from "react-native-video";
 import { useKeepAwake } from "expo-keep-awake";
@@ -78,8 +78,9 @@ import { SubtitleRenderer } from "@/components/subtitle-renderer";
 import { SleepTimerPill } from "@/components/sleep-timer";
 import { chrome } from "@/components/player/chrome-styles";
 import { parseSubtitle, detectSubtitleFormat, detectSubtitleFormatFromContent, findActiveCues, matchSubtitleTrack, type SubtitleCue } from "@/lib/subtitle-parser";
-import { loadSubtitlePreferences, saveSubtitlePreferences, SUBTITLE_FONTS, BG_OPACITY_PRESETS, OUTLINE_PRESETS, type SubtitlePreferences } from "@/lib/subtitle-preferences";
+import { loadSubtitlePreferences, saveSubtitlePreferences, SUBTITLE_FONTS, BG_OPACITY_PRESETS, OUTLINE_PRESETS, clampSubtitleOffset, formatSubtitleOffset, SUBTITLE_OFFSET_MIN, SUBTITLE_OFFSET_MAX, SUBTITLE_OFFSET_STEP, type SubtitlePreferences } from "@/lib/subtitle-preferences";
 import { resolveNextEpisode, resolvePrevEpisode } from "@/lib/up-next";
+import { PATREON_URL } from "@/lib/support";
 import { t } from "@/lib/i18n";
 
 const EPISODE_PAGE_SIZE = 50;
@@ -101,10 +102,11 @@ const STREAM_CACHE_TTL_MS = 30_000;
 const STARTUP_WATCHDOG_MS = 6_000;
 const SKIP_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const ANISKIP_TIMEOUT_MS = 8_000;
+const UP_NEXT_AUTOPLAY_SECONDS = 5;
 const EMPTY_EPISODES: Episode[] = [];
 
 type CachedStream = { savedAt: number; data: StreamResponse };
-type WatchPreferences = { speed?: number };
+type WatchPreferences = { speed?: number; autoPlayNext?: boolean };
 
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -226,6 +228,8 @@ export default function WatchScreen() {
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [sourceRevision, setSourceRevision] = useState(0);
   const [speed, setSpeed] = useState(1);
+  // Video fit: "contain" letterboxes, "cover" crop-zooms to fill the shell.
+  const [fillMode, setFillMode] = useState<"contain" | "cover">("contain");
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [showControls, setShowControls] = useState(true);
   type ActivePanel = "settings" | "subtitles" | "speed" | "server" | "chapters" | "source" | "quality" | "download" | null;
@@ -281,6 +285,11 @@ export default function WatchScreen() {
   // auto-plays. Manual PLAY NOW or dismiss.
   const [upNextVisible, setUpNextVisible] = useState(false);
   const upNextShownFor = useRef<string | null>(null);
+  // Auto-play next episode preference (default OFF = wait for the user, the
+  // historic behavior). The countdown only runs while this is on.
+  const [autoPlayNext, setAutoPlayNext] = useState(false);
+  // Seconds left on the Up Next auto-play countdown; null = not counting.
+  const [upNextCountdown, setUpNextCountdown] = useState<number | null>(null);
   const [volumeHud, setVolumeHud] = useState<number | null>(null);
   const [brightnessHud, setBrightnessHud] = useState<number | null>(null);
   const [volume, setVolume] = useState(1.0);
@@ -411,6 +420,11 @@ export default function WatchScreen() {
   const parsedCuesRef = useRef<SubtitleCue[]>([]);
   const currentTimeRef = useRef(0);
   currentTimeRef.current = currentTime;
+  // Timing-offset mirror: the subtitle fetch effect reads it without
+  // re-running whenever the user nudges the value, while the active-cue
+  // effect below re-runs on every offset change.
+  const subtitleOffsetRef = useRef(0);
+  subtitleOffsetRef.current = subtitlePrefs?.timeOffset ?? 0;
   // Mirrors for the quality effect: it depends on scalar snapshots (url, type,
   // serialized headers) instead of these objects, so unrelated identity churn
   // never re-fetches the master — only real scope changes do.
@@ -423,15 +437,17 @@ export default function WatchScreen() {
 
   const updateSubtitlePrefs = useCallback((patch: Partial<SubtitlePreferences>) => {
     setSubtitlePrefs((prev) => {
-      const next: SubtitlePreferences = {
+      const merged: SubtitlePreferences = {
         enabled: prev?.enabled ?? true,
         preferredLanguage: prev?.preferredLanguage ?? "en",
         fontSize: prev?.fontSize ?? 14,
         bgOpacity: prev?.bgOpacity ?? 0.55,
         outlineThickness: prev?.outlineThickness ?? 2,
         fontFamily: prev?.fontFamily ?? "default",
+        timeOffset: prev?.timeOffset ?? 0,
         ...patch,
       };
+      const next: SubtitlePreferences = { ...merged, timeOffset: clampSubtitleOffset(merged.timeOffset) };
       void saveSubtitlePreferences(next).catch(() => {});
       return next;
     });
@@ -459,18 +475,22 @@ export default function WatchScreen() {
         const parsed = parseSubtitle(text, format);
         if (cancelled) return;
         parsedCuesRef.current = parsed.cues;
-        setActiveSubtitles(findActiveCues(parsed.cues, currentTimeRef.current));
+        setActiveSubtitles(findActiveCues(parsed.cues, currentTimeRef.current - subtitleOffsetRef.current));
       }).catch(() => { if (!cancelled) { parsedCuesRef.current = []; setActiveSubtitles([]); } });
     return () => { cancelled = true; };
   }, [source?.url, source?.subtitles, subtitlePrefs?.preferredLanguage, playbackHeaders]);
 
+  // Positive offset = subs appear later (evaluate an earlier cue time),
+  // negative = subs appear earlier. Re-selects immediately when it changes
+  // so a paused player shows the shift without waiting for the next tick.
+  const subtitleTimeOffset = clampSubtitleOffset(subtitlePrefs?.timeOffset ?? 0);
   useEffect(() => {
     if (parsedCuesRef.current.length) {
-      setActiveSubtitles(findActiveCues(parsedCuesRef.current, currentTime));
+      setActiveSubtitles(findActiveCues(parsedCuesRef.current, currentTime - subtitleTimeOffset));
     } else if (currentTimeRef.current !== currentTime) {
       // Keep ref in sync even before cues load.
     }
-  }, [currentTime]);
+  }, [currentTime, subtitleTimeOffset]);
 
   // ── Effects ──
   useEffect(() => {
@@ -599,6 +619,7 @@ export default function WatchScreen() {
       try {
         const preferences = JSON.parse(stored) as WatchPreferences;
         if (typeof preferences.speed === "number" && [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].includes(preferences.speed)) setSpeed(preferences.speed);
+        if (typeof preferences.autoPlayNext === "boolean") setAutoPlayNext(preferences.autoPlayNext);
       } catch { /* ignore malformed */ }
     }).catch(() => {}).finally(() => { if (active) setPreferencesReady(true); });
     return () => { active = false; };
@@ -606,8 +627,8 @@ export default function WatchScreen() {
 
   useEffect(() => {
     if (!preferencesReady) return;
-      void AsyncStorage.setItem("aniraku.watch.preferences", JSON.stringify({ speed })).catch(() => {});
-  }, [preferencesReady, speed]);
+      void AsyncStorage.setItem("aniraku.watch.preferences", JSON.stringify({ speed, autoPlayNext })).catch(() => {});
+  }, [preferencesReady, speed, autoPlayNext]);
 
   // ── Server discovery ──
   useEffect(() => {
@@ -1972,8 +1993,9 @@ export default function WatchScreen() {
 
   const nextEpisode = useCallback(() => { if (nextKnownEpisode) goToEpisode(nextKnownEpisode); }, [goToEpisode, nextKnownEpisode]);
 
-  // ── Up-next card: surfaces near the finish line (or at the end) and waits
-  // for the user. No countdown, no auto-play — PLAY NOW or dismiss.
+  // ── Up-next card: surfaces near the finish line (or at the end). With the
+  // auto-play preference OFF it waits indefinitely for the user — PLAY NOW or
+  // dismiss. ON runs a 5s countdown that plays the next episode at zero.
   const upNextKey = `${animeId}:${episode}`;
   const nextEpisodeDisplay = nextKnownEpisode ? displayEpisodes.find((item) => item.number === nextKnownEpisode) : undefined;
 
@@ -1985,6 +2007,77 @@ export default function WatchScreen() {
   }, [nextKnownEpisode, upNextKey]);
 
   const dismissUpNext = useCallback(() => { setUpNextVisible(false); }, []);
+
+  // Fire action lives in a ref so the countdown effect never restarts just
+  // because goToEpisode's identity churned (episode list/title updates).
+  const upNextFireRef = useRef<() => void>(() => {});
+  upNextFireRef.current = () => {
+    setUpNextVisible(false);
+    if (nextKnownEpisode) goToEpisode(nextKnownEpisode);
+  };
+
+  // ── Auto-play countdown: ticks only while the preference is on, the card
+  // is visible and playback is still running. Pause stops it (it re-arms on
+  // resume), scrubbing below 85% hides the card and kills it, and Dismiss
+  // unmounts the card — all handled by this effect's condition + cleanup.
+  useEffect(() => {
+    if (!autoPlayNext || !upNextVisible || !source?.url || !nextKnownEpisode || !isPlaying || playerLocked) {
+      setUpNextCountdown(null);
+      return;
+    }
+    const startedAt = Date.now();
+    setUpNextCountdown(UP_NEXT_AUTOPLAY_SECONDS);
+    const timer = setInterval(() => {
+      const remaining = UP_NEXT_AUTOPLAY_SECONDS - Math.floor((Date.now() - startedAt) / 1000);
+      if (remaining > 0) { setUpNextCountdown(remaining); return; }
+      clearInterval(timer);
+      setUpNextCountdown(null);
+      upNextFireRef.current();
+    }, 250);
+    return () => clearInterval(timer);
+  }, [autoPlayNext, upNextVisible, source?.url, nextKnownEpisode, isPlaying, playerLocked]);
+
+  // ── Report broken source: the confirmation spells out exactly what the
+  // report contains, then hands it to the OS share sheet (no account data
+  // attached). The server's notifyOwner endpoint is admin-gated, so the
+  // client channel is Share — falling back to a prefilled email draft that
+  // points at the existing support URL where Share is unavailable.
+  const buildSourceReport = useCallback(() => [
+    "Aniraku broken source report",
+    `Title: ${title}`,
+    `Episode: ${episode} (${language === "sub" ? "Subtitled" : "Dubbed"})`,
+    `Provider: ${activeProvider?.provider || "unknown"}`,
+    `Server: ${activeProvider?.label || "unknown"}`,
+    `Route: ${embedSource ? "EMBED" : useSourceProxy ? "PROXY" : "DIRECT"} · ${source?.type?.toUpperCase() || "HLS"}`,
+    `Error: ${lastPlayerError || error || "playback failed"}`,
+    `Support: ${PATREON_URL}`,
+  ].join("\n"), [activeProvider?.label, activeProvider?.provider, embedSource, episode, error, language, lastPlayerError, source?.type, title, useSourceProxy]);
+
+  const reportBrokenSource = useCallback(() => {
+    const message = buildSourceReport();
+    const summary = [
+      `Provider: ${activeProvider?.provider || "unknown"}`,
+      `Server: ${activeProvider?.label || "unknown"}`,
+      `Language: ${language === "sub" ? "Subtitled" : "Dubbed"}`,
+      `Episode: ${episode}`,
+      `Error: ${lastPlayerError || error || "playback failed"}`,
+    ].join("\n");
+    Alert.alert(
+      "Report broken source",
+      `This report includes only:\n\n${summary}\n\nShare it through your usual channels? Nothing else from your account is included.`,
+      [
+        { text: t("player.cancel"), style: "cancel" },
+        {
+          text: "Share report",
+          onPress: () => {
+            void Share.share({ title: "Aniraku broken source report", message }).catch(() => {
+              void Linking.openURL(`mailto:?subject=${encodeURIComponent("Aniraku broken source report")}&body=${encodeURIComponent(message)}`).catch(() => {});
+            });
+          },
+        },
+      ],
+    );
+  }, [activeProvider?.label, activeProvider?.provider, buildSourceReport, episode, error, language, lastPlayerError]);
 
   useEffect(() => {
     if (!source || duration <= 0) return;
@@ -2223,7 +2316,7 @@ export default function WatchScreen() {
     <View style={[styles.videoShell, manualFullscreen && ps.videoShellFullscreen]}>
       {embedSource && !source ? <EmbedPlayer uri={embedSource.url} headers={nativePlaybackHeaders(playbackHeaders)} onError={() => handleProviderBlockedRef.current("player")} onLoaded={() => { embedReadyRef.current = true; setShowControls(true); }} /> : null}
       {source ? <Video key={activeProvider?.id ?? "default"} ref={videoRef} style={StyleSheet.absoluteFill} source={{ uri: videoSourceUri, headers: videoSourceHeaders, type: videoContentType, bufferConfig: videoBufferConfig }}
-        paused={!isPlaying} rate={is2xSeeking ? 2.0 : speed} resizeMode="contain" muted={muted} volume={volume}
+        paused={!isPlaying} rate={is2xSeeking ? 2.0 : speed} resizeMode={fillMode} muted={muted} volume={volume}
         maxBitRate={adaptiveBitrateCap ?? undefined}
         onLoad={(data: OnLoadData) => { if (__DEV__) console.log(`[watch] first-frame t=${Date.now() - _watchMountTime}ms provider=${activeProvider?.id ?? "?"}`); setDuration(data.duration); sourceFirstFrame.current = true; sourceStarted.current = true; setPlayerStatus("playing"); setIsPlaying(true); setLastPlayerError(null); setShowControls(true); }}
         onProgress={handleVideoProgress}
@@ -2466,12 +2559,13 @@ export default function WatchScreen() {
         </Pressable>
       ) : null}
 
-      {/* Up-next card: next poster + title, waits for the user. No auto-play. */}
+      {/* Up-next card: next poster + title. Waits for the user unless the
+          auto-play preference runs the 5s countdown shown in the kicker. */}
       {source && upNextVisible && nextKnownEpisode && !playerLocked ? (
         <View style={styles.upNextCard}>
           {nextEpisodeDisplay?.thumbnail ? <Image source={{ uri: nextEpisodeDisplay.thumbnail }} style={styles.upNextPoster} contentFit="cover" cachePolicy="memory-disk" /> : null}
           <View style={styles.upNextCopy}>
-            <Text style={styles.upNextKicker}>UP NEXT</Text>
+            <Text style={styles.upNextKicker}>{upNextCountdown !== null ? `UP NEXT · ${upNextCountdown}s` : "UP NEXT"}</Text>
             <Text numberOfLines={1} style={styles.upNextTitle}>{`EP ${nextKnownEpisode}${nextEpisodeDisplay?.title ? ` · ${nextEpisodeDisplay.title}` : ""}`}</Text>
             <View style={styles.upNextRow}>
               <Pressable onPress={() => { setUpNextVisible(false); goToEpisode(nextKnownEpisode); }} accessibilityRole="button" accessibilityLabel="Play next episode now" style={styles.upNextPlay} hitSlop={8}>
@@ -2563,6 +2657,31 @@ export default function WatchScreen() {
             <Text style={ps.infoLabel}>Format</Text>
             <Text style={ps.infoValue}>{source?.type?.toUpperCase() || "HLS"}</Text>
           </View>
+
+          <Text style={ps.sectionLabel}>AUTO-PLAY NEXT EPISODE</Text>
+          <View style={ps.chipRow}>
+            <Pressable onPress={() => setAutoPlayNext(false)} accessibilityRole="checkbox" accessibilityState={{ checked: false }} accessibilityLabel="Auto-play next episode off" style={[ps.chip, !autoPlayNext && ps.chipActive]}>
+              <Text style={[ps.chipText, !autoPlayNext && ps.chipTextActive]}>Off</Text>
+            </Pressable>
+            <Pressable onPress={() => setAutoPlayNext(true)} accessibilityRole="checkbox" accessibilityState={{ checked: true }} accessibilityLabel="Auto-play next episode on" style={[ps.chip, autoPlayNext && ps.chipActive]}>
+              <Text style={[ps.chipText, autoPlayNext && ps.chipTextActive]}>On · 5s</Text>
+            </Pressable>
+          </View>
+          <Text style={ps.emptyLine}>Counts down on the Up Next card, then plays. Pause, seek or dismiss to cancel.</Text>
+
+          <Text style={ps.sectionLabel}>VIDEO FIT</Text>
+          <View style={ps.chipRow}>
+            <Pressable onPress={() => setFillMode("contain")} accessibilityRole="checkbox" accessibilityState={{ checked: fillMode === "contain" }} accessibilityLabel="Video fit: show the whole frame" style={[ps.chip, fillMode === "contain" && ps.chipActive]}>
+              <Text style={[ps.chipText, fillMode === "contain" && ps.chipTextActive]}>Fit</Text>
+            </Pressable>
+            <Pressable onPress={() => setFillMode("cover")} accessibilityRole="checkbox" accessibilityState={{ checked: fillMode === "cover" }} accessibilityLabel="Video fit: crop to fill the screen" style={[ps.chip, fillMode === "cover" && ps.chipActive]}>
+              <Text style={[ps.chipText, fillMode === "cover" && ps.chipTextActive]}>Fill · crop</Text>
+            </Pressable>
+          </View>
+
+          <Pressable onPress={reportBrokenSource} accessibilityRole="button" accessibilityLabel="Report broken source" style={ps.reportButton}>
+            <Text style={ps.reportButtonText}>REPORT BROKEN SOURCE</Text>
+          </Pressable>
         </ScrollView>
       </View> : null}
 
@@ -2618,6 +2737,25 @@ export default function WatchScreen() {
               return <Pressable key={font.id} onPress={() => updateSubtitlePrefs({ enabled: true, fontFamily: font.id })} style={[ps.chip, active && ps.chipActive]}><Text style={[ps.chipText, active && ps.chipTextActive]}>{font.label}</Text></Pressable>;
             })}
           </View>
+
+          <Text style={ps.sectionLabel}>TIMING OFFSET</Text>
+          <View style={ps.chipRow}>
+            <Pressable onPress={() => updateSubtitlePrefs({ enabled: true, timeOffset: clampSubtitleOffset((subtitlePrefs?.timeOffset ?? 0) - SUBTITLE_OFFSET_STEP) })} accessibilityRole="button" accessibilityLabel="Decrease subtitle timing offset" style={ps.chip} hitSlop={6}>
+              <Text style={ps.chipText}>−</Text>
+            </Pressable>
+            <View style={ps.offsetValue}>
+              <Text accessibilityRole="text" accessibilityLabel={`Subtitle timing offset ${formatSubtitleOffset(subtitlePrefs?.timeOffset ?? 0)}`} style={ps.offsetValueText}>{formatSubtitleOffset(subtitlePrefs?.timeOffset ?? 0)}</Text>
+            </View>
+            <Pressable onPress={() => updateSubtitlePrefs({ enabled: true, timeOffset: clampSubtitleOffset((subtitlePrefs?.timeOffset ?? 0) + SUBTITLE_OFFSET_STEP) })} accessibilityRole="button" accessibilityLabel="Increase subtitle timing offset" style={ps.chip} hitSlop={6}>
+              <Text style={ps.chipText}>+</Text>
+            </Pressable>
+            {(subtitlePrefs?.timeOffset ?? 0) !== 0 ? (
+              <Pressable onPress={() => updateSubtitlePrefs({ timeOffset: 0 })} accessibilityRole="button" accessibilityLabel="Reset subtitle timing offset" style={ps.chip} hitSlop={6}>
+                <Text style={ps.chipText}>Reset</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          <Text style={ps.emptyLine}>{`Positive delays subtitles, negative advances · ${formatSubtitleOffset(SUBTITLE_OFFSET_MIN)} … ${formatSubtitleOffset(SUBTITLE_OFFSET_MAX)} · ${SUBTITLE_OFFSET_STEP.toFixed(1)}s steps`}</Text>
         </ScrollView>
       </View> : null}
 
@@ -2625,7 +2763,7 @@ export default function WatchScreen() {
     </View>
 
     {/* ── Error ── */}
-    {error ? <View style={styles.errorAction}><NothingCard style={styles.errorCard}><DotLabel tone="muted">{futureRelease ? "FUTURE EPISODE" : "VIDEO UNAVAILABLE"}</DotLabel><Text style={styles.errorCopy}>{error}</Text>{lastPlayerError ? <Text style={styles.errorCopy}>{humanPlayerError(lastPlayerError) ?? "Playback failed on this server."}</Text> : null}{lastPlayerError ? <Text style={ps.diagnosticLine}>{`PLAYER · ${lastPlayerError}`}</Text> : null}{skipFetchStatus !== "idle" && skipFetchStatus !== "ok" ? <Text style={ps.diagnosticLine}>{`SKIP DATA · ${skipFetchStatus.toUpperCase()}`}</Text> : null}{futureRelease ? null : <View style={styles.errorBtnRow}><NothingButton label={t("player.retry")} onPress={retry} variant="outline" /><NothingButton label={t("player.switchServer")} onPress={() => handleProviderBlocked("permanent")} variant="outline" /><NothingButton label={t("player.copyError")} onPress={() => { void Clipboard.setStringAsync(`${error}${lastPlayerError ? `\nPLAYER · ${lastPlayerError}` : ""}${skipFetchStatus !== "idle" && skipFetchStatus !== "ok" ? `\nSKIP DATA · ${skipFetchStatus.toUpperCase()}` : ""}\nSERVER · ${activeProvider?.label || "UNKNOWN"} · ${embedSource ? "EMBED" : useSourceProxy ? "PROXY" : "DIRECT"}`).catch(() => {}); }} variant="outline" /></View>}</NothingCard></View> : null}
+    {error ? <View style={styles.errorAction}><NothingCard style={styles.errorCard}><DotLabel tone="muted">{futureRelease ? "FUTURE EPISODE" : "VIDEO UNAVAILABLE"}</DotLabel><Text style={styles.errorCopy}>{error}</Text>{lastPlayerError ? <Text style={styles.errorCopy}>{humanPlayerError(lastPlayerError) ?? "Playback failed on this server."}</Text> : null}{lastPlayerError ? <Text style={ps.diagnosticLine}>{`PLAYER · ${lastPlayerError}`}</Text> : null}{skipFetchStatus !== "idle" && skipFetchStatus !== "ok" ? <Text style={ps.diagnosticLine}>{`SKIP DATA · ${skipFetchStatus.toUpperCase()}`}</Text> : null}{futureRelease ? null : <View style={styles.errorBtnRow}><NothingButton label={t("player.retry")} onPress={retry} variant="outline" /><NothingButton label={t("player.switchServer")} onPress={() => handleProviderBlocked("permanent")} variant="outline" /><NothingButton label={t("player.copyError")} onPress={() => { void Clipboard.setStringAsync(`${error}${lastPlayerError ? `\nPLAYER · ${lastPlayerError}` : ""}${skipFetchStatus !== "idle" && skipFetchStatus !== "ok" ? `\nSKIP DATA · ${skipFetchStatus.toUpperCase()}` : ""}\nSERVER · ${activeProvider?.label || "UNKNOWN"} · ${embedSource ? "EMBED" : useSourceProxy ? "PROXY" : "DIRECT"}`).catch(() => {}); }} variant="outline" /><NothingButton label="Report source" onPress={reportBrokenSource} variant="outline" /></View>}</NothingCard></View> : null}
 
     {/* ── Below player ── */}
     {!manualFullscreen ? <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} removeClippedSubviews={Platform.OS === "android"}>
@@ -2724,6 +2862,10 @@ const ps = StyleSheet.create({
   infoLabel: { color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: "600" },
   infoValue: { color: "rgba(255,255,255,0.8)", fontSize: 10, fontWeight: "700" },
   diagnosticLine: { color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: "600", letterSpacing: 0.3, marginTop: 6 },
+  offsetValue: { minHeight: 26, paddingHorizontal: 10, borderRadius: 3, borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.05)" },
+  offsetValueText: { color: "#FFFFFF", fontSize: 11, fontWeight: "800", fontVariant: ["tabular-nums"], letterSpacing: 0.3 },
+  reportButton: { minHeight: 30, marginTop: 10, borderRadius: 3, borderWidth: 1, borderColor: "rgba(255,77,77,0.55)", alignItems: "center", justifyContent: "center" },
+  reportButtonText: { color: "#FF4D4D", fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
 });
 
 const styles = StyleSheet.create({

@@ -55,3 +55,14 @@ export function withScheduledEpisodeKey(scheduled: Set<string>, animeId: number,
   const values = [...next];
   return values.slice(Math.max(0, values.length - 500));
 }
+
+/**
+ * Releases dedupe keys for reminders that were cancelled before they ever
+ * fired — without them, re-enabling notifications could never re-notify the
+ * episode (the key would keep blocking it forever).
+ */
+export function withoutScheduledEpisodeKeys(scheduled: ReadonlySet<string>, keys: readonly string[]): string[] {
+  const next = new Set(scheduled);
+  for (const key of keys) next.delete(key);
+  return [...next];
+}

@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
-import { Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppIcon } from "@/components/app-icon";
 import { nothing } from "@/components/nothing-ui";
 import { hapticLight } from "@/lib/haptics";
 
 const ONBOARDING_KEY = "aniraku.onboarding.v1";
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 type Page = {
   icon: string;
@@ -23,6 +22,9 @@ const PAGES: Page[] = [
 export function FirstRunOnboarding({ onComplete }: { onComplete: () => void }) {
   const [page, setPage] = useState(0);
   const [visible, setVisible] = useState(false);
+  // Live window width: the old module-level Dimensions.get captured one width
+  // at import time, so rotation/resize (or a split screen) kept a stale card size.
+  const { width } = useWindowDimensions();
 
   useEffect(() => {
     AsyncStorage.getItem(ONBOARDING_KEY).then((seen) => {
@@ -48,7 +50,7 @@ export function FirstRunOnboarding({ onComplete }: { onComplete: () => void }) {
 
   return (
     <View style={styles.overlay}>
-      <View style={styles.card}>
+      <View style={[styles.card, { width: Math.max(280, width - 48) }]}>
         <View style={styles.iconWrap}>
           <AppIcon name={current.icon} size={48} color={nothing.red} />
         </View>
@@ -63,18 +65,18 @@ export function FirstRunOnboarding({ onComplete }: { onComplete: () => void }) {
 
         <View style={styles.actions}>
           {page > 0 ? (
-            <Pressable onPress={() => setPage(page - 1)} style={styles.backBtn}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => setPage(page - 1)} style={styles.backBtn}>
               <Text style={styles.backBtnText}>Back</Text>
             </Pressable>
           ) : (
             <View />
           )}
-          <Pressable onPress={next} style={styles.nextBtn}>
+          <Pressable accessibilityRole="button" accessibilityLabel={page < PAGES.length - 1 ? "Next" : "Get started"} onPress={next} style={styles.nextBtn}>
             <Text style={styles.nextBtnText}>{page < PAGES.length - 1 ? "Next" : "Get started"}</Text>
           </Pressable>
         </View>
 
-        <Pressable onPress={finish} style={styles.skipBtn}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Skip onboarding" onPress={finish} style={styles.skipBtn}>
           <Text style={styles.skipBtnText}>Skip</Text>
         </Pressable>
       </View>
@@ -84,7 +86,7 @@ export function FirstRunOnboarding({ onComplete }: { onComplete: () => void }) {
 
 const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center", justifyContent: "center", zIndex: 999 },
-  card: { width: SCREEN_WIDTH - 48, alignItems: "center", gap: 20 },
+  card: { alignItems: "center", gap: 20 },
   iconWrap: { width: 88, height: 88, borderRadius: 44, backgroundColor: nothing.surface, borderWidth: 1, borderColor: nothing.line, alignItems: "center", justifyContent: "center" },
   title: { color: nothing.white, fontSize: 26, fontWeight: "900", letterSpacing: -0.8, textAlign: "center" },
   description: { color: nothing.muted, fontSize: 14, lineHeight: 20, textAlign: "center", maxWidth: 300 },

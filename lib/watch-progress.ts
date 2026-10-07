@@ -11,9 +11,6 @@ export function chooseResumeEpisode(entries: ResumeHistory[], fallback = 1) {
   return partial?.episode_number ?? fallback;
 }
 
-// TRACK4-PROBE: if this line persists, the edit tool works.
-export const TRACK4_PROBE = true;
-
 export const LOCAL_WATCH_KEY_PREFIX = "aniraku-watch-local:";
 
 export function localWatchKey(animeId: number, episode: number) {

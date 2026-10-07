@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { DeviceEventEmitter } from "react-native";
+import { NOTIFY_ME_CHANGED_EVENT } from "@/lib/airing-reminders";
 
 const STORAGE_KEY = "aniraku.notify-me.v1";
 
@@ -32,6 +34,9 @@ export function useNotifyMe(animeId: number) {
       }
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(map));
     } catch {}
+    // Reconcile closed-app airing reminders right away — the user may toggle
+    // the bell right before closing the app.
+    DeviceEventEmitter.emit(NOTIFY_ME_CHANGED_EVENT);
   }, [animeId, enabled]);
 
   return { enabled, loaded, toggle };

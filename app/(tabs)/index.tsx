@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { getHomeAnime, getHomeRailAnime } from "@/lib/anilist";
+import { BANNER_W, POSTER_W, getOptimizedImageUri } from "@/lib/image-optimization";
 import { nsfwFilterParam, useNsfwPreference } from "@/lib/nsfw-preference";
 import { animeTitle } from "@/lib/types";
 import { hapticLight } from "@/lib/haptics";
@@ -17,13 +18,16 @@ import { NotificationSheet } from "@/components/notification-sheet";
 import { AppIcon } from "@/components/app-icon";
 import { InAppEpisodeAlertMonitor } from "@/hooks/use-in-app-episode-alerts";
 import { useWatchHistory } from "@/hooks/use-watch-history";
+import { useBookmarks } from "@/hooks/use-bookmarks";
+import { useAnirakuAuth } from "@/providers/auth-provider";
 
 function titleFacts(format?: string | null, episodes?: number | null, score?: number | null) {
   return [format, episodes ? `${episodes} EP` : null, score ? `${Math.round(score)}%` : null].filter(Boolean).join(" · ");
 }
 
-function ContinueCard({ entry }: {
+function ContinueCard({ entry, onRemove }: {
   entry: { anime_id: number; episode_number: number; progress: number; duration?: number | null; anime_title?: string | null; anime_cover?: string | null; episode_thumbnail?: string | null; timestamp?: number | null };
+  onRemove?: () => void;
 }) {
   const [failed, setFailed] = useState(false);
   const [epThumbFailed, setEpThumbFailed] = useState(false);
@@ -34,8 +38,11 @@ function ContinueCard({ entry }: {
   return (
     <Pressable
       onPress={() => { hapticLight(); router.push({ pathname: "/watch/[id]", params: { id: String(entry.anime_id), episode: String(entry.episode_number), title: entry.anime_title || "", image: entry.anime_cover || "" } } as never); }}
+      onLongPress={onRemove}
+      delayLongPress={450}
       accessibilityRole="button"
       accessibilityLabel={`Continue ${entry.anime_title || "Untitled"} episode ${entry.episode_number}`}
+      accessibilityHint={onRemove ? "Long press to remove this row from Continue Watching" : undefined}
       style={({ pressed }) => [styles.continueCard, pressed && styles.pressed]}
     >
       <View style={styles.continueImageWrap}>
@@ -54,7 +61,16 @@ function ContinueCard({ entry }: {
 }
 
 function ContinueWatchingRail() {
-  const { history } = useWatchHistory();
+  const { history, remove } = useWatchHistory();
+  const confirmRemove = (entry: { anime_id: number; episode_number: number; anime_title?: string | null }) => {
+    Alert.alert("Remove from Continue Watching?", entry.anime_title ? `"${entry.anime_title}" · EP ${entry.episode_number} will be removed from this list.` : "This row will be removed from this list.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Remove", style: "destructive", onPress: () => {
+        void remove.mutateAsync({ animeId: entry.anime_id, episode: entry.episode_number })
+          .catch(() => Alert.alert("Could not remove", "Check your connection and try again."));
+      } },
+    ]);
+  };
   if (!history.isSuccess) return null;
   if (!history.data?.length) {
     return (
@@ -80,7 +96,7 @@ function ContinueWatchingRail() {
         <Pressable onPress={() => router.push("/library" as never)}><Text style={styles.seeAll}>See all</Text></Pressable>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.continueList}>
-        {recent.map((entry) => <ContinueCard key={`${entry.anime_id}:${entry.episode_number}`} entry={entry} />)}
+        {recent.map((entry) => <ContinueCard key={`${entry.anime_id}:${entry.episode_number}`} entry={entry} onRemove={() => confirmRemove(entry)} />)}
       </ScrollView>
     </View>
   );
@@ -97,9 +113,9 @@ function TrendingGrid({ items }: { items: { id: number; coverImage?: { large?: s
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trendingList}>
         {items.slice(0, 10).map((item, index) => (
-          <Pressable key={item.id} onPress={() => { hapticLight(); prefetch(item.id); router.push((`/anime/${item.id}`) as never); }} style={({ pressed }) => [styles.trendingCard, pressed && styles.pressed]}>
+          <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${animeTitle(item as any)} — open details`} onPress={() => { hapticLight(); prefetch(item.id); router.push((`/anime/${item.id}`) as never); }} style={({ pressed }) => [styles.trendingCard, pressed && styles.pressed]}>
             <View style={styles.trendingCardImage}>
-              <Image source={{ uri: item.coverImage?.extraLarge || item.coverImage?.large || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" />
+              <Image source={{ uri: getOptimizedImageUri(item.coverImage?.extraLarge || item.coverImage?.large || "", POSTER_W) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={180} cachePolicy="memory-disk" />
               <View style={styles.trendingCardBadge}><Text style={styles.trendingCardBadgeText}>HD</Text></View>
             </View>
             <Text style={styles.trendingCardTitle} numberOfLines={1}>{animeTitle(item as any)}</Text>
@@ -126,9 +142,14 @@ function RailPlaceholder({ title }: { title: string }) {
 export default function HomeScreen() {
   const prefetch = usePrefetchAnime();
   const nsfw = useNsfwPreference();
+  const auth = useAnirakuAuth();
+  const bookmarks = useBookmarks();
   const isAdultParam = nsfwFilterParam(nsfw.enabled);
   const [notifSheetVisible, setNotifSheetVisible] = useState(false);
-  const home = useQuery({ queryKey: ["home-anime", isAdultParam], queryFn: () => getHomeAnime(isAdultParam), retry: 3, retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000) });
+  // 10-minute staleTime: the tab bar keeps this screen mounted, but without an
+  // explicit value every navigation back to Home re-entered the default stale
+  // window and re-fetched trending under the temporary 30 req/min AniList cap.
+  const home = useQuery({ queryKey: ["home-anime", isAdultParam], queryFn: () => getHomeAnime(isAdultParam), staleTime: 10 * 60_000, retry: 3, retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000) });
   // Home costs 2 AniList requests total under the temporary 30 req/min cap:
   // this merged rails call fires at start (no serial gating behind `home`),
   // so Top Movies paints with the hero instead of seconds later.
@@ -151,12 +172,13 @@ export default function HomeScreen() {
   if (home.isError || !home.data) return <NativeScreen><InAppEpisodeAlertMonitor /><NativeHeader eyebrow="ANIRAKU" title="Home" action={<View style={styles.topActions}><SearchAction /><NotificationAction onPress={() => setNotifSheetVisible(true)} /></View>} /><ErrorState message={home.error?.message ?? "We could not load anime right now."} onRetry={() => void home.refetch()} /><NotificationSheet visible={notifSheetVisible} onClose={() => setNotifSheetVisible(false)} /></NativeScreen>;
 
   const hero = !home.isPending ? home.data.trending[0] : null;
+  const heroSaved = hero ? bookmarks.isBookmarked(hero.id) : false;
   return <NativeScreen><InAppEpisodeAlertMonitor />
     <NativeHeader eyebrow="ANIRAKU" title="Home" action={<View style={styles.topActions}><SearchAction /><NotificationAction onPress={() => setNotifSheetVisible(true)} /></View>} />
     <ScrollView contentContainerStyle={styles.scrollContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={nothing.red} />} showsVerticalScrollIndicator={false}>
       {hero ?       <Pressable accessibilityRole="button" accessibilityLabel={`Open ${animeTitle(hero)}`} onPress={() => { hapticLight(); prefetch(hero.id); router.push((`/anime/${hero.id}`) as never); }} style={({ pressed }) => [styles.hero, pressed && styles.pressed]}>
         <View style={styles.heroFallback}><Text style={styles.heroFallbackText}>{animeTitle(hero).charAt(0)}</Text></View>
-        <Image source={{ uri: hero.bannerImage || hero.coverImage?.extraLarge || hero.coverImage?.large || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" />
+        <Image source={{ uri: hero.bannerImage ? getOptimizedImageUri(hero.bannerImage, BANNER_W) : hero.coverImage?.extraLarge ? getOptimizedImageUri(hero.coverImage.extraLarge, BANNER_W) : hero.coverImage?.large || "" }} style={StyleSheet.absoluteFill} contentFit="cover" transition={180} cachePolicy="memory-disk" />
         <View style={styles.heroMask} />
         <View style={styles.heroContent}>
           <View style={styles.heroTop}>
@@ -170,9 +192,21 @@ export default function HomeScreen() {
                 <AppIcon name="play" size={16} color={nothing.black} />
                 <Text style={styles.heroPlayText}>Play</Text>
               </Pressable>
-              <Pressable style={({ pressed }) => [styles.heroListBtn, pressed && styles.pressed]} onPress={() => { prefetch(hero.id); router.push((`/anime/${hero.id}`) as never); }}>
-                <AppIcon name="plus" size={16} color={nothing.white} />
-                <Text style={styles.heroListText}>My List</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={heroSaved ? `Remove ${animeTitle(hero)} from My List` : `Add ${animeTitle(hero)} to My List`}
+                disabled={bookmarks.toggle.isPending}
+                style={({ pressed }) => [styles.heroListBtn, heroSaved && styles.heroListBtnSaved, pressed && styles.pressed]}
+                onPress={() => {
+                  hapticLight();
+                  if (!auth.user) { router.push("/auth" as never); return; }
+                  bookmarks.toggle.mutate(hero, {
+                    onError: (error) => Alert.alert("Could not update My List", error instanceof Error ? error.message : "Try again in a moment."),
+                  });
+                }}
+              >
+                <AppIcon name={heroSaved ? "bookmark" : "plus"} size={16} color={heroSaved ? nothing.red : nothing.white} />
+                <Text style={[styles.heroListText, heroSaved && styles.heroListTextSaved]}>{heroSaved ? "Saved" : "My List"}</Text>
               </Pressable>
             </View>
           </View>
@@ -212,7 +246,9 @@ const styles = StyleSheet.create({
   heroPlayBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20, backgroundColor: nothing.red },
   heroPlayText: { color: nothing.black, fontSize: 13, fontWeight: "800" },
   heroListBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: nothing.line, backgroundColor: "transparent" },
+  heroListBtnSaved: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.12)" },
   heroListText: { color: nothing.white, fontSize: 13, fontWeight: "800" },
+  heroListTextSaved: { color: nothing.red },
 
   section: { gap: 10 },
   sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

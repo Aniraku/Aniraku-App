@@ -52,7 +52,9 @@ export const APP_CONFIG = {
   // browser preview uses a same-project forwarding route because api.aniraku.tech
   // deliberately restricts its browser CORS allow-list to trusted web origins.
   apiBaseUrl: previewAnirakuProxy() ?? productionAnirakuApi,
-  anilistGraphqlUrl: cleanEnv(process.env.EXPO_PUBLIC_ANILIST_GRAPHQL_URL) || "https://graphql.anilist.co",
+  // Aniraku's offline AniList mirror: same database as AniList, no rate limits.
+  // Override with EXPO_PUBLIC_ANILIST_GRAPHQL_URL to point back at official.
+  anilistGraphqlUrl: cleanEnv(process.env.EXPO_PUBLIC_ANILIST_GRAPHQL_URL) || "https://graphql.aniraku.tech",
   metadataResolverUrl,
   // This public URL reaches the website's server-side TMDB resolver. It is not
   // a TMDB API URL and the TMDB read token never enters an Expo environment.
