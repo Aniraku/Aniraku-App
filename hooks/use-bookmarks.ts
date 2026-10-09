@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Anime } from "@/lib/types";
 import { animeTitle } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
+import { isMissingStatusColumnError, statusForNewBookmark } from "@/lib/list-status";
 import { useAnirakuAuth } from "@/providers/auth-provider";
 
 export function useBookmarks() {
@@ -13,7 +14,17 @@ export function useBookmarks() {
     if (!user) throw new Error("Sign in to save bookmarks.");
     const current = bookmarks.data?.find((bookmark) => bookmark.anime_id === anime.id);
     if (current) { const { error } = await supabase.from("bookmarks").delete().eq("id", current.id); if (error) throw error; return false; }
-    const { error } = await supabase.from("bookmarks").insert({ user_id: user.id, anime_id: anime.id, title: animeTitle(anime), image: anime.coverImage?.extraLarge || anime.coverImage?.large || null, score: anime.averageScore ?? null, type: anime.format ?? null, added_at: Date.now() });
+    // New saves start on Plan to Watch (Miruro parity) and carry the known
+    // episode total so watch events can auto-complete the row later.
+    const payload: Record<string, unknown> = { user_id: user.id, anime_id: anime.id, title: animeTitle(anime), image: anime.coverImage?.extraLarge || anime.coverImage?.large || null, score: anime.averageScore ?? null, type: anime.format ?? null, added_at: Date.now(), status: statusForNewBookmark(), total_episodes: anime.episodes ?? null };
+    let { error } = await supabase.from("bookmarks").insert(payload);
+    if (error && isMissingStatusColumnError(error)) {
+      // Schema predates the list-status columns — retry the legacy shape.
+      const legacy = { ...payload };
+      delete legacy.status;
+      delete legacy.total_episodes;
+      ({ error } = await supabase.from("bookmarks").insert(legacy));
+    }
     if (error) throw error;
     return true;
   }, onSuccess: () => void queryClient.invalidateQueries({ queryKey }) });

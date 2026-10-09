@@ -24,14 +24,14 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.3">v5.7.3 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.4">v5.7.4 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 <br>
 
 > [!IMPORTANT]
-> **v5.7.3 is currently a Pre-Release (testing build).** It has been published early for real-world verification — once it's confirmed stable it will be marked as the **Latest release**. If you want the proven build in the meantime, use **[v5.7.2](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.2)** or grab v5.7.3 from the table below to help test.
+> **v5.7.4 is currently a Pre-Release (testing build).** It has been published early for real-world verification — once it's confirmed stable it will be marked as the **Latest release**. If you want the proven build in the meantime, use **[v5.7.3](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.3)** or grab v5.7.4 from the table below to help test.
 
 ---
 
@@ -64,15 +64,15 @@
 
 ---
 
-### v5.7.3 is out
+### v5.7.4 is out
 
-Offline AniList mirror (no rate limits, much faster browsing) + keyless closed-app episode reminders, Search 2.0, unified Library, Downloads screen, and player upgrades.
+Gesture controls overhauled (consistent tap windows, unified zones, reliable hold-for-2x) + Saved list statuses with filter chips and automatic watch-event advancement.
 
 | APK |
 |:--|
-| [Aniraku-v5.7.3-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.3/aniraku-v5.7.3-arm64.apk) |
-| [Aniraku-v5.7.3-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.3/aniraku-v5.7.3-arm32.apk) |
-| [Aniraku-v5.7.3-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.3/aniraku-v5.7.3-universal.apk) |
+| [Aniraku-v5.7.4-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.4/aniraku-v5.7.4-arm64.apk) |
+| [Aniraku-v5.7.4-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.4/aniraku-v5.7.4-arm32.apk) |
+| [Aniraku-v5.7.4-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.4/aniraku-v5.7.4-universal.apk) |
 
 <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 

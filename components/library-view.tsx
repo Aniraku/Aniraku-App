@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
@@ -10,6 +10,8 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/async-state";
 import { AppIcon } from "@/components/app-icon";
 import { FirstRunImportPrompt } from "@/components/first-run-import-prompt";
 import { DotLabel, nothing, Signal } from "@/components/nothing-ui";
+import { LIST_STATUSES, LIST_STATUS_LABELS, type ListStatus } from "@/lib/list-status";
+import { bookmarkDisplayStatus, filterByListStatus, statusCounts } from "@/lib/bookmark-status";
 import { RESUME_ROWS_STORAGE_KEY, buildResumeRows, type ResumeRow } from "@/lib/up-next";
 
 export type LibraryTab = "history" | "bookmarks" | "alerts";
@@ -24,6 +26,15 @@ const emptyLabel: Record<LibraryTab, string> = {
   alerts: "No account notifications yet.",
 };
 const sortLabels: Record<LibrarySort, string> = { recent: "RECENT", title: "TITLE", score: "SCORE" };
+/** Saved-row status accents — nothing palette only (no new color tokens). */
+const statusColors: Record<ListStatus, string> = {
+  CURRENT: nothing.green,
+  PLANNING: nothing.muted,
+  COMPLETED: nothing.white,
+  PAUSED: nothing.dim,
+  DROPPED: nothing.red,
+  REPEATING: nothing.green,
+};
 
 function sortOptionsFor(tab: LibraryTab): LibrarySort[] {
   if (tab === "history") return ["recent", "title"];
@@ -41,7 +52,7 @@ function searchText(tab: LibraryTab, row: any, query: string) {
 }
 
 /** Server order already is "recent"; only the other sorts reorder. */
-function sortRecords(tab: LibraryTab, sort: LibrarySort, rows: any[]): any[] {
+function sortRecords(tab: LibraryTab, sort: LibrarySort, rows: readonly any[]): readonly any[] {
   if (tab === "alerts" || sort === "recent") return rows;
   const copy = rows.slice();
   if (sort === "title") {
@@ -74,6 +85,7 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
   const [sort, setSort] = useState<LibrarySort>("recent");
   const [layout, setLayout] = useState<LibraryLayout>("list");
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<ListStatus | "ALL">("ALL");
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [removingKey, setRemovingKey] = useState<string | null>(null);
   const [cachedResumeRows, setCachedResumeRows] = useState<ResumeRow[] | null>(null);
@@ -124,11 +136,18 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
   const allRecords: any[] = (tab === "history" && fallbackRows?.length ? fallbackRows : data.data ?? []);
   const canRemoveHistory = tab === "history" && Boolean(history.history.data) && !fallbackRows?.length;
   const activeSort = sortOptionsFor(tab).includes(sort) ? sort : "recent";
+  // Legacy Saved rows without a stored status derive from watch history.
+  const watchedAnimeIds = useMemo(
+    () => new Set((history.displayRows ?? []).map((row) => Number((row as { anime_id?: unknown })?.anime_id)).filter((id) => Number.isFinite(id))),
+    [history.displayRows],
+  );
   const query = search.trim().toLowerCase();
   const searched = query ? allRecords.filter((row) => searchText(tab, row, query)) : allRecords;
+  const statusSearched = tab === "bookmarks" ? filterByListStatus(searched, watchedAnimeIds, statusFilter) : searched;
+  const statusChipCounts = tab === "bookmarks" ? statusCounts(allRecords, watchedAnimeIds) : null;
   const records = tab === "alerts"
     ? (unreadOnly ? searched.filter((row) => !row.read) : searched)
-    : sortRecords(tab, activeSort, searched);
+    : sortRecords(tab, activeSort, statusSearched);
   const isGrid = tab === "bookmarks" && layout === "grid";
   const pending = data.isPending && !(tab === "history" && fallbackRows?.length);
 
@@ -193,23 +212,27 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
 
   const openBookmark = (item: any) => router.push((`/anime/${item.anime_id}`) as never);
 
-  const renderBookmarkRow = (item: any) => (
-    <Pressable accessibilityRole="button" onPress={() => openBookmark(item)} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
-      <Image source={{ uri: item.image || item.anime_image || "" }} style={styles.thumb} contentFit="cover" transition={0} cachePolicy="memory-disk" />
-      <View style={styles.rowBody}>
-        <Signal label={item.type || "ANIME"} />
-        <Text style={styles.rowTitle} numberOfLines={2}>{item.title || item.anime_title || "Anime"}</Text>
-        <Text style={styles.rowMeta}>{item.type || item.format || "Anime"}{Number(item?.score) > 0 ? ` · ${Math.round(Number(item.score))}%` : ""}{item.episodes ? ` · ${item.episodes} EP` : ""}</Text>
-      </View>
-      <AppIcon name="chevron-right" size={18} color={nothing.dim} />
-    </Pressable>
-  );
+  const renderBookmarkRow = (item: any) => {
+    const status = bookmarkDisplayStatus(item, watchedAnimeIds.has(Number(item?.anime_id)));
+    return (
+      <Pressable accessibilityRole="button" accessibilityLabel={`${item.title || item.anime_title || "Anime"}, ${LIST_STATUS_LABELS[status]}`} onPress={() => openBookmark(item)} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+        <Image source={{ uri: item.image || item.anime_image || "" }} style={styles.thumb} contentFit="cover" transition={0} cachePolicy="memory-disk" />
+        <View style={styles.rowBody}>
+          <Signal label={LIST_STATUS_LABELS[status]} color={statusColors[status]} />
+          <Text style={styles.rowTitle} numberOfLines={2}>{item.title || item.anime_title || "Anime"}</Text>
+          <Text style={styles.rowMeta}>{item.type || item.format || "Anime"}{Number(item?.score) > 0 ? ` · ${Math.round(Number(item.score))}%` : ""}{item.episodes ? ` · ${item.episodes} EP` : ""}</Text>
+        </View>
+        <AppIcon name="chevron-right" size={18} color={nothing.dim} />
+      </Pressable>
+    );
+  };
 
   const renderBookmarkGrid = (item: any) => {
     const uri = item.image || item.anime_image || "";
     const score = Number(item?.score);
+    const status = bookmarkDisplayStatus(item, watchedAnimeIds.has(Number(item?.anime_id)));
     return (
-      <Pressable accessibilityRole="button" onPress={() => openBookmark(item)} style={({ pressed }) => [styles.gridCard, pressed && styles.pressed]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${item.title || item.anime_title || "Anime"}, ${LIST_STATUS_LABELS[status]}`} onPress={() => openBookmark(item)} style={({ pressed }) => [styles.gridCard, pressed && styles.pressed]}>
         <View style={styles.gridImage}>
           {uri ? (
             <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" />
@@ -219,6 +242,7 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
           {Number.isFinite(score) && score > 0 ? (
             <View style={styles.gridBadge}><Text style={styles.gridBadgeText}>{Math.round(score)}%</Text></View>
           ) : null}
+          <View style={styles.gridStatusBadge}><Text style={[styles.gridStatusBadgeText, { color: statusColors[status] }]} numberOfLines={1}>{LIST_STATUS_LABELS[status]}</Text></View>
         </View>
         <Text style={styles.gridTitle} numberOfLines={2}>{item.title || item.anime_title || "Anime"}</Text>
         <Text style={styles.gridMeta} numberOfLines={1}>{item.type || item.format || "ANIME"}</Text>
@@ -249,7 +273,14 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
 
   const emptyMessage = query
     ? `Nothing in ${tabMeta[tab].label} matches “${search.trim()}”.`
-    : emptyLabel[tab];
+    : tab === "bookmarks" && statusFilter !== "ALL"
+      ? `No titles marked “${LIST_STATUS_LABELS[statusFilter]}” yet.`
+      : emptyLabel[tab];
+  const emptyAction = query
+    ? { label: "CLEAR SEARCH", onPress: () => setSearch("") }
+    : tab === "bookmarks" && statusFilter !== "ALL"
+      ? { label: "CLEAR FILTER", onPress: () => setStatusFilter("ALL") }
+      : undefined;
   const current = tabMeta[tab];
 
   const content = pending
@@ -257,7 +288,7 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
     : data.isError
       ? <ErrorState message="Your library could not be synchronized." onRetry={() => void data.refetch()} />
       : records.length === 0
-        ? <EmptyState label={emptyMessage} action={query ? { label: "CLEAR SEARCH", onPress: () => setSearch("") } : undefined} />
+        ? <EmptyState label={emptyMessage} action={emptyAction} />
         : <FlatList
             key={`${tab}-${layout}`}
             data={records}
@@ -359,6 +390,29 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
           ) : null}
         </View>
       ) : null}
+      {/* Saved status chips — Miruro Profile model: labels with counts,
+          zero-count statuses hidden, ALL always present. */}
+      {tab === "bookmarks" && statusChipCounts && allRecords.length > 0 ? (
+        <View style={styles.statusChipRow} accessibilityLabel="Filter saved titles by list status">
+          {(["ALL", ...LIST_STATUSES] as const).map((option) => {
+            const count = option === "ALL" ? allRecords.length : statusChipCounts[option];
+            if (count === 0) return null;
+            const selected = statusFilter === option;
+            const label = option === "ALL" ? "ALL" : LIST_STATUS_LABELS[option];
+            return (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                key={option}
+                onPress={() => setStatusFilter(option)}
+                style={[styles.chip, selected && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, selected && styles.chipTextActive]}>{`${label} · ${count}`}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
       {tab === "alerts" ? (
         <View style={styles.alertActions}>
           <Pressable
@@ -407,6 +461,7 @@ const styles = StyleSheet.create({
   chipActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.1)" },
   chipText: { color: nothing.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.2, textTransform: "uppercase" },
   chipTextActive: { color: nothing.red },
+  statusChipRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, marginHorizontal: 16, marginBottom: 9 },
   alertActions: { flexDirection: "row", gap: 7, marginHorizontal: 16, marginBottom: 9 },
   alertAction: { flex: 1, minHeight: 34, alignItems: "center", justifyContent: "center", borderRadius: 4, borderWidth: 1, borderColor: nothing.line },
   alertActionActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.09)" },
@@ -430,6 +485,8 @@ const styles = StyleSheet.create({
   gridLetter: { color: nothing.dim, fontSize: 34, fontWeight: "900" },
   gridBadge: { position: "absolute", top: 6, right: 6, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4, backgroundColor: "rgba(9,9,9,0.82)", borderWidth: 1, borderColor: nothing.line },
   gridBadgeText: { color: nothing.green, fontFamily: nothing.mono, fontSize: 10, fontWeight: "900" },
+  gridStatusBadge: { position: "absolute", top: 6, left: 6, maxWidth: "68%", paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4, backgroundColor: "rgba(9,9,9,0.82)", borderWidth: 1, borderColor: nothing.line },
+  gridStatusBadgeText: { fontFamily: nothing.mono, fontSize: 9, fontWeight: "900", letterSpacing: 0.3, textTransform: "uppercase" },
   gridTitle: { color: nothing.white, fontSize: 13, fontWeight: "800", lineHeight: 17 },
   gridMeta: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.35 },
   alert: { minHeight: 72, paddingVertical: 12, gap: 6, borderBottomWidth: 1, borderBottomColor: nothing.line },

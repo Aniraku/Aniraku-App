@@ -101,8 +101,8 @@ export function NothingButton({
   );
 }
 
-export function Signal({ label, tone = "live" }: { label: string; tone?: "live" | "signal" | "muted" }) {
-  const color = tone === "signal" || tone === "live" ? nothing.red : nothing.muted;
+export function Signal({ label, tone = "live", color: colorOverride }: { label: string; tone?: "live" | "signal" | "muted"; color?: string }) {
+  const color = colorOverride ?? (tone === "signal" || tone === "live" ? nothing.red : nothing.muted);
   return <View style={styles.signalRow}><View style={[styles.signalDot, { backgroundColor: color }]} /><Text style={[styles.signalText, { color }]}>{label}</Text></View>;
 }
 

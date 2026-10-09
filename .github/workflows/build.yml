@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.7.3"
+        default: "v5.7.4"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -161,35 +161,31 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.7.3 — Offline AniList mirror + keyless closed-app notifications
+            ## v5.7.4 — Gesture controls + Saved list statuses
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.7.3-arm64.apk`
-            - `aniraku-v5.7.3-arm32.apk`
-            - `aniraku-v5.7.3-universal.apk`
+            - `aniraku-v5.7.4-arm64.apk`
+            - `aniraku-v5.7.4-arm32.apk`
+            - `aniraku-v5.7.4-universal.apk`
 
             ### Added
-            - **Closed-app episode reminders (zero keys)**: local scheduled notifications fire for your Notify Me and bookmarked titles while the app is fully closed — no push accounts, no servers, no credentials.
-            - **Search 2.0**: infinite scroll, filter/sort bottom sheet, pull-to-refresh, smarter empty states.
-            - **Downloads screen**: queue with byte-level progress, Wi-Fi-only and quota settings.
-            - **Player upgrades**: auto-play next episode (opt-in, 5s countdown), subtitle timing offset, Fit/Crop toggle, report-a-broken-source.
-            - **Schedule**: past-day archive, midnight rollover fix, per-title remind-me bells.
-            - **Profile**: inline display-name edit, sign-out, empty-stats state.
+            - **Saved list statuses**: every Saved title now shows its list status (Watching / Plan to Watch / Completed / Paused / Dropped / Rewatching) as a badge in list and grid layouts, plus status filter chips with live counts. New saves start as Plan to Watch.
+            - **Automatic status advancement**: watch events move titles Plan to Watch → Watching → Completed (distinct episodes at ≥80%; completion only when the episode total is known). Paused/Dropped stay explicit-only and imported statuses always win.
 
             ### Improved
-            - **Metadata on Aniraku's offline AniList mirror (`graphql.aniraku.tech`)**: same database as AniList with no rate limits — request spacing relaxed from 2.1s to 300ms for much faster browsing.
-            - **Library unified**: History / Saved / Alerts in one view with search, sort, grid/list toggle, and per-row delete.
-            - **Speed**: Home data cached up to 10 min and detail up to 15 min, no refetch stampedes on reconnect, optimized images, memoized rails.
+            - **Player gestures overhauled** — every reported symptom addressed: a single 300ms tap window now governs the controls toggle, double-tap detection and tap-chain resets so seeks can no longer race the toggle; one unified zone map removes the dead band between the swipe and seek zones; hold-for-2x tolerates normal finger wobble and can no longer get stuck at 2x or leak into the saved speed preference; the gesture responder is created once (no handler swaps under the active touch); brightness/volume swipes use a calmer, even mapping.
+            - **Saved view polish**: history-based status fallback for legacy rows, empty-filter state with a CLEAR FILTER action, status included in accessibility labels.
 
             ### Fixed
-            - **"More like this" recommendations restored**: the old query field no longer exists on official AniList either — the rail was silently dead.
-            - **Episode release detection** now uses real airing data instead of a total-episode fallback.
-            - **Accessibility**: labels, roles, and switch semantics across search, home, detail, settings, and onboarding.
+            - **Accidental double/triple seeks**: stale tap state left behind by swipes and holds now resets on release and on system interruptions.
+            - **Gesture HUD**: one tracked hide timer — no HUD stuck on screen after an interrupted touch, and a previous gesture's timer can no longer clear the HUD mid-swipe.
+            - **Triple-tap center** no longer toggles play/pause twice.
+            - **Imported "Watching" rows** no longer fall back to an unsaved status (the port rejected canonical `CURRENT`).
 
             ### Housekeeping
-            - Dead code removed (794 lines), unused deps dropped, ESLint/CI gates hardened — 235 tests green.
-            - **Android versionCode**: 70.
+            - 247 tests green (12 new); ESLint 0 errors / 69 warnings (below the 70 baseline).
+            - **Android versionCode**: 71.
 
             Download the APK, install, and allow *install from unknown sources* if prompted.
           files: ./artifacts/*.apk

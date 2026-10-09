@@ -41,16 +41,12 @@ export function isListStatus(value: unknown): value is ListStatus {
 export function normalizeListStatus(value: unknown): ListStatus | null {
   if (typeof value !== "string") return null;
   const upper = value.trim().toUpperCase();
-  // Legacy backend lowercase canonical (`watching`, `planning`, …).
-  const legacy: Record<string, ListStatus> = {
-    WATCHING: "CURRENT",
-    PLANNING: "PLANNING",
-    COMPLETED: "COMPLETED",
-    PAUSED: "PAUSED",
-    DROPPED: "DROPPED",
-    REPEATING: "REPEATING",
-  };
-  return legacy[upper] ?? null;
+  // Canonical AniList-style values (CURRENT included — the old legacy-only
+  // lookup map rejected stored "CURRENT" rows and null'd them out).
+  if ((LIST_STATUSES as readonly string[]).includes(upper)) return upper as ListStatus;
+  // Legacy backend lowercase canonical (`watching` → CURRENT).
+  if (upper === "WATCHING") return "CURRENT";
+  return null;
 }
 
 /** AniList MediaListStatus → canonical (REPEATING preserved, not folded). */
@@ -129,4 +125,17 @@ export function deriveStatusAfterWatch(input: StatusDerivationInput): ListStatus
 /** Status for a brand-new bookmark (nothing watched yet). */
 export function statusForNewBookmark(): ListStatus {
   return "PLANNING";
+}
+
+/**
+ * PostgREST "column does not exist" shape — older deployments predate the
+ * `status` / `total_episodes` columns. Writers retry the legacy row shape;
+ * readers fall back to null (ported from Miruro `isMissingColumnError`).
+ */
+export function isMissingStatusColumnError(error: unknown): boolean {
+  const code = String((error as { code?: unknown } | null)?.code ?? "");
+  if (code === "42703") return true; // postgres: undefined_column
+  if (code === "PGRST204") return true; // PostgREST: schema-cache column miss
+  const message = String((error as { message?: unknown } | null)?.message ?? "");
+  return /column .* does not exist/i.test(message) || /Could not find the '.*' column/i.test(message);
 }

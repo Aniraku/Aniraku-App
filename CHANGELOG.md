@@ -6,6 +6,17 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.7.4 — Gesture controls + Saved list statuses
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+- **Player gestures overhauled** for consistency and stability: one tap window (300ms) now drives the controls toggle, follow-up-tap detection, and the tap-chain reset — double-taps can no longer race the toggle and come out as "controls flashed, no seek". One zone map for every gesture (the old 40% seek / 35% swipe split left a dead band where taps seek but swipes did nothing). Hold-for-2x survives normal finger wobble, can no longer get stuck at 2x, and no longer writes 2x into the saved speed preference when the app dies mid-hold. The gesture responder is created once (no handler swaps under the active touch = no jank), stale tap state resets on swipe/hold/terminate (the cause of accidental double/triple seeks), the HUD hide timer is tracked (no stuck or mid-gesture self-clearing HUDs), triple-tap center no longer double-toggles play/pause, brightness/volume swipes use a calmer mapping, and slow deliberate taps register again.
+- **Saved titles now show their list status**: Watching / Plan to Watch / Completed / Paused / Dropped / Rewatching badges on every Saved row (list chip + grid pill), status filter chips with live counts, and a history-based fallback for legacy rows that predate the status column (Paused/Dropped stay explicit-only — never derived). New saves start as Plan to Watch and carry the episode total.
+- **Watch events advance Saved statuses automatically** (Miruro parity): distinct episodes watched at ≥80% move Plan to Watch → Watching → Completed once the total is known; Paused/Dropped pass through untouched; imported statuses always win. Saved badges refresh live when a row changes.
+- Fixed the list-status port rejecting stored `CURRENT` rows (canonical values now pass normalization first) — AniList-imported "Watching" rows could be silently mis-derived.
+- 247 tests green (12 new); ESLint 0 errors / 69 warnings (below the 70 baseline).
+- Bumps the Android versionCode to 71.
+
 ## v5.7.3 — Offline AniList mirror + keyless closed-app notifications
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`

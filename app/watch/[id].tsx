@@ -85,19 +85,26 @@ import { t } from "@/lib/i18n";
 
 const EPISODE_PAGE_SIZE = 50;
 const RESUME_MIN_TIME = 30;
-const DOUBLE_TAP_WINDOW_MS = 200;
-const TRIPLE_TAP_WINDOW_MS = 350;
+// One tap window drives every multi-tap decision: the single-tap controls
+// toggle delay, follow-up tap detection, and the tap-chain reset. Splitting
+// this (200ms toggle vs 350ms chain) let the first tap fire the toggle
+// before the second tap landed, so double-taps read as "controls flashed
+// and no seek".
+const TAP_WINDOW_MS = 300;
 const SKIP_HOLD_MS = 400;
 // ── Gesture boundaries: each gesture owns its zone, no overlaps ──
 const TAP_SLOP_PX = 14; // max move to still count as a tap
+const HOLD_DRIFT_PX = 26; // wobble tolerated while holding still (2x arm / hold) before it cancels
 const SWIPE_ACTIVATE_PX = 22; // vertical travel before brightness/volume engages
 const SWIPE_DIRECTION_RATIO = 1.4; // |dy| must dominate |dx| or swipe is ignored
 const HORIZONTAL_CANCEL_PX = 22; // horizontal drift kills pending/hold
 const LONG_PRESS_MS = 550; // still-finger delay before center-hold → 2x
 const HOLD_SEEK_MS = 350; // still-finger delay before double/triple-tap-hold → continuous skip
 const TAP_ACTION_COOLDOWN_MS = 150; // min gap between any action (seek/toggle) and the next
-const EDGE_ZONE = 0.35; // x < 35% = brightness · x > 65% = volume · middle = 2x zone
-const SEEK_ZONE = 0.4; // x < 40% = rewind · x > 60% = forward · middle = play/pause
+// One zone for everything: outer 35% = brightness/volume swipe + double-tap
+// seek · middle = 2x hold + play/pause. The old split (swipe at 35% but
+// seek at 40%) left a dead band where taps seek but swipes did nothing.
+const EDGE_ZONE = 0.35;
 const STREAM_CACHE_TTL_MS = 30_000;
 const STARTUP_WATCHDOG_MS = 6_000;
 const SKIP_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -295,9 +302,20 @@ export default function WatchScreen() {
   const [volume, setVolume] = useState(1.0);
   const [brightness, setBrightness] = useState(0.5);
   const lockedSpeed = useRef(1);
-  const holdSpeedRestore = useRef<number | null>(null);
   const markedComplete = useRef(false);
   const sleepFired = useRef(false);
+  // The gesture PanResponder is created ONCE; its callbacks read these
+  // mirrors instead of closing over state. Closing over brightness/volume
+  // recreated the responder mid-gesture (handlers swapped under the active
+  // touch), and the hold-2x path read a stale `is2xSeeking` on release so
+  // the speed never restored.
+  const brightnessRef = useRef(brightness);
+  const volumeRef = useRef(volume);
+  const is2xSeekingRef = useRef(is2xSeeking);
+  const hudHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => { brightnessRef.current = brightness; }, [brightness]);
+  useEffect(() => { volumeRef.current = volume; }, [volume]);
+  useEffect(() => { is2xSeekingRef.current = is2xSeeking; }, [is2xSeeking]);
 
   // Do NOT force landscape on load — the inline player must stay inline until
   // the user taps fullscreen. Forcing LANDSCAPE here rotated the whole
@@ -1055,8 +1073,8 @@ export default function WatchScreen() {
   useEffect(() => {
     if (!auth.user || !source || currentTime < 1 || duration <= 0 || currentTime - lastHistorySync.current < 10) return;
     lastHistorySync.current = currentTime;
-    history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, episodeTitle: selectedEpisode?.title || null, episodeThumbnail: selectedEpisode?.thumbnail || null, progress: currentTime, duration });
-  }, [animeId, auth.user, currentTime, duration, episode, history.save, image, selectedEpisode?.title, selectedEpisode?.thumbnail, source, title]);
+    history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, episodeTitle: selectedEpisode?.title || null, episodeThumbnail: selectedEpisode?.thumbnail || null, progress: currentTime, duration, totalEpisodes: filteredEpisodes.length || undefined });
+  }, [animeId, auth.user, currentTime, duration, episode, filteredEpisodes.length, history.save, image, selectedEpisode?.title, selectedEpisode?.thumbnail, source, title]);
 
   useEffect(() => {
     if (!auth.user || !source || currentTime < 1 || duration <= 0 || providerSync.connected.length === 0 || currentTime - lastProviderSync.current < 90) return;
@@ -1091,12 +1109,12 @@ export default function WatchScreen() {
     if (currentTime / duration < 0.9) return;
     markedComplete.current = true;
     if (auth.user) {
-      history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, episodeTitle: selectedEpisode?.title || null, episodeThumbnail: selectedEpisode?.thumbnail || null, progress: currentTime, duration });
+      history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, episodeTitle: selectedEpisode?.title || null, episodeThumbnail: selectedEpisode?.thumbnail || null, progress: currentTime, duration, totalEpisodes: filteredEpisodes.length || undefined });
       if (providerSync.connected.length) providerSync.pushProgress.mutate({ animeId, episode, progress: Math.floor(currentTime), status: "completed" });
     } else {
       void AsyncStorage.setItem(`aniraku-watch-local:${animeId}:${episode}`, JSON.stringify({ progress: currentTime, duration, completed: true, savedAt: Date.now() })).catch(() => {});
     }
-  }, [animeId, auth.user, currentTime, duration, episode, history.save, image, providerSync.connected.length, providerSync.pushProgress, source, title]);
+  }, [animeId, auth.user, currentTime, duration, episode, filteredEpisodes.length, history.save, image, providerSync.connected.length, providerSync.pushProgress, selectedEpisode?.thumbnail, selectedEpisode?.title, source, title]);
 
   // ── Video source URL ──
   // Backend stream URLs are already proxied (/api/v1/proxy?...). Those must
@@ -1466,28 +1484,30 @@ export default function WatchScreen() {
     const height = Math.round(Number(event?.height));
     if (Number.isFinite(height) && height > 0) setLiveHeight(height);
   }, []);
-  // th3-anime style hold-for-2x: remember the pre-hold speed and restore it.
+  // th3-anime style hold-for-2x. The video renders
+  // `rate={is2xSeeking ? 2.0 : speed}`, so the hold only flips that flag.
+  // Mutating `speed` here used to persist 2x into the saved speed
+  // preference when the app died mid-hold, and left stale closures when
+  // the speed state didn't change (hold started at 2x → release never
+  // restored → 2x stuck).
   const beginHoldSpeed = useCallback(() => {
-    if (holdSpeedRestore.current === null) {
-      holdSpeedRestore.current = speed;
-      setSpeed(2);
-    }
-  }, [speed]);
-  const endHoldSpeed = useCallback(() => {
-    if (holdSpeedRestore.current !== null) {
-      setSpeed(holdSpeedRestore.current);
-      holdSpeedRestore.current = null;
-    }
+    is2xSeekingRef.current = true;
+    setIs2xSeeking(true);
+  }, []);
+  const stopHoldSpeed = useCallback(() => {
+    if (!is2xSeekingRef.current) return;
+    is2xSeekingRef.current = false;
+    setIs2xSeeking(false);
   }, []);
 
   // ── PanResponder gesture handler — zoned state machine ──
-  // Each gesture owns a screen zone so they can never fire together:
-  //   outer-left  (x < 35%)  → vertical swipe = brightness (never 2x, never seek-hold)
-  //   outer-right (x > 65%)  → vertical swipe = volume     (never 2x, never seek-hold)
-  //   center      (35–65%)   → hold still 550ms = 2x speed  (never brightness/volume)
-  //   left 40% double/triple → -10s / -20s · right 40% → +10s / +30s · center double → play/pause
+  // One zone map for every gesture (EDGE_ZONE) so they can never disagree:
+  //   outer-left  (x < 35%)  → vertical swipe = brightness · double-tap = -10s
+  //   outer-right (x > 65%)  → vertical swipe = volume     · double-tap = +10s
+  //   center      (35–65%)   → hold still 550ms = 2x · double-tap = play/pause
   // Modes are exclusive: pending → swiping | holding | released-as-tap. Moving
-  // cancels holding, holding ignores swipes, taps require <10px movement.
+  // cancels holding, holding ignores swipes, taps require <14px movement
+  // (the 2x arm tolerates wobble up to HOLD_DRIFT_PX before it cancels).
   type GestureMode = "idle" | "pending" | "swiping" | "holding";
   type GestureZone = "left" | "center" | "right";
   const gestureModeRef = useRef<GestureMode>("idle");
@@ -1508,20 +1528,11 @@ export default function WatchScreen() {
     return "center";
   };
 
-  const seekZoneForX = (x: number): "left" | "center" | "right" => {
-    const w = Dimensions.get("window").width || 1;
-    if (x < w * SEEK_ZONE) return "left";
-    if (x > w * (1 - SEEK_ZONE)) return "right";
-    return "center";
-  };
+  const seekZoneForX = (x: number): "left" | "center" | "right" => zoneForX(x);
 
   const cancelLongPress = () => {
     if (longPressTimeout.current) { clearTimeout(longPressTimeout.current); longPressTimeout.current = null; }
   };
-
-  const stopHoldSpeed = useCallback(() => {
-    if (is2xSeeking) { setIs2xSeeking(false); endHoldSpeed(); }
-  }, [is2xSeeking, endHoldSpeed]);
 
   useEffect(() => {
     return () => {
@@ -1531,6 +1542,7 @@ export default function WatchScreen() {
       if (unlockArmTimer.current) clearTimeout(unlockArmTimer.current);
       if (tapCountTimer.current) clearTimeout(tapCountTimer.current);
       if (holdSeekTimeout.current) clearTimeout(holdSeekTimeout.current);
+      if (hudHideTimer.current) clearTimeout(hudHideTimer.current);
       pendingMultiSeekRef.current = null;
     };
   }, []);
@@ -1578,6 +1590,30 @@ export default function WatchScreen() {
     skipHoldTimer.current = setTimeout(tick, SKIP_HOLD_MS);
   }, [clearSkipHold]);
 
+  // Swipes/holds must not leave a half-finished tap chain behind (a stale
+  // tap #1 + count let the NEXT tap fire an accidental double/triple seek).
+  const resetTapChain = useCallback(() => {
+    tapCountRef.current = 0;
+    chainSeekAppliedRef.current = null;
+    lastTapRef.current = null;
+    if (tapCountTimer.current) { clearTimeout(tapCountTimer.current); tapCountTimer.current = null; }
+  }, []);
+
+  // One tracked timer for the gesture HUDs. Raw setTimeouts used to overlap:
+  // a hide armed by swipe A could clear swipe B's HUD mid-gesture, and a
+  // terminate/unmount left the HUD stuck on screen.
+  const cancelHudHide = useCallback(() => {
+    if (hudHideTimer.current) { clearTimeout(hudHideTimer.current); hudHideTimer.current = null; }
+  }, []);
+  const scheduleHudHide = useCallback(() => {
+    cancelHudHide();
+    hudHideTimer.current = setTimeout(() => {
+      hudHideTimer.current = null;
+      setVolumeHud(null);
+      setBrightnessHud(null);
+    }, 800);
+  }, [cancelHudHide]);
+
   const panResponder = useMemo(
     () =>
       PanResponder.create({
@@ -1591,10 +1627,11 @@ export default function WatchScreen() {
           gestureStartY.current = gesture.y0;
           gestureStartTime.current = now;
           gestureZoneRef.current = zoneForX(gesture.x0);
-          currentBrightnessVal.current = brightness;
-          currentVolumeVal.current = volume;
+          currentBrightnessVal.current = brightnessRef.current;
+          currentVolumeVal.current = volumeRef.current;
           doubleTapTouch.current = false;
           cancelLongPress();
+          cancelHudHide(); // a hide pending from the last gesture must not clear THIS one's HUD
           // Stale multi-tap state from a previous gesture must never leak in.
           if (holdSeekTimeout.current) { clearTimeout(holdSeekTimeout.current); holdSeekTimeout.current = null; }
           holdSeekFiredRef.current = false;
@@ -1623,7 +1660,7 @@ export default function WatchScreen() {
           };
 
           const prior = lastTapRef.current;
-          const isFollowUp = Boolean(prior && (now - prior.time) < TRIPLE_TAP_WINDOW_MS && Math.abs(gesture.x0 - prior.x) < 80 && tapCountRef.current > 0);
+          const isFollowUp = Boolean(prior && (now - prior.time) < TAP_WINDOW_MS && Math.abs(gesture.x0 - prior.x) < 80 && tapCountRef.current > 0);
 
           if (isFollowUp) {
             // Second tap down kills the pending single-tap toggle immediately —
@@ -1635,10 +1672,14 @@ export default function WatchScreen() {
 
             if (zone === "center") {
               // Center multi-tap = play/pause. The 2nd tap toggles; a 3rd is
-              // already answered so it only resets the chain.
+              // already answered so it only resets the chain. Keeping lastTap
+              // alive after the 2nd tap is what lets that 3rd tap land in the
+              // same chain (nulling it made a triple-tap toggle TWICE).
               const isTriple = tapCountRef.current >= 3;
-              lastTapRef.current = null;
-              tapCountRef.current = 0;
+              lastTapRef.current = isTriple ? null : { time: now, x: gesture.x0 };
+              if (isTriple) tapCountRef.current = 0;
+              if (tapCountTimer.current) clearTimeout(tapCountTimer.current);
+              tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; chainSeekAppliedRef.current = null; }, TAP_WINDOW_MS);
               doubleTapTouch.current = true;
               gestureModeRef.current = "pending";
               if (!isTriple) {
@@ -1661,7 +1702,7 @@ export default function WatchScreen() {
               gestureModeRef.current = "pending";
               pendingMultiSeekRef.current = { side: zone, seconds: Math.max(0, total - applied) };
               armHoldSeek(zone, 10);
-              tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; chainSeekAppliedRef.current = null; }, TRIPLE_TAP_WINDOW_MS);
+              tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; chainSeekAppliedRef.current = null; }, TAP_WINDOW_MS);
               return;
             }
 
@@ -1672,7 +1713,7 @@ export default function WatchScreen() {
             gestureModeRef.current = "pending";
             pendingMultiSeekRef.current = { side: zone, seconds: 10 };
             armHoldSeek(zone, 10);
-            tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; chainSeekAppliedRef.current = null; }, TRIPLE_TAP_WINDOW_MS);
+            tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; chainSeekAppliedRef.current = null; }, TAP_WINDOW_MS);
             return;
           }
 
@@ -1688,7 +1729,6 @@ export default function WatchScreen() {
             longPressTimeout.current = setTimeout(() => {
               if (gestureModeRef.current !== "pending") return;
               gestureModeRef.current = "holding";
-              setIs2xSeeking(true);
               beginHoldSpeed();
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
             }, LONG_PRESS_MS);
@@ -1700,17 +1740,18 @@ export default function WatchScreen() {
           const mode = gestureModeRef.current;
           const absDx = Math.abs(gesture.dx);
           const absDy = Math.abs(gesture.dy);
+          const drift = Math.max(absDx, absDy);
 
-          // Any drift kills a pending multi-tap seek — a swipe must never jump.
+          // Any real move kills a pending multi-tap seek — a swipe must never
+          // jump. The 2x arm gets more slack: normal finger wobble crossed the
+          // 14px tap slop and silently cancelled holds (hold never engaged).
           const cancelHoldSeek = () => {
             if (holdSeekTimeout.current) { clearTimeout(holdSeekTimeout.current); holdSeekTimeout.current = null; }
             pendingMultiSeekRef.current = null;
           };
-          if (mode === "pending" && (absDx > TAP_SLOP_PX || absDy > TAP_SLOP_PX)) {
-            cancelLongPress();
-            cancelHoldSeek();
-          }
-          if (mode === "holding" && (absDx > TAP_SLOP_PX || absDy > TAP_SLOP_PX)) {
+          if (mode === "pending" && drift > TAP_SLOP_PX) cancelHoldSeek();
+          if (mode === "pending" && drift > HOLD_DRIFT_PX) cancelLongPress();
+          if (mode === "holding" && drift > HOLD_DRIFT_PX) {
             gestureModeRef.current = "idle";
             stopHoldSpeed();
             clearSkipHold();
@@ -1741,18 +1782,24 @@ export default function WatchScreen() {
             const startZone = gestureZoneRef.current;
             if (startZone === "center") return;
             const effectiveDy = gesture.dy - Math.sign(gesture.dy) * SWIPE_ACTIVATE_PX;
-            const delta = -effectiveDy / 250;
+            // Calmer mapping than the old /250 — the HUD no longer races to
+            // the ends of the bar on a casual swipe ("too jumpy").
+            const delta = -effectiveDy / 320;
             const snapToStep = (value: number) => Math.max(0, Math.min(1, Math.round(value * 20) / 20));
             if (startZone === "left") {
               const newBrightness = snapToStep(currentBrightnessVal.current + delta);
-              if (newBrightness !== brightness) {
+              if (newBrightness !== brightnessRef.current) {
+                brightnessRef.current = newBrightness;
                 setBrightness(newBrightness);
                 if (Platform.OS !== "web") Brightness.setBrightnessAsync(newBrightness).catch(() => {});
               }
               setBrightnessHud(Math.round(newBrightness * 100));
             } else {
               const newVol = snapToStep(currentVolumeVal.current + delta);
-              if (newVol !== volume) setVolume(newVol);
+              if (newVol !== volumeRef.current) {
+                volumeRef.current = newVol;
+                setVolume(newVol);
+              }
               setVolumeHud(Math.round(newVol * 100));
             }
           }
@@ -1763,16 +1810,11 @@ export default function WatchScreen() {
           gestureModeRef.current = "idle";
           cancelLongPress();
 
-          if (mode === "holding") {
+          if (mode === "holding" || mode === "swiping") {
             stopHoldSpeed();
             clearSkipHold();
-            setTimeout(() => { setVolumeHud(null); setBrightnessHud(null); }, 800);
-            return;
-          }
-          if (mode === "swiping") {
-            stopHoldSpeed();
-            clearSkipHold();
-            setTimeout(() => { setVolumeHud(null); setBrightnessHud(null); }, 800);
+            resetTapChain(); // a swipe/hold must never leave tap #1 behind
+            scheduleHudHide();
             return;
           }
           if (mode !== "pending") return;
@@ -1803,33 +1845,39 @@ export default function WatchScreen() {
               // Window the 3rd tap from THIS release, not the first one.
               lastTapRef.current = { time: Date.now(), x: gestureStartX.current };
               if (tapCountTimer.current) clearTimeout(tapCountTimer.current);
-              tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; chainSeekAppliedRef.current = null; }, TRIPLE_TAP_WINDOW_MS);
-            } else {
-              // Center multi-tap already toggled play/pause on touch-down.
+              tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; chainSeekAppliedRef.current = null; }, TAP_WINDOW_MS);
+            } else if (drifted || gestureZoneRef.current !== "center") {
+              // Side multi-tap whose pending jump was cancelled by drift, or
+              // a drifted center double — break the chain.
               lastTapRef.current = null;
             }
+            // A CLEAN center double keeps lastTap: it toggled play/pause on
+            // touch-down, so a 3rd tap inside the window lands in this chain
+            // (already answered → only resets it) instead of reading as a
+            // fresh tap #1 that toggles a second time.
             clearSkipHold();
             return;
           }
 
           clearSkipHold();
 
-          // Single tap: tiny movement + quick lift
-          const quick = Date.now() - gestureStartTime.current < 400;
-          if (Math.abs(gesture.dx) < TAP_SLOP_PX && Math.abs(gesture.dy) < TAP_SLOP_PX && quick) {
+          // Single tap: small movement — toggle controls after the tap window
+          // so a 2nd tap can still claim the chain. (The old <400ms "quick
+          // lift" guard swallowed deliberate slower taps entirely.)
+          if (Math.abs(gesture.dx) < TAP_SLOP_PX && Math.abs(gesture.dy) < TAP_SLOP_PX) {
             const now = Date.now();
             if (singleTapTimeout.current) clearTimeout(singleTapTimeout.current);
             lastTapRef.current = { time: now, x: gestureStartX.current };
             if (tapCountTimer.current) clearTimeout(tapCountTimer.current);
-            tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; chainSeekAppliedRef.current = null; }, TRIPLE_TAP_WINDOW_MS);
-            // Delayed past the double-tap window so a 2nd tap can cancel it
+            tapCountTimer.current = setTimeout(() => { tapCountRef.current = 0; chainSeekAppliedRef.current = null; }, TAP_WINDOW_MS);
+            // Delayed past the tap window so a follow-up tap can cancel it.
             singleTapTimeout.current = setTimeout(() => {
               const firedAt = Date.now();
               if (firedAt - lastActionTimeRef.current < TAP_ACTION_COOLDOWN_MS) return;
               lastActionTimeRef.current = firedAt;
               setShowControls((prev) => !prev);
               lastTapRef.current = null;
-            }, DOUBLE_TAP_WINDOW_MS);
+            }, TAP_WINDOW_MS);
           } else {
             lastTapRef.current = null;
           }
@@ -1840,13 +1888,17 @@ export default function WatchScreen() {
           cancelLongPress();
           stopHoldSpeed();
           clearSkipHold();
+          resetTapChain(); // a system-stolen touch must not seed the next tap chain
           doubleTapTouch.current = false;
           holdSeekFiredRef.current = false;
           if (holdSeekTimeout.current) { clearTimeout(holdSeekTimeout.current); holdSeekTimeout.current = null; }
           pendingMultiSeekRef.current = null;
+          cancelHudHide();
+          setVolumeHud(null);
+          setBrightnessHud(null);
         },
       }),
-    [armSkipHold, brightness, clearSkipHold, playerLocked, volume, beginHoldSpeed, stopHoldSpeed, triggerDoubleTapAnimation],
+    [armSkipHold, beginHoldSpeed, cancelHudHide, clearSkipHold, playerLocked, resetTapChain, scheduleHudHide, stopHoldSpeed, triggerDoubleTapAnimation],
   );
 
   const skip = (kind: SkipKind) => {
@@ -2325,7 +2377,7 @@ export default function WatchScreen() {
         onBandwidthUpdate={handleBandwidthUpdate}
         onPictureInPictureStatusChanged={onPipStatusChanged}
         onError={(event: any) => { const detail = event?.error?.errorString || event?.error?.errorCode || "Unknown player error"; const mountedUrl = source?.url ?? null; if (shouldRefreshMasterOnVariantError({ errorDetail: String(detail), variantUrl: mountedUrl, refreshedAlready: variantTokenRefreshAttempted.current === mountedUrl })) { variantTokenRefreshAttempted.current = mountedUrl; void refreshVariantFromMaster(); return; } setLastPlayerError(String(detail)); setPlayerStatus("error"); if (!useSourceProxy) { setUseSourceProxy(true); setSourceRevision((v) => v + 1); return; } handleProviderBlockedRef.current("player"); }}
-        onEnd={() => { const reachedEnd = duration > 30 && currentTime >= Math.max(1, duration - 2); if (!sourceStarted.current || !reachedEnd) return; if (auth.user) { history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, episodeTitle: selectedEpisode?.title || null, episodeThumbnail: selectedEpisode?.thumbnail || null, progress: duration || currentTime, duration: duration || currentTime }); if (providerSync.connected.length) providerSync.pushProgress.mutate({ animeId, episode, progress: Math.floor(duration || currentTime), status: "completed" }); } showUpNext(); }}
+        onEnd={() => { const reachedEnd = duration > 30 && currentTime >= Math.max(1, duration - 2); if (!sourceStarted.current || !reachedEnd) return; if (auth.user) { history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, episodeTitle: selectedEpisode?.title || null, episodeThumbnail: selectedEpisode?.thumbnail || null, progress: duration || currentTime, duration: duration || currentTime, totalEpisodes: filteredEpisodes.length || undefined }); if (providerSync.connected.length) providerSync.pushProgress.mutate({ animeId, episode, progress: Math.floor(duration || currentTime), status: "completed" }); } showUpNext(); }}
       /> : (embedSource && !error) ? null : <View style={styles.videoPlaceholder}>
         {loadingServers ? <ProviderDiscoveryLoader attempt={serverAttempt} /> : loadingStream ? <View style={styles.thumbnailLoading}>
           <Image source={{ uri: selectedEpisode?.thumbnail || watchBackdrop || image || "" }} style={StyleSheet.absoluteFillObject} contentFit="cover" cachePolicy="memory-disk" />
@@ -2503,7 +2555,7 @@ export default function WatchScreen() {
                 <Pressable disabled={!previousKnownEpisode} onPress={() => previousKnownEpisode && goToEpisode(previousKnownEpisode)} accessibilityRole="button" accessibilityLabel="Previous episode" style={[styles.railBtn, !previousKnownEpisode && styles.railBtnDisabled]} hitSlop={8}>
                   <SkipBack size={20} color="#FFF" weight="fill" />
                 </Pressable>
-                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setIsPlaying((p) => !p); }} onLongPress={beginHoldSpeed} onPressOut={endHoldSpeed} delayLongPress={400} accessibilityRole="button" accessibilityLabel={isPlaying ? "Pause" : "Play"} accessibilityHint="Hold for 2x speed" style={[styles.bigPlayButton, manualFullscreen && styles.bigPlayButtonFullscreen]}>
+                <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setIsPlaying((p) => !p); }} onLongPress={beginHoldSpeed} onPressOut={stopHoldSpeed} delayLongPress={400} accessibilityRole="button" accessibilityLabel={isPlaying ? "Pause" : "Play"} accessibilityHint="Hold for 2x speed" style={[styles.bigPlayButton, manualFullscreen && styles.bigPlayButtonFullscreen]}>
                   {isPlaying ? <Pause size={26} color="#000" weight="fill" /> : <Play size={26} color="#000" weight="fill" style={{ marginLeft: 2 }} />}
                 </Pressable>
                 <Pressable disabled={!nextKnownEpisode} onPress={nextEpisode} accessibilityRole="button" accessibilityLabel="Next episode" style={[styles.railBtn, !nextKnownEpisode && styles.railBtnDisabled]} hitSlop={8}>
