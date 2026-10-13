@@ -173,6 +173,8 @@ export interface ImportResult {
   total?: number;
   unmapped?: number;
   limited?: boolean;
+  /** Stale import-synthesized rows trimmed so local progress matches the provider. */
+  trimmed?: number;
   /** Per-status title counts, when the backend reports them. */
   statuses?: Record<string, number>;
   /** Existing rows whose list status the import refreshed. */
@@ -285,6 +287,7 @@ export function describeImport(r: ImportResult | null | undefined): string {
   if ((r.imported ?? 0) > 0) parts.push(`${r.imported} imported`);
   if ((r.already ?? 0) > 0) parts.push(`${r.already} already in your library`);
   if ((r.episodes ?? 0) > 0) parts.push(`${r.episodes} episodes of progress`);
+  if ((r.trimmed ?? 0) > 0) parts.push(`${r.trimmed} stale episode rows trimmed`);
   if ((r.scores ?? 0) > 0) parts.push(`${r.scores} scores`);
   if ((r.unmapped ?? 0) > 0) parts.push(`${r.unmapped} had no Aniraku match`);
   const statusLine = describeStatusBreakdown(r.statuses);

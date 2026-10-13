@@ -1,3 +1,5 @@
+import { rowRecencyMs } from "@/lib/library-history";
+
 export type EpisodeNumberLike = { number: number };
 
 export const RESUME_ROWS_STORAGE_KEY = "aniraku.resume-rows.v1";
@@ -30,6 +32,8 @@ export type HistoryRowLike = {
   episode_number: number;
   progress: number;
   duration: number;
+  /** Watch time in ms epoch — written by the player, backdated by import. */
+  timestamp?: number | null;
   updated_at?: string | null;
 };
 
@@ -51,7 +55,8 @@ function resumePercent(progress: number, duration: number): number {
 
 /**
  * Precomputed continue-watching rows, one per anime. Picks the most recently
- * updated entry per title so Library opens instantly offline and then
+ * watched entry per title (row `timestamp` first — import backdates it —
+ * falling back to `updated_at`) so Library opens instantly offline and then
  * stale-while-revalidates against the live query.
  */
 export function buildResumeRows(entries: readonly HistoryRowLike[]): ResumeRow[] {
@@ -66,8 +71,8 @@ export function buildResumeRows(entries: readonly HistoryRowLike[]): ResumeRow[]
       latest.set(animeId, entry);
       continue;
     }
-    const nextTime = entry.updated_at ? Date.parse(entry.updated_at) : NaN;
-    const currentTime = current.updated_at ? Date.parse(current.updated_at) : NaN;
+    const nextTime = rowRecencyMs(entry);
+    const currentTime = rowRecencyMs(current);
     if (Number.isFinite(nextTime) && Number.isFinite(currentTime)) {
       if (nextTime > currentTime) latest.set(animeId, entry);
     } else if (episode > current.episode_number) {
@@ -75,16 +80,21 @@ export function buildResumeRows(entries: readonly HistoryRowLike[]): ResumeRow[]
     }
   }
   return [...latest.values()]
-    .map((entry) => ({
-      animeId: entry.anime_id,
-      animeTitle: entry.anime_title || "Anime",
-      animeImage: entry.anime_image ?? null,
-      episode: entry.episode_number,
-      progress: entry.progress,
-      duration: entry.duration,
-      percent: resumePercent(entry.progress, entry.duration),
-      updatedAt: entry.updated_at ?? null,
-    }))
+    .map((entry) => {
+      const watchedAt = rowRecencyMs(entry);
+      return {
+        animeId: entry.anime_id,
+        animeTitle: entry.anime_title || "Anime",
+        animeImage: entry.anime_image ?? null,
+        episode: entry.episode_number,
+        progress: entry.progress,
+        duration: entry.duration,
+        percent: resumePercent(entry.progress, entry.duration),
+        updatedAt: Number.isFinite(watchedAt)
+          ? new Date(watchedAt).toISOString()
+          : entry.updated_at ?? null,
+      };
+    })
     .sort((left, right) => {
       const leftTime = left.updatedAt ? Date.parse(left.updatedAt) : NaN;
       const rightTime = right.updatedAt ? Date.parse(right.updatedAt) : NaN;

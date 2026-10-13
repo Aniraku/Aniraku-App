@@ -6,6 +6,30 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.7.5 — Watch History, Saved progress & import reconciliation
+
+`CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+The sync-truth release: Watch History, Saved titles, and Export-Import now match the reconciling backend (which trims stale import rows and exports only episodes you actually watched).
+
+### Fixed
+- **Watch History ordering after imports.** History and Continue Watching now order by the row's watch `timestamp` instead of `updated_at`. Import backdates `timestamp` to the real watch window but stamps `updated_at` with import time, so a bulk import used to flood the top of History and Continue Watching with titles you never watched that day.
+- **History no longer renders one row per episode.** The History tab and the Home Continue Watching rail show one row/card per title (the most recent watch) — an imported 148-episode title can no longer bury the entire list. Long-pressing a history row removes that title's whole episode history, and the confirm dialog says exactly that.
+- **Import immediately refreshes History.** Running an Import now invalidates the watch-history cache, so History, resume rails, and Saved progress update the moment the import lands instead of waiting for a later refetch.
+- **Saved episode totals actually render.** Saved rows and grid cards read the bookmark's `total_episodes` field (they previously read a field that never existed, so the `N EP` meta never showed).
+
+### Added
+- **Saved progress display.** Saved rows and grid cards now show real progress — `6/12 EP` — from distinct episodes ≥80% watched vs. the title's total (the same rule the automatic status advancement uses, so badge and progress can never disagree).
+- **Trimmed count surfaced.** Import results now show the backend's reconciliation ("N stale episode rows trimmed"), so a fixing import visibly heals the account.
+- **Docs updated** for the reconciling semantics: import syncs local progress exactly to the provider (stale imported rows trimmed, real watches untouched, existing ratings kept); export writes your current status and only the episodes you actually watched (Plan to Watch exports 0 episodes).
+
+### Changed
+- **App icon URL** now points at this repository's `assets/images/icon.png` on GitHub raw instead of Manus platform storage — the icon no longer depends on an external host.
+- **Version**: 5.7.5 (Android versionCode 72).
+
+### Housekeeping
+- 255 tests green (8 new); tsc clean; ESLint 0 errors / 69 warnings (at baseline).
+
 ## v5.7.4 — Gesture controls + Saved list statuses
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`

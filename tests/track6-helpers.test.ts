@@ -78,6 +78,20 @@ describe("up-next wiring", () => {
     expect(rows[0]?.percent).toBe(1);
   });
 
+  it("orders resume rows by watch timestamp, not import-time updated_at", () => {
+    // One import batch stamps every row with the same updated_at; the
+    // backdated per-episode timestamps must decide both pick and order.
+    const sameImport = "2026-10-13T09:02:28.32766+00:00";
+    const rows = buildResumeRows([
+      { anime_id: 1, anime_title: "A", anime_image: null, episode_number: 1, progress: 1440, duration: 1440, timestamp: 1000, updated_at: sameImport },
+      { anime_id: 2, anime_title: "B", anime_image: null, episode_number: 1, progress: 1440, duration: 1440, timestamp: 3000, updated_at: sameImport },
+      { anime_id: 3, anime_title: "C", anime_image: null, episode_number: 2, progress: 1440, duration: 1440, timestamp: 2000, updated_at: sameImport },
+      { anime_id: 3, anime_title: "C", anime_image: null, episode_number: 1, progress: 1440, duration: 1440, timestamp: 1500, updated_at: sameImport },
+    ]);
+    expect(rows.map((row) => row.animeId)).toEqual([2, 3, 1]);
+    expect(rows[1]?.episode).toBe(2); // title 3 keeps its most recent episode
+  });
+
   it("treats missing timestamps as stale and honors the wide breakpoint", () => {
     expect(isResumeRowsStale(null)).toBe(true);
     expect(isResumeRowsStale(Date.now())).toBe(false);

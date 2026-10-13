@@ -32,6 +32,9 @@ export function useProviderSync() {
     onSuccess: () => {
       refresh();
       void queryClient.invalidateQueries({ queryKey: ["bookmarks"] });
+      // Imports synthesize AND reconcile watch-history rows (trimmed to the
+      // provider's count) — resume rails and History must refetch now.
+      void queryClient.invalidateQueries({ queryKey: ["watch-history"] });
       void queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });

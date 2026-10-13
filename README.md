@@ -24,14 +24,14 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.4">v5.7.4 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.5">v5.7.5 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 <br>
 
 > [!IMPORTANT]
-> **v5.7.4 is currently a Pre-Release (testing build).** It has been published early for real-world verification — once it's confirmed stable it will be marked as the **Latest release**. If you want the proven build in the meantime, use **[v5.7.3](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.3)** or grab v5.7.4 from the table below to help test.
+> **v5.7.5 is the current release** — Watch History, Saved titles, and Import/Export now match the reconciling sync backend (history ordered by real watch time, one row per title, `6/12 EP` progress on Saved, imports visibly trim stale rows). If you want the previous build instead, [v5.7.4](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.4) stays available as a pre-release, and [v5.7.3](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.3) is the last build before the gesture overhaul.
 
 ---
 
@@ -64,15 +64,15 @@
 
 ---
 
-### v5.7.4 is out
+### v5.7.5 is out
 
-Gesture controls overhauled (consistent tap windows, unified zones, reliable hold-for-2x) + Saved list statuses with filter chips and automatic watch-event advancement.
+Watch History and Continue Watching ordered by real watch time (imports can no longer flood the top of your history) with one row per title, `6/12 EP` progress on Saved titles, and Import/Export that visibly reconciles your account to the provider.
 
 | APK |
 |:--|
-| [Aniraku-v5.7.4-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.4/aniraku-v5.7.4-arm64.apk) |
-| [Aniraku-v5.7.4-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.4/aniraku-v5.7.4-arm32.apk) |
-| [Aniraku-v5.7.4-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.4/aniraku-v5.7.4-universal.apk) |
+| [Aniraku-v5.7.5-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.5/aniraku-v5.7.5-arm64.apk) |
+| [Aniraku-v5.7.5-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.5/aniraku-v5.7.5-arm32.apk) |
+| [Aniraku-v5.7.5-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.5/aniraku-v5.7.5-universal.apk) |
 
 <sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
 

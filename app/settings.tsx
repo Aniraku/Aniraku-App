@@ -292,7 +292,7 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
     </View>
-    <Text style={styles.lead}>Move your list between Aniraku and your streaming accounts. Import pulls a provider&apos;s library into Aniraku — favorites with their list statuses (Watching, Plan to Watch, Completed, …), episode progress and scores (progress only advances, existing ratings are kept). Export writes each title&apos;s current status, watch progress and average score there, skipping titles that already match.</Text>
+    <Text style={styles.lead}>Move your list between Aniraku and your streaming accounts. Import pulls a provider&apos;s library into Aniraku — favorites with their list statuses (Watching, Plan to Watch, Completed, …), episode progress and scores; local progress reconciles exactly to the provider (stale imported rows are trimmed, real watches are never touched, existing ratings are kept). Export writes each title&apos;s current status and the episodes you actually watched (Plan to Watch exports 0 episodes), skipping titles that already match.</Text>
 
     {(["mal", "anilist"] as SyncProvider[]).map((provider) => {
       const item = sync.status.data?.[provider];

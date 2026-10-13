@@ -3,7 +3,8 @@ import type { ExpoConfig } from "expo/config";
 const env = {
   appName: "Aniraku",
   appSlug: "aniraku",
-  logoUrl: "/manus-storage/icon_cc474f8c.png",
+  // App icon — served straight from this repo (no external storage dependency).
+  logoUrl: "https://raw.githubusercontent.com/Aniraku/Aniraku-App/refs/heads/main/assets/images/icon.png",
   scheme: "aniraku",
   iosBundleId: "tech.aniraku.app",
   androidPackage: "aniraku.anime.app",
@@ -13,7 +14,7 @@ const env = {
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
-  version: "5.7.4",
+  version: "5.7.5",
   orientation: "default",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
@@ -28,7 +29,7 @@ const config: ExpoConfig = {
     infoPlist: { ITSAppUsesNonExemptEncryption: false },
   },
   android: {
-    versionCode: 71,
+    versionCode: 72,
     adaptiveIcon: { backgroundColor: "#090909", foregroundImage: "./assets/images/android-icon-foreground.png" },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,

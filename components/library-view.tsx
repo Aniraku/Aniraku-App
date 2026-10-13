@@ -12,6 +12,7 @@ import { FirstRunImportPrompt } from "@/components/first-run-import-prompt";
 import { DotLabel, nothing, Signal } from "@/components/nothing-ui";
 import { LIST_STATUSES, LIST_STATUS_LABELS, type ListStatus } from "@/lib/list-status";
 import { bookmarkDisplayStatus, filterByListStatus, statusCounts } from "@/lib/bookmark-status";
+import { countWatchedEpisodes, groupLatestByAnime, savedEpisodeMeta } from "@/lib/library-history";
 import { RESUME_ROWS_STORAGE_KEY, buildResumeRows, type ResumeRow } from "@/lib/up-next";
 
 export type LibraryTab = "history" | "bookmarks" | "alerts";
@@ -120,6 +121,7 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
           episode_number: item.episode_number,
           progress: item.progress,
           duration: item.duration,
+          timestamp: item.timestamp ?? null,
           updated_at: item.updated_at ?? null,
         })),
       );
@@ -134,6 +136,10 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
     : null;
   const data = tab === "history" ? history.history : tab === "bookmarks" ? bookmarks.bookmarks : notifications.notifications;
   const allRecords: any[] = (tab === "history" && fallbackRows?.length ? fallbackRows : data.data ?? []);
+  // History renders ONE row per title — the most recent watch — because
+  // import creates a row per episode and a 148-row title must not bury the
+  // list. Removal and resume act on that representative row's title.
+  const baseRecords = tab === "history" ? groupLatestByAnime(allRecords) : allRecords;
   const canRemoveHistory = tab === "history" && Boolean(history.history.data) && !fallbackRows?.length;
   const activeSort = sortOptionsFor(tab).includes(sort) ? sort : "recent";
   // Legacy Saved rows without a stored status derive from watch history.
@@ -141,8 +147,11 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
     () => new Set((history.displayRows ?? []).map((row) => Number((row as { anime_id?: unknown })?.anime_id)).filter((id) => Number.isFinite(id))),
     [history.displayRows],
   );
+  // Saved progress meta ("6/12 EP") — distinct episodes at ≥80%, the same
+  // rule the watch-event status advance uses.
+  const watchedCounts = useMemo(() => countWatchedEpisodes(history.displayRows ?? []), [history.displayRows]);
   const query = search.trim().toLowerCase();
-  const searched = query ? allRecords.filter((row) => searchText(tab, row, query)) : allRecords;
+  const searched = query ? baseRecords.filter((row) => searchText(tab, row, query)) : baseRecords;
   const statusSearched = tab === "bookmarks" ? filterByListStatus(searched, watchedAnimeIds, statusFilter) : searched;
   const statusChipCounts = tab === "bookmarks" ? statusCounts(allRecords, watchedAnimeIds) : null;
   const records = tab === "alerts"
@@ -153,20 +162,19 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
 
   const confirmRemoveHistory = (row: any) => {
     const animeId = Number(row?.anime_id);
-    const episode = Number(row?.episode_number);
-    if (!Number.isInteger(animeId) || !Number.isInteger(episode)) return;
-    const key = `${animeId}:${episode}`;
+    if (!Number.isInteger(animeId)) return;
+    const key = String(animeId);
     const title = String(row?.anime_title || "Anime");
-    Alert.alert("Remove from history?", `${title} · EP ${episode} leaves your history and the Continue Watching rail.`, [
+    Alert.alert("Remove from history?", `${title} and its episode progress leave your history and the Continue Watching rail.`, [
       { text: "KEEP", style: "cancel" },
       {
         text: "REMOVE",
         style: "destructive",
         onPress: () => {
           setRemovingKey(key);
-          void history.remove
-            .mutateAsync({ animeId, episode })
-            .catch(() => Alert.alert("Could not remove", "That row is still in your history. Try again when you are online."))
+          void history.removeTitle
+            .mutateAsync({ animeId })
+            .catch(() => Alert.alert("Could not remove", "That title is still in your history. Try again when you are online."))
             .finally(() => setRemovingKey(null));
         },
       },
@@ -175,7 +183,7 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
 
   const renderHistoryRow = (item: any) => {
     const percent = watchedPercent(item);
-    const key = `${Number(item?.anime_id)}:${Number(item?.episode_number)}`;
+    const key = String(Number(item?.anime_id));
     const removing = removingKey === key;
     return (
       <Pressable
@@ -214,13 +222,14 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
 
   const renderBookmarkRow = (item: any) => {
     const status = bookmarkDisplayStatus(item, watchedAnimeIds.has(Number(item?.anime_id)));
+    const epMeta = savedEpisodeMeta(watchedCounts.get(Number(item?.anime_id)) ?? 0, Number(item?.total_episodes) || 0);
     return (
       <Pressable accessibilityRole="button" accessibilityLabel={`${item.title || item.anime_title || "Anime"}, ${LIST_STATUS_LABELS[status]}`} onPress={() => openBookmark(item)} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
         <Image source={{ uri: item.image || item.anime_image || "" }} style={styles.thumb} contentFit="cover" transition={0} cachePolicy="memory-disk" />
         <View style={styles.rowBody}>
           <Signal label={LIST_STATUS_LABELS[status]} color={statusColors[status]} />
           <Text style={styles.rowTitle} numberOfLines={2}>{item.title || item.anime_title || "Anime"}</Text>
-          <Text style={styles.rowMeta}>{item.type || item.format || "Anime"}{Number(item?.score) > 0 ? ` · ${Math.round(Number(item.score))}%` : ""}{item.episodes ? ` · ${item.episodes} EP` : ""}</Text>
+          <Text style={styles.rowMeta}>{[item.type || item.format || "Anime", epMeta, Number(item?.score) > 0 ? `${Math.round(Number(item.score))}%` : null].filter(Boolean).join(" · ")}</Text>
         </View>
         <AppIcon name="chevron-right" size={18} color={nothing.dim} />
       </Pressable>
@@ -231,6 +240,7 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
     const uri = item.image || item.anime_image || "";
     const score = Number(item?.score);
     const status = bookmarkDisplayStatus(item, watchedAnimeIds.has(Number(item?.anime_id)));
+    const epMeta = savedEpisodeMeta(watchedCounts.get(Number(item?.anime_id)) ?? 0, Number(item?.total_episodes) || 0);
     return (
       <Pressable accessibilityRole="button" accessibilityLabel={`${item.title || item.anime_title || "Anime"}, ${LIST_STATUS_LABELS[status]}`} onPress={() => openBookmark(item)} style={({ pressed }) => [styles.gridCard, pressed && styles.pressed]}>
         <View style={styles.gridImage}>
@@ -245,7 +255,7 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
           <View style={styles.gridStatusBadge}><Text style={[styles.gridStatusBadgeText, { color: statusColors[status] }]} numberOfLines={1}>{LIST_STATUS_LABELS[status]}</Text></View>
         </View>
         <Text style={styles.gridTitle} numberOfLines={2}>{item.title || item.anime_title || "Anime"}</Text>
-        <Text style={styles.gridMeta} numberOfLines={1}>{item.type || item.format || "ANIME"}</Text>
+        <Text style={styles.gridMeta} numberOfLines={1}>{[item.type || item.format || "ANIME", epMeta].filter(Boolean).join(" · ")}</Text>
       </Pressable>
     );
   };

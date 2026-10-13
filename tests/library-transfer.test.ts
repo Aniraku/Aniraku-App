@@ -84,6 +84,14 @@ describe("Miruro library transfer port", () => {
     expect(describeImport({ error: "Import failed" })).toBe("Import failed");
   });
 
+  it("surfaces reconciled (trimmed) rows from the backend import", () => {
+    expect(describeImport({ imported: 2, episodes: 3, trimmed: 12 })).toBe(
+      "2 imported · 3 episodes of progress · 12 stale episode rows trimmed",
+    );
+    expect(describeImport({ trimmed: 12 })).toBe("12 stale episode rows trimmed");
+    expect(describeImport({ imported: 1 })).toBe("1 imported");
+  });
+
   it("describes exports as exact-match skips with status breakdown", () => {
     expect(
       describeExport({

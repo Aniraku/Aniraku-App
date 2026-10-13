@@ -18,6 +18,7 @@ import { NotificationSheet } from "@/components/notification-sheet";
 import { AppIcon } from "@/components/app-icon";
 import { InAppEpisodeAlertMonitor } from "@/hooks/use-in-app-episode-alerts";
 import { useWatchHistory } from "@/hooks/use-watch-history";
+import { groupLatestByAnime } from "@/lib/library-history";
 import { useBookmarks } from "@/hooks/use-bookmarks";
 import { useAnirakuAuth } from "@/providers/auth-provider";
 
@@ -88,7 +89,9 @@ function ContinueWatchingRail() {
       </View>
     );
   }
-  const recent = history.data.slice(0, 10);
+  // One card per title (the most recent watch) — import creates a row per
+  // episode, so slicing raw rows would fill the rail with one imported show.
+  const recent = groupLatestByAnime(history.data).slice(0, 10);
   return (
     <View style={styles.section}>
       <View style={styles.sectionHead}>
