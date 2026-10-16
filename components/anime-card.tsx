@@ -10,6 +10,7 @@ import { animeTitle } from "@/lib/types";
 import { usePrefetchAnime } from "@/lib/prefetch";
 import { POSTER_W, getOptimizedImageUri } from "@/lib/image-optimization";
 import { nothing, Signal } from "@/components/nothing-ui";
+import { LIST_STATUS_LABELS } from "@/lib/list-status";
 import { useBookmarks } from "@/hooks/use-bookmarks";
 import { useWatchHistory } from "@/hooks/use-watch-history";
 import { useAnirakuAuth } from "@/providers/auth-provider";
@@ -141,8 +142,9 @@ function AnimeCardMenu({ anime, title, onClose }: { anime: Anime; title: string;
 
   const toggleLibrary = () => {
     if (!requireAccount()) return;
-    bookmarks.toggle.mutate(anime, {
-      onSuccess: (added) => showQuickFeedback(added ? `Added "${title}" to your library` : `Removed "${title}" from your library`),
+    bookmarks.toggleWithPicker(anime, {
+      onSaved: (status) => showQuickFeedback(`Added "${title}" to ${LIST_STATUS_LABELS[status]}`),
+      onRemoved: () => showQuickFeedback(`Removed "${title}" from your library`),
       onError: (error) => showQuickFeedback(error instanceof Error ? error.message : "Could not update your library"),
     });
   };

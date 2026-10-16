@@ -198,12 +198,12 @@ export default function HomeScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={heroSaved ? `Remove ${animeTitle(hero)} from My List` : `Add ${animeTitle(hero)} to My List`}
-                disabled={bookmarks.toggle.isPending}
+                disabled={bookmarks.toggle.isPending || bookmarks.add.isPending}
                 style={({ pressed }) => [styles.heroListBtn, heroSaved && styles.heroListBtnSaved, pressed && styles.pressed]}
                 onPress={() => {
                   hapticLight();
                   if (!auth.user) { router.push("/auth" as never); return; }
-                  bookmarks.toggle.mutate(hero, {
+                  bookmarks.toggleWithPicker(hero, {
                     onError: (error) => Alert.alert("Could not update My List", error instanceof Error ? error.message : "Try again in a moment."),
                   });
                 }}

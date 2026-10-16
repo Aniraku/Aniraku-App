@@ -6,9 +6,22 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
-## v5.7.7 — Saved categories + Support announcements & Binance Pay QR
+## v5.7.8 — Save-time list picker (AniList/MAL-style)
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+Refines the v5.7.7 Saved-category picker into the AniList/MAL "add to list" flow.
+
+### Changed
+- **Pick the list as you save**: tapping Save on a title now asks which list it should go to — Watching, Plan to Watch, Completed, or Dropped — before adding it, instead of silently filing it under Plan to Watch. Works from the anime page, the Home hero, and the card menu. You can still change a saved title's list later by long-pressing its row (or tapping its status badge) in the Saved tab (`hooks/use-bookmarks.ts`).
+
+### Housekeeping
+- tsc clean; tests green; ESLint 0 errors / 69 warnings (at baseline).
+- Android versionCode: 75.
+
+## v5.7.7 — Saved categories + Support announcements & Binance Pay QR
+
+`STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
 
 A user-requested list-organization release, plus the announcement + donation work prepared as v5.7.6 (folded in here — v5.7.6 was never published).
 

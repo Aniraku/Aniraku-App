@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.7.7"
+        default: "v5.7.8"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -170,18 +170,20 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.7.7 — Saved categories + Support announcements & Binance Pay QR
+            ## v5.7.8 — Save-time list picker (AniList/MAL-style)
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.7.7-arm64.apk`
-            - `aniraku-v5.7.7-arm32.apk`
-            - `aniraku-v5.7.7-universal.apk`
+            - `aniraku-v5.7.8-arm64.apk`
+            - `aniraku-v5.7.8-arm32.apk`
+            - `aniraku-v5.7.8-universal.apk`
 
-            ### Added
-            - **Category-wise Saved statuses**: a status picker on the Saved list so each saved title can be set to Watching, Plan to Watch, Completed, or Dropped. Long-press a saved row — or tap its status badge in list or grid view — to choose a category. The choice persists to the `bookmarks.status` column and drives the existing Saved filter chips and badges.
-            - **In-app announcement prompt**: a dismissible support/announcement dialog that reads `site/announcements.json` directly from GitHub — independent of the streaming backend — so announcements can be posted and edited **without a new Android release**. Dismissal lasts for the session only; the prompt returns the next time the app opens.
-            - **Binance Pay QR code** on the Support screen, next to the existing UID + copy button, so donors can scan to pay in one step (original QR, Binance logo intact).
+            ### Changed
+            - **Pick the list as you save**: tapping Save on a title now asks which list it should go to — Watching, Plan to Watch, Completed, or Dropped — before adding it (AniList/MAL-style), instead of silently filing it under Plan to Watch. Works from the anime page, the Home hero, and the card menu. Change a saved title's list later by long-pressing its row (or tapping its status badge) in the Saved tab.
+
+            ### Also included (from v5.7.7)
+            - **In-app announcement prompt**: a dismissible support/announcement dialog that reads `site/announcements.json` directly from GitHub — independent of the streaming backend — so announcements can be posted and edited **without a new Android release**. Dismissal lasts for the session only.
+            - **Binance Pay QR code** on the Support screen, next to the existing UID + copy button (original QR, Binance logo intact).
 
             ### Notes
             - **MAL / AniList sync**: both run entirely through the Aniraku backend (`api.aniraku.tech`); there is no app-side MAL client. They error only when that backend is down or MAL isn't configured server-side — a backend issue, not an app bug.
@@ -189,7 +191,7 @@ jobs:
 
             ### Housekeeping
             - tsc clean; tests green; ESLint 0 errors / 69 warnings (at baseline).
-            - Android versionCode: 74.
+            - Android versionCode: 75.
 
             Download the APK, install, and allow *install from unknown sources* if prompted.
           files: ./artifacts/*.apk
