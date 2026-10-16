@@ -60,7 +60,16 @@ jobs:
 
       - run: pnpm lint
 
-      - run: pnpm test
+      # Deterministic suite is the blocking release gate.
+      - run: pnpm test --exclude tests/aniraku-services.test.ts
+
+      # Live production-health probe: advisory only, never blocks a release.
+      # It fetches the real backend from the CI runner, which sits behind
+      # Cloudflare — datacenter IPs get challenged/blocked even when the origin
+      # is healthy — so it's hostage to CDN IP policy, not backend health. A red
+      # run here is a signal to check the backend, not a reason to hold the APK.
+      - run: pnpm test tests/aniraku-services.test.ts
+        continue-on-error: true
 
   build:
     name: Build ${{ matrix.label }} APK (${{ github.event.inputs.tag || github.ref_name }})
