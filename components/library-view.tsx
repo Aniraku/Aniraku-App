@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View, type AlertButton } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import { router } from "expo-router";
@@ -10,7 +10,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/async-state";
 import { AppIcon } from "@/components/app-icon";
 import { FirstRunImportPrompt } from "@/components/first-run-import-prompt";
 import { DotLabel, nothing, Signal } from "@/components/nothing-ui";
-import { LIST_STATUSES, LIST_STATUS_LABELS, type ListStatus } from "@/lib/list-status";
+import { LIST_STATUSES, LIST_STATUS_LABELS, MANUAL_LIST_STATUSES, type ListStatus } from "@/lib/list-status";
 import { bookmarkDisplayStatus, filterByListStatus, statusCounts } from "@/lib/bookmark-status";
 import { countWatchedEpisodes, groupLatestByAnime, savedEpisodeMeta } from "@/lib/library-history";
 import { RESUME_ROWS_STORAGE_KEY, buildResumeRows, type ResumeRow } from "@/lib/up-next";
@@ -220,14 +220,35 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
 
   const openBookmark = (item: any) => router.push((`/anime/${item.anime_id}`) as never);
 
+  /** Long-press a saved row (or tap its status badge) to set its category. */
+  const openStatusPicker = (item: any) => {
+    const animeId = Number(item?.anime_id);
+    if (!Number.isInteger(animeId)) return;
+    const current = bookmarkDisplayStatus(item, watchedAnimeIds.has(animeId));
+    const label = String(item?.title || item?.anime_title || "Anime");
+    const options: AlertButton[] = MANUAL_LIST_STATUSES.map((status) => ({
+      text: status === current ? `✓ ${LIST_STATUS_LABELS[status]}` : LIST_STATUS_LABELS[status],
+      onPress: () => {
+        if (status === current) return;
+        void bookmarks.updateStatus
+          .mutateAsync({ animeId, status })
+          .catch(() => Alert.alert("Could not update category", "Your change didn't save. Try again when you're online."));
+      },
+    }));
+    options.push({ text: "CANCEL", style: "cancel" });
+    Alert.alert(label, `Currently “${LIST_STATUS_LABELS[current]}” — pick a category:`, options);
+  };
+
   const renderBookmarkRow = (item: any) => {
     const status = bookmarkDisplayStatus(item, watchedAnimeIds.has(Number(item?.anime_id)));
     const epMeta = savedEpisodeMeta(watchedCounts.get(Number(item?.anime_id)) ?? 0, Number(item?.total_episodes) || 0);
     return (
-      <Pressable accessibilityRole="button" accessibilityLabel={`${item.title || item.anime_title || "Anime"}, ${LIST_STATUS_LABELS[status]}`} onPress={() => openBookmark(item)} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${item.title || item.anime_title || "Anime"}, ${LIST_STATUS_LABELS[status]}`} onPress={() => openBookmark(item)} onLongPress={() => openStatusPicker(item)} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
         <Image source={{ uri: item.image || item.anime_image || "" }} style={styles.thumb} contentFit="cover" transition={0} cachePolicy="memory-disk" />
         <View style={styles.rowBody}>
-          <Signal label={LIST_STATUS_LABELS[status]} color={statusColors[status]} />
+          <Pressable accessibilityRole="button" accessibilityLabel={`Change category for ${item.title || item.anime_title || "Anime"}`} onPress={() => openStatusPicker(item)} hitSlop={6} style={styles.statusPressable}>
+            <Signal label={LIST_STATUS_LABELS[status]} color={statusColors[status]} />
+          </Pressable>
           <Text style={styles.rowTitle} numberOfLines={2}>{item.title || item.anime_title || "Anime"}</Text>
           <Text style={styles.rowMeta}>{[item.type || item.format || "Anime", epMeta, Number(item?.score) > 0 ? `${Math.round(Number(item.score))}%` : null].filter(Boolean).join(" · ")}</Text>
         </View>
@@ -242,7 +263,7 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
     const status = bookmarkDisplayStatus(item, watchedAnimeIds.has(Number(item?.anime_id)));
     const epMeta = savedEpisodeMeta(watchedCounts.get(Number(item?.anime_id)) ?? 0, Number(item?.total_episodes) || 0);
     return (
-      <Pressable accessibilityRole="button" accessibilityLabel={`${item.title || item.anime_title || "Anime"}, ${LIST_STATUS_LABELS[status]}`} onPress={() => openBookmark(item)} style={({ pressed }) => [styles.gridCard, pressed && styles.pressed]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${item.title || item.anime_title || "Anime"}, ${LIST_STATUS_LABELS[status]}`} onPress={() => openBookmark(item)} onLongPress={() => openStatusPicker(item)} style={({ pressed }) => [styles.gridCard, pressed && styles.pressed]}>
         <View style={styles.gridImage}>
           {uri ? (
             <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" />
@@ -252,7 +273,7 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
           {Number.isFinite(score) && score > 0 ? (
             <View style={styles.gridBadge}><Text style={styles.gridBadgeText}>{Math.round(score)}%</Text></View>
           ) : null}
-          <View style={styles.gridStatusBadge}><Text style={[styles.gridStatusBadgeText, { color: statusColors[status] }]} numberOfLines={1}>{LIST_STATUS_LABELS[status]}</Text></View>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Change category for ${item.title || item.anime_title || "Anime"}`} onPress={() => openStatusPicker(item)} style={styles.gridStatusBadge}><Text style={[styles.gridStatusBadgeText, { color: statusColors[status] }]} numberOfLines={1}>{LIST_STATUS_LABELS[status]}</Text></Pressable>
         </View>
         <Text style={styles.gridTitle} numberOfLines={2}>{item.title || item.anime_title || "Anime"}</Text>
         <Text style={styles.gridMeta} numberOfLines={1}>{[item.type || item.format || "ANIME", epMeta].filter(Boolean).join(" · ")}</Text>
@@ -485,6 +506,7 @@ const styles = StyleSheet.create({
   row: { minHeight: 96, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 11, borderBottomWidth: 1, borderBottomColor: nothing.line },
   thumb: { width: 57, height: 82, borderRadius: 8, backgroundColor: nothing.raised },
   rowBody: { flex: 1, justifyContent: "center", gap: 5 },
+  statusPressable: { alignSelf: "flex-start" },
   rowTitle: { color: nothing.white, fontWeight: "900", fontSize: 14, lineHeight: 18 },
   rowMeta: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.35 },
   progressTrack: { height: 3, overflow: "hidden", borderRadius: 2, backgroundColor: nothing.line },

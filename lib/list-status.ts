@@ -30,6 +30,13 @@ export const LIST_STATUS_LABELS: Record<ListStatus, string> = {
   REPEATING: "Rewatching",
 };
 
+/**
+ * Statuses a user can set by hand from the Saved list — the four list
+ * categories (Watching / Plan to Watch / Completed / Dropped). Paused and
+ * Rewatching stay import- or watch-event-only, so the picker omits them.
+ */
+export const MANUAL_LIST_STATUSES: readonly ListStatus[] = ["CURRENT", "PLANNING", "COMPLETED", "DROPPED"];
+
 export function isListStatus(value: unknown): value is ListStatus {
   return (
     typeof value === "string" &&

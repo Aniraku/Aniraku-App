@@ -24,14 +24,14 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.6">v5.7.6 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.7">v5.7.7 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 <br>
 
 > [!IMPORTANT]
-> **v5.7.6 is the current release** — Adds the remote-driven in-app announcement prompt and a Binance Pay QR code on the Support screen (announcements update straight from GitHub, no new release needed). If you want the previous build instead, [v5.7.5](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.5) remains the last sync-truth release.
+> **v5.7.7 is the current release** — Adds category-wise Saved statuses (set any saved title to Watching, Plan to Watch, Completed, or Dropped), the remote-driven in-app announcement prompt, and a Binance Pay QR code on the Support screen (announcements update straight from GitHub, no new release needed). If you want the previous build instead, [v5.7.5](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.5) remains the last sync-truth release.
 
 > [!CAUTION]
 > **Keep Aniraku online.** Our backend credit runs out around **October 19–20** — when it's gone, streaming stops (the app still opens, but playback goes dark until the servers are topped up). Aniraku is free, open-source, and has **no ads and no paid tier**. It's built and run by one person from a middle-class family — no company, no investors, and no personal money left to keep the servers on. **Donations are the only thing keeping Aniraku alive.** If it has saved you time, a small donation keeps it online past October 20. And the library keeps growing — **missing an anime?** Email [`sho.islam0311@proton.me`](mailto:sho.islam0311@proton.me) and it'll get added.

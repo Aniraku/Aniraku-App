@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Anime } from "@/lib/types";
 import { animeTitle } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
-import { isMissingStatusColumnError, statusForNewBookmark } from "@/lib/list-status";
+import { isMissingStatusColumnError, statusForNewBookmark, type ListStatus } from "@/lib/list-status";
 import { useAnirakuAuth } from "@/providers/auth-provider";
 
 export function useBookmarks() {
@@ -28,6 +28,16 @@ export function useBookmarks() {
     if (error) throw error;
     return true;
   }, onSuccess: () => void queryClient.invalidateQueries({ queryKey }) });
+  // Manual category change from the Saved list (Watching / Plan to Watch /
+  // Completed / Dropped): writes the chosen status onto the bookmark row.
+  const updateStatus = useMutation({ mutationFn: async (input: { animeId: number; status: ListStatus }) => {
+    if (!user) throw new Error("Sign in to update your list.");
+    const row = bookmarks.data?.find((bookmark) => bookmark.anime_id === input.animeId);
+    if (!row) throw new Error("That title isn't in your saved list.");
+    const { error } = await supabase.from("bookmarks").update({ status: input.status }).eq("id", row.id);
+    if (error) throw error;
+    return true;
+  }, onSuccess: () => void queryClient.invalidateQueries({ queryKey }) });
   const clear = useMutation({ mutationFn: async () => { if (!user) return; const { error } = await supabase.from("bookmarks").delete().eq("user_id", user.id); if (error) throw error; }, onSuccess: () => void queryClient.invalidateQueries({ queryKey }) });
-  return { bookmarks, toggle, clear, isBookmarked: (animeId: number) => Boolean(bookmarks.data?.some((item) => item.anime_id === animeId)) };
+  return { bookmarks, toggle, updateStatus, clear, isBookmarked: (animeId: number) => Boolean(bookmarks.data?.some((item) => item.anime_id === animeId)) };
 }

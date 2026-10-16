@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bookmarkDisplayStatus, filterByListStatus, statusCounts } from "@/lib/bookmark-status";
-import { isMissingStatusColumnError } from "@/lib/list-status";
+import { LIST_STATUSES, LIST_STATUS_LABELS, MANUAL_LIST_STATUSES, isListStatus, isMissingStatusColumnError, listStatusToMal } from "@/lib/list-status";
 
 describe("bookmarkDisplayStatus", () => {
   it("prefers the stored status regardless of watch history", () => {
@@ -103,5 +103,39 @@ describe("isMissingStatusColumnError", () => {
     expect(isMissingStatusColumnError(new Error("network"))).toBe(false);
     expect(isMissingStatusColumnError(null)).toBe(false);
     expect(isMissingStatusColumnError(undefined)).toBe(false);
+  });
+});
+
+describe("MANUAL_LIST_STATUSES (Saved-list category picker)", () => {
+  it("offers exactly the four user-settable categories", () => {
+    expect(MANUAL_LIST_STATUSES).toEqual(["CURRENT", "PLANNING", "COMPLETED", "DROPPED"]);
+  });
+
+  it("labels them the way the picker promises", () => {
+    expect(MANUAL_LIST_STATUSES.map((status) => LIST_STATUS_LABELS[status])).toEqual([
+      "Watching",
+      "Plan to Watch",
+      "Completed",
+      "Dropped",
+    ]);
+  });
+
+  it("keeps Paused and Rewatching out of manual reach (import / watch-event only)", () => {
+    expect(MANUAL_LIST_STATUSES).not.toContain("PAUSED");
+    expect(MANUAL_LIST_STATUSES).not.toContain("REPEATING");
+  });
+
+  it("only contains valid canonical statuses", () => {
+    for (const status of MANUAL_LIST_STATUSES) {
+      expect(isListStatus(status)).toBe(true);
+      expect(LIST_STATUSES).toContain(status);
+    }
+  });
+
+  it("round-trips each manual status to a MAL list_status for provider sync", () => {
+    expect(listStatusToMal("CURRENT")).toBe("watching");
+    expect(listStatusToMal("PLANNING")).toBe("plan_to_watch");
+    expect(listStatusToMal("COMPLETED")).toBe("completed");
+    expect(listStatusToMal("DROPPED")).toBe("dropped");
   });
 });

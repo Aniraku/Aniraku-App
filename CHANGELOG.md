@@ -6,25 +6,27 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
-## v5.7.6 — Support announcements + Binance Pay QR
+## v5.7.7 — Saved categories + Support announcements & Binance Pay QR
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
 
-An announcement + donation release. Announcements are now data-driven from `site/announcements.json` (on GitHub), so one edit can reach both the website and the app without shipping a new APK.
+A user-requested list-organization release, plus the announcement + donation work prepared as v5.7.6 (folded in here — v5.7.6 was never published).
 
 ### Added
+- **Category-wise Saved statuses**: a status picker on the Saved list so each saved title can be set to Watching, Plan to Watch, Completed, or Dropped. Long-press a saved row — or tap its status badge in list or grid view — to choose a category. The choice persists to the `bookmarks.status` column and drives the existing Saved filter chips and badges (`lib/list-status.ts`, `hooks/use-bookmarks.ts`).
 - **In-app announcement prompt**: a dismissible support dialog (`components/announcement-banner.tsx`) that fetches `site/announcements.json` from raw GitHub — independent of the streaming backend — so announcements can be posted and edited without a new Android release. Dismissal is session-only (in-memory), so the prompt returns on every app open, and nothing renders when offline.
-- **Binance Pay QR code** on the Support screen (`app/support.tsx`), beside the existing UID + copy button, so donors can scan to pay in one step.
+- **Binance Pay QR code** on the Support screen (`app/support.tsx`), beside the existing UID + copy button, so donors can scan to pay in one step (original QR, Binance logo intact).
 - **Website announcement system**: a dismissible top banner plus a News archive section, both driven by `site/announcements.json`; dismissal is session-scoped (`sessionStorage`).
 - **Docs**: `README.md` and `SUPPORT.md` now carry the backend-limit donation appeal and the Binance Pay QR.
 
 ### Notes
+- **MAL / AniList sync**: both run entirely through the Aniraku backend (`api.aniraku.tech/api/v1/sync/...`); there is no app-side MAL client. They error only when that backend is down or MAL isn't configured server-side — so the failure is a backend issue, not an app bug, and the Settings option stays.
 - Single source of truth: edit `site/announcements.json` and push to update the website banner, the News section, and the in-app prompt — no rebuild required.
 - Removed the orphaned, unreferenced `usdt-bep20-support-qr.png` assets.
 
 ### Housekeeping
 - tsc clean; tests green; ESLint 0 errors / 69 warnings (at baseline).
-- Android versionCode: 73.
+- Android versionCode: 74.
 
 ## v5.7.5 — Watch History, Saved progress & import reconciliation
 
