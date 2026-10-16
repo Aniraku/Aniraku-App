@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "updated": "2026-10-16",
+  "announcements": [
+    {
+      "id": "backend-credit-oct-2026",
+      "tag": "URGENT",
+      "title": "Keep Aniraku online",
+      "banner": "Backend credit ends ~October 19–20. When it runs out, streaming stops — Aniraku is free, open-source, and runs on donations alone.",
+      "body": [
+        "Our backend credit runs out around October 19–20. When it's gone, streaming stops — the app still opens, but playback goes dark until the servers are topped up.",
+        "Aniraku already has a huge library, and it's growing fast — we add titles as quickly as you ask for them.",
+        "Aniraku is free, open-source, and has no ads and no paid tier. It's built and run by one person from a middle-class family — no company, no investors, and no personal money left to keep the servers on. Donations are the only thing keeping Aniraku alive.",
+        "If Aniraku has saved you time, a small donation keeps it online past October 20. Every bit helps — and thank you for watching with us."
+      ],
+      "date": "2026-10-16",
+      "ctaLabel": "Donate now",
+      "ctaWeb": "#support",
+      "ctaApp": "/support",
+      "email": "sho.islam0311@proton.me",
+      "emailLabel": "Missing an anime? Request it",
+      "pinned": true,
+      "active": true
+    }
+  ]
+}

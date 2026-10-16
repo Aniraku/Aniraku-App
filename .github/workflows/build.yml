@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.7.5"
+        default: "v5.7.6"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -161,31 +161,24 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.7.5 — Watch History, Saved progress & import reconciliation
+            ## v5.7.6 — Support announcements + Binance Pay QR
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.7.5-arm64.apk`
-            - `aniraku-v5.7.5-arm32.apk`
-            - `aniraku-v5.7.5-universal.apk`
-
-            ### Fixed
-            - **Watch History ordering after imports**: History and Continue Watching now order by the row's watch `timestamp` instead of `updated_at`. Import backdates `timestamp` to the real watch window but stamps `updated_at` with import time, so a bulk import used to flood the top of your history with titles you never watched that day.
-            - **History no longer renders one row per episode**: the History tab and the Home Continue Watching rail show one row/card per title (the most recent watch) — an imported 148-episode title can no longer bury the list. Long-pressing a history row removes that title's whole episode history, and the confirm dialog says so.
-            - **Import immediately refreshes History**: running an Import updates History, resume rails, and Saved progress the moment it lands.
-            - **Saved episode totals render at all**: Saved rows read the bookmark's real `total_episodes` field (a field typo kept `N EP` hidden).
+            - `aniraku-v5.7.6-arm64.apk`
+            - `aniraku-v5.7.6-arm32.apk`
+            - `aniraku-v5.7.6-universal.apk`
 
             ### Added
-            - **Saved progress**: Saved rows and grid cards show real progress — `6/12 EP` — from distinct episodes ≥80% watched (the same rule the status auto-advance uses, so badge and progress can never disagree).
-            - **Reconciliation surfaced**: import results show the backend's "N stale episode rows trimmed", so a fixing import visibly heals your account.
-            - **Docs updated** for the reconciling semantics: import syncs local progress exactly to the provider (stale rows trimmed, real watches untouched, existing ratings kept); export writes your current status and only the episodes you actually watched (Plan to Watch exports 0 episodes).
+            - **In-app announcement prompt**: a dismissible support/announcement dialog that reads `site/announcements.json` directly from GitHub — independent of the streaming backend — so announcements can be posted and edited **without a new Android release**. Dismissal lasts for the session only; the prompt returns the next time the app opens.
+            - **Binance Pay QR code** on the Support screen, next to the existing UID + copy button, so donors can scan to pay in one step.
 
-            ### Changed
-            - **App icon URL** now points at this repository's `assets/images/icon.png` on GitHub raw instead of Manus platform storage.
-            - **Android versionCode**: 72.
+            ### Notes
+            - Announcements are data-driven: edit `site/announcements.json` and push — both the website and the in-app prompt update, with no rebuild required.
 
             ### Housekeeping
-            - 255 tests green (8 new); tsc clean; ESLint 0 errors / 69 warnings (at baseline).
+            - tsc clean; tests green; ESLint 0 errors / 69 warnings (at baseline).
+            - Android versionCode: 73.
 
             Download the APK, install, and allow *install from unknown sources* if prompted.
           files: ./artifacts/*.apk

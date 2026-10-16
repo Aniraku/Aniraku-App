@@ -12,6 +12,7 @@ import { PATREON_URL, SUPPORT_FUNDING_COPY } from "@/lib/support";
 const BINANCE_UID = "1098400042";
 const binanceIcon = require("../assets/images/binance-icon.png");
 const patreonIcon = require("../assets/images/patreon-icon.png");
+const binanceQr = require("../assets/images/binance-pay-qr.png");
 
 export default function SupportScreen() {
   const [message, setMessage] = useState<string | null>(null);
@@ -94,6 +95,10 @@ export default function SupportScreen() {
           <Text style={styles.methodMeta}>One-time · USDT / any crypto</Text>
         </View>
       </View>
+      <View style={styles.qrWrap}>
+        <Image source={binanceQr} style={styles.qr} accessibilityLabel="Binance Pay QR code for UID 1098400042" />
+        <Text style={styles.qrCaption}>SCAN WITH BINANCE</Text>
+      </View>
       <View style={styles.uidBox}>
         <Text style={styles.uidLabel}>BINANCE UID</Text>
         <View style={styles.uidRow}>
@@ -138,6 +143,10 @@ const styles = StyleSheet.create({
   primaryBtnText: { color: nothing.black, fontFamily: "SpaceGrotesk-SemiBold", fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
   secondaryBtn: { minWidth: 90, minHeight: 44, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 8 },
   secondaryBtnText: { color: nothing.muted, fontFamily: "SpaceGrotesk-Medium", fontSize: 11, fontWeight: "700", letterSpacing: 0.3 },
+
+  qrWrap: { alignItems: "center", gap: 8, paddingVertical: 2 },
+  qr: { width: 176, height: 176, borderRadius: 8, backgroundColor: nothing.white, borderWidth: 1, borderColor: nothing.line },
+  qrCaption: { color: nothing.dim, fontFamily: "SpaceGrotesk-Medium", fontSize: 10, fontWeight: "800", letterSpacing: 0.8 },
 
   uidBox: { width: "100%", padding: 12, borderRadius: 8, backgroundColor: nothing.black, borderWidth: 1, borderColor: nothing.line },
   uidLabel: { color: nothing.dim, fontFamily: "SpaceGrotesk-Medium", fontSize: 10, fontWeight: "800", letterSpacing: 0.8, marginBottom: 6 },

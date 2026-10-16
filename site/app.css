@@ -265,6 +265,38 @@ code{font-family:var(--mono)}
 .reveal{opacity:0;transform:translateY(22px);transition:opacity .55s var(--ease),transform .55s var(--ease)}
 .reveal.visible{opacity:1;transform:translateY(0)}
 
+/* ═══ ANNOUNCEMENT BANNER ═══ */
+.announce{display:flex;align-items:center;gap:.9rem;flex-wrap:wrap;padding:.85rem clamp(1.5rem,5vw,6rem);background:linear-gradient(90deg,rgba(255,77,77,.16),rgba(255,77,77,.04));border-bottom:1px solid rgba(255,77,77,.32)}
+.announce[hidden]{display:none}
+.announce-tag{flex:none;padding:.32rem .6rem;background:var(--red);color:var(--black);border-radius:var(--r-sm);font:700 .5rem/1 var(--mono);letter-spacing:.12em}
+.announce-text{flex:1 1 240px;margin:0;color:var(--muted);font-size:.82rem;line-height:1.5}
+.announce-text b{color:var(--white)}
+.announce-cta{flex:none;color:var(--red);font:700 .6rem/1 var(--mono);letter-spacing:.06em;white-space:nowrap;transition:color .2s var(--ease)}
+.announce-cta:hover{color:var(--white)}
+.announce-close{flex:none;background:none;border:none;color:var(--muted);font-size:1.3rem;line-height:1;cursor:pointer;padding:.15rem .4rem;transition:color .2s var(--ease)}
+.announce-close:hover{color:var(--white)}
+
+/* ═══ NEWS ═══ */
+.news-list{display:flex;flex-direction:column;gap:1.2rem}
+.news-item{padding:1.6rem;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);position:relative;overflow:hidden}
+.news-item::before{content:"";position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,77,77,.05),transparent 55%);pointer-events:none}
+.news-item>*{position:relative}
+.news-pinned{border-color:rgba(255,77,77,.35)}
+.news-item-top{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.9rem}
+.news-tag{padding:.3rem .6rem;background:rgba(255,77,77,.12);border:1px solid rgba(255,77,77,.3);color:var(--red);border-radius:var(--r-sm);font:700 .5rem/1 var(--mono);letter-spacing:.1em}
+.news-date{color:var(--dim);font:700 .55rem/1 var(--mono);letter-spacing:.08em}
+.news-title{margin:0 0 .7rem;font-size:1.35rem;letter-spacing:-.02em;color:var(--white)}
+.news-item p{margin:0 0 .7rem;color:var(--muted);font-size:.9rem;line-height:1.65}
+.news-item p:last-of-type{margin-bottom:0}
+.news-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.8rem 1.4rem;margin-top:1.3rem}
+.news-mail{color:var(--green);font:700 .6rem/1 var(--mono);letter-spacing:.06em;transition:color .2s var(--ease)}
+.news-mail:hover{color:var(--white)}
+
+/* ═══ DONATION QR ═══ */
+.binance-qr{display:block;width:150px;height:150px;background:#fff;border:1px solid var(--line);border-radius:var(--r-sm);padding:6px;object-fit:contain}
+.support-box .binance-qr{margin:1.1rem 0 0}
+.modal-qr{margin:0 auto .9rem}
+
 /* ═══ RESPONSIVE ═══ */
 @media(max-width:1080px){
   .hero-inner{grid-template-columns:1fr;gap:3rem}

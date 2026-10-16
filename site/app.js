@@ -2,7 +2,7 @@
 
 const REPO = "Aniraku/Aniraku-App";
 const api = "https://api.github.com/repos";
-const FALLBACK_TAG = "v5.6.0";
+const FALLBACK_TAG = "v5.7.6";
 // Archive: latest release expanded + this many compact rows visible;
 // anything older hides behind the "show all" toggle.
 const ARCHIVE_VISIBLE = 4;
@@ -265,6 +265,112 @@ function initCopy() {
   });
 }
 
+// ─── Announcements (top banner + news archive) ───
+// Single source of truth: announcements.json — edit it and push to go live,
+// no rebuild. The in-app banner reads this same file from raw GitHub.
+const ANNOUNCEMENTS_URL = "announcements.json";
+// Dismissal is scoped to the browser session (sessionStorage): the banner shows
+// every time the site is opened, and a close hides it only until the session ends.
+const ANNOUNCE_BANNER_KEY = "aniraku.announcement.session-dismissed-id";
+
+function annDate(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso || "");
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function escAttr(s) {
+  return esc(s).replace(/"/g, "&quot;");
+}
+
+function activeAnnouncements(data) {
+  const list = Array.isArray(data && data.announcements) ? data.announcements : [];
+  return list.filter((a) => a && typeof a === "object" && a.active !== false);
+}
+
+// Pinned first, then newest by date.
+function sortAnnouncements(list) {
+  return [...list].sort((a, b) => {
+    const pin = Number(!!b.pinned) - Number(!!a.pinned);
+    if (pin) return pin;
+    return String(b.date || "").localeCompare(String(a.date || ""));
+  });
+}
+
+function bannerAnnouncement(list) {
+  return list.find((a) => a.pinned) || null;
+}
+
+function renderBanner(a) {
+  const bar = document.getElementById("announcement-banner");
+  if (!bar || !a) return;
+  let dismissed = "";
+  try { dismissed = sessionStorage.getItem(ANNOUNCE_BANNER_KEY) || ""; } catch { /* private mode */ }
+  if (dismissed === String(a.id)) return; // hidden for the rest of this session only
+
+  bar.innerHTML = `
+    <span class="announce-tag">${esc(a.tag || "NEWS")}</span>
+    <p class="announce-text"><b>${esc(a.title || "")}</b> ${esc(a.banner || a.body?.[0] || "")}</p>
+    <a class="announce-cta" href="${escAttr(a.ctaWeb || "#support")}">${esc(a.ctaLabel || "Read more")} →</a>
+    <button class="announce-close" type="button" aria-label="Dismiss announcement">×</button>`;
+  bar.hidden = false;
+  const close = bar.querySelector(".announce-close");
+  if (close) {
+    close.addEventListener("click", () => {
+      try { sessionStorage.setItem(ANNOUNCE_BANNER_KEY, String(a.id)); } catch { /* private mode */ }
+      bar.hidden = true;
+    });
+  }
+}
+
+function renderNews(list) {
+  const box = document.getElementById("news-list");
+  if (!box) return;
+  if (!list.length) {
+    box.innerHTML = '<div class="release-loading">No news yet</div>';
+    return;
+  }
+  box.innerHTML = list.map((a) => {
+    const paras = (Array.isArray(a.body) ? a.body : [])
+      .map((p) => `<p>${esc(p)}</p>`).join("");
+    const cta = a.ctaWeb
+      ? `<a class="btn btn-primary news-cta" href="${escAttr(a.ctaWeb)}">${esc(a.ctaLabel || "Read more")} →</a>`
+      : "";
+    const mail = a.email
+      ? `<a class="news-mail" href="mailto:${escAttr(a.email)}">${esc(a.emailLabel || "Email us")} →</a>`
+      : "";
+    return `
+    <article class="news-item${a.pinned ? " news-pinned" : ""}">
+      <div class="news-item-top">
+        <span class="news-tag">${esc(a.tag || "NEWS")}</span>
+        <time class="news-date" datetime="${escAttr(a.date || "")}">${esc(annDate(a.date))}</time>
+      </div>
+      <h3 class="news-title">${esc(a.title || "")}</h3>
+      ${paras}
+      <div class="news-actions">${cta}${mail}</div>
+    </article>`;
+  }).join("");
+}
+
+async function loadAnnouncements() {
+  try {
+    const res = await fetch(ANNOUNCEMENTS_URL, { cache: "no-cache" });
+    if (!res.ok) throw new Error(`${res.status}`);
+    const data = await res.json();
+    const list = sortAnnouncements(activeAnnouncements(data));
+    renderNews(list);
+    renderBanner(bannerAnnouncement(list));
+  } catch (e) {
+    const box = document.getElementById("news-list");
+    if (box) box.innerHTML = '<div class="release-loading">News unavailable</div>';
+    console.error("Announcement load error:", e);
+  }
+}
+
+function initAnnouncements() {
+  loadAnnouncements();
+}
+
 // ─── Smooth nav scroll ───
 function initNav() {
   document.querySelectorAll('.nav a[href^="#"], .dock a[href^="#"]').forEach((a) => {
@@ -298,6 +404,7 @@ function initNav() {
 document.addEventListener("DOMContentLoaded", () => {
   initReveal();
   loadReleases();
+  initAnnouncements();
   initSupport();
   initNav();
   initCopy();

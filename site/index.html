@@ -29,11 +29,15 @@
     <a href="#app">App</a>
     <a href="#watch">Player</a>
     <a href="#download">Download</a>
+    <a href="#news">News</a>
     <a href="#support">Support</a>
     <a href="#docs">Docs</a>
   </div>
   <a href="#download" class="nav-cta">Get App →</a>
 </nav>
+
+<!-- ═══ ANNOUNCEMENT BANNER (populated from announcements.json) ═══ -->
+<div id="announcement-banner" class="announce" hidden></div>
 
 <main id="main">
 <!-- ═══ HERO ═══ -->
@@ -266,6 +270,16 @@
   </div>
 </section>
 
+<!-- ═══ NEWS ═══ -->
+<section class="section" id="news">
+  <div class="section-label"><i></i>NEWS</div>
+  <h2 class="section-title">Latest <span>news.</span></h2>
+  <p class="section-desc">Announcements from the Aniraku team — shown here and in the app.</p>
+  <div id="news-list" class="news-list" aria-live="polite">
+    <div class="release-loading"><div class="spinner"></div><div>Loading news…</div></div>
+  </div>
+</section>
+
 <!-- ═══ SUPPORT ═══ -->
 <section class="section" id="support">
   <div class="section-label"><i></i>SUPPORT</div>
@@ -280,7 +294,8 @@
     </div>
     <div class="support-box binance-card">
       <div class="support-box-top"><span class="binance-tag">BINANCE</span><b class="binance-name">BINANCE PAY</b></div>
-      <p>Got the Binance app? Send anything you like straight to the dev — no fees, no address to mistype.</p>
+      <p>Got the Binance app? Scan the code or send anything you like straight to the dev — no fees, no address to mistype.</p>
+      <img class="binance-qr" src="assets/binance-pay-qr.png" alt="Binance Pay QR code for UID 1098400042" loading="lazy" width="600" height="600">
       <div class="binance-uid">
         <div><span>PAY UID</span><b>1098400042</b></div>
         <button class="binance-copy" type="button" data-copy-support="1098400042">COPY</button>
@@ -368,6 +383,7 @@
     <h2>Support the project</h2>
     <p>One dev, spare hours, real server bills. Anything you send goes straight into keeping Aniraku alive.</p>
     <a href="https://patreon.com/ShoIslam" class="btn btn-primary" target="_blank" rel="noopener">Support on Patreon →</a>
+    <img class="binance-qr modal-qr" src="assets/binance-pay-qr.png" alt="Binance Pay QR code for UID 1098400042" loading="lazy" width="600" height="600">
     <div class="binance-uid" style="margin-top:.8rem">
       <div><span>BINANCE PAY UID</span><b>1098400042</b></div>
       <button class="binance-copy" type="button" data-copy-support="1098400042">COPY</button>
