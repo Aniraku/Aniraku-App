@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.7.8"
+        default: "v5.7.9"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -170,28 +170,26 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.7.8 — Save-time list picker (AniList/MAL-style)
+            ## v5.7.9 — App-styled popups, trending quick actions, gesture fixes
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.7.8-arm64.apk`
-            - `aniraku-v5.7.8-arm32.apk`
-            - `aniraku-v5.7.8-universal.apk`
+            - `aniraku-v5.7.9-arm64.apk`
+            - `aniraku-v5.7.9-arm32.apk`
+            - `aniraku-v5.7.9-universal.apk`
 
             ### Changed
-            - **Pick the list as you save**: tapping Save on a title now asks which list it should go to — Watching, Plan to Watch, Completed, or Dropped — before adding it (AniList/MAL-style), instead of silently filing it under Plan to Watch. Works from the anime page, the Home hero, and the card menu. Change a saved title's list later by long-pressing its row (or tapping its status badge) in the Saved tab.
+            - **Themed pickers everywhere**: the save-to-list picker, the Saved-tab change-status picker, and the NSFW age-verification prompt in Settings now render as in-app "nothing"-styled bottom sheets instead of stock Android alert dialogs. Tap the backdrop to dismiss.
+            - **Home Trending quick actions**: long-press a trending card for a minimal overlay — Save to My List (opens the list picker; already-saved titles offer Remove) or Watch (resumes your progress, else episode 1).
 
-            ### Also included (from v5.7.7)
-            - **In-app announcement prompt**: a dismissible support/announcement dialog that reads `site/announcements.json` directly from GitHub — independent of the streaming backend — so announcements can be posted and edited **without a new Android release**. Dismissal lasts for the session only.
-            - **Binance Pay QR code** on the Support screen, next to the existing UID + copy button (original QR, Binance logo intact).
-
-            ### Notes
-            - **MAL / AniList sync**: both run entirely through the Aniraku backend (`api.aniraku.tech`); there is no app-side MAL client. They error only when that backend is down or MAL isn't configured server-side — a backend issue, not an app bug.
-            - Announcements are data-driven: edit `site/announcements.json` and push — both the website and the in-app prompt update, with no rebuild required.
+            ### Fixed
+            - **Accidental double-tap seeks**: a gesture cancelled mid-touch (finger drifting sideways, or a 2x-hold drifting off) left a stale tap behind — the next tap could fire an unintended ±10s jump. The tap chain now resets on every cancelled gesture.
+            - **Episode grid stuck mid-swipe**: swiping episodes with the touch stolen (call, notification) could leave the grid parked off-center. A terminate handler now springs it back.
+            - **Pre-load seeks**: double-tap seeking before the video's duration was known sought against a fake 999999s ceiling; those taps are now ignored until the video is ready.
 
             ### Housekeeping
             - tsc clean; tests green; ESLint 0 errors / 69 warnings (at baseline).
-            - Android versionCode: 75.
+            - Android versionCode: 76.
 
             Download the APK, install, and allow *install from unknown sources* if prompted.
           files: ./artifacts/*.apk

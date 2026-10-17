@@ -6,9 +6,28 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
-## v5.7.8 — Save-time list picker (AniList/MAL-style)
+## v5.7.9 — App-styled popups, trending quick actions, gesture fixes
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+Replaces the stock Android dialogs with themed in-app sheets, adds a long-press quick-action overlay on Home trending, and fixes player-gesture edge cases.
+
+### Changed
+- **Themed pickers everywhere**: the save-to-list picker, the Saved-tab change-status picker, and the NSFW age-verification prompt in Settings now render as in-app "nothing"-styled bottom sheets (dark surface, mono kicker, red accents) instead of stock Android alert dialogs; tap the backdrop to dismiss (`components/choice-sheet.tsx`).
+- **Home Trending quick actions**: long-press a trending card for a minimal themed overlay — Save to My List (opens the list picker; already-saved titles offer Remove) or Watch (resumes your progress, else episode 1).
+
+### Fixed
+- **Accidental double-tap seeks**: a gesture cancelled mid-touch (finger drifting sideways, or a 2x-hold drifting off) left a stale tap behind — the next tap could fire an unintended ±10s jump. The tap chain now resets on every cancelled gesture.
+- **Episode grid stuck mid-swipe**: swiping episodes with the touch stolen (call, notification) could leave the grid parked off-center with no release to spring it back. A terminate handler now resets it.
+- **Pre-load seeks**: double-tap seeking before the video's duration was known sought against a fake 999999s ceiling; those taps are now ignored until the video is ready.
+
+### Housekeeping
+- tsc clean; tests green; ESLint 0 errors / 69 warnings (at baseline).
+- Android versionCode: 76.
+
+## v5.7.8 — Save-time list picker (AniList/MAL-style)
+
+`STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
 
 Refines the v5.7.7 Saved-category picker into the AniList/MAL "add to list" flow.
 
