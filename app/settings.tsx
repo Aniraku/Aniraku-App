@@ -19,6 +19,7 @@ import { Toggle } from "@/components/toggle";
 import { PROVIDER_LABELS, ProviderMark, type SyncProvider } from "@/components/provider-mark";
 import { describeExport, describeImport, PROVIDER_LABELS as SYNC_LABELS } from "@/lib/provider-sync";
 import { useNsfwPreference } from "@/lib/nsfw-preference";
+import { showChoiceSheet } from "@/components/choice-sheet";
 import { DotLabel, nothing, Signal } from "@/components/nothing-ui";
 import { NativeScreen } from "@/components/screen";
 import { t } from "@/lib/i18n";
@@ -188,13 +189,20 @@ export default function SettingsScreen() {
       nsfw.setEnabled(true);
       return;
     }
-    Alert.alert(t("settings.nsfwAgeTitle"), t("settings.nsfwAgeMessage"), [
-      { text: t("settings.nsfwAgeDecline"), style: "cancel" },
-      {
-        text: t("settings.nsfwAgeConfirm"),
-        onPress: () => void nsfw.verifyAge().then(() => nsfw.setEnabled(true)).catch(() => {}),
-      },
-    ]);
+    showChoiceSheet({
+      kicker: "AGE VERIFICATION",
+      title: t("settings.nsfwAgeTitle"),
+      message: t("settings.nsfwAgeMessage"),
+      options: [
+        {
+          key: "confirm",
+          label: t("settings.nsfwAgeConfirm"),
+          variant: "primary",
+          onPress: () => void nsfw.verifyAge().then(() => nsfw.setEnabled(true)).catch(() => {}),
+        },
+        { key: "decline", label: t("settings.nsfwAgeDecline"), variant: "muted" },
+      ],
+    });
   };
 
   return <NativeScreen>

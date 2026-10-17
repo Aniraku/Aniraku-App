@@ -9,6 +9,7 @@ import { nsfwFilterParam, useNsfwPreference } from "@/lib/nsfw-preference";
 import { animeTitle } from "@/lib/types";
 import { hapticLight } from "@/lib/haptics";
 import { usePrefetchAnime } from "@/lib/prefetch";
+import { showChoiceSheet } from "@/components/choice-sheet";
 import { AnimeRail } from "@/components/anime-rail";
 import { ErrorState } from "@/components/async-state";
 import { nothing } from "@/components/nothing-ui";
@@ -107,7 +108,44 @@ function ContinueWatchingRail() {
 
 function TrendingGrid({ items }: { items: { id: number; coverImage?: { large?: string | null; extraLarge?: string | null } | null; bannerImage?: string | null; averageScore?: number | null; format?: string | null; episodes?: number | null; [key: string]: any }[] }) {
   const prefetch = usePrefetchAnime();
+  const bookmarks = useBookmarks();
+  const auth = useAnirakuAuth();
+  const { history } = useWatchHistory();
   if (!items.length) return null;
+  // Minimal long-press overlay on a trending title — Save (goes through the
+  // list picker) + Watch (resume where the user left off, else episode 1).
+  const openQuickActions = (item: { id: number; [key: string]: any }) => {
+    const title = animeTitle(item as any);
+    const saved = bookmarks.isBookmarked(item.id);
+    const latest = groupLatestByAnime(history.data ?? []).find((entry) => entry.anime_id === item.id);
+    hapticLight();
+    showChoiceSheet({
+      kicker: "QUICK ACTIONS",
+      title,
+      options: [
+        {
+          key: saved ? "unsave" : "save",
+          label: saved ? "Remove from My List" : "Save to My List",
+          icon: "bookmark",
+          variant: saved ? "destructive" : undefined,
+          onPress: () => {
+            if (!auth.user) { router.push("/auth" as never); return; }
+            bookmarks.toggleWithPicker(item as any, {
+              onError: (error) => Alert.alert("Could not update My List", error instanceof Error ? error.message : "Try again in a moment."),
+            });
+          },
+        },
+        {
+          key: "watch",
+          label: latest ? `Continue · EP ${latest.episode_number}` : "Watch from EP 1",
+          icon: "play",
+          variant: "primary",
+          onPress: () => router.push({ pathname: "/watch/[id]", params: { id: String(item.id), episode: String(latest ? latest.episode_number : 1), title, image: item.coverImage?.extraLarge || item.coverImage?.large || "" } } as never),
+        },
+        { key: "cancel", label: "Cancel", variant: "muted" },
+      ],
+    });
+  };
   return (
     <View style={styles.section}>
       <View style={styles.sectionHead}>
@@ -116,7 +154,7 @@ function TrendingGrid({ items }: { items: { id: number; coverImage?: { large?: s
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trendingList}>
         {items.slice(0, 10).map((item, index) => (
-          <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${animeTitle(item as any)} — open details`} onPress={() => { hapticLight(); prefetch(item.id); router.push((`/anime/${item.id}`) as never); }} style={({ pressed }) => [styles.trendingCard, pressed && styles.pressed]}>
+          <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${animeTitle(item as any)} — open details`} onPress={() => { hapticLight(); prefetch(item.id); router.push((`/anime/${item.id}`) as never); }} onLongPress={() => openQuickActions(item)} delayLongPress={350} style={({ pressed }) => [styles.trendingCard, pressed && styles.pressed]}>
             <View style={styles.trendingCardImage}>
               <Image source={{ uri: getOptimizedImageUri(item.coverImage?.extraLarge || item.coverImage?.large || "", POSTER_W) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={180} cachePolicy="memory-disk" />
               <View style={styles.trendingCardBadge}><Text style={styles.trendingCardBadgeText}>HD</Text></View>

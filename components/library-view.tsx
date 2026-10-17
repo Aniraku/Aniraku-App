@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View, type AlertButton } from "react-native";
+import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import { router } from "expo-router";
@@ -9,6 +9,7 @@ import { useWatchHistory } from "@/hooks/use-watch-history";
 import { EmptyState, ErrorState, LoadingState } from "@/components/async-state";
 import { AppIcon } from "@/components/app-icon";
 import { FirstRunImportPrompt } from "@/components/first-run-import-prompt";
+import { showChoiceSheet } from "@/components/choice-sheet";
 import { DotLabel, nothing, Signal } from "@/components/nothing-ui";
 import { LIST_STATUSES, LIST_STATUS_LABELS, MANUAL_LIST_STATUSES, type ListStatus } from "@/lib/list-status";
 import { bookmarkDisplayStatus, filterByListStatus, statusCounts } from "@/lib/bookmark-status";
@@ -226,17 +227,25 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
     if (!Number.isInteger(animeId)) return;
     const current = bookmarkDisplayStatus(item, watchedAnimeIds.has(animeId));
     const label = String(item?.title || item?.anime_title || "Anime");
-    const options: AlertButton[] = MANUAL_LIST_STATUSES.map((status) => ({
-      text: status === current ? `✓ ${LIST_STATUS_LABELS[status]}` : LIST_STATUS_LABELS[status],
-      onPress: () => {
-        if (status === current) return;
-        void bookmarks.updateStatus
-          .mutateAsync({ animeId, status })
-          .catch(() => Alert.alert("Could not update category", "Your change didn't save. Try again when you're online."));
-      },
-    }));
-    options.push({ text: "CANCEL", style: "cancel" });
-    Alert.alert(label, `Currently “${LIST_STATUS_LABELS[current]}” — pick a category:`, options);
+    showChoiceSheet({
+      kicker: "CHANGE STATUS",
+      title: label,
+      message: `Currently “${LIST_STATUS_LABELS[current]}”`,
+      options: [
+        ...MANUAL_LIST_STATUSES.map((status) => ({
+          key: status,
+          label: LIST_STATUS_LABELS[status],
+          isCurrent: status === current,
+          onPress: () => {
+            if (status === current) return;
+            void bookmarks.updateStatus
+              .mutateAsync({ animeId, status })
+              .catch(() => Alert.alert("Could not update category", "Your change didn't save. Try again when you're online."));
+          },
+        })),
+        { key: "cancel", label: "Cancel", variant: "muted" as const },
+      ],
+    });
   };
 
   const renderBookmarkRow = (item: any) => {

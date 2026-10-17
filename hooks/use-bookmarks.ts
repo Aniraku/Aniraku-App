@@ -1,8 +1,8 @@
-import { Alert, type AlertButton } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Anime } from "@/lib/types";
 import { animeTitle } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
+import { showChoiceSheet } from "@/components/choice-sheet";
 import { LIST_STATUS_LABELS, MANUAL_LIST_STATUSES, isMissingStatusColumnError, statusForNewBookmark, type ListStatus } from "@/lib/list-status";
 import { useAnirakuAuth } from "@/providers/auth-provider";
 
@@ -43,7 +43,7 @@ export function useBookmarks() {
   /**
    * AniList/MAL-style save: removing an already-saved title just toggles it
    * off; saving a new one first asks which list it should go to (Watching /
-   * Plan to Watch / Completed / Dropped) and lands it there.
+   * Plan to Watch / Completed / Dropped) — via the app's themed sheet.
    */
   const toggleWithPicker = (anime: Anime, callbacks?: { onSaved?: (status: ListStatus) => void; onRemoved?: () => void; onError?: (error: unknown) => void }) => {
     const saved = bookmarks.data?.some((bookmark) => Number(bookmark.anime_id) === anime.id);
@@ -51,14 +51,24 @@ export function useBookmarks() {
       void toggle.mutateAsync(anime).then(() => callbacks?.onRemoved?.()).catch((error) => callbacks?.onError?.(error));
       return;
     }
-    const options: AlertButton[] = MANUAL_LIST_STATUSES.map((status) => ({
-      text: LIST_STATUS_LABELS[status],
-      onPress: () => {
-        void add.mutateAsync({ anime, status }).then(() => callbacks?.onSaved?.(status)).catch((error) => callbacks?.onError?.(error));
-      },
-    }));
-    options.push({ text: "CANCEL", style: "cancel" });
-    Alert.alert(`Add “${animeTitle(anime)}” to your list`, "Which list should it go to?", options);
+    showChoiceSheet({
+      kicker: "ADD TO LIST",
+      title: `Add “${animeTitle(anime)}” to your list`,
+      message: "Pick the list this title belongs to.",
+      options: [
+        ...MANUAL_LIST_STATUSES.map((status) => ({
+          key: status,
+          label: LIST_STATUS_LABELS[status],
+          onPress: () => {
+            void add
+              .mutateAsync({ anime, status })
+              .then(() => callbacks?.onSaved?.(status))
+              .catch((error) => callbacks?.onError?.(error));
+          },
+        })),
+        { key: "cancel", label: "Cancel", variant: "muted" as const },
+      ],
+    });
   };
   // Manual category change from the Saved list (Watching / Plan to Watch /
   // Completed / Dropped): writes the chosen status onto the bookmark row.
