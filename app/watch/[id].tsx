@@ -1559,8 +1559,11 @@ export default function WatchScreen() {
   }, [doubleTapAnim]);
 
   const seekRelative = useCallback((deltaSeconds: number) => {
+    // Before onLoad the duration is unknown — skip rather than seeking against
+    // a fake 999999s ceiling (it poked state and could jump an unloaded video).
+    if (duration <= 0) return;
     setCurrentTime((curr) => {
-      const next = Math.max(0, Math.min(duration || 999999, curr + deltaSeconds));
+      const next = Math.max(0, Math.min(duration, curr + deltaSeconds));
       markIntentionalSeek(next);
       videoRef.current?.seek(next);
       return next;
@@ -1755,6 +1758,7 @@ export default function WatchScreen() {
             gestureModeRef.current = "idle";
             stopHoldSpeed();
             clearSkipHold();
+            resetTapChain(); // a cancelled hold must not leave tap #1 behind
             return;
           }
 
@@ -1763,6 +1767,7 @@ export default function WatchScreen() {
             cancelLongPress();
             cancelHoldSeek();
             clearSkipHold();
+            resetTapChain(); // a killed pan must not seed the next tap's double-seek
             return;
           }
 
@@ -2181,6 +2186,12 @@ export default function WatchScreen() {
               goToEpisode(previousKnownEpisode);
             }
           });
+        },
+        onPanResponderTerminate: () => {
+          // A stolen touch (call, notification, scroll) must never leave the
+          // episode grid parked mid-swipe with no release to spring it back.
+          if (swipeAnimating.current) return;
+          Animated.spring(swipeOffsetX, { toValue: 0, useNativeDriver: true }).start();
         },
       }),
     [nextKnownEpisode, previousKnownEpisode, goToEpisode, swipeOffsetX],
