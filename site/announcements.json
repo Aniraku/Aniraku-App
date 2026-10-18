@@ -3,20 +3,13 @@
   "updated": "2026-10-16",
   "announcements": [
     {
-      "id": "HELP",
-      "tag": "URGENT",
-      "title": "Keep Aniraku online",
-      "banner": "Massage from Dev cuase of recent down's of backend",
+      "id": "Good News",
+      "tag": "Note",
+      "title": "Aniraku Got Something",
+      "banner": "Massage from Dev",
       "body": [
-        "I don't know if you're aware of the thing i mean some technical stuff.The thing is we were running in AWS Free credit VPS now we have 18$ left the thing is we charged for Bandwidth rather than System.So my request to you guys is that if you guys can then let Aniraku live with your donation's even a few bucks would run aniraku a month.",
-        "As of now Aniraku has a large Amount of Growing Anime library and me as a dev trying to make it more bigger, that isn't possible without you guys help.Tho guys who has github please give my project a star that would help me to get a sponserred VPS if i can make a decent amount of stars.Or give this little work a donation",
-        "If you know or not Aniraku was built for an ad-free anime streaming site rather than that you will find many site or apps what have ads.To make it ad free i decrypt the provider video player and re-proxy them so Aniraku can stream ad-free and That's what eat's the Bandwidth so i need your help to live as Aniraku is.",
-        "If Aniraku Ever helps you to watch an anime or ever make your day in any Way then Give Aniraku donation to maintain a VPS and also if you do have Github then consider giving my Little work a Star"
-      ],
+        "Aniraku got his life back one of user baught patreon membership monthly one that could help aniraku to live every month: want an anime added? Mail us at sho.islam0311@proton.me and we will add it.if you want Aniraku to stay available, please donate. Every contribution keeps the episodes playing.And Server will be Updated Soon."
       "date": "2026-10-18",
-      "ctaLabel": "Donate now",
-      "ctaWeb": "#support",
-      "ctaApp": "/support",
       "email": "sho.islam0311@proton.me",
       "emailLabel": "Missing an anime or Facing any error? Just mail me",
       "pinned": true,
