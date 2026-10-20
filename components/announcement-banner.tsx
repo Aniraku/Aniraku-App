@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Dimensions, Linking, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Dimensions, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { AppIcon } from "@/components/app-icon";
@@ -100,6 +100,13 @@ export function AnnouncementBanner() {
           )}
           <Text style={styles.title}>{announcement.title}</Text>
           {!!announcement.banner && <Text style={styles.body}>{announcement.banner}</Text>}
+          {!!announcement.body?.length && (
+            <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.bodyScrollContent} showsVerticalScrollIndicator={false}>
+              {announcement.body.map((paragraph, index) => (
+                <Text key={index} style={styles.body}>{paragraph}</Text>
+              ))}
+            </ScrollView>
+          )}
           <View style={styles.divider} />
           <Pressable onPress={donate} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
             <Text style={styles.buttonText}>{(announcement.ctaLabel || "Donate now").toUpperCase()} →</Text>
@@ -176,6 +183,14 @@ const styles = StyleSheet.create({
     color: nothing.muted,
     fontSize: 13.5,
     lineHeight: 19,
+  },
+  // Body paragraphs scroll inside the card so a long announcement can never
+  // push the buttons off-screen on small devices.
+  bodyScroll: {
+    maxHeight: Math.min(Dimensions.get("window").height * 0.26, 220),
+  },
+  bodyScrollContent: {
+    gap: 8,
   },
   divider: {
     height: 1,
