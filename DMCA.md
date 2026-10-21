@@ -8,7 +8,7 @@ Aniraku respects the intellectual-property rights of others and expects users of
 
 Copyright notices, counter-notices, and related correspondence should be sent to the designated agent:
 
-**Aniraku Copyright Agent — [dmca@aniraku.tech](mailto:dmca@aniraku.tech)**
+**Aniraku Copyright Agent — [Aniraku](mailto:sho.islam0311@proton.me)**
 
 Include "DMCA Notice" or "DMCA Counter-Notice" in the subject line so the message is routed without delay.
 
