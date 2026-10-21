@@ -31,7 +31,7 @@ Aniraku is not intended for children under 13, and accounts or data known to bel
 
 Aniraku uses AniList for public anime metadata, the Aniraku API for source coordination, and Supabase for authentication and account-scoped synchronization. Each service processes the requests needed for its own function. Review their independent notices for details about their respective practices.
 
-For privacy questions or account-data requests, contact **[privacy@aniraku.tech](mailto:privacy@aniraku.tech)**. This notice will be revised when the application's data practices materially change.
+For privacy questions or account-data requests, contact **[sho.islam0311@proton.me](mailto:sho.islam0311@proton.me)**. This notice will be revised when the application's data practices materially change.
 
 ---
 

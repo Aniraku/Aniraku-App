@@ -40,7 +40,7 @@ To the maximum extent permitted by law, Aniraku is not liable for indirect, inci
 
 These terms may be updated as the service evolves. Material changes will be communicated through an in-app notice or the release notes. Continued use after changes take effect constitutes acceptance.
 
-Questions about these terms may be sent to **[legal@aniraku.tech](mailto:legal@aniraku.tech)**.
+Questions about these terms may be sent to **[sho.islam0311@proton.me](mailto:sho.islam0311@proton.me)**.
 
 ---
 
