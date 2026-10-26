@@ -71,22 +71,6 @@
 | **Bookmark Sync** | Yes (cloud) | Local only | No | No | Local |
 | **Design System** | "Nothing" (custom) | Material | Basic | Basic | Material |
 
----
-
-### v5.7.5 is out
-
-Watch History and Continue Watching ordered by real watch time (imports can no longer flood the top of your history) with one row per title, `6/12 EP` progress on Saved titles, and Import/Export that visibly reconciles your account to the provider.
-
-| APK |
-|:--|
-| [Aniraku-v5.7.5-arm64.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.5/aniraku-v5.7.5-arm64.apk) |
-| [Aniraku-v5.7.5-arm32.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.5/aniraku-v5.7.5-arm32.apk) |
-| [Aniraku-v5.7.5-universal.apk](https://github.com/Aniraku/Aniraku-App/releases/download/v5.7.5/aniraku-v5.7.5-universal.apk) |
-
-<sub>The universal APK contains all architectures · Enable *install from unknown sources* if prompted &middot; Android 9.0+</sub>
-
----
-
 ### Coming Soon
 
 | Feature | Status | Notes |
