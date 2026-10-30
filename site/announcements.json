@@ -1,16 +1,16 @@
 {
-  "version": 2,
-  "updated": "2026-10-19",
+  "version": 3,
+  "updated": "2026-10-30",
   "announcements": [
     {
-      "id": "Good News",
+      "id": "Hey~",
       "tag": "Note",
-      "title": "Aniraku Got Something",
-      "banner": "Massage from Dev — Aniraku got his life back one of user baught patreon membership monthly one that could help aniraku to live every month: want an anime added? Mail us at sho.islam0311@proton.me and we will add it.if you want Aniraku to stay available, please donate. Every contribution keeps the episodes playing.And Server will be Updated Soon.",
+      "title": "I wanna Know Something",
+      "banner": "First thank you too all of guys for that love.Some guys mailed me about an in-app download but when i replied them they didn't replied back.so i wanna how much you guys will love this feature please let me know.",
       "body": [
-        "Aniraku got his life back one of user baught patreon membership monthly one that could help aniraku to live every month: want an anime added? Mail us at sho.islam0311@proton.me and we will add it.if you want Aniraku to stay available, please donate. Every contribution keeps the episodes playing.And Server will be Updated Soon."
+        "Aniraku built as an enthusiasm but per you guys love i am continuesly maintaining it aside from my life.So i want to know if you want any other feature that Aniraku should have rather than the in-app ofline downloads without the external download.I already Rolled that feature in my Website now it's in development for APP.AND if guys have Github then Please give my Project an star.And also i need some Volunteer to make an Discor or Telegram channel for the community cause i ain't good at this type of thing.enjoy your Anime guys."
       ],
-      "date": "2026-10-19",
+      "date": "2026-10-30",
       "email": "sho.islam0311@proton.me",
       "emailLabel": "Missing an anime or Facing any error? Just mail me",
       "pinned": true,
