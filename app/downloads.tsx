@@ -85,7 +85,7 @@ export default function DownloadsScreen() {
   };
 
   const openEpisode = (animeId: number, episode: number, title: string, image: string) =>
-    router.push({ pathname: "/watch/[id]", params: { id: String(animeId), episode: String(episode), title, image } } as never);
+    router.push({ pathname: "/watch/[id]", params: { id: String(animeId), episode: String(episode), title, image, offline: "1" } } as never);
 
   const renderJob = (job: OfflineDownloadJob) => {
     const poster = posterByAnimeId.get(job.animeId) ?? "";

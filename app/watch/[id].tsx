@@ -166,7 +166,9 @@ const _watchMountTime = __DEV__ ? Date.now() : 0;
 if (__DEV__) console.log("[watch] mount t=0");
 
 export default function WatchScreen() {
-  const params = useLocalSearchParams<{ id?: string | string[]; episode?: string | string[]; title?: string; image?: string }>();
+  const params = useLocalSearchParams<{ id?: string | string[]; episode?: string | string[]; title?: string; image?: string; offline?: string }>();
+  const wantsOfflinePlayback = params.offline === "1";
+
   const animeId = parseRouteId(params.id) ?? -1;
   const invalidId = animeId <= 0;
   const episode = parseRouteEpisode(params.episode);
@@ -552,9 +554,15 @@ export default function WatchScreen() {
   // ── Effects ──
   useEffect(() => {
     let active = true;
-    void findOfflineDownload(animeId, episode, language).then((entry) => { if (active) setOfflineDownload(entry); }).catch(() => { if (active) setOfflineDownload(null); });
+    void findOfflineDownload(animeId, episode, language).then((entry) => {
+      if (!active) return;
+      setOfflineDownload(entry);
+      // Launched from the Downloads hub play button: mount the saved copy
+      // immediately and keep every online fetch out of the offline flow.
+      if (entry && wantsOfflinePlayback && !sourceMounted.current) mountOfflineCopy(entry);
+    }).catch(() => { if (active) setOfflineDownload(null); });
     return () => { active = false; };
-  }, [animeId, episode, language]);
+  }, [animeId, episode, language, wantsOfflinePlayback]);
 
   useEffect(() => {
     if (episodeSearch.trim()) { setEpisodePage(0); return; }
@@ -689,6 +697,16 @@ export default function WatchScreen() {
 
   // ── Server discovery ──
   useEffect(() => {
+    // Offline launches (Downloads-hub play) never touch the online flow —
+    // the saved copy mounts from the offline effect below.
+    if (wantsOfflinePlayback) {
+      clearEpisodePlayback();
+      setProviders({ sub: [], dub: [] });
+      setLoadingServers(false);
+      setLoadingStream(false);
+      setError(null);
+      return;
+    }
     let cancelled = false;
     clearEpisodePlayback();
     setProviders({ sub: [], dub: [] });
@@ -760,6 +778,7 @@ export default function WatchScreen() {
 
   // ── Stream loading ──
   useEffect(() => {
+    if (wantsOfflinePlayback) return;
     if (futureRelease || !activeProvider) return;
     let cancelled = false;
     const providerId = activeProvider.id;
@@ -2140,23 +2159,29 @@ export default function WatchScreen() {
     setDownloadMessage(message.toUpperCase());
   };
 
-  const playOffline = () => {
-    if (!offlineDownload) return;
+  /** Mounts a saved copy as the active source (shared by the rail button and
+   *  the Downloads-hub auto-play so both stay byte-identical). */
+  const mountOfflineCopy = (entry: OfflineDownload) => {
     videoRef.current?.pause();
     sourceMounted.current = true;
     setPlaybackHeaders(undefined);
     setUseSourceProxy(false);
     setSource({
-      url: offlineDownload.uri,
-      quality: `${offlineDownload.quality} · SAVED`,
+      url: entry.uri,
+      quality: `${entry.quality} · SAVED`,
       type: "native",
       // Saved bundles keep the fetched subtitle tracks beside the video.
-      subtitles: offlineDownload.subtitles?.length
-        ? offlineDownload.subtitles.map((track) => ({ url: track.file, lang: track.lang, label: track.label }))
+      subtitles: entry.subtitles?.length
+        ? entry.subtitles.map((track) => ({ url: track.file, lang: track.lang, label: track.label }))
         : undefined,
     });
     setSourceRevision((v) => v + 1);
     setActivePanel(null);
+  };
+
+  const playOffline = () => {
+    if (!offlineDownload) return;
+    mountOfflineCopy(offlineDownload);
     setDownloadMessage("PLAYING SAVED COPY.");
   };
 

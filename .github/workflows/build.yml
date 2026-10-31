@@ -183,22 +183,21 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.8.9 — THE download-refusal root cause + proxy-only subtitles
+            ## v5.9.0 — Offline playback plays offline
 
-            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0–v5.8.8 — same signing key, no uninstall needed.**
+            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0–v5.8.9 — same signing key, no uninstall needed.**
 
-            - `aniraku-v5.8.9-arm64.apk` — modern (64-bit) devices
-            - `aniraku-v5.8.9-arm32.apk` — older / budget (32-bit) devices
-            - `aniraku-v5.8.9-universal.apk` — every device
+            - `aniraku-v5.9.0-arm64.apk` — modern (64-bit) devices
+            - `aniraku-v5.9.0-arm32.apk` — older / budget (32-bit) devices
+            - `aniraku-v5.9.0-universal.apk` — every device
 
             ### Fixed
-            - **THE download-refusal root cause** (found at last): `isHls` required `.m3u8` at the END of the URL — backend-wrapped and tokenized playlist URLs carry it mid-path with `&headers=&al=` trailing params, so **every download row was classified as non-HLS** and refused with "a direct progressive source is required", on every version, regardless of every transport fix. Explicit variant URLs are now trusted as playlists; wrapped URLs are tested after unwrapping; hls/mpegurl type labels count.
-            - **Subtitles are proxy-only** like every other remote byte — the streaming subtitle fetch's direct fallback is gone.
+            - **Downloads-hub play now plays the saved copy immediately**: the watch screen auto-mounts the offline bundle when launched from the hub's play button, and the online server-discovery/stream flow is skipped entirely for that launch — zero server calls, instant playback.
 
-            ### Carried from v5.8.0–v5.8.8 (unchanged)
-            - Proxy-only playback and downloads on the shared OkHttp stack
-            - HLS downloads for every provider, 4 parallel segment workers, live progress
-            - Stub-data gate, email-verification relay, stable release signing
+            ### Carried from v5.8.0–v5.8.9 (unchanged)
+            - HLS downloads for every provider, proxy-only transport, stable signing
+            - 4 parallel segment workers with live progress, stub-data gate
+            - Email-verification relay, watch-screen crash hotfix, diagnosable error screen
           files: ./artifacts/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,1 @@
+Opening an episode from the Downloads hub now plays the saved copy immediately — no more online flow, no server calls. Installs over v5.8.0–v5.8.9.

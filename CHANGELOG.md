@@ -6,6 +6,18 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.9.0 — Offline playback plays offline
+
+`CURRENT / FIX / INSTALLS OVER v5.8.0–v5.8.9`
+
+Field report: downloads complete, but opening the episode from the Downloads hub started the ONLINE flow (server discovery, stream fetch) instead of playing the saved copy. The saved copy was only mounted when tapping the small green rail icon.
+
+### Fixed
+- **Downloads-hub play now plays the saved copy immediately**: the watch screen auto-mounts the offline bundle when launched from the hub's play button, and the online server-discovery/stream flow is skipped entirely for that launch — zero server calls, instant playback.
+- The rail icon (green download button on the watch screen) keeps its exact behavior.
+
+## v5.8.9 — THE download-refusal root cause + proxy-only subtitles
+
 ## v5.8.9 — THE download-refusal root cause + proxy-only subtitles
 
 `CURRENT / ROOT-CAUSE FIX / INSTALLS OVER v5.8.0–v5.8.8`

@@ -24,14 +24,14 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.9">v5.8.9 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.9.0">v5.9.0 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 <br>
 
 > [!IMPORTANT]
-> **v5.8.9 is the current release** — THE download-refusal root cause, found: the HLS gate required `.m3u8` at the end of the URL, but backend-wrapped/tokenized playlist URLs carry it mid-path with trailing params — so every download row was refused as "not progressive" on every version. Fixed (explicit variant URLs are trusted; wrapped URLs are tested after unwrapping), and subtitles are proxy-only like every other byte. Installs directly over v5.8.0–v5.8.8. If you want the previous build, [v5.8.8](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.8) is the stub-segment fix.
+> **v5.9.0 is the current release** — Fix: opening an episode from the Downloads hub now plays the saved copy immediately and skips the online flow entirely (the hub's play button previously dropped you into the online player). Installs directly over v5.8.0–v5.8.9. If you want the previous build, [v5.8.9](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.9) is the download-refusal root-cause fix.
 
 > [!CAUTION]
 >If it has saved you time, a small donation keeps it up. And the library keeps growing — **missing an anime?** Email [`sho.islam0311@proton.me`](mailto:sho.islam0311@proton.me) and it'll get added.
