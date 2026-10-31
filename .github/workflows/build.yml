@@ -183,23 +183,20 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.8.2 — Downloads for every HLS provider + email-verification relay
+            ## v5.8.3 — Proxy-only playback and downloads
 
-            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0/v5.8.1 — same signing key, no uninstall needed.**
+            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0–v5.8.2 — same signing key, no uninstall needed.**
 
-            - `aniraku-v5.8.2-arm64.apk` — modern (64-bit) devices
-            - `aniraku-v5.8.2-arm32.apk` — older / budget (32-bit) devices
-            - `aniraku-v5.8.2-universal.apk` — every device
+            - `aniraku-v5.8.3-arm64.apk` — modern (64-bit) devices
+            - `aniraku-v5.8.3-arm32.apk` — older / budget (32-bit) devices
+            - `aniraku-v5.8.3-universal.apk` — every device
 
-            ### Fixed
-            - **HLS downloads refused**: the download gate required a "native" source type for the HLS branch — every HLS download was refused before starting. Now gated by the URL/mime itself; dead sources stay refused.
-            - **Single-rendition + direct media playlists downloadable**: providers without a multi-rendition master expose the playlist itself to the downloader (matching the website).
-            - **Proxy fallback for downloads**: CDNs that block non-browser TLS fingerprints fall back to the Aniraku proxy per segment/key — the website's direct→proxy ladder, now native.
-            - **Email verification relay**: aniraku.tech/auth/confirm verifies the confirmation token server-side and bounces back into the app; the app also auto-detects a web-confirmed account when you return and signs you in.
+            ### Changed
+            - **Proxy-only playback and downloads** (operator policy): provider CDNs 403 direct device fetches, so every remote byte — playback, playlist, key, segments, progressive transfers, size estimates — rides the Aniraku proxy with the browser identity. No more direct-attempt stalls or 403 download failures on SORA-class providers.
 
-            ### Carried from v5.8.0/v5.8.1 (unchanged)
-            - In-app offline downloads, new-episode push notifications, real per-ABI APK builds
-            - The playback-header fix for proxied streams, watch-screen crash hotfix, diagnosable error screen
+            ### Carried from v5.8.0–v5.8.2 (unchanged)
+            - HLS downloads for every provider, email-verification relay, watch-screen crash hotfix
+            - New-episode push notifications, real per-ABI APK builds, stable release signing
           files: ./artifacts/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,1 @@
+Proxy-only playback and downloads: every remote byte now rides the Aniraku proxy — no more 403 download failures or playback stalls on CDNs that block direct device fetches. Installs over v5.8.0–v5.8.2.

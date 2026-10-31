@@ -3,6 +3,7 @@ import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from "reac
 import * as Haptics from "expo-haptics";
 import { NetworkStateType, useNetworkState } from "expo-network";
 import { estimateHlsSize, parseMediaPlaylist } from "@/lib/downloads-hls";
+import { anirakuProxyRequestHeaders, anirakuProxyUrl } from "@/lib/aniraku-api";
 import { downloadRequestHeaders, formatBytes, startMaximumQualityDownload } from "@/lib/downloads";
 import { useDownloadSettings } from "@/hooks/use-download-settings";
 import { originalStreamUrl } from "@/lib/hls-variants";
@@ -49,11 +50,18 @@ const ESTIMATE_TIMEOUT_MS = 8000;
  * EXTINF durations × bandwidth. `null` bytes = estimate unavailable;
  * `live: true` = no ENDLIST, so it can never be saved.
  */
+// PROXY-ONLY (operator decision): estimate fetches ride the Aniraku proxy —
+// direct device fetches are 403'd by the picky CDNs.
+async function fetchViaProxy(url: string, headers: Record<string, string>, signal?: AbortSignal, method?: string): Promise<Response> {
+  const proxy = anirakuProxyUrl(originalStreamUrl(url), headers);
+  return fetch(proxy, { method: method ?? "GET", headers: anirakuProxyRequestHeaders(), signal });
+}
+
 async function estimateVariant(variantUrl: string, bandwidth: number, headers: Record<string, string>): Promise<Estimate> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ESTIMATE_TIMEOUT_MS);
   try {
-    const response = await fetch(originalStreamUrl(variantUrl), { headers, signal: controller.signal });
+    const response = await fetchViaProxy(variantUrl, headers, controller.signal);
     if (!response.ok) return { bytes: null, live: false };
     const text = await response.text();
     const parsed = parseMediaPlaylist(text);
@@ -76,7 +84,7 @@ async function probeDirectSize(sourceUrl: string, headers: Record<string, string
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ESTIMATE_TIMEOUT_MS);
   try {
-    const response = await fetch(originalStreamUrl(sourceUrl), { method: "HEAD", headers, signal: controller.signal });
+    const response = await fetchViaProxy(sourceUrl, headers, controller.signal, "HEAD");
     if (!response.ok) return { bytes: null, live: false };
     const length = Number(response.headers?.get?.("content-length") ?? NaN);
     return { bytes: Number.isFinite(length) && length > 0 ? length : null, live: false };

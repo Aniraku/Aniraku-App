@@ -6,6 +6,23 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.8.3 — Proxy-only playback and downloads
+
+`CURRENT / OPERATOR POLICY / INSTALLS OVER v5.8.0–v5.8.2`
+
+Operator decision: provider CDNs 403 direct device fetches (non-browser TLS fingerprints), so the app now rides the Aniraku proxy for every remote byte — the same policy the website has always used. No more direct attempts, watchdog churn, or 403 toasts on SORA-class providers.
+
+### Changed
+- **Proxy-only playback**: every remote source mounts through the Aniraku proxy (provider upstream headers travel in the proxy URL's `headers` param; the player presents the browser identity to api.aniraku.tech).
+- **Proxy-only downloads — progressive MP4s**: bytes stream through the proxy into the destination file (no more `downloadFileAsync` 403s on SORA-class CDNs).
+- **Proxy-only HLS downloads**: playlist, key, and every segment/key fetch in the native pipeline ride the proxy.
+- **Proxy-only size estimates**: the download sheet's playlist estimates and HEAD probes ride the proxy — real sizes on picky CDNs.
+
+### Why the direct path is gone
+Direct device fetches were 403'd by the picky CDNs regardless of headers (TLS-fingerprint blocking) — verified against settlar-class and SORA-class hosts. Every direct attempt only wasted the 6-second startup watchdog and produced failed downloads. The proxy hop is the one path that works everywhere, and it is the website's own policy.
+
+## v5.8.2 — Downloads for every HLS provider + email-verification relay
+
 ## v5.8.2 — Downloads for every HLS provider + email-verification relay
 
 `CURRENT / HOTFIX / INSTALLS OVER v5.8.0–v5.8.1`

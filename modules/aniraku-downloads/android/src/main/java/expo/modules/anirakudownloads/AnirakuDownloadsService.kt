@@ -157,30 +157,21 @@ class AnirakuDownloadsService : Service() {
   }
 
   /** Sequential fetch with two retries; returns the byte count written.
-   *  Direct-CDN first (ADR-003) — CDNs that block non-browser TLS
-   *  fingerprints fall back to the Aniraku proxy, mirroring the website's
-   *  direct-to-proxy downloader ladder. */
+   *  PROXY-ONLY (operator decision): provider CDNs 403 direct device
+   *  fetches, so key + segment bytes always stream through the Aniraku
+   *  proxy with the browser identity on the hop. */
   private fun downloadTo(file: File, url: String, headers: Map<String, String>, proxyBase: String, attempt: Int = 0): Long {
     try {
-      val status = fetchTo(file, url, headers)
+      if (proxyBase.isEmpty()) throw IOException("The download proxy is not configured.")
+      val proxied = proxyBase + "/api/v1/proxy?url=" + java.net.URLEncoder.encode(url, "UTF-8") +
+        "&headers=" + java.net.URLEncoder.encode(jsonHeaders(headers), "UTF-8")
+      val proxyHeaders = mapOf("User-Agent" to BROWSER_UA, "Referer" to SITE_REFERER)
+      val status = fetchTo(file, proxied, proxyHeaders)
       if (status !in 200..299) throw IOException("Source returned $status.")
       if (file.length() <= 0L) throw IOException("A segment arrived empty.")
       return file.length()
     } catch (cause: Exception) {
       file.delete()
-      // Proxy fallback (only while retries remain — the final failure is honest).
-      if (proxyBase.isNotEmpty() && attempt < 2) {
-        try {
-          val proxied = proxyBase + "/api/v1/proxy?url=" + java.net.URLEncoder.encode(url, "UTF-8") +
-            "&headers=" + java.net.URLEncoder.encode(jsonHeaders(headers), "UTF-8")
-          val proxyHeaders = mapOf("User-Agent" to BROWSER_UA, "Referer" to SITE_REFERER)
-          val status = fetchTo(file, proxied, proxyHeaders)
-          if (status in 200..299 && file.length() > 0L) return file.length()
-          file.delete()
-        } catch (_: Exception) {
-          file.delete()
-        }
-      }
       if (attempt < 2) {
         Thread.sleep(1_000L * (attempt + 1))
         return downloadTo(file, url, headers, proxyBase, attempt + 1)

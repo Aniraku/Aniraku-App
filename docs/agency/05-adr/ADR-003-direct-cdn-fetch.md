@@ -12,3 +12,7 @@
 - api.aniraku.tech itself now sits behind a browser gate (verified live): the JSON API and media proxy 403 header-less requests. The app's proxy calls carry `anirakuProxyRequestHeaders()` (browser UA + aniraku.tech referer); provider upstream headers are preserved in the proxy `headers` param.
 - App-made proxy URLs no longer append a cache-buster nonce — tokenized URLs are unique per fetch and the proxy's edge cache answers repeats.
 - The beta segment pool (ADR-005) fetches segments through the player's own data-source factory, so downloads and prefetch both keep the server out of the media path.
+
+## Amendment (2026-10-31, v5.8.3 — POLICY REVERSAL: proxy-only)
+
+The direct-CDN policy is **revoked by operator decision**. Field evidence: settlar-class and SORA-class CDNs 403 ALL direct device fetches (TLS-fingerprint blocking) regardless of headers — the direct path only produced watchdog stalls and failed downloads. Every remote byte (playback mounts, playlist/key/segment fetches, progressive transfers, size probes) now rides the Aniraku proxy with the browser identity. `patch-build-abi.sh` and the download facade keep the ADR-003 header handling; only the transport changed. Backend bandwidth cost rises accordingly — accepted by the operator.

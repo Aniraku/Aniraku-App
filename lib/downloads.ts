@@ -511,22 +511,34 @@ async function legacyDownload(legacy: NonNullable<typeof legacyModule>, url: str
  * falling through would start a second, un-cancellable download.
  */
 async function transfer(url: string, destination: File, headers: Record<string, string>, onBytes: (received: number, total: number) => void, onTask: (task: QueuedDownload["legacyTask"]) => void, isCancelled: () => boolean) {
-  const legacy = legacyFileSystem();
-  if (destination.uri.startsWith("file://") && legacy && typeof legacy.createDownloadResumable === "function") {
-    try {
-      await legacyDownload(legacy, url, destination, headers, onBytes, onTask);
-      return;
-    } catch {
-      try { if (destination.exists) destination.delete(); } catch { /* partial file dropped */ }
-      if (isCancelled()) throw new Error("Download cancelled.");
-    }
+  // PROXY-ONLY (operator decision): provider CDNs 403 direct device fetches,
+  // so the bytes stream through the Aniraku proxy with the browser identity.
+  // The proxy hop has no resume support — progress streams from the body.
+  const proxied = anirakuProxyUrl(url, headers);
+  const response = await fetch(proxied, { headers: anirakuProxyRequestHeaders() });
+  if (!response.ok) {
+    throw new Error(`Source returned ${response.status}.`);
   }
-  const result = await File.downloadFileAsync(url, destination, { idempotent: true, headers });
-  const status = Number((result as { status?: number } | null)?.status ?? 200);
-  // An HTTP error body saved as the episode file is worse than a failed job.
-  if (!(status >= 200 && status < 300)) {
+  if (!response.body) throw new Error("The source sent an empty response.");
+  const total = Number(response.headers.get("content-length")) || 0;
+  const reader = response.body.getReader();
+  await destination.create({ intermediates: true });
+  let received = 0;
+  const chunks: Uint8Array[] = [];
+  try {
+    while (true) {
+      if (isCancelled()) { reader.cancel(); throw new Error("Download cancelled."); }
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.length;
+      onBytes(received, total);
+    }
+    destination.write(new Uint8Array(await new Blob(chunks as BlobPart[]).arrayBuffer()));
+    if (received <= 0) throw new Error("A segment arrived empty.");
+  } catch (cause) {
     try { if (destination.exists) destination.delete(); } catch { /* best effort */ }
-    throw new Error(`Source returned ${status}.`);
+    throw cause;
   }
 }
 
@@ -550,7 +562,7 @@ function bundleDirectory(entryId: string): Directory {
  */
 async function preflightProgressiveSpace(request: DownloadRequest) {
   try {
-    const response = await fetch(request.downloadUrl, { method: "HEAD", headers: request.headers });
+    const response = await fetch(anirakuProxyUrl(request.downloadUrl, request.headers), { method: "HEAD", headers: anirakuProxyRequestHeaders() });
     const length = Number(response.headers.get("content-length"));
     if (!response.ok || !Number.isFinite(length) || length <= 0) return;
     pendingEstimates.set(request.entryId, length);
@@ -659,20 +671,10 @@ async function performHlsDownload(internal: QueuedDownload, callbacks: TransferC
     if (dir.exists) dir.delete();
     dir.create({ intermediates: true, idempotent: true });
 
-    // Direct first (ADR-003 keeps bytes off the server); CDNs that block
-    // non-browser TLS fingerprints fall back to the Aniraku proxy — the same
-    // direct→proxy ladder the website's downloader uses.
-    let response: Response | null = null;
-    let lastStatus = 0;
-    try {
-      response = await fetch(playlistUrl, { headers: request.headers });
-      if (!response.ok) { lastStatus = response.status; response = null; }
-    } catch { response = null; }
-    if (!response) {
-      const viaProxy = anirakuProxyUrl(playlistUrl, request.headers);
-      response = await fetch(viaProxy, { headers: anirakuProxyRequestHeaders() });
-      if (!response.ok) throw new Error(`Source returned ${lastStatus || response.status}.`);
-    }
+    // PROXY-ONLY (operator decision): fetch the playlist through the Aniraku
+    // proxy with the browser identity.
+    const response = await fetch(anirakuProxyUrl(playlistUrl, request.headers), { headers: anirakuProxyRequestHeaders() });
+    if (!response.ok) throw new Error(`Source returned ${response.status}.`);
     const text = await response.text();
     const parsed = parseMediaPlaylist(text);
     if (!parsed) throw new Error("This stream could not be read for download.");

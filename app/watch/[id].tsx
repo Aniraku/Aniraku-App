@@ -1173,24 +1173,24 @@ export default function WatchScreen() {
   // Backend stream URLs are already proxied (/api/v1/proxy?...). Those must
   // play as-is — re-wrapping yields a proxy-of-proxy URL the backend rejects
   // with 403 ("proxy target not allowed") → Exo BAD_HTTP_STATUS.
+  // ── PROXY-ONLY PLAYBACK (operator decision) ──
+  // Provider CDNs 403 direct device fetches (non-browser TLS fingerprints),
+  // so every remote source mounts through the Aniraku proxy — the same
+  // policy the website's player has always used. Provider upstream headers
+  // travel in the proxy URL's `headers` param; the player itself presents
+  // the browser identity to api.aniraku.tech.
   const videoSourceUri = useMemo(() => {
     if (!source) return undefined;
+    if (source.url.startsWith("file://") || source.url.startsWith("content://")) return source.url;
     if (isAnirakuProxyUrl(source.url)) return source.url;
     const directHeaders = nativePlaybackHeaders(playbackHeaders);
-    if (useSourceProxy) return anirakuProxyUrl(source.url, directHeaders);
-    return source.url;
-  }, [source?.url, useSourceProxy, playbackHeaders]);
+    return anirakuProxyUrl(source.url, directHeaders);
+  }, [source?.url, playbackHeaders]);
 
   const videoSourceHeaders = useMemo(() => {
-    // Proxied playback (backend pre-proxied URLs and our own fallback wraps)
-    // must present the browser identity to api.aniraku.tech: its gate sits in
-    // front of every manifest, variant, and segment the player fetches and
-    // 403s requests without it (verified live). Upstream provider headers
-    // travel in the proxy URL's `headers` param instead.
-    if (useSourceProxy) return anirakuProxyRequestHeaders();
-    if (source && isAnirakuProxyUrl(source.url)) return anirakuProxyRequestHeaders();
-    return nativePlaybackHeaders(playbackHeaders);
-  }, [useSourceProxy, playbackHeaders, source?.url]);
+    if (!source || source.url.startsWith("file://") || source.url.startsWith("content://")) return nativePlaybackHeaders(playbackHeaders);
+    return anirakuProxyRequestHeaders();
+  }, [source?.url, playbackHeaders]);
 
   // ── Parallel segment pool (native twin of the website's hlsPrefetch) ──
   // Transparent inside ExoPlayer's DataSource: the mount below is untouched.
