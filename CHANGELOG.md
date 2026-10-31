@@ -6,7 +6,7 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
-## v5.9.0 — Offline playback plays offline
+## v5.8.10 — Offline playback plays offline
 
 `CURRENT / FIX / INSTALLS OVER v5.8.0–v5.8.9`
 
