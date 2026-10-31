@@ -181,27 +181,36 @@ class AnirakuDownloadsService : Service() {
   }
 
   private fun fetchTo(file: File, url: String, headers: Map<String, String>): Int {
-    val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-      connectTimeout = 10_000
-      readTimeout = 30_000
-      instanceFollowRedirects = true
-      for ((key, value) in headers) addRequestProperty(key, value)
-    }
-    val status = connection.responseCode
-    if (status in 200..299) {
-      connection.inputStream.use { input ->
-        file.outputStream().use { output ->
-          val buffer = ByteArray(64 * 1024)
-          while (true) {
-            val read = input.read(buffer)
-            if (read < 0) break
-            output.write(buffer, 0, read)
+    // The shared OkHttpClient stack — the SAME TLS/HTTP2 fingerprint the
+    // playback path uses, which Cloudflare's gate demonstrably accepts on
+    // device. HttpURLConnection's fingerprint gets challenged.
+    val builder = okhttp3.Request.Builder().url(url)
+    for ((key, value) in headers) builder.header(key, value)
+    HTTP_CLIENT.newCall(builder.build()).execute().use { response ->
+      val status = response.code
+      if (status in 200..299) {
+        response.body?.byteStream()?.use { input ->
+          file.outputStream().use { output ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+              val read = input.read(buffer)
+              if (read < 0) break
+              output.write(buffer, 0, read)
+            }
           }
-        }
+        } ?: throw java.io.IOException("Empty response body.")
       }
+      return status
     }
-    return status
   }
+
+  private val HTTP_CLIENT: okhttp3.OkHttpClient by lazy {
+    okhttp3.OkHttpClient.Builder()
+      .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+      .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+      .followRedirects(true)
+      .build()
+  }}
 
   private fun jsonHeaders(headers: Map<String, String>): String {
     val json = StringBuilder("{")

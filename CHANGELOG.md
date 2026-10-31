@@ -6,6 +6,19 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.8.5 — Downloads ride the same HTTP stack as playback
+
+`CURRENT / ROOT-CAUSE FIX / INSTALLS OVER v5.8.0–v5.8.4`
+
+The download service was the ONLY network path in the app not using the playback HTTP stack: it used `HttpURLConnection`, whose TLS/HTTP fingerprint Cloudflare challenges — while the playback client (OkHttp) passes. That is why playback worked on your device while every download, on every server, failed with 403 — regardless of headers, proxies, or releases.
+
+### Fixed
+- **The download service now uses the shared OkHttpClient** — the same TLS/HTTP2 fingerprint as the streaming path that provably works on device. Segments, keys, and playlists all ride it (through the Aniraku proxy, per the proxy-only policy).
+- **Stage-tagged download errors**: failures now read `[PLAYLIST] …`, `[SEGMENTS] …`, `[TRANSFER] …`, `[SOURCE] …` — a screenshot pinpoints the exact stage.
+- Transfer assembly is Hermes-safe (no Blob).
+
+## v5.8.4 — Offline subtitles hardened through the proxy gate
+
 ## v5.8.4 — Offline subtitles hardened through the proxy gate
 
 `CURRENT / HOTFIX / INSTALLS OVER v5.8.0–v5.8.3`

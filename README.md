@@ -24,14 +24,14 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.4">v5.8.4 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.5">v5.8.5 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 <br>
 
 > [!IMPORTANT]
-> **v5.8.4 is the current release** — Hotfix: offline downloads now reliably save subtitles (the subtitle fetch carries the full proxy identity — some bundles were silently saving without their tracks). Installs directly over v5.8.0–v5.8.3. If you want the previous build, [v5.8.3](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.3) is the proxy-only release.
+> **v5.8.5 is the current release** — ROOT-CAUSE fix for the download 403s: the download service was the only network path not using the playback HTTP stack — its HttpURLConnection fingerprint got challenged by Cloudflare while playback (OkHttp) passed. Downloads now ride the shared OkHttp client through the Aniraku proxy, with stage-tagged errors for pinpointing. Installs directly over v5.8.0–v5.8.4. If you want the previous build, [v5.8.4](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.4) is the subtitle hotfix.
 
 > [!CAUTION]
 >If it has saved you time, a small donation keeps it up. And the library keeps growing — **missing an anime?** Email [`sho.islam0311@proton.me`](mailto:sho.islam0311@proton.me) and it'll get added.

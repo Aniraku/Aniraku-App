@@ -1,0 +1,1 @@
+Root-cause fix for the download 403s: the download service now uses the same HTTP/TLS stack as playback (OkHttp), so Cloudflare stops challenging it. Stage-tagged errors for pinpointing. Installs over v5.8.0–v5.8.4.

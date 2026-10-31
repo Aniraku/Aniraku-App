@@ -15,3 +15,9 @@ android {
     abortOnError false
   }
 }
+
+dependencies {
+  // Runtime okhttp ships with the app (react-native network stack) —
+  // the download service shares its TLS fingerprint with playback.
+  compileOnly "com.squareup.okhttp3:okhttp:4.12.0"
+}

@@ -183,16 +183,22 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.8.4 — Offline subtitles hardened through the proxy gate
+            ## v5.8.5 — Downloads ride the same HTTP stack as playback
 
-            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0–v5.8.3 — same signing key, no uninstall needed.**
+            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0–v5.8.4 — same signing key, no uninstall needed.**
 
-            - `aniraku-v5.8.4-arm64.apk` — modern (64-bit) devices
-            - `aniraku-v5.8.4-arm32.apk` — older / budget (32-bit) devices
-            - `aniraku-v5.8.4-universal.apk` — every device
+            - `aniraku-v5.8.5-arm64.apk` — modern (64-bit) devices
+            - `aniraku-v5.8.5-arm32.apk` — older / budget (32-bit) devices
+            - `aniraku-v5.8.5-universal.apk` — every device
 
             ### Fixed
-            - **Offline subtitles could be silently skipped**: the subtitle fetch rode the Aniraku proxy without the browser identity headers, and the backend gate 403s header-less requests — failed fetches were skipped, so some bundles saved without subtitles. Every subtitle fetch now carries the same identity as every other proxied byte.
+            - **THE download 403 root cause**: the download service was the only network path in the app not using the playback HTTP stack. Its HttpURLConnection TLS/HTTP fingerprint got challenged by Cloudflare while the playback client (OkHttp) passed — that is why playback worked on your device while every download on every server failed with 403 regardless of headers, proxies, or releases. The service now uses the shared OkHttpClient.
+            - **Stage-tagged download errors**: failures read `[PLAYLIST] …`, `[SEGMENTS] …`, `[TRANSFER] …`, `[SOURCE] …` — a screenshot pinpoints the exact stage.
+
+            ### Carried from v5.8.0–v5.8.4 (unchanged)
+            - Proxy-only playback and downloads, HLS downloads for every provider
+            - Offline subtitles, email-verification relay, watch-screen crash hotfix
+            - New-episode push notifications, real per-ABI APK builds, stable release signing
           files: ./artifacts/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
