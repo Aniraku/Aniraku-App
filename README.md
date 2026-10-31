@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./assets/images/icon.png" width="110" alt="Aniraku icon" style="border-radius: 28px; box-shadow: 0 8px 32px rgba(139, 92, 246, 0.25);" />
+  <img src="./assets/images/icon.png?v=580" width="110" alt="Aniraku icon" style="border-radius: 28px; box-shadow: 0 8px 32px rgba(139, 92, 246, 0.25);" />
 
   <br><br>
 
