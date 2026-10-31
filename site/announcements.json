@@ -1,16 +1,16 @@
 {
-  "version": 3,
-  "updated": "2026-10-30",
+  "version": 4,
+  "updated": "2026-10-31",
   "announcements": [
     {
       "id": "New about the V5-8-0",
       "tag": "Note",
       "title": "A Quick Note from the Aniraku Team",
-      "banner": "Thank you for your continued love and support for Aniraku. Some of you reached out about in-app offline downloads — we're listening, and we'd like to hear from you.",
+      "banner": "Thank you for your continued love and support for Aniraku.I am here to Listen buddies.",
       "body": [
-        "Aniraku is a passion project that I maintain alongside my life, and your support keeps it going. As we prepare for V5.8.0, I'd love to know: how much would you value in-app offline downloads without needing an external downloader?\n\nOffline downloads are already available on the Aniraku website and are currently in development for the app.\n\nBeyond downloads, is there another feature you'd like to see in Aniraku? Your feedback helps shape what we build next.\n\nIf you're on GitHub, please consider starring the project — it means a lot.\n\nI'm also looking for volunteers to help grow the Aniraku community on Discord or Telegram. I'm not perfect at setting these up myself, so any help would be greatly appreciated. If you're interested, feel free to reach out.\n\nFor missing anime titles or any errors you encounter, you can email me directly at sho.islam0311@proton.me.\n\nThank you for being part of Aniraku. Enjoy your anime."
+        "Hey everyone! 👋\n\nAniraku is still very much a passion project I keep running between real life and coffee, and your support is what keeps the lights on.\n\nWe’re getting ready for V5.8.0 and I’d love your honest take: how much would you actually care about proper in-app offline downloads (no external downloader required)? Offline downloads already work on the website, and the app version is actively being built.\n\nWhile we’re at it… is there any other feature you’d really like to see next? Your feedback genuinely shapes the roadmap.\n\nIf you’re on GitHub, a star would make my day (and help the project look a bit less lonely).\n\nAlso looking for a couple of kind souls to help grow the community on Discord or Telegram. I’m… let’s just say “not a natural community manager,” so any help setting things up properly would be hugely appreciated.\n\nQuick heads-up: because of a recent PHP security situation we need to close the door on the old version. V5.7.9 will stop working soon, so I’m pushing a Beta of the new update today. Please give it a spin and shoot me an email if you run into anything weird — the faster I hear about it, the faster I can fix it.\n\nI was honestly hoping a few of you would reach out… still waiting 👀\n\nThanks for sticking with Aniraku. Now go enjoy some anime.\n\n— the guy who still hasn’t slept enough"
       ],
-      "date": "2026-10-30",
+      "date": "2026-10-31",
       "email": "sho.islam0311@proton.me",
       "emailLabel": "Missing an anime or facing an error? Email me",
       "pinned": true,
