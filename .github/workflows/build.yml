@@ -119,6 +119,9 @@ jobs:
           EXPO_PUBLIC_API_BASE_URL: ${{ secrets.EXPO_PUBLIC_API_BASE_URL }}
           EXPO_PUBLIC_MAL_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_MAL_CLIENT_ID }}
 
+      - name: Patch ABI (${{ matrix.label }})
+        run: bash scripts/patch-build-abi.sh "${{ matrix.arch }}"
+
       - name: Build APK (${{ matrix.label }})
         run: |
           cd android
