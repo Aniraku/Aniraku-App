@@ -183,33 +183,28 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.8.0 — In-app offline downloads
+            ## v5.8.1 — Hotfix: watch-screen crash + diagnosable error screen
 
-            Three builds for full coverage (Android 9+). The universal APK contains all architectures.
+            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0 — same signing key, no uninstall needed.**
 
-            - `aniraku-v5.8.0-arm64.apk`
-            - `aniraku-v5.8.0-arm32.apk`
-            - `aniraku-v5.8.0-universal.apk`
+            - `aniraku-v5.8.1-arm64.apk` — modern (64-bit) devices
+            - `aniraku-v5.8.1-arm32.apk` — older / budget (32-bit) devices
+            - `aniraku-v5.8.1-universal.apk` — every device
+
+            ### Fixed
+            - **Watch screen crash**: some v5.8.0 installs hit "Text strings must be rendered within a <Text> component" when the episode list opened, killing the watch screen. The episode number was rendered as a bare number outside a Text component — fixed.
 
             ### Added
-            - **In-app offline downloads**: open the download sheet on any episode, pick a quality (real renditions with estimated sizes), and the episode saves to app-private storage as an offline bundle — playlist, segments, and key — that plays in the player with no network. Downloads run in a background service with a progress notification and are managed from the Downloads hub (Wi-Fi-only switch, storage quota, retry, delete).
-            - **"DL" badges** on episode rows and a Downloads hub with used/free storage.
-            - **Terms & Privacy consent gate** with versioned re-consent; acceptance is recorded on device.
-            - **Account data export** in Settings — everything Aniraku stores about you, as one JSON file you can share or save.
-            - **Email typo hints** at sign-up/sign-in (client-side only), a 60-second resend cooldown on verification emails, and a Terms checkbox at sign-up.
+            - **Diagnosable error screen**: the "Aniraku needs to restart this screen" view now has a SHOW DETAILS toggle revealing the exact component stack. If anything ever crashes, tap it and send the screenshot — the bug gets pinpointed instantly.
 
-            ### Changed
-            - **Themed dialogs and toasts everywhere**: every delete/remove/report confirmation and error notice now renders in-app in the house style instead of stock Android alert popups. Failed actions offer an inline RETRY.
-            - **Report broken source** now opens a themed confirmation before sharing the report.
+            ### Carried from v5.8.0 (unchanged)
+            - In-app offline downloads (per-quality, native pipeline, offline playback)
+            - New-episode push notifications and real per-ABI APK builds
+            - The playback-header fix for proxied streams + effective edge caching
+            - Parallel segment pool (beta), Terms & Privacy consent gate, account data export
 
-            ### Removed
-            - **External download links are gone**: episodes that cannot be saved in-app show a clear reason instead of a browser link.
-
-            ### Housekeeping
-            - tsc clean; 297 tests green; ESLint 0 errors.
-            - Android versionCode: 77.
-
-            Download the APK, install, and allow *install from unknown sources* if prompted.
+            ### Note for v5.7.9-and-older users
+            Releases older than v5.8.0 were signed with per-build debug keys — uninstall the old app once before installing this one. From v5.8.0 onward all updates install in place.
           files: ./artifacts/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
