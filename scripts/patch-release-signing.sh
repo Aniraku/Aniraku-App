@@ -52,11 +52,15 @@ print("signing config patched (stable release keystore)")
 PY
 
 GP="$(dirname "$(dirname "$BUILD_GRADLE")")/gradle.properties"
+# Write to a temp file FIRST — redirecting into $GP directly would truncate
+# it before grep reads it and wipe every other property (hermesEnabled etc).
+TMP_GP="$(mktemp)"
 {
   grep -v "^ANIRAKU_UPLOAD_" "$GP" 2>/dev/null || true
   printf 'ANIRAKU_UPLOAD_STORE_FILE=%s\n' "$STORE_FILE"
   printf 'ANIRAKU_UPLOAD_STORE_PASSWORD=%s\n' "$ANIRAKU_STORE_PASSWORD"
   printf 'ANIRAKU_UPLOAD_KEY_ALIAS=%s\n' "$ANIRAKU_KEY_ALIAS"
   printf 'ANIRAKU_UPLOAD_KEY_PASSWORD=%s\n' "$ANIRAKU_KEY_PASSWORD"
-} > "$GP"
+} > "$TMP_GP"
+mv "$TMP_GP" "$GP"
 echo "gradle.properties signing props written"
