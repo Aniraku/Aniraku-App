@@ -119,8 +119,18 @@ jobs:
           EXPO_PUBLIC_API_BASE_URL: ${{ secrets.EXPO_PUBLIC_API_BASE_URL }}
           EXPO_PUBLIC_MAL_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_MAL_CLIENT_ID }}
 
-      - name: Patch ABI (${{ matrix.label }})
-        run: bash scripts/patch-build-abi.sh "${{ matrix.arch }}"
+      - name: Restore stable release keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/aniraku-release.keystore
+
+      - name: Patch release signing + ABI (${{ matrix.label }})
+        run: |
+          bash scripts/patch-release-signing.sh "aniraku-release.keystore"
+          bash scripts/patch-build-abi.sh "${{ matrix.arch }}"
+        env:
+          ANIRAKU_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANIRAKU_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANIRAKU_KEY_ALIAS: aniraku
 
       - name: Build APK (${{ matrix.label }})
         run: |
