@@ -210,7 +210,7 @@ class AnirakuDownloadsService : Service() {
       .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
       .followRedirects(true)
       .build()
-  }}
+  }
 
   private fun jsonHeaders(headers: Map<String, String>): String {
     val json = StringBuilder("{")
