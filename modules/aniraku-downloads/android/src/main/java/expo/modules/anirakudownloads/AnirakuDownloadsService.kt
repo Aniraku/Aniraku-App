@@ -51,10 +51,10 @@ class AnirakuDownloadsService : Service() {
       return START_NOT_STICKY
     }
 
-    val dirPath = intent.getStringExtra("dir").orEmpty()
-    val baseUrl = intent.getStringExtra("base").orEmpty()
-    val headers = decodeHeaders(intent.getStringExtra("headers"))
-    val estimatedBytes = intent.getLongExtra("estimatedBytes", 0L)
+    val dirPath = intent?.getStringExtra("dir").orEmpty()
+    val baseUrl = intent?.getStringExtra("base").orEmpty()
+    val headers = decodeHeaders(intent?.getStringExtra("headers"))
+    val estimatedBytes = intent?.getLongExtra("estimatedBytes", 0L) ?: 0L
 
     activeId = id
     acquireWakeLock()

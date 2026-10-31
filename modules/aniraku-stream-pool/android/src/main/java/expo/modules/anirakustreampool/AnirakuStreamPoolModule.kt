@@ -32,11 +32,11 @@ class AnirakuStreamPoolModule : Module() {
             plugin = null
         }
 
-        Method("begin") {
+        Function("begin") {
             plugin?.setDriverEnabled(true)
         }
 
-        Method("end") {
+        Function("end") {
             plugin?.setDriverEnabled(false)
         }
     }

@@ -23,7 +23,7 @@ class AnirakuDownloadsModule : Module() {
       DownloadEventBridge.emitter = null
     }
 
-    Method("enqueue") { options: Map<String, Any> ->
+    Function("enqueue") { options: Map<String, Any> ->
       val context = appContext.reactContext ?: throw Exception("Downloads need a running app context.")
       val intent = Intent(context, AnirakuDownloadsService::class.java).apply {
         putExtra("id", options["id"] as? String ?: "")
@@ -36,7 +36,7 @@ class AnirakuDownloadsModule : Module() {
       context.startForegroundService(intent)
     }
 
-    Method("cancel") { id: String ->
+    Function("cancel") { id: String ->
       AnirakuDownloadsService.requestCancel(id)
     }
   }
