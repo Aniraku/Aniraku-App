@@ -61,7 +61,7 @@ vi.mock("@/lib/watch-engine", () => ({
 
 const { APP_CONFIG } = await import("@/lib/app-config");
 const { buildDownloadRequest, resolveDownloadHold, startMaximumQualityDownload } = await import("@/lib/downloads");
-const { BROWSER_UA, getPlaybackType } = await import("@/lib/aniraku-api");
+const { BROWSER_UA, getPlaybackType, sourceVerification } = await import("@/lib/aniraku-api");
 
 const INDEX_KEY = "aniraku.offline-downloads.v1";
 
@@ -122,8 +122,16 @@ describe("buildDownloadRequest", () => {
     expect(request.subtitleTracks).toEqual([{ url: "https://cdn.example.com/file.en.vtt", lang: "en", label: "English" }]);
   });
 
-  it("refuses HLS sources that cannot be mounted natively", () => {
-    vi.mocked(getPlaybackType).mockReturnValueOnce("embed");
+  it("builds an HLS request for m3u8 sources regardless of the source-type label", () => {
+    // The old gate required getPlaybackType === "native", which refused every
+    // m3u8 download (an HLS source types as "hls"). The URL/mime gate decides.
+    const request = buildDownloadRequest({ ...base, source: { url: "https://cdn.example.com/v/ep.m3u8", quality: "720p", type: "hls" } });
+    expect(request.kind).toBe("hls");
+    expect(request.playlistUrl).toBe("https://cdn.example.com/v/ep.m3u8");
+  });
+
+  it("refuses dead HLS sources", () => {
+    vi.mocked(sourceVerification).mockReturnValueOnce("dead");
     expect(() => buildDownloadRequest({ ...base, source: { url: "https://cdn.example.com/v/ep.m3u8", quality: "720p", type: "hls" } }))
       .toThrow("cannot be downloaded");
   });

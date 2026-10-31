@@ -6,6 +6,20 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.8.2 — Downloads for every HLS provider + email-verification relay
+
+`CURRENT / HOTFIX / INSTALLS OVER v5.8.0–v5.8.1`
+
+Two field reports fixed in one pass: HLS downloads were refused on providers without a multi-rendition master (the "direct progressive source is required" message), and sign-up email verification could dead-end when the confirmation link opened the website instead of the app.
+
+### Fixed
+- **HLS downloads refused**: the download gate required a "native" (progressive) source type for the HLS branch — an m3u8 source types as "hls", so every HLS download was refused before starting. The gate now keys off the URL/mime itself; dead sources stay refused.
+- **Single-rendition + direct media playlists are downloadable**: providers whose master has one rendition (or serves a media playlist directly) expose the playlist itself to the downloader — the same input the website's downloader accepts.
+- **Proxy fallback for downloads**: CDNs that block non-browser TLS fingerprints (the settlar class) fall back to the Aniraku proxy per segment/key — the website's direct→proxy ladder, now in the native pipeline.
+- **Email verification relay**: aniraku.tech/auth/confirm verifies the confirmation token server-side and bounces back into the app via the deep link; the app also auto-detects a web-confirmed account when you return and signs you in.
+
+## v5.8.1 — Hotfix: watch-screen episode list crash + diagnosable error screen
+
 ## v5.8.1 — Hotfix: watch-screen episode list crash + diagnosable error screen
 
 `CURRENT / HOTFIX / INSTALLS OVER v5.8.0`

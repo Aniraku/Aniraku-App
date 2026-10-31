@@ -32,6 +32,7 @@ class AnirakuDownloadsModule : Module() {
         putExtra("title", options["title"] as? String ?: "")
         putExtra("headers", options["headers"] as? String ?: "{}")
         putExtra("estimatedBytes", (options["estimatedBytes"] as? Number)?.toLong() ?: 0L)
+        putExtra("proxyBase", options["proxyBase"] as? String ?: "")
       }
       context.startForegroundService(intent)
     }

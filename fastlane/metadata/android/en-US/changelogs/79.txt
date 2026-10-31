@@ -1,0 +1,1 @@
+Downloads now work for every HLS provider (single-rendition and direct media playlists, with a proxy fallback for picky CDNs — matching the website), and sign-up email verification no longer dead-ends when the link opens the website. Installs over v5.8.0/v5.8.1.

@@ -30,6 +30,7 @@ declare class AnirakuDownloadsNativeModule extends NativeModule<DownloadEvents> 
     title: string;
     headers: string;
     estimatedBytes: number;
+    proxyBase?: string;
   }): void;
   cancel(id: string): void;
 }

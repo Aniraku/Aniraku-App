@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Directory, File, Paths } from "expo-file-system";
 import * as Network from "expo-network";
 import { Platform } from "react-native";
-import { anirakuProxyUrl, BROWSER_UA, getPlaybackType, isAnirakuProxyUrl, nativePlaybackHeaders, sourceVerification } from "@/lib/aniraku-api";
+import { anirakuProxyRequestHeaders, anirakuProxyUrl, BROWSER_UA, getPlaybackType, isAnirakuProxyUrl, nativePlaybackHeaders, sourceVerification } from "@/lib/aniraku-api";
 import { APP_CONFIG } from "@/lib/app-config";
 import { estimateHlsSize, parseMediaPlaylist, resolveSegmentUrl, rewritePlaylistUris, unsupportedPlaylistReason, verifyPlaylistIntegrity } from "@/lib/downloads-hls";
 import { nativeDownloads } from "@/lib/downloads-native";
@@ -601,7 +601,7 @@ const nativeJobs = new Map<string, NativeJobHandle>();
 /** Estimated bytes of active jobs — charged against the quota hold while they run. */
 const pendingEstimates = new Map<string, number>();
 
-function runNativeJob(id: string, options: { dir: string; base: string; title: string; headers: string; estimatedBytes: number }, hooks: { onProgress: (received: number, total: number) => void }): Promise<{ segments: string[]; keyPath: string | null; bytes: number }> {
+function runNativeJob(id: string, options: { dir: string; base: string; title: string; headers: string; estimatedBytes: number; proxyBase?: string }, hooks: { onProgress: (received: number, total: number) => void }): Promise<{ segments: string[]; keyPath: string | null; bytes: number }> {
   return new Promise((resolve, reject) => {
     let lastProgressAt = Date.now();
     const progressUnsub = nativeDownloads.onProgress((progress) => {
@@ -659,8 +659,20 @@ async function performHlsDownload(internal: QueuedDownload, callbacks: TransferC
     if (dir.exists) dir.delete();
     dir.create({ intermediates: true, idempotent: true });
 
-    const response = await fetch(playlistUrl, { headers: request.headers });
-    if (!response.ok) throw new Error(`Source returned ${response.status}.`);
+    // Direct first (ADR-003 keeps bytes off the server); CDNs that block
+    // non-browser TLS fingerprints fall back to the Aniraku proxy — the same
+    // direct→proxy ladder the website's downloader uses.
+    let response: Response | null = null;
+    let lastStatus = 0;
+    try {
+      response = await fetch(playlistUrl, { headers: request.headers });
+      if (!response.ok) { lastStatus = response.status; response = null; }
+    } catch { response = null; }
+    if (!response) {
+      const viaProxy = anirakuProxyUrl(playlistUrl, request.headers);
+      response = await fetch(viaProxy, { headers: anirakuProxyRequestHeaders() });
+      if (!response.ok) throw new Error(`Source returned ${lastStatus || response.status}.`);
+    }
     const text = await response.text();
     const parsed = parseMediaPlaylist(text);
     if (!parsed) throw new Error("This stream could not be read for download.");
@@ -684,6 +696,7 @@ async function performHlsDownload(internal: QueuedDownload, callbacks: TransferC
       title: internal.job.title,
       headers: JSON.stringify(request.headers),
       estimatedBytes: estimated ?? 0,
+      proxyBase: APP_CONFIG.apiBaseUrl,
     }, {
       onProgress: (received, total) => callbacks.onProgress(total > 0 ? Math.min(0.99, received / total) : undefined, received, total),
     });
@@ -746,7 +759,10 @@ export function buildDownloadRequest(input: StartDownloadInput): DownloadRequest
   const directUrl = useExplicit ? explicitUrl as string : input.source.url;
   const isHls = /\.m3u8($|[?#])/i.test(directUrl) || /mpegurl/i.test(String(input.source.mime || input.source.type || ""));
   if (isHls) {
-    if (getPlaybackType(input.source) !== "native" || sourceVerification(input.source) === "dead") {
+    // The URL/mime gate above already establishes this is an HLS stream —
+    // requiring getPlaybackType === "native" here refused EVERY HLS download
+    // (an m3u8 source types as "hls", never "native"). Embed/dead stay refused.
+    if (sourceVerification(input.source) === "dead") {
       throw new Error("This provider's stream cannot be downloaded.");
     }
     // A proxied wrapper hides the real CDN URL — unwrap it so the service

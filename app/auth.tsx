@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import * as Linking from "expo-linking";
 import { router, useLocalSearchParams } from "expo-router";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, AppState, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useAnirakuAuth } from "@/providers/auth-provider";
 import { supabase } from "@/lib/supabase";
 import type { EmailOtpType } from "@supabase/supabase-js";
@@ -70,6 +70,26 @@ export default function AuthScreen() {
   useEffect(() => { if (auth.user && mode !== "recovery") router.replace("/(tabs)" as never); }, [auth.user, mode]);
 
   const cooldownActive = resendCooldown > 0;
+
+  // Users who confirm through the web link (the email may open the browser
+  // instead of the app) come back with the account already confirmed — retry
+  // the sign-in silently the moment they return to the app.
+  useEffect(() => {
+    if (!verificationPending?.email || !email || !password) return;
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active" || busy) return;
+      void (async () => {
+        try {
+          setBusy(true);
+          await auth.signIn(verificationPending.email, password);
+          setVerificationPending(null);
+          setMessage("Email verified. Signing you in to Aniraku.");
+        } catch { /* still unconfirmed — keep waiting */ }
+        finally { setBusy(false); }
+      })();
+    });
+    return () => sub.remove();
+  }, [verificationPending?.email, email, password, busy, auth]);
   useEffect(() => {
     if (!cooldownActive) return;
     const timer = setInterval(() => setResendCooldown((current) => Math.max(0, current - 1)), 1000);

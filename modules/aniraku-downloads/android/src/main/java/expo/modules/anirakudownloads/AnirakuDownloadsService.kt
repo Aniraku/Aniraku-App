@@ -55,11 +55,12 @@ class AnirakuDownloadsService : Service() {
     val baseUrl = intent?.getStringExtra("base").orEmpty()
     val headers = decodeHeaders(intent?.getStringExtra("headers"))
     val estimatedBytes = intent?.getLongExtra("estimatedBytes", 0L) ?: 0L
+    val proxyBase = intent?.getStringExtra("proxyBase").orEmpty()
 
     activeId = id
     acquireWakeLock()
 
-    Thread { run(id, dirPath, baseUrl, headers, estimatedBytes) }.start()
+    Thread { run(id, dirPath, baseUrl, headers, estimatedBytes, proxyBase) }.start()
     return START_NOT_STICKY
   }
 
@@ -71,7 +72,7 @@ class AnirakuDownloadsService : Service() {
 
   // ── Work ──────────────────────────────────────────────────────────────────
 
-  private fun run(id: String, dirPath: String, baseUrl: String, headers: Map<String, String>, estimatedBytes: Long) {
+  private fun run(id: String, dirPath: String, baseUrl: String, headers: Map<String, String>, estimatedBytes: Long, proxyBase: String) {
     // JS sends a file:// URI (expo-file-system Directory.uri); File() treats
     // that string as a relative path, so unwrap the scheme first.
     val dir = File(Uri.parse(dirPath).path ?: dirPath)
@@ -85,7 +86,7 @@ class AnirakuDownloadsService : Service() {
       var keyPath: String? = null
       parsed.keyUrl?.let { keyUrl ->
         val key = File(dir, "key.bin")
-        downloadTo(key, resolveUrl(keyUrl, baseUrl), headers)
+        downloadTo(key, resolveUrl(keyUrl, baseUrl), headers, proxyBase)
         keyPath = "file://${key.absolutePath}"
       }
 
@@ -94,7 +95,7 @@ class AnirakuDownloadsService : Service() {
       for ((index, segmentUrl) in parsed.segments.withIndex()) {
         if (isCancelled(id)) throw IOException("cancelled")
         val file = File(dir, String.format(Locale.US, "seg-%05d.ts", index + 1))
-        bytes += downloadTo(file, segmentUrl, headers)
+        bytes += downloadTo(file, segmentUrl, headers, proxyBase)
         segments.add("file://${file.absolutePath}")
         updateNotification(id, bytes, estimatedBytes)
         Thread.sleep(POLITENESS_MS)
@@ -155,17 +156,48 @@ class AnirakuDownloadsService : Service() {
     return resolved.toString()
   }
 
-  /** Sequential fetch with two retries; returns the byte count written. */
-  private fun downloadTo(file: File, url: String, headers: Map<String, String>, attempt: Int = 0): Long {
+  /** Sequential fetch with two retries; returns the byte count written.
+   *  Direct-CDN first (ADR-003) — CDNs that block non-browser TLS
+   *  fingerprints fall back to the Aniraku proxy, mirroring the website's
+   *  direct-to-proxy downloader ladder. */
+  private fun downloadTo(file: File, url: String, headers: Map<String, String>, proxyBase: String, attempt: Int = 0): Long {
     try {
-      val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-        connectTimeout = 10_000
-        readTimeout = 30_000
-        instanceFollowRedirects = true
-        for ((key, value) in headers) addRequestProperty(key, value)
-      }
-      val status = connection.responseCode
+      val status = fetchTo(file, url, headers)
       if (status !in 200..299) throw IOException("Source returned $status.")
+      if (file.length() <= 0L) throw IOException("A segment arrived empty.")
+      return file.length()
+    } catch (cause: Exception) {
+      file.delete()
+      // Proxy fallback (only while retries remain — the final failure is honest).
+      if (proxyBase.isNotEmpty() && attempt < 2) {
+        try {
+          val proxied = proxyBase + "/api/v1/proxy?url=" + java.net.URLEncoder.encode(url, "UTF-8") +
+            "&headers=" + java.net.URLEncoder.encode(jsonHeaders(headers), "UTF-8")
+          val proxyHeaders = mapOf("User-Agent" to BROWSER_UA, "Referer" to SITE_REFERER)
+          val status = fetchTo(file, proxied, proxyHeaders)
+          if (status in 200..299 && file.length() > 0L) return file.length()
+          file.delete()
+        } catch (_: Exception) {
+          file.delete()
+        }
+      }
+      if (attempt < 2) {
+        Thread.sleep(1_000L * (attempt + 1))
+        return downloadTo(file, url, headers, proxyBase, attempt + 1)
+      }
+      throw cause
+    }
+  }
+
+  private fun fetchTo(file: File, url: String, headers: Map<String, String>): Int {
+    val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+      connectTimeout = 10_000
+      readTimeout = 30_000
+      instanceFollowRedirects = true
+      for ((key, value) in headers) addRequestProperty(key, value)
+    }
+    val status = connection.responseCode
+    if (status in 200..299) {
       connection.inputStream.use { input ->
         file.outputStream().use { output ->
           val buffer = ByteArray(64 * 1024)
@@ -176,17 +208,14 @@ class AnirakuDownloadsService : Service() {
           }
         }
       }
-      if (file.length() <= 0L) throw IOException("A segment arrived empty.")
-      return file.length()
-    } catch (cause: Exception) {
-      file.delete()
-      if (attempt < 2) {
-        Thread.sleep(1_000L * (attempt + 1))
-        return downloadTo(file, url, headers, attempt + 1)
-      }
-      throw cause
     }
+    return status
   }
+
+  private fun jsonHeaders(headers: Map<String, String>): String =
+    headers.entries.joinToString(",") { entry ->
+      "\"".plus(entry.key.replace("\\", "\\\\").replace("\"", "\\\"\"")).plus("\\":").plus("\\"").plus(entry.value.replace("\\", "\\\\").replace("\"", "\\\"\"")).plus("\\"")
+    }
 
   // ── Events ────────────────────────────────────────────────────────────────
 
@@ -290,6 +319,8 @@ class AnirakuDownloadsService : Service() {
     private const val NOTIFICATION_ID = 42
     private const val MAX_SEGMENTS = 5_000
     private const val POLITENESS_MS = 120L
+    private const val BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    private const val SITE_REFERER = "https://aniraku.tech/"
     private const val WAKE_LOCK_MS = 2L * 60 * 60 * 1000
 
     @Volatile private var activeId: String? = null

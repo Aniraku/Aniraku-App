@@ -183,28 +183,23 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.8.1 — Hotfix: watch-screen crash + diagnosable error screen
+            ## v5.8.2 — Downloads for every HLS provider + email-verification relay
 
-            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0 — same signing key, no uninstall needed.**
+            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0/v5.8.1 — same signing key, no uninstall needed.**
 
-            - `aniraku-v5.8.1-arm64.apk` — modern (64-bit) devices
-            - `aniraku-v5.8.1-arm32.apk` — older / budget (32-bit) devices
-            - `aniraku-v5.8.1-universal.apk` — every device
+            - `aniraku-v5.8.2-arm64.apk` — modern (64-bit) devices
+            - `aniraku-v5.8.2-arm32.apk` — older / budget (32-bit) devices
+            - `aniraku-v5.8.2-universal.apk` — every device
 
             ### Fixed
-            - **Watch screen crash**: some v5.8.0 installs hit "Text strings must be rendered within a <Text> component" when the episode list opened, killing the watch screen. The episode number was rendered as a bare number outside a Text component — fixed.
+            - **HLS downloads refused**: the download gate required a "native" source type for the HLS branch — every HLS download was refused before starting. Now gated by the URL/mime itself; dead sources stay refused.
+            - **Single-rendition + direct media playlists downloadable**: providers without a multi-rendition master expose the playlist itself to the downloader (matching the website).
+            - **Proxy fallback for downloads**: CDNs that block non-browser TLS fingerprints fall back to the Aniraku proxy per segment/key — the website's direct→proxy ladder, now native.
+            - **Email verification relay**: aniraku.tech/auth/confirm verifies the confirmation token server-side and bounces back into the app; the app also auto-detects a web-confirmed account when you return and signs you in.
 
-            ### Added
-            - **Diagnosable error screen**: the "Aniraku needs to restart this screen" view now has a SHOW DETAILS toggle revealing the exact component stack. If anything ever crashes, tap it and send the screenshot — the bug gets pinpointed instantly.
-
-            ### Carried from v5.8.0 (unchanged)
-            - In-app offline downloads (per-quality, native pipeline, offline playback)
-            - New-episode push notifications and real per-ABI APK builds
-            - The playback-header fix for proxied streams + effective edge caching
-            - Parallel segment pool (beta), Terms & Privacy consent gate, account data export
-
-            ### Note for v5.7.9-and-older users
-            Releases older than v5.8.0 were signed with per-build debug keys — uninstall the old app once before installing this one. From v5.8.0 onward all updates install in place.
+            ### Carried from v5.8.0/v5.8.1 (unchanged)
+            - In-app offline downloads, new-episode push notifications, real per-ABI APK builds
+            - The playback-header fix for proxied streams, watch-screen crash hotfix, diagnosable error screen
           files: ./artifacts/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

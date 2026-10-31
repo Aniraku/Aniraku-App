@@ -1354,15 +1354,22 @@ export default function WatchScreen() {
       })
       .then(async (text) => {
         if (cancelled) return;
-        const variants = playbackType === "dash"
+        let variants = playbackType === "dash"
           ? parseDashRepresentations(text)
           : parseHlsMasterVariants(text, originalStreamUrl(masterPlaybackUri));
+        // Single-rendition masters and providers that serve a bare media
+        // playlist have no variant menu — but they ARE downloadable: expose
+        // the media playlist itself to the download pipeline.
+        if (playbackType === "hls" && variants.length === 0 && /#EXTINF/i.test(text)) {
+          variants = [{ height: 0, bandwidth: 0, url: originalStreamUrl(masterPlaybackUri) }];
+        }
         const options = playbackType === "dash"
           ? buildDashQualityOptions(activeSource, variants)
           : buildHlsQualityOptions(activeSource, variants, { proxied, headers: directHeaders });
-        if (!options.length) { setParsedQualityOptions(null); parsedOptionsRef.current = null; parsedVariantsRef.current = null; return; }
+        if (!options.length && !(playbackType === "hls" && variants.length >= 1)) { setParsedQualityOptions(null); parsedOptionsRef.current = null; parsedVariantsRef.current = null; return; }
         hlsVariantsCache.current.set(masterPlaybackUri, { options, variants });
-        await applyRemembered(options, variants);
+        if (options.length) await applyRemembered(options, variants);
+        else { setParsedQualityOptions(null); parsedOptionsRef.current = null; }
       })
       .catch(() => { if (!cancelled) { setParsedQualityOptions(null); parsedOptionsRef.current = null; parsedVariantsRef.current = null; } });
     return () => { cancelled = true; };
@@ -2057,7 +2064,7 @@ export default function WatchScreen() {
         const family = codecFamilyLabel(variant.codecs);
         return {
           key: `hls-${variant.height}`,
-          label: family ? `${variant.height}p · ${family}` : `${variant.height}p`,
+          label: variant.height > 0 ? (family ? `${variant.height}p · ${family}` : `${variant.height}p`) : (family ? `ORIGINAL · ${family}` : "ORIGINAL"),
           quality: `${variant.height}p`,
           source: base,
           variantUrl: variant.url,
