@@ -6,8 +6,15 @@
  * Everything here is filesystem-free so vitest covers it directly;
  * lib/downloads.ts (facade) and the Android download service wire the I/O.
  * Trust boundary: segment and key URLs must resolve to https only — a
- * playlist is provider-controlled input, never executed blindly.
+
+/**
+ * A completed bundle whose byte total is under 1% of the estimate is stub
+ * data (e.g. proxy-of-proxy 200 error bodies), not video — refuse it.
  */
+export function isBundleImplausiblySmall(bytes: number, estimatedBytes: number): boolean {
+  if (bytes <= 0 || estimatedBytes <= 0) return false;
+  return bytes < estimatedBytes * 0.01;
+}
 
 const EXTINF = /^#EXTINF:([\d.]+)/;
 const TAG_ATTRIBUTE = /([A-Z0-9-]+)=("[^"]*"|[^,]*)/g;

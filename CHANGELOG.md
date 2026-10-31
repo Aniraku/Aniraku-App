@@ -6,6 +6,18 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.8.8 — ROOT CAUSE #2: the proxy-of-proxy stub-segment bug
+
+`CURRENT / ROOT-CAUSE FIX / INSTALLS OVER v5.8.0–v5.8.7`
+
+The "completed" 156 KB bundles are now fully explained: this provider's playlist wraps **every segment URL through the Aniraku proxy already** — and the native downloader wrapped them a **second time**. The backend rejects proxy-of-proxy targets with a **200 + tiny error body**, so all 236 "segments" downloaded as ~660-byte error payloads, the bundle "completed" at 156 KB, and even passed the integrity gate (the files existed). The downloader now fetches already-proxied segment URLs **as-is**, and a stub-data gate refuses any bundle that is implausibly small against its estimate — this class of bug can never silently ship again.
+
+### Fixed
+- **Proxy-of-proxy segment downloads**: backend-wrapped segment URLs are fetched as-is (they carry their own upstream headers); raw CDN URLs still get wrapped with the provider headers. Verified live: the exact segment URL returns 3.4 MB of `video/mp2t` when fetched as-is.
+- **Stub-data gate**: a completed bundle under 1% of its byte estimate is refused with a clear message instead of being saved as garbage.
+
+## v5.8.7 — Parallel segment downloads + live progress
+
 ## v5.8.7 — Parallel segment downloads + live progress
 
 `CURRENT / PERF / INSTALLS OVER v5.8.0–v5.8.6`

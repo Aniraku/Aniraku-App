@@ -24,14 +24,14 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.7">v5.8.7 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.8">v5.8.8 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 <br>
 
 > [!IMPORTANT]
-> **v5.8.7 is the current release** — Performance: the native downloader now runs **4 parallel segment workers** (the website's own concurrency) with byte-accurate live progress — downloads finish ~4× faster and the progress bar moves continuously. Installs directly over v5.8.0–v5.8.6. If you want the previous build, [v5.8.6](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.6) is the download hotfix.
+> **v5.8.8 is the current release** — ROOT CAUSE of the tiny "completed" bundles: this provider's playlist wraps every segment through the Aniraku proxy already, and the downloader wrapped them twice — the backend answered with 200 + tiny error bodies, baking a 156 KB "episode". Segments now fetch as-is, and a stub-data gate refuses any bundle under 1% of its estimate. Installs directly over v5.8.0–v5.8.7. If you want the previous build, [v5.8.7](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.7) is the parallel-downloads release.
 
 > [!CAUTION]
 >If it has saved you time, a small donation keeps it up. And the library keeps growing — **missing an anime?** Email [`sho.islam0311@proton.me`](mailto:sho.islam0311@proton.me) and it'll get added.

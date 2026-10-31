@@ -1,0 +1,1 @@
+ROOT CAUSE of the tiny 'completed' bundles: backend-wrapped segment URLs were being wrapped a second time (proxy-of-proxy), so segments downloaded as tiny error bodies. Fixed + a stub-data gate refuses implausibly small bundles. Installs over v5.8.0–v5.8.7.

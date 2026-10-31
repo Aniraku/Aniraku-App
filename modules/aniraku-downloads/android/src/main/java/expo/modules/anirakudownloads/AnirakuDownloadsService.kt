@@ -199,10 +199,16 @@ class AnirakuDownloadsService : Service() {
   private fun downloadTo(file: File, url: String, headers: Map<String, String>, proxyBase: String, attempt: Int = 0): Long {
     try {
       if (proxyBase.isEmpty()) throw IOException("The download proxy is not configured.")
-      val proxied = proxyBase + "/api/v1/proxy?url=" + java.net.URLEncoder.encode(url, "UTF-8") +
-        "&headers=" + java.net.URLEncoder.encode(jsonHeaders(headers), "UTF-8")
+      // Backend-wrapped segment URLs are ALREADY proxy URLs (each carries its
+      // own upstream headers param). Re-wrapping them creates a
+      // proxy-of-proxy that the backend rejects WITH A 200 ERROR BODY —
+      // tiny "segments" that once baked a 156KB bundle that "completed".
+      val alreadyProxied = url.contains("/api/v1/proxy?")
+      val target = if (alreadyProxied) url
+        else proxyBase + "/api/v1/proxy?url=" + java.net.URLEncoder.encode(url, "UTF-8") +
+          "&headers=" + java.net.URLEncoder.encode(jsonHeaders(headers), "UTF-8")
       val proxyHeaders = mapOf("User-Agent" to BROWSER_UA, "Referer" to SITE_REFERER)
-      val status = fetchTo(file, proxied, proxyHeaders)
+      val status = fetchTo(file, target, proxyHeaders)
       if (status !in 200..299) throw IOException("Source returned $status.")
       if (file.length() <= 0L) throw IOException("A segment arrived empty.")
       return file.length()

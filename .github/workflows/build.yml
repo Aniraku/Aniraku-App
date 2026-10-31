@@ -183,21 +183,21 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.8.7 — Parallel segment downloads + live progress
+            ## v5.8.8 — ROOT CAUSE: the proxy-of-proxy stub-segment bug
 
-            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0–v5.8.6 — same signing key, no uninstall needed.**
+            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0–v5.8.7 — same signing key, no uninstall needed.**
 
-            - `aniraku-v5.8.7-arm64.apk` — modern (64-bit) devices
-            - `aniraku-v5.8.7-arm32.apk` — older / budget (32-bit) devices
-            - `aniraku-v5.8.7-universal.apk` — every device
+            - `aniraku-v5.8.8-arm64.apk` — modern (64-bit) devices
+            - `aniraku-v5.8.8-arm32.apk` — older / budget (32-bit) devices
+            - `aniraku-v5.8.8-universal.apk` — every device
 
-            ### Changed
-            - **4 parallel segment workers** in the native downloader (the website's own concurrency) — downloads finish ~4x faster.
-            - **Byte-accurate live progress** — the notification and Downloads hub move as bytes land, not once per segment.
+            ### Fixed
+            - **THE tiny "completed" bundles, fully explained**: this provider's playlist wraps every segment URL through the Aniraku proxy already — the downloader wrapped them a second time, and the backend rejected proxy-of-proxy targets with a 200 + tiny error body. All 236 "segments" downloaded as ~660-byte error payloads = the 156 KB bundle. Segment URLs that are already proxied are now fetched as-is (verified live: 3.4 MB of real video per segment).
+            - **Stub-data gate**: a completed bundle under 1% of its byte estimate is refused with a clear message — this class of bug can never silently ship again.
 
-            ### Carried from v5.8.0–v5.8.6 (unchanged)
+            ### Carried from v5.8.0–v5.8.7 (unchanged)
             - Proxy-only playback and downloads on the shared OkHttp stack
-            - HLS downloads for every provider, email-verification relay
+            - 4 parallel segment workers with live progress, email-verification relay
             - Watch-screen crash hotfix, diagnosable error screen, stable release signing
           files: ./artifacts/*.apk
         env:

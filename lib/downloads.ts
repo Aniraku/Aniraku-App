@@ -4,7 +4,7 @@ import * as Network from "expo-network";
 import { Platform } from "react-native";
 import { anirakuProxyRequestHeaders, anirakuProxyUrl, BROWSER_UA, getPlaybackType, isAnirakuProxyUrl, nativePlaybackHeaders, sourceVerification } from "@/lib/aniraku-api";
 import { APP_CONFIG } from "@/lib/app-config";
-import { estimateHlsSize, parseMediaPlaylist, resolveSegmentUrl, rewritePlaylistUris, unsupportedPlaylistReason, verifyPlaylistIntegrity } from "@/lib/downloads-hls";
+import { estimateHlsSize, isBundleImplausiblySmall, parseMediaPlaylist, resolveSegmentUrl, rewritePlaylistUris, unsupportedPlaylistReason, verifyPlaylistIntegrity } from "@/lib/downloads-hls";
 import { nativeDownloads } from "@/lib/downloads-native";
 import { originalStreamUrl } from "@/lib/hls-variants";
 import { isAutoQuality } from "@/lib/watch-engine";
@@ -695,6 +695,11 @@ async function performHlsDownload(internal: QueuedDownload, callbacks: TransferC
     }, {
       onProgress: (received, total) => callbacks.onProgress(total > 0 ? Math.min(0.99, received / total) : undefined, received, total),
     });
+    // Stub-data gate: a bundle this far under the estimate is proxy-error
+    // bodies, not video (caught the 156KB "completed" bundles live).
+    if (isBundleImplausiblySmall(result.bytes, estimated ?? 0)) {
+      throw new Error(`[VERIFY] The saved bundle is impossibly small (${Math.round(result.bytes / 1024)} KB of ~${Math.round((estimated ?? 0) / 1024 / 1024)} MB expected) — the provider returned stub data. Try another provider.`);
+    }
 
     // Map absolute CDN URIs → the native writer's file paths, in playlist order.
     const map = new Map<string, string>();
