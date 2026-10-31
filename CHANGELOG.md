@@ -6,6 +6,17 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.8.4 — Offline subtitles hardened through the proxy gate
+
+`CURRENT / HOTFIX / INSTALLS OVER v5.8.0–v5.8.3`
+
+Offline downloads carry the episode's subtitle tracks beside the video — but the subtitle fetch rode the Aniraku proxy **without the browser identity headers**, and the backend gate 403s header-less requests. Failed fetches were silently skipped, so some offline bundles saved without subtitles. Every subtitle fetch now carries the same identity as every other proxy hop.
+
+### Fixed
+- **Offline subtitles could be silently skipped**: subtitle downloads through the proxy now send the browser UA + Aniraku referer, matching every other proxied byte in the app.
+
+## v5.8.3 — Proxy-only playback and downloads
+
 ## v5.8.3 — Proxy-only playback and downloads
 
 `CURRENT / OPERATOR POLICY / INSTALLS OVER v5.8.0–v5.8.2`

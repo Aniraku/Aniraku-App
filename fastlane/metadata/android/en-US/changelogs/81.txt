@@ -1,0 +1,1 @@
+Offline downloads now reliably save subtitles — the subtitle fetch carries the same proxy identity as every other request, so bundles keep their tracks. Installs over v5.8.0–v5.8.3.

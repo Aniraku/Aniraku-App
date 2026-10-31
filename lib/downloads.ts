@@ -878,7 +878,10 @@ async function saveSubtitleTracks(options: {
     const extension = /\.srt(?:$|[?#])/i.test(track.url) ? "srt" : "vtt";
     try {
       const alreadyProxied = isAnirakuProxyUrl(track.url);
-      const response = await fetch(alreadyProxied ? track.url : anirakuProxyUrl(track.url, options.headers)).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.text(); });
+      // The proxy hop carries the browser identity — api.aniraku.tech's gate
+      // 403s header-less requests, and a skipped track means the offline
+      // bundle saves without subtitles.
+      const response = await fetch(alreadyProxied ? track.url : anirakuProxyUrl(track.url, options.headers), { headers: anirakuProxyRequestHeaders() }).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.text(); });
       const file = new File(options.directory, `${options.entryId}-sub-${position}.${extension}`);
       file.write(response);
       saved.push({ lang: track.lang, label: track.label, file: file.uri });

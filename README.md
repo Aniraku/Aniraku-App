@@ -24,14 +24,14 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.3">v5.8.3 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.4">v5.8.4 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 <br>
 
 > [!IMPORTANT]
-> **v5.8.3 is the current release** — Proxy-only playback and downloads: every remote byte rides the Aniraku proxy (provider CDNs 403 direct device fetches), matching the website's policy. No more watchdog stalls or 403 download failures on SORA-class providers. Installs directly over v5.8.0–v5.8.2. If you want the previous build, [v5.8.2](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.2) is the HLS-provider download fix.
+> **v5.8.4 is the current release** — Hotfix: offline downloads now reliably save subtitles (the subtitle fetch carries the full proxy identity — some bundles were silently saving without their tracks). Installs directly over v5.8.0–v5.8.3. If you want the previous build, [v5.8.3](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.3) is the proxy-only release.
 
 > [!CAUTION]
 >If it has saved you time, a small donation keeps it up. And the library keeps growing — **missing an anime?** Email [`sho.islam0311@proton.me`](mailto:sho.islam0311@proton.me) and it'll get added.
