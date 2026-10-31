@@ -6,6 +6,18 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.8.9 — THE download-refusal root cause + proxy-only subtitles
+
+`CURRENT / ROOT-CAUSE FIX / INSTALLS OVER v5.8.0–v5.8.8`
+
+The one gate that turned every download away since v5.8.0, found: `buildDownloadRequest` tested `isHls` with a regex requiring `.m3u8` at the END of the URL — but backend-wrapped and tokenized playlist URLs carry `.m3u8` mid-path with `&headers=&al=` trailing params, so **isHls was false for every download row** and the request fell into the progressive branch, which refuses HLS sources. "Same to same" on every version, every provider, every transport fix — the gate turned them all away at the door.
+
+### Fixed
+- **The download-refusal root cause**: an explicitly resolved variantUrl is trusted as a media playlist by construction (the sheet builds it from a parsed master); non-explicit URLs are tested for `.m3u8` anywhere (after unwrapping), plus the hls/mpegurl type labels.
+- **Subtitles are proxy-only** like every other remote byte: the streaming subtitle fetch's direct fallback is removed; downloads' subtitle fetch was already proxy-only with the browser identity.
+
+## v5.8.8 — ROOT CAUSE #2: the proxy-of-proxy stub-segment bug
+
 ## v5.8.8 — ROOT CAUSE #2: the proxy-of-proxy stub-segment bug
 
 `CURRENT / ROOT-CAUSE FIX / INSTALLS OVER v5.8.0–v5.8.7`

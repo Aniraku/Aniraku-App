@@ -757,7 +757,21 @@ export function buildDownloadRequest(input: StartDownloadInput): DownloadRequest
   // HLS variants become segment bundles via the native service — this is the
   // capability the old policy refused; embed/dead sources stay refused.
   const directUrl = useExplicit ? explicitUrl as string : input.source.url;
-  const isHls = /\.m3u8($|[?#])/i.test(directUrl) || /mpegurl/i.test(String(input.source.mime || input.source.type || ""));
+  // THE v5.8.0–v5.8.8 download refusal, root-caused: the old test required
+  // .m3u8 at the END of the URL (or before ?/#) — but backend-wrapped and
+  // tokenized playlist URLs carry .m3u8 mid-path with &headers=&al= trailing
+  // params, so isHls was false for EVERY download row and the request fell
+  // into the progressive branch, which refuses HLS sources. An explicitly
+  // provided variantUrl IS a media playlist by construction (the sheet built
+  // it from a parsed master); unwrapped non-explicit URLs are tested for
+  // .m3u8 anywhere, plus the hls/mpegurl type labels.
+  const unwrappedDirect = originalStreamUrl(directUrl);
+  const typeAndMime = String(input.source.mime || "") + " " + String(input.source.type || "");
+  const isHls = useExplicit
+    ? true
+    : (/\.m3u8($|[?#])/i.test(unwrappedDirect)
+       || /mpegurl/i.test(typeAndMime)
+       || /\bhls\b/i.test(typeAndMime));
   if (isHls) {
     // The URL/mime gate above already establishes this is an HLS stream —
     // requiring getPlaybackType === "native" here refused EVERY HLS download

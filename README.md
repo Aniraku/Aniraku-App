@@ -24,14 +24,14 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.8">v5.8.8 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.9">v5.8.9 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 <br>
 
 > [!IMPORTANT]
-> **v5.8.8 is the current release** — ROOT CAUSE of the tiny "completed" bundles: this provider's playlist wraps every segment through the Aniraku proxy already, and the downloader wrapped them twice — the backend answered with 200 + tiny error bodies, baking a 156 KB "episode". Segments now fetch as-is, and a stub-data gate refuses any bundle under 1% of its estimate. Installs directly over v5.8.0–v5.8.7. If you want the previous build, [v5.8.7](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.7) is the parallel-downloads release.
+> **v5.8.9 is the current release** — THE download-refusal root cause, found: the HLS gate required `.m3u8` at the end of the URL, but backend-wrapped/tokenized playlist URLs carry it mid-path with trailing params — so every download row was refused as "not progressive" on every version. Fixed (explicit variant URLs are trusted; wrapped URLs are tested after unwrapping), and subtitles are proxy-only like every other byte. Installs directly over v5.8.0–v5.8.8. If you want the previous build, [v5.8.8](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.8) is the stub-segment fix.
 
 > [!CAUTION]
 >If it has saved you time, a small donation keeps it up. And the library keeps growing — **missing an anime?** Email [`sho.islam0311@proton.me`](mailto:sho.islam0311@proton.me) and it'll get added.

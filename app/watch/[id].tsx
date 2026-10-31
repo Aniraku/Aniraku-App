@@ -514,19 +514,14 @@ export default function WatchScreen() {
         if (!r.ok) throw new Error(`subtitle ${r.status}`);
         return r.text();
       });
-    // Proxy first (keeps the device IP off the CDN) with the proxy's browser
-    // identity — its gate 403s header-less requests. Some media hosts
-    // challenge the backend's plain server-side client (→ 502) while serving
-    // a real device fine — fall back to a direct fetch with the provider
-    // headers (native fetch has no CORS) so subtitles survive a
-    // backend/proxy outage. Offline bundles hand over file:// tracks — read
-    // them straight from disk.
+    // PROXY-ONLY (operator policy): subtitles ride the Aniraku proxy with
+    // the browser identity, like every other remote byte. Offline bundles
+    // hand over file:// tracks — read them straight from disk.
     let body: Promise<string>;
     if (preferred.url.startsWith("file://")) {
       try { body = new File(preferred.url).text(); } catch (cause) { body = Promise.reject(cause); }
     } else {
-      body = fetchText(proxiedUrl, anirakuProxyRequestHeaders())
-        .catch(() => (alreadyProxied ? Promise.reject(new Error("subtitle proxy failed")) : fetchText(preferred.url, directHeaders)));
+      body = fetchText(proxiedUrl, anirakuProxyRequestHeaders());
     }
     void body.then((text) => {
         if (cancelled || !text.trim()) {

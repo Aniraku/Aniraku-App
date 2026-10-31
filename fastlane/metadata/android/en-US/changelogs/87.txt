@@ -1,0 +1,1 @@
+ROOT CAUSE of the download refusals since v5.8.0: the HLS gate required .m3u8 at the END of wrapped/tokenized playlist URLs and never matched — every download fell into the progressive branch and was refused. Fixed, and subtitles are proxy-only now. Installs over v5.8.0–v5.8.8.
