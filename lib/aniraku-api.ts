@@ -1,5 +1,65 @@
 import { APP_CONFIG } from "@/lib/app-config";
 import type { Anime, Episode, Server, StreamResponse, StreamSource } from "@/lib/types";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+// ── Offline cache keys ──
+const ANIME_CACHE_KEY = (id: number) => `aniraku.cache.anime.${id}`;
+const EPISODES_CACHE_KEY = (id: number) => `aniraku.cache.episodes.${id}`;
+const TRACK_CACHE_KEY = (id: number) => `aniraku.cache.track.${id}`;
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+async function readCache<T>(key: string): Promise<T | null> {
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed.ts && Date.now() - parsed.ts < CACHE_TTL_MS) return parsed.data;
+    return null;
+  } catch { return null; }
+}
+
+async function writeCache<T>(key: string, data: T) {
+  try { await AsyncStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch { /* best effort */ }
+}
+
+/** Read cached anime metadata (never throws; null when absent/expired). */
+export async function readAnimeCache(animeId: number): Promise<Anime | null> {
+  return readCache<Anime>(ANIME_CACHE_KEY(animeId));
+}
+
+/** Read cached episodes (never throws; null when absent/expired). */
+export async function readEpisodesCache(animeId: number): Promise<Episode[] | null> {
+  return readCache<Episode[]>(EPISODES_CACHE_KEY(animeId));
+}
+
+/** Cache-aware anime metadata: returns cached copy when offline/stale. */
+export async function getAnimeMetadataCached(animeId: number): Promise<Anime> {
+  const cached = await readCache<Anime>(ANIME_CACHE_KEY(animeId));
+  if (cached) return cached;
+  const data = await getAnimeMetadata(animeId);
+  void writeCache(ANIME_CACHE_KEY(animeId), data);
+  return data;
+}
+
+/** Cache-aware episodes: returns cached copy when offline/stale. */
+export async function getEpisodesCached(animeId: number): Promise<Episode[]> {
+  const cached = await readCache<Episode[]>(EPISODES_CACHE_KEY(animeId));
+  if (cached) return cached;
+  const data = await getEpisodes(animeId);
+  void writeCache(EPISODES_CACHE_KEY(animeId), data);
+  return data;
+}
+
+/** Cache-aware language track: returns cached copy when offline/stale. */
+export async function getLanguageTrackCached(animeId: number): Promise<{ sub: number; dub: number } | null> {
+  const cached = await readCache<{ sub: number; dub: number }>(TRACK_CACHE_KEY(animeId));
+  if (cached) return cached;
+  try {
+    const data = await getLanguageTrack(animeId);
+    void writeCache(TRACK_CACHE_KEY(animeId), data);
+    return data;
+  } catch { return null; }
+}
 
 async function apiRequest<T>(path: string, init?: RequestInit, timeoutMs: number = 15_000): Promise<T> {
   let response: Response;
@@ -9,7 +69,12 @@ async function apiRequest<T>(path: string, init?: RequestInit, timeoutMs: number
     response = await fetch(`${APP_CONFIG.apiBaseUrl}${path}`, {
       ...init,
       signal: init?.signal ?? controller.signal,
-      headers: { Accept: "application/json", ...(init?.headers ?? {}) },
+      // Every request to api.aniraku.tech (JSON API and media proxy) sits
+      // behind a browser gate: requests without a browser UA are 403'd
+      // (verified live against /api/v1/health and /api/v1/proxy). The
+      // browser UA + site referer pair passes; explicit caller headers
+      // (e.g. getLanguageTrack's app identity) still win.
+      headers: { Accept: "application/json", ...anirakuProxyRequestHeaders(), ...(init?.headers ?? {}) },
     });
   } catch (cause) {
     const timedOut = cause instanceof Error && cause.name === "AbortError";
@@ -32,6 +97,31 @@ async function apiRequest<T>(path: string, init?: RequestInit, timeoutMs: number
 
 export const CHROME_ANDROID_UA =
   "Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36";
+
+/** Desktop browser UA sent to api.aniraku.tech and used as the upstream
+ *  fallback UA. Verified live: the backend's gate 403s requests that carry
+ *  no browser UA (HTML challenge page), while any UA + a Referer passes. */
+export const BROWSER_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+/** Android app referer sent with every proxied request so provider CDNs see
+ *  the Aniraku Android app instead of a desktop browser. */
+/** Android app referer domain sent on proxied requests so provider CDNs see
+ *  the Aniraku Android app instead of a desktop browser. */
+export const ANDROID_APP_REFERER = "anime.aniraku.app";
+
+/** Site referer the api.aniraku.tech gate accepts (verified live: browser UA
+ *  + this referer returns 200 on both the JSON API and the media proxy; the
+ *  app identity referer works too, but this is the fastest verified pair). */
+export const ANIRAKU_SITE_REFERER = "https://aniraku.tech/";
+
+/** HTTP headers the app itself sends when calling api.aniraku.tech — both
+ *  the JSON API and the media proxy. The gate sits in front of every
+ *  manifest, variant, and segment the player fetches, so proxied playback
+ *  MUST present this identity or every request 403s. */
+export function anirakuProxyRequestHeaders(): Record<string, string> {
+  return { "User-Agent": BROWSER_UA, Referer: ANIRAKU_SITE_REFERER };
+}
 
 export function getPlaybackType(source: StreamSource): "hls" | "dash" | "native" | "embed" {
   const raw = `${source.type ?? ""} ${source.mime ?? ""}`.toLowerCase();
@@ -81,15 +171,22 @@ export function anirakuProxyUrl(url: string, headers?: Record<string, string>) {
   // {"error":"proxy target not allowed"} → HTTP 403 → ExoPlayer
   // ERROR_CODE_IO_BAD_HTTP_STATUS. Play those URLs as-is.
   if (isAnirakuProxyUrl(url)) return url;
-  const parameters = new URLSearchParams({ url, rn: `${Date.now()}-${Math.random().toString(36).slice(2)}` });
-  if (headers && Object.keys(headers).length) parameters.set("headers", JSON.stringify(headers));
-  return `${APP_CONFIG.apiBaseUrl}/api/v1/proxy?${parameters.toString()}`;
-}
-
-export function anirakuDownloadUrl(url: string, headers?: Record<string, string>) {
+  // No cache-buster nonce: tokenized upstream URLs are unique per fetch, and
+  // the proxy's edge cache answers repeat requests (cf-cache-status: HIT,
+  // immutable segments) — a unique `rn` per wrapper defeated that entirely.
+  // Rotted tokens are handled by the variant-refresh guard instead.
   const parameters = new URLSearchParams({ url });
-  if (headers && Object.keys(headers).length) parameters.set("headers", JSON.stringify(headers));
-  return `${APP_CONFIG.apiBaseUrl}/api/v1/download?${parameters.toString()}`;
+  if (headers && Object.keys(headers).length) {
+    // Preserve the provider's own identity: settlar-style CDNs require their
+    // exact upstream headers (e.g. Referer: https://ani.pm/anime/ + desktop
+    // Chrome) and clobbering them with app values broke the upstream fetch.
+    // Only fill a browser UA when the provider supplied none.
+    const upstream = { ...headers };
+    const hasUa = Object.keys(upstream).some((key) => key.toLowerCase() === "user-agent");
+    if (!hasUa) upstream["User-Agent"] = BROWSER_UA;
+    parameters.set("headers", JSON.stringify(upstream));
+  }
+  return `${APP_CONFIG.apiBaseUrl}/api/v1/proxy?${parameters.toString()}`;
 }
 
 type BackendSkipSegment = { start?: number; end?: number; startTime?: number; endTime?: number };
@@ -140,6 +237,17 @@ const UNSUPPORTED_PROVIDERS = new Set(["flixcloud"]);
 /** Accept every server the backend returns. Only truly broken providers
  *  (flixcloud) are filtered. Deduplicates by display name so the UI never
  *  shows the same provider twice. */
+/** Language-based track availability: returns episode counts per language
+ *  for an anime (e.g. { sub: 26, dub: 26 }). Requires Android UA + referer. */
+export async function getLanguageTrack(animeId: number): Promise<{ sub: number; dub: number }> {
+  return apiRequest<{ sub: number; dub: number }>(`/api/v1/anime/${animeId}/track`, {
+    headers: {
+      "User-Agent": CHROME_ANDROID_UA,
+      "Referer": ANDROID_APP_REFERER,
+    },
+  });
+}
+
 export async function getServers(animeId: number, episode: number, lang: "sub" | "dub"): Promise<Server[]> {
   const payload = await apiRequest<any[]>(`/api/v1/servers?animeId=${animeId}&episode=${episode}&lang=${lang}`, undefined, 30_000);
   if (!Array.isArray(payload) || payload.length === 0) {
@@ -164,7 +272,6 @@ export async function getServers(animeId: number, episode: number, lang: "sub" |
         lang: (server.lang || lang) as "sub" | "dub",
         sources: server.sources,
         headers: server.headers,
-        downloads: server.downloads,
         subtitles: server.subtitles,
       });
     }

@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { getEpisodes } from "@/lib/aniraku-api";
 import { getAnimeById } from "@/lib/anilist";
 import { parseRouteEpisode, parseRouteId } from "@/lib/route-params";
-import { enrichEpisodesWithTmdb } from "@/lib/tmdb-episodes";
+import { applyEpisodeFallbackMetadata } from "@/lib/episode-fallbacks";
 import { THUMBNAIL_W, getOptimizedImageUri } from "@/lib/image-optimization";
 import { animeTitle } from "@/lib/types";
 import { AppIcon } from "@/components/app-icon";
@@ -22,17 +22,14 @@ export default function EpisodeInfoScreen() {
   const episodes = useQuery({ queryKey: ["episode-info", animeId], queryFn: () => getEpisodes(animeId), enabled: !invalidId, staleTime: 60_000 });
   const anime = useQuery({ queryKey: ["episode-info-anime", animeId], queryFn: () => getAnimeById(animeId), enabled: !invalidId, staleTime: 10 * 60_000 });
   const canonicalRows = useMemo(() => episodes.data ?? [], [episodes.data]);
-  const episodeSignature = useMemo(() => canonicalRows.map((item) => `${item.number}:${item.title ?? ""}:${item.thumbnail ?? ""}`).join("|"), [canonicalRows]);
   const fallbackThumbnail = anime.data?.bannerImage || anime.data?.coverImage?.extraLarge || anime.data?.coverImage?.large || params.image || "";
   const fallbackTitle = anime.data ? animeTitle(anime.data) : (params.title || "");
-  const tmdbEpisodes = useQuery({
-    queryKey: ["tmdb-episode-display", animeId, episodeSignature, fallbackThumbnail, fallbackTitle, anime.data?.format],
-    queryFn: () => enrichEpisodesWithTmdb(animeId, canonicalRows, { fallbackThumbnail, fallbackTitle, isMovie: anime.data?.format === "MOVIE" }),
-    enabled: Number.isFinite(animeId) && animeId > 0 && episodes.isSuccess && canonicalRows.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const rows = tmdbEpisodes.data ?? canonicalRows;
+  // Backend serves episodes with AniZip + TMDB metadata already merged —
+  // display guards/fallbacks only, no second network call.
+  const rows = useMemo(
+    () => applyEpisodeFallbackMetadata(canonicalRows, { fallbackThumbnail, fallbackTitle, isMovie: anime.data?.format === "MOVIE" }),
+    [canonicalRows, fallbackThumbnail, fallbackTitle, anime.data?.format],
+  );
   const selected = rows.find((item) => item.number === episodeNumber);
   const previous = [...rows].reverse().find((item) => item.number < episodeNumber)?.number;
   const next = rows.find((item) => item.number > episodeNumber)?.number;

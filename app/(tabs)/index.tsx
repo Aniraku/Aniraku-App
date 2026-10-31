@@ -2,14 +2,14 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { getHomeAnime, getHomeRailAnime } from "@/lib/anilist";
 import { BANNER_W, POSTER_W, getOptimizedImageUri } from "@/lib/image-optimization";
 import { nsfwFilterParam, useNsfwPreference } from "@/lib/nsfw-preference";
 import { animeTitle } from "@/lib/types";
 import { hapticLight } from "@/lib/haptics";
 import { usePrefetchAnime } from "@/lib/prefetch";
-import { showChoiceSheet } from "@/components/choice-sheet";
+import { showChoiceSheet, showThemedDialog, showThemedToast } from "@/components/choice-sheet";
 import { AnimeRail } from "@/components/anime-rail";
 import { ErrorState } from "@/components/async-state";
 import { nothing } from "@/components/nothing-ui";
@@ -62,16 +62,25 @@ function ContinueCard({ entry, onRemove }: {
   );
 }
 
+/** Bounded retry for My List errors: one RETRY offer; a second failure shows a plain toast. */
+function listErrorToast(error: unknown, retry?: () => void) {
+  showThemedToast({ message: error instanceof Error ? error.message : "Try again in a moment.", tone: "error", actionLabel: retry ? "RETRY" : undefined, onAction: retry });
+}
+
 function ContinueWatchingRail() {
   const { history, remove } = useWatchHistory();
   const confirmRemove = (entry: { anime_id: number; episode_number: number; anime_title?: string | null }) => {
-    Alert.alert("Remove from Continue Watching?", entry.anime_title ? `"${entry.anime_title}" · EP ${entry.episode_number} will be removed from this list.` : "This row will be removed from this list.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Remove", style: "destructive", onPress: () => {
+    showThemedDialog({
+      kicker: "CONTINUE WATCHING",
+      title: "Remove from Continue Watching?",
+      message: entry.anime_title ? `"${entry.anime_title}" · EP ${entry.episode_number} will be removed from this list.` : "This row will be removed from this list.",
+      confirmLabel: "REMOVE",
+      destructive: true,
+      onConfirm: () => {
         void remove.mutateAsync({ animeId: entry.anime_id, episode: entry.episode_number })
-          .catch(() => Alert.alert("Could not remove", "Check your connection and try again."));
-      } },
-    ]);
+          .catch(() => showThemedToast({ message: "Could not remove. Check your connection and try again.", tone: "error", actionLabel: "RETRY", onAction: () => confirmRemove(entry) }));
+      },
+    });
   };
   if (!history.isSuccess) return null;
   if (!history.data?.length) {
@@ -131,7 +140,7 @@ function TrendingGrid({ items }: { items: { id: number; coverImage?: { large?: s
           onPress: () => {
             if (!auth.user) { router.push("/auth" as never); return; }
             bookmarks.toggleWithPicker(item as any, {
-              onError: (error) => Alert.alert("Could not update My List", error instanceof Error ? error.message : "Try again in a moment."),
+              onError: (error) => listErrorToast(error, () => bookmarks.toggleWithPicker(item as any, { onError: (next) => listErrorToast(next) })),
             });
           },
         },
@@ -242,7 +251,7 @@ export default function HomeScreen() {
                   hapticLight();
                   if (!auth.user) { router.push("/auth" as never); return; }
                   bookmarks.toggleWithPicker(hero, {
-                    onError: (error) => Alert.alert("Could not update My List", error instanceof Error ? error.message : "Try again in a moment."),
+                    onError: (error) => listErrorToast(error, () => bookmarks.toggleWithPicker(hero, { onError: (next) => listErrorToast(next) })),
                   });
                 }}
               >

@@ -37,6 +37,7 @@ export function Toggle({ enabled, onToggle, label }: ToggleProps) {
       accessibilityState={{ checked: enabled }}
       accessibilityLabel={label}
       onPress={handlePress}
+      hitSlop={{ top: 11, bottom: 11 }}
       style={({ pressed }) => [styles.track, enabled && styles.trackOn, pressed && styles.trackPressed]}
     >
       <Animated.View style={[styles.thumb, enabled && styles.thumbOn, { transform: [{ translateX }] }]} />

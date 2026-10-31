@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDashQualityOptions, buildHlsQualityOptions, hlsLevelIndexForHeight, hlsVariantsCacheKey, originalStreamUrl, parseDashRepresentations, parseHlsMasterVariants, resolveVariantUrl, shouldRefetchVariants, shouldRefreshMasterOnVariantError, variantUrlForHeight, variantUrlForQuality, type HlsVariant, type VariantsCacheScope } from "../lib/hls-variants";
+import { buildDashQualityOptions, buildHlsQualityOptions, hlsLevelIndexForHeight, hlsVariantsCacheKey, originalStreamUrl, parseDashRepresentations, parseHlsMasterVariants, resolveVariantUrl, shouldRefetchVariants, shouldRefreshMasterOnVariantError, variantUrlForHeight, type HlsVariant, type VariantsCacheScope } from "../lib/hls-variants";
 
 const MASTER = [
   "#EXTM3U",
@@ -141,15 +141,6 @@ describe("variant URL selection for downloads and refresh", () => {
     expect(variantUrlForHeight([{ height: 720, bandwidth: 1_000_000, url: "" }], 720)).toBeNull();
   });
 
-  it("resolves quality labels to variant URLs and maps Auto to the master (null)", () => {
-    expect(variantUrlForQuality(variants, "1080p")).toBe("https://cdn.example/hls/1080/playlist.m3u8");
-    expect(variantUrlForQuality(variants, "720P")).toBe("https://cdn.example/hls/720/index.m3u8");
-    expect(variantUrlForQuality(variants, "auto")).toBeNull();
-    expect(variantUrlForQuality(variants, "Auto")).toBeNull();
-    expect(variantUrlForQuality(variants, "highest")).toBeNull();
-    expect(variantUrlForQuality(variants, null)).toBeNull();
-  });
-
   it("maps heights onto hls.js level indexes for the web level API", () => {
     const levels = [{ height: 1080 }, { height: 720 }, { height: 480 }];
     expect(hlsLevelIndexForHeight(levels, 720)).toBe(1);
@@ -226,18 +217,6 @@ describe("variant-URL-for-download selection", () => {
     expect(variantUrlForHeight(variants, 721.6)).toBeNull();
   });
 
-  it("resolves quality labels to variant URLs for download wiring", () => {
-    expect(variantUrlForQuality(variants, "1080p")).toBe("https://cdn.example/hls/1080/playlist.m3u8");
-    expect(variantUrlForQuality(variants, "720p")).toBe("https://cdn.example/hls/720/index.m3u8");
-    expect(variantUrlForQuality(variants, "480P")).toBe("https://cdn.example/hls/480/index.m3u8");
-  });
-
-  it("maps Auto / null / unknown labels to master (null) so download skips variant URL", () => {
-    expect(variantUrlForQuality(variants, "auto")).toBeNull();
-    expect(variantUrlForQuality(variants, "highest")).toBeNull();
-    expect(variantUrlForQuality(variants, null)).toBeNull();
-    expect(variantUrlForQuality(variants, "")).toBeNull();
-  });
 });
 
 describe("token-expiry detection wiring", () => {

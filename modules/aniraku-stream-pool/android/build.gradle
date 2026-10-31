@@ -1,0 +1,31 @@
+apply plugin: 'expo-module-gradle-plugin'
+
+group = 'expo.modules.anirakustreampool'
+version = '1.0.0'
+
+android {
+    namespace 'expo.modules.anirakustreampool'
+
+    defaultConfig {
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+dependencies {
+    // react-native-video's official player-plugin hook (RNVExoplayerPlugin /
+    // ReactNativeVideoManager). Runtime classes come from the app build.
+    compileOnly project(':react-native-video')
+    // media3 is already an unconditional runtime dependency of
+    // react-native-video (RNVideo_media3Version in its gradle.properties,
+    // 1.8.0 today) — compile against the same version, ship nothing.
+    def media3Version = "1.8.0"
+    compileOnly "androidx.media3:media3-common:$media3Version"
+    compileOnly "androidx.media3:media3-datasource:$media3Version"
+    compileOnly "androidx.media3:media3-database:$media3Version"
+    compileOnly "androidx.media3:media3-exoplayer:$media3Version"
+}

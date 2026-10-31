@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppIcon } from "@/components/app-icon";
 import { nothing } from "@/components/nothing-ui";
+import { hapticSelection } from "@/lib/haptics";
 
 const tabIcons = {
   index: "home",
@@ -26,9 +27,10 @@ export default function TabLayout() {
           tabBarActiveTintColor: nothing.red,
           tabBarInactiveTintColor: nothing.dim,
           tabBarLabelStyle: { fontSize: 10, fontWeight: "600", letterSpacing: 0.1, marginTop: 3 },
-          tabBarStyle: { height: 66 + bottom, paddingTop: 8, paddingBottom: bottom, backgroundColor: "#090909", borderTopColor: "#202020", borderTopWidth: 1 },
+          tabBarStyle: { height: 66 + bottom, paddingTop: 8, paddingBottom: bottom, backgroundColor: nothing.black, borderTopColor: "#202020", borderTopWidth: 1 },
           tabBarItemStyle: { borderRadius: 0, marginHorizontal: 1 },
           tabBarIcon: ({ color, focused }: { color: string; focused: boolean }) => <AppIcon name={icon} size={22} color={color} style={{ opacity: focused ? 1 : 0.62 }} />,
+          tabBarOnPress: ({ defaultHandler }: { defaultHandler?: () => void }) => { hapticSelection(); defaultHandler?.(); },
         };
       }}
     >

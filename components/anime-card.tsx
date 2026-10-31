@@ -1,9 +1,10 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { Alert, Modal, Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { Modal, Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import * as Linking from "expo-linking";
+import * as Clipboard from "expo-clipboard";
 import { AppIcon } from "@/components/app-icon";
 import type { Anime } from "@/lib/types";
 import { animeTitle } from "@/lib/types";
@@ -14,6 +15,7 @@ import { LIST_STATUS_LABELS } from "@/lib/list-status";
 import { useBookmarks } from "@/hooks/use-bookmarks";
 import { useWatchHistory } from "@/hooks/use-watch-history";
 import { useAnirakuAuth } from "@/providers/auth-provider";
+import { showChoiceSheet, showThemedToast } from "@/components/choice-sheet";
 
 type ActionItem = { label: string; icon: string; onPress: () => void };
 
@@ -23,7 +25,7 @@ const MENU_CLOSE_FADE_MS = 260;
 const MARK_WATCHED_MAX_EPISODES = 24;
 
 function showQuickFeedback(message: string) {
-  Alert.alert("", message, [{ text: "OK" }], { cancelable: true });
+  showThemedToast({ message, tone: "info" });
 }
 
 /** Episodes that have already aired (never the ones still to come). */
@@ -39,13 +41,16 @@ function airedEpisodeCount(anime: Anime): number {
 function shareAnime(anime: Anime, title: string) {
   const deepLink = `aniraku://anime/${anime.id}`;
   const webUrl = `https://aniraku.tech/anime/${anime.id}`;
-  void Share.share({ title, message: `Watch ${title} on Aniraku\n${deepLink}`, url: Platform.OS === "ios" ? deepLink : webUrl })
-    .then((result) => {
-      if (result?.action !== "dismissedAction") showQuickFeedback(`Shared "${title}"`);
-    })
-    .catch(() => {
-      showQuickFeedback("Unable to share right now");
-    });
+  const link = Platform.OS === "ios" ? deepLink : webUrl;
+  showChoiceSheet({
+    kicker: "SHARE",
+    title: "Share this anime",
+    message: title,
+    options: [
+      { key: "share", label: "SHARE", onPress: () => { void Share.share({ title, message: `Watch ${title} on Aniraku\n${link}`, url: Platform.OS === "ios" ? deepLink : webUrl }).then((result) => { if (result?.action !== "dismissedAction") showQuickFeedback(`Shared "${title}"`); }).catch(() => { showQuickFeedback("Unable to share right now"); }); } },
+      { key: "copy", label: "COPY LINK", onPress: () => { void Clipboard.setStringAsync(webUrl).then(() => showThemedToast({ message: "LINK COPIED — PASTE IT ANYWHERE", tone: "info" })).catch(() => {}); } },
+    ],
+  });
 }
 
 function AnimeCardBase({ anime, compact = false }: { anime: Anime; compact?: boolean }) {

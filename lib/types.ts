@@ -70,7 +70,6 @@ export type Server = {
   type?: string;
   sources?: StreamSource[];
   headers?: Record<string, string>;
-  downloads?: Array<{ url: string; label?: string }>;
   subtitles?: Array<{ url: string; label?: string; lang?: string }>;
 };
 

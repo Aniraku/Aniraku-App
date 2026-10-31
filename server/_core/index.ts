@@ -24,7 +24,7 @@ const ALLOWED_ORIGINS = new Set([
 ].filter(Boolean));
 
 function isAllowedAnirakuProxyPath(path: string) {
-  return /^\/api\/v1\/(?:health|anime\/\d+(?:\/episodes)?|servers|stream)$/.test(path);
+  return /^\/api\/v1\/(?:health|anime\/\d+(?:\/(?:episodes|track))?|servers|stream)$/.test(path);
 }
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -115,6 +115,10 @@ async function startServer() {
         method,
         headers: {
           Accept: "application/json",
+          // api.aniraku.tech sits behind a browser gate — header-less requests
+          // are 403'd (same contract the app itself follows).
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          Referer: "https://aniraku.tech/",
           ...(req.headers["content-type"] ? { "Content-Type": String(req.headers["content-type"]) } : {}),
         },
         body: method === "GET" || method === "HEAD" ? undefined : JSON.stringify(req.body ?? {}),

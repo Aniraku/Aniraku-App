@@ -68,3 +68,9 @@ Thumbs.db
 
 # local planning scratchpad — never pushed
 TODO.md
+
+# agent/harness session state
+.zcode/
+
+# Supabase CLI runtime state
+supabase/.temp/

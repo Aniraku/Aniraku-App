@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, router } from "expo-router";
-import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { getAnimePage, isAniListRateLimitError, sanitizeMediaFormat, sanitizeMediaSortList, sanitizeMediaStatus } from "@/lib/anilist";
 import { searchCommitDelayMs } from "@/lib/search-input";
@@ -15,6 +15,7 @@ import { DotLabel, nothing } from "@/components/nothing-ui";
 import { NativeScreen } from "@/components/screen";
 import { SearchFilterSheet } from "@/components/search-filter-sheet";
 import { SearchResultRow } from "@/components/search-result-row";
+import { showThemedDialog } from "@/components/choice-sheet";
 
 type HistoryEntry = { term: string; timestamp: number };
 const STORAGE_KEY = "aniraku.search.recent";
@@ -176,16 +177,20 @@ export default function SearchScreen() {
 
   const deleteHistoryItem = useCallback((term: string) => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert("Delete", `Remove "${term}" from history?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => {
+    showThemedDialog({
+      kicker: "HISTORY",
+      title: "Remove from history?",
+      message: `"${term}" will leave your search history.`,
+      confirmLabel: "DELETE",
+      destructive: true,
+      onConfirm: () => {
         setRecent((current) => {
           const next = current.filter((e) => e.term.toLowerCase() !== term.toLowerCase());
           void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
           return next;
         });
-      }},
-    ]);
+      },
+    });
   }, []);
 
   const isIdle = !isCategoryMode && normalizedInput.length <= 1 && !hasLocalFilters;

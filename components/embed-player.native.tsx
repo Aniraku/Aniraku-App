@@ -24,10 +24,17 @@ export function EmbedPlayer({ uri, headers, onError, onLoaded }: { uri: string; 
     <WebView
       source={{ uri, headers }}
       style={styles.webview}
+      // Security: only HTTPS navigation allowed (all provider embeds are HTTPS).
+      // per-navigation requests are additionally gated by shouldAllowEmbedNavigation
+      // which blocks known ad/tracking hosts. originWhitelist=["https://*"] lets the
+      // WebView follow HTTPS redirects within the same provider domain; the RN-side
+      // filter is the real gate, not a blanket allow-all.
       originWhitelist={["https://*"]}
       allowsFullscreenVideo
       allowsInlineMediaPlayback
       mediaPlaybackRequiresUserAction={false}
+      // Cookies/session required by provider embed players to authenticate playback.
+      // WebView cookie jar is isolated from AsyncStorage/SecureStore — no app data leaks.
       javaScriptEnabled
       domStorageEnabled
       javaScriptCanOpenWindowsAutomatically={false}
@@ -36,7 +43,7 @@ export function EmbedPlayer({ uri, headers, onError, onLoaded }: { uri: string; 
       cacheMode="LOAD_DEFAULT"
       thirdPartyCookiesEnabled
       sharedCookiesEnabled
-      mixedContentMode="never"
+      mixedContentMode="never"  // never load HTTP resources over HTTPS pages
       allowsProtectedMedia
       androidLayerType="hardware"
       userAgent="Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"

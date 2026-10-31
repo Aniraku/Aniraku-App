@@ -24,7 +24,7 @@ describe("Aniraku episode contract", () => {
       { number: 1, title: "Real title", thumbnail: "https://cdn.aniraku.tech/episode.jpg", description: undefined, isFiller: true },
       { number: 2, title: "Second title", thumbnail: "https://cdn.aniraku.tech/episode-2.jpg", description: undefined, isFiller: false },
     ]);
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("https://api.aniraku.tech/api/v1/anime/16498/episodes"), expect.objectContaining({ headers: { Accept: "application/json" } }));
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("https://api.aniraku.tech/api/v1/anime/16498/episodes"), expect.objectContaining({ headers: expect.objectContaining({ Accept: "application/json" }) }));
   });
 
   it("rejects a malformed Aniraku episode response instead of treating it as empty availability", async () => {

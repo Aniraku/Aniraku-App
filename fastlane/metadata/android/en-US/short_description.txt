@@ -1,0 +1,1 @@
+Anime discovery and playback with in-app offline downloads.

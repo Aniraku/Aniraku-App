@@ -19,6 +19,8 @@ import {
   type EpisodeNotificationInput,
 } from "@/lib/episode-notifications";
 import { supabase } from "@/lib/supabase";
+import { registerPushToken } from "@/lib/push-notifications";
+import { checkNewEpisodes } from "@/lib/check-new-episodes";
 import { useAnirakuAuth } from "@/providers/auth-provider";
 
 export type NotificationPrefs = {
@@ -90,7 +92,7 @@ Notifications.setNotificationHandler({
   },
 });
 
-async function registerForPushNotifications() {
+async function registerForPushNotifications(userId: string): Promise<string | null> {
   if (Platform.OS === "web") return null;
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
@@ -100,7 +102,12 @@ async function registerForPushNotifications() {
   }
   if (finalStatus !== "granted") return null;
   const token = await Notifications.getExpoPushTokenAsync({ projectId: "e96fc02e-d968-4f13-a688-0d553d855df7" });
-  return token.data;
+  const tokenData = token.data;
+  if (!tokenData) return null;
+  // Persist the Expo push token to Supabase so the backend can push to this
+  // device even when the app is closed (FCM on Android, APNs on iOS).
+  await registerPushToken(userId);
+  return tokenData;
 }
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
@@ -113,7 +120,12 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   useEffect(() => {
     // Push listeners are native-only: on web they warn and do nothing.
     if (Platform.OS === "web") return;
-    registerForPushNotifications().catch(() => {});
+    if (user?.id) {
+      registerForPushNotifications(user.id).catch(() => {});
+      // Scan bookmarked anime for newly aired sub/dub episodes and push
+      // affected users. Fire-and-forget; failures are silently ignored.
+      void checkNewEpisodes().catch(() => {});
+    }
 
     notificationListener.current = Notifications.addNotificationReceivedListener((_notification) => {});
 
@@ -128,7 +140,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       notificationListener.current?.remove();
       responseListener.current?.remove();
     };
-  }, [router]);
+  }, [router, user?.id]);
 
   // Settings → "Comment Replies" / "System Announcements": rows of suppressed
   // types are auto-marked read so they never badge the inbox or show up under

@@ -3,20 +3,12 @@ const en = {
   "player.switchServer": "Switch server",
   "player.copyError": "Copy error",
   "player.quality": "Quality",
-  "player.speed": "Speed",
   "player.playbackSpeed": "Playback Speed",
   "player.subtitles": "Subtitles",
   "player.subtitleSize": "Subtitle size",
-  "player.audio": "Audio",
-  "player.sleepTimer": "Sleep timer",
   "player.chapters": "Chapters",
   "player.selectServer": "Select Server",
-  "player.close": "Close",
-  "player.resume": "Resume",
-  "player.skipIntro": "Skip Intro",
-  "player.skipOutro": "Skip Outro",
   "player.listOfEpisodes": "List of episodes",
-  "player.searchEpisodes": "No. of Ep",
   "player.rateEpisode": "Rate this episode",
   "player.youRated": "You rated",
   "player.noTracks": "No tracks for this source",
@@ -53,27 +45,20 @@ const en = {
   "settings.nsfwAgeMessage": "Adult and hentai titles are only for viewers aged 18 or older. Confirm you meet the age requirement to show this content.",
   "settings.nsfwAgeConfirm": "I am 18 or older",
   "settings.nsfwAgeDecline": "Not now",
+  "nsfw.lockTitle": "18+ content",
+  "nsfw.lockBody": "This title is marked 18+. Turn on NSFW in Settings (age confirmation required) to show it.",
+  "nsfw.lockSettings": "Open Settings",
 } as const;
 
 export type I18nKey = keyof typeof en;
-export type Locale = "en";
 
-const dictionaries: Record<Locale, Record<string, string>> = { en: { ...en } };
-let activeLocale: Locale = "en";
-
-export function setLocale(locale: Locale) {
-  activeLocale = locale;
-}
+const dictionary: Record<string, string> = { ...en };
 
 export function t(key: I18nKey, vars?: Record<string, string | number>): string {
-  const template = dictionaries[activeLocale][key] ?? dictionaries.en[key] ?? key;
+  const template = dictionary[key] ?? key;
   if (!vars) return template;
   return Object.entries(vars).reduce(
     (out, [name, value]) => out.replaceAll(`{${name}}`, String(value)),
     template,
   );
-}
-
-export function isI18nKey(value: string): value is I18nKey {
-  return value in en;
 }

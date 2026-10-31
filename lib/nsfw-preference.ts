@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const NSFW_KEY = "aniraku.nsfw.content.v1";
@@ -48,13 +49,17 @@ export function useNsfwPreference() {
   const [ageVerified, setAgeVerified] = useState(false);
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     let active = true;
     void Promise.all([readNsfwPreference(), readAgeVerified()]).then(([content, age]) => {
       if (active) { setEnabledState(content); setAgeVerified(age); setReady(true); }
     }).catch(() => { if (active) setReady(true); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    return refresh();
+  }, [refresh]);
 
   const setEnabled = (next: boolean) => {
     setEnabledState(next);
@@ -75,5 +80,16 @@ export function useNsfwPreference() {
     setAgeVerified(true);
   };
 
-  return { enabled, ready, ageVerified, toggle, setEnabled, verifyAge };
+  return { enabled, ready, ageVerified, toggle, setEnabled, verifyAge, refresh };
+}
+
+/**
+ * SFW gate for players and detail pages: `false` while the toggle is on (or
+ * preferences are still loading), `true` otherwise — re-checked whenever the
+ * screen regains focus so toggling it in Settings takes effect on return.
+ */
+export function useNsfwViewGate(): boolean {
+  const { enabled, ready, refresh } = useNsfwPreference();
+  useFocusEffect(refresh);
+  return ready && !enabled;
 }

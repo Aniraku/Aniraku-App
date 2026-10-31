@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { getAnimePage, isAniListRateLimitError } from "@/lib/anilist";
 import { nsfwFilterParam, useNsfwPreference } from "@/lib/nsfw-preference";
@@ -16,6 +16,7 @@ import { DotLabel, nothing } from "@/components/nothing-ui";
 import { NativeHeader, NativeScreen } from "@/components/screen";
 import { SearchFilterSheet } from "@/components/search-filter-sheet";
 import { SearchResultRow } from "@/components/search-result-row";
+import { showThemedDialog } from "@/components/choice-sheet";
 
 type HistoryEntry = { term: string; timestamp: number };
 const STORAGE_KEY = "aniraku.search.recent";
@@ -162,16 +163,20 @@ export default function CatalogScreen() {
 
   const deleteHistoryItem = useCallback((term: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    Alert.alert("Delete", `Remove "${term}" from history?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => {
+    showThemedDialog({
+      kicker: "HISTORY",
+      title: "Remove from history?",
+      message: `"${term}" will leave your search history.`,
+      confirmLabel: "DELETE",
+      destructive: true,
+      onConfirm: () => {
         setRecent((current) => {
           const next = current.filter((e) => e.term.toLowerCase() !== term.toLowerCase());
           void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
           return next;
         });
-      }},
-    ]);
+      },
+    });
   }, []);
 
   const isIdle = normalizedInput.length <= 1 && !hasActiveFilters(filters);

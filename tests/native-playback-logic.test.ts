@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anirakuProxyUrl, getPlaybackType, hasExpiredEmbeddedToken, isAnirakuProxyUrl, nativePlaybackHeaders, normalizeStreamResponse, playableSources } from "../lib/aniraku-api";
+import { anirakuProxyRequestHeaders, anirakuProxyUrl, BROWSER_UA, getPlaybackType, hasExpiredEmbeddedToken, isAnirakuProxyUrl, nativePlaybackHeaders, normalizeStreamResponse, playableSources } from "../lib/aniraku-api";
 import { getKnownMalId } from "../lib/anilist";
 import { directSources, embedSources, episodePageCount, episodePageFor, episodePageSlice, FUTURE_RELEASE_MESSAGE, hasConfirmedPlaybackStart, isConfirmedFutureRelease, isHentaiAnime, isProxySource, nativeSources, normalizeAniSkipSegments, proxySources, shouldApplyInitialHistoryResume, shouldHoldRebufferWatermark, shouldMountReplacementSource, shouldPreferEmbed, shouldRetryProxiedSourceAfterDirect } from "../lib/watch-engine";
 
@@ -10,11 +10,34 @@ describe("Aniraku native playback coordination", () => {
     expect(nativePlaybackHeaders({ Referer: "https://allmanga.to/", "User-Agent": "browser", Origin: "https://example.com", Authorization: "Bearer token", Host: "cdn.example", Connection: "keep-alive" })).toEqual({ Referer: "https://allmanga.to/", "User-Agent": "browser", Origin: "https://example.com", Authorization: "Bearer token" });
   });
 
-  it("uses the same Aniraku proxy request contract", () => {
-    const proxied = anirakuProxyUrl("https://cdn.example/episode.m3u8", { Referer: "https://provider.example/", "User-Agent": "browser" });
+  it("sends the browser identity the api.aniraku.tech gate requires", () => {
+    // Verified live: no-UA requests get 403'd by the gate on both the JSON
+    // API and the media proxy; browser UA + site referer pass.
+    const headers = anirakuProxyRequestHeaders();
+    expect(headers["User-Agent"]).toBe(BROWSER_UA);
+    expect(headers["Referer"]).toBe("https://aniraku.tech/");
+  });
+
+  it("preserves provider upstream headers in the proxy wrapper (no clobber, no cache-buster)", () => {
+    const proxied = anirakuProxyUrl("https://cdn.example/episode.m3u8", { Referer: "https://ani.pm/anime/", "User-Agent": BROWSER_UA });
     expect(proxied).toContain("https://api.aniraku.tech/api/v1/proxy?");
-    expect(decodeURIComponent(proxied)).toContain("url=https://cdn.example/episode.m3u8");
-    expect(decodeURIComponent(proxied)).toContain('headers={"Referer":"https://provider.example/","User-Agent":"browser"}');
+    const url = new URL(proxied);
+    expect(url.searchParams.get("url")).toBe("https://cdn.example/episode.m3u8");
+    // Provider headers pass through untouched — settlar-style CDNs require
+    // their exact upstream referer (e.g. ani.pm), and the old clobber to
+    // anime.aniraku.app broke that upstream fetch.
+    const headers = JSON.parse(url.searchParams.get("headers") ?? "{}");
+    expect(headers).toEqual({ Referer: "https://ani.pm/anime/", "User-Agent": BROWSER_UA });
+    // No cache-buster nonce: tokenized URLs are unique per fetch already and
+    // the proxy edge cache answers repeat requests (cf-cache-status: HIT).
+    expect(url.searchParams.has("rn")).toBe(false);
+  });
+
+  it("fills a browser UA when the provider supplies none", () => {
+    const url = new URL(anirakuProxyUrl("https://cdn.example/episode.m3u8", { Referer: "https://megaplay.buzz/" }));
+    const headers = JSON.parse(url.searchParams.get("headers") ?? "{}");
+    expect(headers).toEqual({ Referer: "https://megaplay.buzz/", "User-Agent": BROWSER_UA });
+    expect(anirakuProxyUrl("https://cdn.example/episode.m3u8")).not.toContain("headers=");
   });
 
   it("never double-wraps backend pre-proxied stream URLs (403 BAD_HTTP_STATUS fix)", () => {

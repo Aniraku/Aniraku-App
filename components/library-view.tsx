@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import { router } from "expo-router";
@@ -9,7 +9,7 @@ import { useWatchHistory } from "@/hooks/use-watch-history";
 import { EmptyState, ErrorState, LoadingState } from "@/components/async-state";
 import { AppIcon } from "@/components/app-icon";
 import { FirstRunImportPrompt } from "@/components/first-run-import-prompt";
-import { showChoiceSheet } from "@/components/choice-sheet";
+import { showChoiceSheet, showThemedDialog, showThemedToast } from "@/components/choice-sheet";
 import { DotLabel, nothing, Signal } from "@/components/nothing-ui";
 import { LIST_STATUSES, LIST_STATUS_LABELS, MANUAL_LIST_STATUSES, type ListStatus } from "@/lib/list-status";
 import { bookmarkDisplayStatus, filterByListStatus, statusCounts } from "@/lib/bookmark-status";
@@ -166,20 +166,20 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
     if (!Number.isInteger(animeId)) return;
     const key = String(animeId);
     const title = String(row?.anime_title || "Anime");
-    Alert.alert("Remove from history?", `${title} and its episode progress leave your history and the Continue Watching rail.`, [
-      { text: "KEEP", style: "cancel" },
-      {
-        text: "REMOVE",
-        style: "destructive",
-        onPress: () => {
-          setRemovingKey(key);
-          void history.removeTitle
-            .mutateAsync({ animeId })
-            .catch(() => Alert.alert("Could not remove", "That title is still in your history. Try again when you are online."))
-            .finally(() => setRemovingKey(null));
-        },
+    showThemedDialog({
+      kicker: "HISTORY",
+      title: "Remove from history?",
+      message: `${title} and its episode progress leave your history and the Continue Watching rail.`,
+      confirmLabel: "REMOVE",
+      destructive: true,
+      onConfirm: () => {
+        setRemovingKey(key);
+        void history.removeTitle
+          .mutateAsync({ animeId })
+          .catch(() => showThemedToast({ message: "Could not remove — that title is still in your history. Try again when you are online.", tone: "error", actionLabel: "RETRY", onAction: () => confirmRemoveHistory(row) }))
+          .finally(() => setRemovingKey(null));
       },
-    ]);
+    });
   };
 
   const renderHistoryRow = (item: any) => {
@@ -240,7 +240,7 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
             if (status === current) return;
             void bookmarks.updateStatus
               .mutateAsync({ animeId, status })
-              .catch(() => Alert.alert("Could not update category", "Your change didn't save. Try again when you're online."));
+              .catch(() => showThemedToast({ message: "Your change didn't save. Try again when you're online.", tone: "error", actionLabel: "RETRY", onAction: () => void bookmarks.updateStatus.mutateAsync({ animeId, status }).catch(() => showThemedToast({ message: "Could not update category. Try again when you're online.", tone: "error" })) }));
           },
         })),
         { key: "cancel", label: "Cancel", variant: "muted" as const },

@@ -257,7 +257,7 @@ export const chrome = StyleSheet.create({
   verticalBarFillBright: {
     width: "100%",
     borderRadius: 2,
-    backgroundColor: "#FFD600",
+    backgroundColor: nothing.white,
   },
   verticalBarLabel: {
     alignItems: "center",

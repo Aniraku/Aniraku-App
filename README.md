@@ -24,14 +24,14 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.9">v5.7.9 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.0">v5.8.0 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 <br>
 
 > [!IMPORTANT]
-> **v5.7.9 is the current release** — Replaces the stock Android dialogs with themed in-app sheets (save-to-list picker, Saved change-status, age verification), adds a long-press Save/Watch overlay on Home trending, and fixes player-gesture edge cases. If you want a previous build, [v5.7.8](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.8) is the save-time list-picker release.
+> **v5.8.0 is the current release** — The biggest update yet: real in-app offline downloads (native pipeline, per-quality with honest sizes), new-episode push notifications, a playback-header fix for proxied streams, consent & 18+ content locks, and a beta parallel-segment pool for faster buffering. Note: the Supabase key rotation signs everyone out once — just log back in. If you want a previous build, [v5.7.9](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.9) is the themed-dialogs release.
 
 > [!CAUTION]
 >If it has saved you time, a small donation keeps it up. And the library keeps growing — **missing an anime?** Email [`sho.islam0311@proton.me`](mailto:sho.islam0311@proton.me) and it'll get added.

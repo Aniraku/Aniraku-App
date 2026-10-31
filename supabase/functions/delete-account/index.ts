@@ -70,6 +70,9 @@ async function removeUserData(admin: ReturnType<typeof createClient>, userId: st
     admin.from("episode_ratings").delete().eq("user_id", userId),
     admin.from("watch_history").delete().eq("user_id", userId),
     admin.from("bookmarks").delete().eq("user_id", userId),
+    // Push tokens must die with the account — orphaned rows otherwise keep
+    // the device addressable for campaigns after the user is gone.
+    admin.from("push_tokens").delete().eq("user_id", userId),
     admin.from("user_roles").delete().eq("user_id", userId),
     admin.from("profiles").delete().eq("id", userId),
     admin.from("users").delete().eq("id", userId),

@@ -1,22 +1,25 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Directory, File, Paths } from "expo-file-system";
 import * as Network from "expo-network";
-import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
-import { anirakuDownloadUrl, nativePlaybackHeaders } from "@/lib/aniraku-api";
+import { anirakuProxyUrl, BROWSER_UA, getPlaybackType, isAnirakuProxyUrl, nativePlaybackHeaders, sourceVerification } from "@/lib/aniraku-api";
+import { APP_CONFIG } from "@/lib/app-config";
+import { estimateHlsSize, parseMediaPlaylist, resolveSegmentUrl, rewritePlaylistUris, unsupportedPlaylistReason, verifyPlaylistIntegrity } from "@/lib/downloads-hls";
+import { nativeDownloads } from "@/lib/downloads-native";
+import { originalStreamUrl } from "@/lib/hls-variants";
 import { isAutoQuality } from "@/lib/watch-engine";
 import type { StreamSource } from "@/lib/types";
-import { downloadLabel, filterExistingDownloadEntries, isDownloadableSource, publicDownloadFilename, selectDownloadSourceForQuality, selectMaximumQualityDownload } from "@/lib/download-policy";
+import { filterExistingDownloadEntries, isDownloadableSource, publicDownloadFilename } from "@/lib/download-policy";
 
-export { downloadLabel, filterExistingDownloadEntries, isDownloadableSource, publicDownloadFilename, selectDownloadSourceForQuality, selectMaximumQualityDownload } from "@/lib/download-policy";
-export { buildBackendDownloadOptions, hasQualityBackendDownloads, parseBackendDownloadQuality, sortBackendDownloadOptions, type BackendDownloadOption } from "@/lib/download-policy";
+export { filterExistingDownloadEntries, isDownloadableSource, publicDownloadFilename, selectDownloadSourceForQuality, selectMaximumQualityDownload } from "@/lib/download-policy";
 
 const INDEX_KEY = "aniraku.offline-downloads.v1";
-const PUBLIC_DOWNLOADS_DIRECTORY_KEY = "aniraku.public-downloads-directory.v1";
 /** Wi-Fi-only + storage-quota preferences for the queue (see DownloadSettings). */
 const DOWNLOAD_SETTINGS_KEY = "aniraku.download-settings.v1";
-/** App-private folder used when the public Downloads folder rejects the write. */
+/** App-private folder for progressive saves and HLS bundles alike. */
 const APP_DOWNLOADS_DIRECTORY_NAME = "aniraku-downloads";
+/** Root for offline HLS bundles: aniraku-offline/{entryId}/playlist.m3u8 + seg-*.ts + key.bin. */
+const OFFLINE_BUNDLE_ROOT = "aniraku-offline";
 
 const MEGABYTE = 1024 * 1024;
 /** The queue runs one heavy transfer at a time so progress stays legible. */
@@ -26,8 +29,11 @@ const MAX_FINISHED_JOBS = 12;
 const STAGED_STEP_MS = 800;
 const STAGED_STEP = 0.06;
 const STAGED_CAP = 0.9;
+/** Kill a native job that has made no progress for 3 minutes (worst single-segment retry chain ≈ 100s). */
+const NATIVE_STALL_MS = 180_000;
+const NATIVE_STALL_CHECK_MS = 15_000;
 
-export type OfflineDownload = { id: string; animeId: number; episode: number; title: string; quality: string; language: "sub" | "dub"; uri: string; downloadUrl: string; savedAt: number; size: number };
+export type OfflineDownload = { id: string; animeId: number; episode: number; title: string; quality: string; language: "sub" | "dub"; uri: string; downloadUrl: string; savedAt: number; size: number; subtitles?: OfflineSubtitleTrack[] };
 
 function downloadId(animeId: number, episode: number, language: "sub" | "dub") {
   return `${animeId}:${episode}:${language}`;
@@ -46,35 +52,6 @@ async function readIndex(): Promise<OfflineDownload[]> {
 
 async function writeIndex(entries: OfflineDownload[]) {
   await AsyncStorage.setItem(INDEX_KEY, JSON.stringify(entries));
-}
-
-async function publicDownloadsDirectory(forcePicker = false) {
-  if (Platform.OS !== "android") throw new Error("Public Downloads saving is available on Android devices.");
-  const storedUri = await AsyncStorage.getItem(PUBLIC_DOWNLOADS_DIRECTORY_KEY).catch(() => null);
-  if (storedUri && !forcePicker) return { directory: new Directory(storedUri), reused: true };
-  try {
-    const picked = await Directory.pickDirectoryAsync();
-    const chosen = new Directory(picked.uri);
-    await AsyncStorage.setItem(PUBLIC_DOWNLOADS_DIRECTORY_KEY, chosen.uri);
-    return { directory: chosen, reused: false };
-  } catch {
-    throw new Error("Choose your Android Downloads folder to save this video.");
-  }
-}
-
-function storedDirectoryAccessError(cause: unknown) {
-  const message = cause instanceof Error ? cause.message.toLowerCase() : String(cause).toLowerCase();
-  return /permission|access|content uri|security|not found|does not exist/.test(message);
-}
-
-/**
- * SAF (content://) destinations only expose the whole-file `write` path in this
- * build of expo-file-system, so the direct transfer can refuse them. Detected
- * here so the save can degrade to app storage instead of failing outright.
- */
-function isContentUriWriteError(cause: unknown) {
-  const message = cause instanceof Error ? cause.message : String(cause);
-  return /content uri/i.test(message);
 }
 
 export function isOfflineSavingSupported() {
@@ -106,6 +83,26 @@ export async function pruneStaleDownloads(): Promise<{ kept: OfflineDownload[]; 
     }
   });
   if (removed.length) await writeIndex(kept);
+  // Bundle directories without an index row (interrupted jobs, entries
+  // removed elsewhere) would otherwise leak storage forever — but a job that
+  // is queued/downloading owns its dir before the index row exists.
+  try {
+    const root = new Directory(Paths.document, OFFLINE_BUNDLE_ROOT);
+    if (root.exists) {
+      const known = new Set(kept.map((item) => item.id));
+      const activeEntryIds = new Set(
+        queueJobs
+          .filter((job) => job.state === "queued" || job.state === "downloading")
+          .map((job) => queueInternals.get(job.id)?.request.entryId)
+          .filter((id): id is string => Boolean(id)),
+      );
+      for (const child of root.list()) {
+        if (child instanceof Directory && !known.has(child.name) && !activeEntryIds.has(child.name)) {
+          try { child.delete(); } catch { /* best effort */ }
+        }
+      }
+    }
+  } catch { /* best effort */ }
   return { kept, removed };
 }
 
@@ -173,10 +170,14 @@ export function getFreeDiskSpace(): number {
  * connection is cellular or offline. Fail-open on lookup errors: a download
  * must never be bricked because AsyncStorage hiccupped.
  */
-async function resolveDownloadHold(settings: DownloadSettings): Promise<DownloadJobHold> {
+/** Quota/Wi-Fi hold resolver — exported for tests. */
+export async function resolveDownloadHold(settings: DownloadSettings): Promise<DownloadJobHold> {
   if (settings.quotaMb > 0) {
     try {
-      if (await getOfflineStorageUsage() >= settings.quotaMb * MEGABYTE) return "quota";
+      // Saved bytes plus what the running jobs will still write — a single
+      // large download must not walk past the cap.
+      const pending = [...pendingEstimates.values()].reduce((total, bytes) => total + bytes, 0);
+      if (await getOfflineStorageUsage() + pending >= settings.quotaMb * MEGABYTE) return "quota";
     } catch { /* fail open */ }
   }
   if (settings.wifiOnly) {
@@ -221,6 +222,8 @@ export type OfflineDownloadJob = {
 };
 
 type DownloadRequest = {
+  /** "hls" → native segment bundle; "file" → single progressive transfer. */
+  kind: "file" | "hls";
   animeId: number;
   episode: number;
   language: "sub" | "dub";
@@ -228,6 +231,13 @@ type DownloadRequest = {
   quality: string;
   filename: string;
   downloadUrl: string;
+  /** CDN playback headers for the direct fetch (never persisted). */
+  headers: Record<string, string>;
+  /** The source's subtitle tracks, saved beside the video at download time. */
+  subtitleTracks?: Array<{ url: string; label?: string; lang?: string }>;
+  /** HLS only: direct CDN variant playlist URL and variant bandwidth. */
+  playlistUrl?: string;
+  bandwidth?: number;
   entryId: string;
   onProgress?: ((fraction: number) => void) | undefined;
 };
@@ -240,6 +250,10 @@ type QueuedDownload = {
   cancelRequested: boolean;
   rampTimer: ReturnType<typeof setInterval> | null;
   legacyTask: { cancelAsync?: () => Promise<void> } | null;
+  /** Native job id for the current attempt — fresh per retry so a stale
+   * native cancel-flag can never poison the next attempt. */
+  nativeId: string | null;
+  attempt: number;
 };
 
 let queueJobs: OfflineDownloadJob[] = [];
@@ -381,14 +395,26 @@ async function pump() {
 async function runJob(id: string) {
   const internal = queueInternals.get(id);
   if (!internal || internal.job.state !== "queued") return;
+  // A fresh native id per attempt: the native service keys cancel-flags by
+  // id, so reusing the queue id across retries would trip a leftover flag.
+  internal.attempt += 1;
+  internal.nativeId = `${id}#${internal.attempt}`;
   patchJob(id, { state: "downloading", hold: null, error: null, progress: 0, startedAt: Date.now() });
   try {
-    const saved = await performDownload(internal, {
-      onStart: () => startStagedProgress(internal),
-      onProgress: (fraction, received, total) => applyProgress(internal, fraction, received, total),
-    });
+    const saved = internal.request.kind === "hls"
+      ? await performHlsDownload(internal, {
+        onStart: () => startStagedProgress(internal),
+        onProgress: (fraction, received, total) => applyProgress(internal, fraction, received, total),
+      })
+      : await performDownload(internal, {
+        onStart: () => startStagedProgress(internal),
+        onProgress: (fraction, received, total) => applyProgress(internal, fraction, received, total),
+      });
     if (internal.cancelRequested) {
-      try { new File(saved.uri).delete(); } catch { /* already gone */ }
+      try {
+        if (internal.request.kind === "hls") bundleDirectory(internal.request.entryId).delete();
+        else new File(saved.uri).delete();
+      } catch { /* already gone */ }
       throw new Error("Download cancelled.");
     }
     const size = Number(saved.size) || 0;
@@ -402,6 +428,7 @@ async function runJob(id: string) {
   } finally {
     stopStagedProgress(internal);
     internal.legacyTask = null;
+    pendingEstimates.delete(internal.request.entryId);
     trimFinishedJobs();
     notifyQueue();
   }
@@ -419,6 +446,10 @@ export function cancelDownloadJob(id: string) {
     schedulePump();
     return;
   }
+  if (internal.request.kind === "hls") {
+    nativeDownloads.cancel(internal.nativeId ?? id);
+    return;
+  }
   const task = internal.legacyTask;
   if (task && typeof task.cancelAsync === "function") void task.cancelAsync().catch(() => {});
 }
@@ -427,6 +458,7 @@ export function retryDownloadJob(id: string) {
   const internal = queueInternals.get(id);
   if (!internal || internal.job.state !== "failed") return;
   internal.cancelRequested = false;
+  internal.nativeId = null;
   patchJob(id, { state: "queued", hold: null, error: null, progress: 0, receivedBytes: 0, totalBytes: 0, startedAt: null, finishedAt: null, entry: null });
   schedulePump();
 }
@@ -458,8 +490,8 @@ function legacyFileSystem() {
   return legacyModule;
 }
 
-async function legacyDownload(legacy: NonNullable<typeof legacyModule>, url: string, destination: File, onBytes: (received: number, total: number) => void, onTask: (task: QueuedDownload["legacyTask"]) => void) {
-  const task = legacy.createDownloadResumable!(url, destination.uri, undefined, (progress: { totalBytesWritten?: number; expectedTotalBytes?: number } | null | undefined) => {
+async function legacyDownload(legacy: NonNullable<typeof legacyModule>, url: string, destination: File, headers: Record<string, string>, onBytes: (received: number, total: number) => void, onTask: (task: QueuedDownload["legacyTask"]) => void) {
+  const task = legacy.createDownloadResumable!(url, destination.uri, { headers }, (progress: { totalBytesWritten?: number; expectedTotalBytes?: number } | null | undefined) => {
     const received = Number(progress?.totalBytesWritten);
     const total = Number(progress?.expectedTotalBytes);
     if (Number.isFinite(received) && received > 0) onBytes(received, Number.isFinite(total) && total > 0 ? total : 0);
@@ -475,18 +507,27 @@ async function legacyDownload(legacy: NonNullable<typeof legacyModule>, url: str
 /**
  * Best-effort progress: real byte counts when the resumable API can write to
  * the destination, otherwise the plain transfer (staged progress upstream).
+ * A cancel that lands between the two transfer paths must stop the job —
+ * falling through would start a second, un-cancellable download.
  */
-async function transfer(url: string, destination: File, onBytes: (received: number, total: number) => void, onTask: (task: QueuedDownload["legacyTask"]) => void) {
+async function transfer(url: string, destination: File, headers: Record<string, string>, onBytes: (received: number, total: number) => void, onTask: (task: QueuedDownload["legacyTask"]) => void, isCancelled: () => boolean) {
   const legacy = legacyFileSystem();
   if (destination.uri.startsWith("file://") && legacy && typeof legacy.createDownloadResumable === "function") {
     try {
-      await legacyDownload(legacy, url, destination, onBytes, onTask);
+      await legacyDownload(legacy, url, destination, headers, onBytes, onTask);
       return;
     } catch {
       try { if (destination.exists) destination.delete(); } catch { /* partial file dropped */ }
+      if (isCancelled()) throw new Error("Download cancelled.");
     }
   }
-  await File.downloadFileAsync(url, destination, { idempotent: true });
+  const result = await File.downloadFileAsync(url, destination, { idempotent: true, headers });
+  const status = Number((result as { status?: number } | null)?.status ?? 200);
+  // An HTTP error body saved as the episode file is worse than a failed job.
+  if (!(status >= 200 && status < 300)) {
+    try { if (destination.exists) destination.delete(); } catch { /* best effort */ }
+    throw new Error(`Source returned ${status}.`);
+  }
 }
 
 function appStorageDirectory(): Directory {
@@ -497,102 +538,339 @@ function appStorageDirectory(): Directory {
 
 type TransferCallbacks = { onStart: () => void; onProgress: (fraction: number | undefined, received: number, total: number) => void };
 
+/** App-private bundle directory for one offline HLS download. */
+function bundleDirectory(entryId: string): Directory {
+  return new Directory(new Directory(Paths.document, OFFLINE_BUNDLE_ROOT), entryId);
+}
+
+/**
+ * Progressive sources have no manifest to size from — probe Content-Length
+ * with HEAD. A CDN that refuses the probe fails open; the transfer's own
+ * error handling covers the rest.
+ */
+async function preflightProgressiveSpace(request: DownloadRequest) {
+  try {
+    const response = await fetch(request.downloadUrl, { method: "HEAD", headers: request.headers });
+    const length = Number(response.headers.get("content-length"));
+    if (!response.ok || !Number.isFinite(length) || length <= 0) return;
+    pendingEstimates.set(request.entryId, length);
+    const free = getFreeDiskSpace();
+    if (free > 0 && free < length * 1.15) throw new Error("Not enough space for this download. Free up space or pick a lower quality.");
+  } catch (cause) {
+    if (cause instanceof Error && cause.message.startsWith("Not enough space")) throw cause;
+  }
+}
+
 async function performDownload(internal: QueuedDownload, callbacks: TransferCallbacks): Promise<OfflineDownload> {
   const request = internal.request;
   const onBytes = (received: number, total: number) => callbacks.onProgress(total > 0 ? Math.min(0.99, received / total) : undefined, received, total);
   const onTask = (task: QueuedDownload["legacyTask"]) => { internal.legacyTask = task; };
 
-  const saveInto = async (directory: Directory): Promise<File> => {
-    callbacks.onStart();
-    const destination = new File(directory, request.filename);
-    if (destination.exists) destination.delete();
-    try {
-      await transfer(request.downloadUrl, destination, onBytes, onTask);
-    } catch (cause) {
-      if (!isContentUriWriteError(cause)) throw cause;
-      return saveToAppStorage(cause);
-    }
-    if (!destination.exists || !destination.size) throw new Error("Android could not save the file to Downloads.");
-    callbacks.onProgress(1, Number(destination.size) || 0, Number(destination.size) || 0);
-    return destination;
-  };
-
-  // The public folder cannot accept this write (SAF content URI): keep the
-  // episode offline in app storage rather than failing the whole download.
-  const saveToAppStorage = async (cause: unknown): Promise<File> => {
-    try {
-      callbacks.onStart();
-      const directory = appStorageDirectory();
-      const destination = new File(directory, request.filename);
-      if (destination.exists) destination.delete();
-      await transfer(request.downloadUrl, destination, onBytes, onTask);
-      if (!destination.exists || !destination.size) throw new Error("The download could not be saved on this device.");
-      callbacks.onProgress(1, Number(destination.size) || 0, Number(destination.size) || 0);
-      return destination;
-    } catch (fallbackCause) {
-      throw fallbackCause instanceof Error ? fallbackCause : cause instanceof Error ? cause : new Error("Download failed.");
-    }
-  };
-
-  let selection = await publicDownloadsDirectory();
-  let saved: File;
+  callbacks.onStart();
+  const directory = appStorageDirectory();
+  // The entryId prefix keeps same-title anime from colliding on one file.
+  const destination = new File(directory, `${request.entryId}-${request.filename}`);
+  if (destination.exists) destination.delete();
+  await preflightProgressiveSpace(request);
   try {
-    saved = await saveInto(selection.directory);
+    await transfer(request.downloadUrl, destination, request.headers, onBytes, onTask, () => internal.cancelRequested);
   } catch (cause) {
-    if (!selection.reused || !storedDirectoryAccessError(cause)) throw cause;
-    await AsyncStorage.removeItem(PUBLIC_DOWNLOADS_DIRECTORY_KEY).catch(() => {});
-    selection = await publicDownloadsDirectory(true);
-    saved = await saveInto(selection.directory);
+    try { if (destination.exists) destination.delete(); } catch { /* best effort */ }
+    throw cause;
   }
+  if (!destination.exists || !destination.size) throw new Error("The download could not be saved on this device.");
+  callbacks.onProgress(1, Number(destination.size) || 0, Number(destination.size) || 0);
 
-  const entry: OfflineDownload = { id: request.entryId, animeId: request.animeId, episode: request.episode, title: request.title, quality: request.quality, language: request.language, uri: saved.uri, downloadUrl: request.downloadUrl, savedAt: Date.now(), size: Number(saved.size) || 0 };
+  const subtitles = await saveSubtitleTracks({ tracks: request.subtitleTracks, entryId: request.entryId, headers: request.headers, directory });
+  const entry: OfflineDownload = { id: request.entryId, animeId: request.animeId, episode: request.episode, title: request.title, quality: request.quality, language: request.language, uri: destination.uri, downloadUrl: "", savedAt: Date.now(), size: Number(destination.size) || 0, subtitles };
   const index = await readIndex();
   await writeIndex([entry, ...index.filter((item) => item.id !== entry.id)]);
   return entry;
 }
 
+// ── Native HLS bundle jobs ─────────────────────────────────────────────────
+
+type NativeJobHandle = {
+  resolve: (result: { segments: string[]; keyPath: string | null; bytes: number }) => void;
+  reject: (error: Error) => void;
+  onProgress: (received: number, total: number) => void;
+  cleanup: () => void;
+};
+
+const nativeJobs = new Map<string, NativeJobHandle>();
+/** Estimated bytes of active jobs — charged against the quota hold while they run. */
+const pendingEstimates = new Map<string, number>();
+
+function runNativeJob(id: string, options: { dir: string; base: string; title: string; headers: string; estimatedBytes: number }, hooks: { onProgress: (received: number, total: number) => void }): Promise<{ segments: string[]; keyPath: string | null; bytes: number }> {
+  return new Promise((resolve, reject) => {
+    let lastProgressAt = Date.now();
+    const progressUnsub = nativeDownloads.onProgress((progress) => {
+      if (progress.id !== id) return;
+      lastProgressAt = Date.now();
+      try { hooks.onProgress(progress.receivedBytes, progress.totalBytes); } catch { /* best effort */ }
+    });
+    const stateUnsub = nativeDownloads.onState((result) => {
+      if (result.id !== id) return;
+      const handle = nativeJobs.get(id);
+      if (!handle) return;
+      handle.cleanup();
+      if (result.state === "complete" && result.segments) {
+        handle.resolve({ segments: result.segments, keyPath: result.keyPath ?? null, bytes: result.bytes ?? 0 });
+      } else {
+        handle.reject(new Error(result.reason || "Download failed."));
+      }
+    });
+    const handle: NativeJobHandle = {
+      resolve,
+      reject,
+      onProgress: hooks.onProgress,
+      cleanup: () => { progressUnsub(); stateUnsub(); nativeJobs.delete(id); clearInterval(watchdog); },
+    };
+    nativeJobs.set(id, handle);
+    // START_NOT_STICKY means a killed service never sends a terminal event —
+    // the promise must not stay pending and block the single queue slot.
+    const watchdog = setInterval(() => {
+      if (Date.now() - lastProgressAt <= NATIVE_STALL_MS) return;
+      handle.cleanup();
+      nativeDownloads.cancel(id);
+      reject(new Error("The download stopped responding."));
+    }, NATIVE_STALL_CHECK_MS);
+    try {
+      nativeDownloads.enqueue({ id, ...options });
+    } catch (cause) {
+      handle.cleanup();
+      reject(cause instanceof Error ? cause : new Error("The download service is not available in this build."));
+    }
+  });
+}
+
+/**
+ * Offline HLS bundle: JS validates + stages the variant playlist, the native
+ * service fetches key + segments straight from the CDN with the playback
+ * headers, then JS rewrites every URI to file:// and verifies the bundle.
+ * Any failure deletes the directory — a half-pointing playlist never exists.
+ */
+async function performHlsDownload(internal: QueuedDownload, callbacks: TransferCallbacks): Promise<OfflineDownload> {
+  const request = internal.request;
+  const playlistUrl = request.playlistUrl ?? "";
+  const dir = bundleDirectory(request.entryId);
+  try {
+    callbacks.onStart();
+    if (dir.exists) dir.delete();
+    dir.create({ intermediates: true, idempotent: true });
+
+    const response = await fetch(playlistUrl, { headers: request.headers });
+    if (!response.ok) throw new Error(`Source returned ${response.status}.`);
+    const text = await response.text();
+    const parsed = parseMediaPlaylist(text);
+    if (!parsed) throw new Error("This stream could not be read for download.");
+    if (!parsed.endList) throw new Error("Live or endless streams cannot be saved.");
+    const unsupported = unsupportedPlaylistReason(text);
+    if (unsupported) throw new Error(unsupported);
+
+    const estimated = estimateHlsSize(text, request.bandwidth ?? 0);
+    if (estimated) pendingEstimates.set(request.entryId, estimated);
+    if (estimated) {
+      const free = getFreeDiskSpace();
+      if (free > 0 && free < estimated * 1.15) throw new Error("Not enough space for this download. Free up space or pick a lower quality.");
+    }
+
+    new File(dir, "source.m3u8").write(text);
+    // Subtitles are tiny — stage them beside the bundle while the video runs.
+    const savedSubtitles = await saveSubtitleTracks({ tracks: request.subtitleTracks, entryId: request.entryId, headers: request.headers, directory: dir });
+    const result = await runNativeJob(internal.nativeId ?? internal.job.id, {
+      dir: dir.uri,
+      base: playlistUrl,
+      title: internal.job.title,
+      headers: JSON.stringify(request.headers),
+      estimatedBytes: estimated ?? 0,
+    }, {
+      onProgress: (received, total) => callbacks.onProgress(total > 0 ? Math.min(0.99, received / total) : undefined, received, total),
+    });
+
+    // Map absolute CDN URIs → the native writer's file paths, in playlist order.
+    const map = new Map<string, string>();
+    parsed.segments.forEach((segment, position) => {
+      const absolute = resolveSegmentUrl(segment.uri, playlistUrl);
+      const local = result.segments[position];
+      if (absolute && local) map.set(absolute, local);
+    });
+    if (parsed.keyUri) {
+      const absoluteKey = resolveSegmentUrl(parsed.keyUri, playlistUrl);
+      if (absoluteKey && result.keyPath) map.set(absoluteKey, result.keyPath);
+    }
+    const rewritten = rewritePlaylistUris(text, { baseUrl: playlistUrl, mapUri: (url) => map.get(url) ?? null });
+    if (!rewritten) throw new Error("The saved copy is incomplete.");
+
+    const playlistFile = new File(dir, "playlist.m3u8");
+    playlistFile.write(rewritten);
+    if (!verifyPlaylistIntegrity(rewritten, (uri) => {
+      try { return new File(uri).exists; } catch { return false; }
+    })) {
+      throw new Error("The saved copy failed its integrity check.");
+    }
+    // source.m3u8 carries provider URLs (possibly tokenized) — the rewritten
+    // playlist replaces it, so the provider copy does not stay on disk.
+    try { new File(dir, "source.m3u8").delete(); } catch { /* best effort */ }
+
+    callbacks.onProgress(1, result.bytes, result.bytes);
+    const entry: OfflineDownload = { id: request.entryId, animeId: request.animeId, episode: request.episode, title: request.title, quality: request.quality, language: request.language, uri: playlistFile.uri, downloadUrl: "", savedAt: Date.now(), size: result.bytes, subtitles: savedSubtitles };
+    const index = await readIndex();
+    await writeIndex([entry, ...index.filter((item) => item.id !== entry.id)]);
+    return entry;
+  } catch (cause) {
+    try { dir.delete(); } catch { /* best effort cleanup */ }
+    throw cause instanceof Error ? cause : new Error("Download failed.");
+  }
+}
+
 // ── Public entry point ────────────────────────────────────────────────────
 
-export type StartDownloadInput = { animeId: number; episode: number; language: "sub" | "dub"; title: string; source: StreamSource; variantUrl?: string | null; variantQuality?: string | null; headers?: Record<string, string>; onProgress?: (fraction: number) => void };
+export type StartDownloadInput = { animeId: number; episode: number; language: "sub" | "dub"; title: string; source: StreamSource; variantUrl?: string | null; variantQuality?: string | null; bandwidth?: number; headers?: Record<string, string>; onProgress?: (fraction: number) => void };
 
-function buildDownloadRequest(input: StartDownloadInput): DownloadRequest {
+/** Request builder — exported for tests. */
+export function buildDownloadRequest(input: StartDownloadInput): DownloadRequest {
   const explicitUrl = String(input.variantUrl ?? "").trim() || null;
   const useExplicit = Boolean(explicitUrl && /^https:\/\//i.test(explicitUrl));
   if (explicitUrl && !useExplicit) throw new Error("The selected quality offered an unusable download URL.");
+  const headers = downloadRequestHeaders(input.headers);
+  // Provider credentials must never ride a download job to the CDN — such
+  // sources stay proxied for playback and are not downloadable (threat model).
+  if (Object.keys(headers).some((key) => key.toLowerCase() === "authorization")) {
+    throw new Error("This source cannot be downloaded directly.");
+  }
+  const entryId = downloadId(input.animeId, input.episode, input.language);
+
+  // HLS variants become segment bundles via the native service — this is the
+  // capability the old policy refused; embed/dead sources stay refused.
+  const directUrl = useExplicit ? explicitUrl as string : input.source.url;
+  const isHls = /\.m3u8($|[?#])/i.test(directUrl) || /mpegurl/i.test(String(input.source.mime || input.source.type || ""));
+  if (isHls) {
+    if (getPlaybackType(input.source) !== "native" || sourceVerification(input.source) === "dead") {
+      throw new Error("This provider's stream cannot be downloaded.");
+    }
+    // A proxied wrapper hides the real CDN URL — unwrap it so the service
+    // fetches segments directly (ADR-003); headers stay in memory only.
+    const playlistUrl = originalStreamUrl(directUrl);
+    if (!/^https:\/\//i.test(playlistUrl)) throw new Error("This source cannot be downloaded directly.");
+    const quality = String(input.variantQuality ?? "").trim() || input.source.quality || "VARIANT";
+    return { kind: "hls", animeId: input.animeId, episode: input.episode, language: input.language, title: input.title, quality, filename: "", downloadUrl: "", headers, subtitleTracks: input.source.subtitles, playlistUrl, bandwidth: Math.max(0, Math.round(Number(input.bandwidth ?? 0)) || 0), entryId, onProgress: input.onProgress };
+  }
+
   if (!useExplicit && !isDownloadableSource(input.source)) throw new Error("This provider only offers adaptive, embedded, or protected playback. A direct progressive source is required for downloading.");
+  // Proxied progressive sources unwrap to their CDN URL so the server stays
+  // out of the download path (ADR-003).
+  const fileUrl = originalStreamUrl(directUrl);
+  if (!/^https:\/\//i.test(fileUrl)) throw new Error("This source cannot be downloaded directly.");
   const quality = useExplicit
     ? (String(input.variantQuality ?? "").trim() || input.source.quality || "VARIANT")
     : (isAutoQuality(input.source) ? "ORIGINAL DIRECT" : input.source.quality || "DIRECT");
   const filename = publicDownloadFilename(input.title, input.episode, input.language, quality, input.source);
-  const proxyHeaders = nativePlaybackHeaders(input.headers);
-  const downloadUrl = anirakuDownloadUrl(useExplicit ? explicitUrl as string : input.source.url, proxyHeaders);
-  return { animeId: input.animeId, episode: input.episode, language: input.language, title: input.title, quality, filename, downloadUrl, entryId: downloadId(input.animeId, input.episode, input.language), onProgress: input.onProgress };
+  // Direct CDN fetch with playback headers — the download relay retires (ADR-003).
+  return { kind: "file", animeId: input.animeId, episode: input.episode, language: input.language, title: input.title, quality, filename, downloadUrl: fileUrl, headers, subtitleTracks: input.source.subtitles, entryId, onProgress: input.onProgress };
 }
 
 /**
- * Downloads via the backend proxy endpoint which handles CDN headers, CORS,
- * and authentication. The backend streams the file through /api/v1/download
- * so the client never touches the raw CDN URL.
- *
- * When `variantUrl` carries the parsed HLS variant for the chosen height,
- * that exact rendition is fetched — never the master's highest guess. The
- * max-guess `source` remains the fallback (and still supplies the filename)
- * when no parsed variant is available.
- *
- * The transfer itself runs through the in-app queue (one at a time) so the
- * Downloads screen can show queued/downloading/done state, hold jobs that are
- * blocked by the Wi-Fi-only or storage-quota setting, and report byte totals.
+ * Starts an offline download through the in-app queue. HLS variants become
+ * native segment bundles (playlist + segments + AES-128 key, app-private);
+ * progressive sources keep the single-file transfer, now fetched straight
+ * from the CDN with the playback headers (ADR-003). External download links
+ * are gone — in-app or not at all (ADR-004).
  */
 export async function startMaximumQualityDownload(input: StartDownloadInput): Promise<OfflineDownload> {
+  if (!APP_CONFIG.downloadsNativeEnabled) throw new Error("Downloads are temporarily disabled in this build.");
+  if (!isOfflineSavingSupported()) throw new Error("Downloads are available on Android devices.");
+  // Fire-and-forget: Android 13+ needs POST_NOTIFICATIONS granted or the
+  // progress affordance is silently dropped; waiting is not worth it.
+  void requestDownloadNotificationPermission().catch(() => { /* best effort */ });
   const request = buildDownloadRequest(input);
-  // iOS (and web) have no public Downloads directory: report it up front
-  // instead of queueing a job that can never run.
-  if (!isOfflineSavingSupported()) throw new Error("Public Downloads saving is available on Android devices.");
-  const settings = await getDownloadSettings();
-  const hold = await resolveDownloadHold(settings);
-  if (hold) throw new Error(holdMessage(hold));
-  return enqueueDownload(request);
+  // Synchronous claim so two rapid taps cannot both pass the active check
+  // below and cross-delete each other's bundle directory.
+  if (startingEntries.has(request.entryId)) throw new Error("This episode is already downloading.");
+  startingEntries.add(request.entryId);
+  try {
+    // One bundle directory per entryId — a second concurrent job would delete
+    // the first job's files. Refuse while active; a finished download supersedes.
+    const active = queueJobs.find((job) => (job.state === "queued" || job.state === "downloading") && queueInternals.get(job.id)?.request.entryId === request.entryId);
+    if (active) throw new Error("This episode is already downloading.");
+    const settings = await getDownloadSettings();
+    const hold = await resolveDownloadHold(settings);
+    // The hold check must precede the supersede: a refusal must never have
+    // destroyed the episode's existing offline copy.
+    if (hold) throw new Error(holdMessage(hold));
+    const existing = await findOfflineDownload(input.animeId, input.episode, input.language);
+    if (existing) await removeOfflineDownload(existing);
+    return await enqueueDownload(request);
+  } finally {
+    startingEntries.delete(request.entryId);
+  }
 }
+
+/** Runtime app identity for the download header fallbacks (app.config.ts stays the source of truth). */
+const ANDROID_PACKAGE_ID = "aniraku.anime.app";
+
+/**
+ * Download requests identify the app the same way playback does: the
+ * provider's playback headers ride along, plus the app package marker and a
+ * browser UA fallback — UA-locked CDNs reject app-style UAs
+ * ("Aniraku/x.y") outright, while the browser identity passes (verified live
+ * against settlar-style hosts).
+ */
+export function downloadRequestHeaders(providerHeaders?: Record<string, string>) {
+  const headers = { ...(nativePlaybackHeaders(providerHeaders) ?? {}) };
+  const keys = Object.keys(headers);
+  const hasHeader = (name: string) => keys.some((key) => key.toLowerCase() === name);
+  if (!hasHeader("x-requested-with")) headers["X-Requested-With"] = ANDROID_PACKAGE_ID;
+  if (!hasHeader("user-agent")) headers["User-Agent"] = BROWSER_UA;
+  return headers;
+}
+
+/**
+ * Android 13+ drops the download-service progress notification until
+ * POST_NOTIFICATIONS is granted. A denial never blocks the download — it
+ * only means no progress affordance.
+ */
+async function requestDownloadNotificationPermission() {
+  if (Platform.OS !== "android") return;
+  const version = typeof Platform.Version === "number" ? Platform.Version : parseFloat(String(Platform.Version ?? ""));
+  if (!Number.isFinite(version) || version < 33) return;
+  const Notifications = await import("expo-notifications");
+  const current = await Notifications.getPermissionsAsync();
+  if (current.status === "granted") return;
+  await Notifications.requestPermissionsAsync();
+}
+
+export type OfflineSubtitleTrack = { lang?: string; label?: string; file: string };
+
+/**
+ * Offline bundles carry the episode's subtitle tracks so saved copies keep
+ * captions. Fetched with the same download headers (Referer/UA apply); a
+ * failed track is skipped — subtitles are optional, video is not.
+ */
+async function saveSubtitleTracks(options: {
+  tracks: Array<{ url: string; label?: string; lang?: string }> | undefined;
+  entryId: string;
+  headers: Record<string, string>;
+  directory: Directory;
+  onProgress?: (fraction: number) => void;
+}): Promise<OfflineSubtitleTrack[]> {
+  const saved: OfflineSubtitleTrack[] = [];
+  for (const [position, track] of (options.tracks ?? []).entries()) {
+    if (!track?.url || !/^https?:\/\//i.test(track.url)) continue;
+    const extension = /\.srt(?:$|[?#])/i.test(track.url) ? "srt" : "vtt";
+    try {
+      const alreadyProxied = isAnirakuProxyUrl(track.url);
+      const response = await fetch(alreadyProxied ? track.url : anirakuProxyUrl(track.url, options.headers)).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.text(); });
+      const file = new File(options.directory, `${options.entryId}-sub-${position}.${extension}`);
+      file.write(response);
+      saved.push({ lang: track.lang, label: track.label, file: file.uri });
+    } catch { /* skipped track */ }
+  }
+  return saved;
+}
+
+/** entryIds claimed by in-flight start calls — closes the double-enqueue race. */
+const startingEntries = new Set<string>();
 
 function enqueueDownload(request: DownloadRequest): Promise<OfflineDownload> {
   jobCounter += 1;
@@ -608,6 +886,8 @@ function enqueueDownload(request: DownloadRequest): Promise<OfflineDownload> {
     cancelRequested: false,
     rampTimer: null,
     legacyTask: null,
+    nativeId: null,
+    attempt: 0,
   };
   queueInternals.set(id, internal);
   queueJobs = [...queueJobs, internal.job];
@@ -620,20 +900,15 @@ function enqueueDownload(request: DownloadRequest): Promise<OfflineDownload> {
   return promise;
 }
 
-/**
- * Returns the backend-served download URL for a source. This can be opened
- * in a browser, shared, or used with expo-sharing directly.
- */
-export function getDownloadLink(source: StreamSource, headers?: Record<string, string>): string {
-  return anirakuDownloadUrl(source.url, nativePlaybackHeaders(headers));
-}
-
 export async function removeOfflineDownload(entry: OfflineDownload) {
-  try { new File(entry.uri).delete(); } catch {}
+  try {
+    if (entry.uri.endsWith(".m3u8")) {
+      // An HLS bundle owns its whole directory — remove it as one unit.
+      const bundle = new File(entry.uri).parentDirectory;
+      if (bundle.exists) bundle.delete();
+    } else {
+      new File(entry.uri).delete();
+    }
+  } catch {}
   await writeIndex((await readIndex()).filter((item) => item.id !== entry.id));
-}
-
-export async function shareOfflineDownload(entry: OfflineDownload) {
-  if (!(await Sharing.isAvailableAsync())) throw new Error("Sharing downloaded episodes is unavailable on this device.");
-  await Sharing.shareAsync(entry.uri, { mimeType: "video/mp4", dialogTitle: entry.title });
 }

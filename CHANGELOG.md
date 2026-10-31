@@ -6,9 +6,31 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
-## v5.7.9 — App-styled popups, trending quick actions, gesture fixes
+## v5.8.0 — Offline downloads, push notifications, the playback-header fix
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
+
+The largest gap-closer yet: real in-app offline downloads, new-episode push notifications, and a fix for the proxied-playback header contract that quietly degraded streaming behind the CDN gate.
+
+### Added
+- **Offline downloads (Android)**: per-quality in-app downloads on a native foreground-service pipeline — HLS bundles (AES-128 keys included) and progressive files, honest per-row size estimates, storage preflight, a Wi-Fi-only hold, integrity-verified bundles, and offline playback with the saved subtitles (`modules/aniraku-downloads/`, `components/download-sheet.tsx`, `app/downloads.tsx`).
+- **Push notifications**: new-episode alerts for tracked anime, comment replies, and system announcements — Expo push relayed through the Supabase edge functions (`check-new-episodes`, `send-push`, `send-campaign`), with per-category settings and tokens cleaned up on sign-out and account deletion.
+- **Parallel segment pool (beta)**: the player's native twin of the website's hlsPrefetch — ExoPlayer reads through a disk cache while upcoming segments prefetch 8-ahead / 3-in-flight. Off in production builds; enabled in preview builds via `EXPO_PUBLIC_SEGMENT_POOL=1` (`modules/aniraku-stream-pool/`, ADR-005).
+- **Non-HLS quality menus**: quality chips built from the sources the provider actually returned and mounted directly, multi-quality download rows for progressive episodes, and codec-labeled HLS download rows.
+- **18+ content locks**: first-run consent flow and an age gate for adult titles.
+
+### Fixed
+- **Proxied playback 403s**: every request to api.aniraku.tech — JSON API, manifests, subtitles, and every player-fetched segment — now carries the browser identity the CDN gate requires, while provider upstream headers (e.g. settlar's ani.pm referer) are preserved instead of clobbered. Verified live end-to-end on multiple providers.
+- **Cache-defeating nonce**: app-made proxy URLs no longer append a unique cache-buster, so the proxy's edge cache answers repeat requests (repeat fetch ~3× faster).
+- **Icons that rendered as "X"**: missing glyphs (history, bookmark, comment, dice, fire, logout) added or corrected.
+- **Push token leaks**: tokens are unregistered on sign-out and deleted with the account.
+- **Dead TMDB resolver removed**: episode metadata and thumbnails are merged server-side (AniZip + TMDB) in `/api/v1/anime/:id/episodes`; the client's legacy per-mount resolver call — which had been silently receiving the website's HTML instead of JSON — is gone, so episodes now load with one request instead of three.
+- **INFO panel mislabeling**: progressive MP4 sources no longer show as "HLS"; the Source row states Proxied/Direct honestly.
+- Removed dead template code (OAuth portal callback, tRPC remnants) and dead exports.
+
+## v5.7.9 — App-styled popups, trending quick actions, gesture fixes
+
+`STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`
 
 Replaces the stock Android dialogs with themed in-app sheets, adds a long-press quick-action overlay on Home trending, and fixes player-gesture edge cases.
 

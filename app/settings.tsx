@@ -1,4 +1,4 @@
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -11,7 +11,7 @@ import { useBookmarks } from "@/hooks/use-bookmarks";
 import { useWatchHistory } from "@/hooks/use-watch-history";
 import { useProviderSync } from "@/hooks/use-provider-sync";
 import { tokenHealth } from "@/lib/provider-sync-contract";
-import { deleteCurrentAccount } from "@/lib/account";
+import { deleteCurrentAccount, shareAccountData } from "@/lib/account";
 import { checkForAnirakuUpdate, type AppRelease } from "@/lib/app-update";
 import { downloadAndInstallAnirakuUpdate } from "@/lib/android-app-installer";
 import { AppIcon } from "@/components/app-icon";
@@ -19,7 +19,7 @@ import { Toggle } from "@/components/toggle";
 import { PROVIDER_LABELS, ProviderMark, type SyncProvider } from "@/components/provider-mark";
 import { describeExport, describeImport, PROVIDER_LABELS as SYNC_LABELS } from "@/lib/provider-sync";
 import { useNsfwPreference } from "@/lib/nsfw-preference";
-import { showChoiceSheet } from "@/components/choice-sheet";
+import { showChoiceSheet, showThemedDialog, showThemedToast } from "@/components/choice-sheet";
 import { DotLabel, nothing, Signal } from "@/components/nothing-ui";
 import { NativeScreen } from "@/components/screen";
 import { t } from "@/lib/i18n";
@@ -174,9 +174,10 @@ export default function SettingsScreen() {
     sync.startBackgroundExport(provider);
   };
 
-  const clearHistory = () => Alert.alert("Clear watch history?", "This removes every synchronized history entry from your Aniraku account.", [{ text: "Cancel", style: "cancel" }, { text: "Clear", style: "destructive", onPress: () => void history.clear.mutateAsync().catch((error) => Alert.alert("Could not clear history", error.message)) }]);
-  const clearBookmarks = () => Alert.alert("Clear saved titles?", "This removes every synchronized bookmark from your Aniraku account.", [{ text: "Cancel", style: "cancel" }, { text: "Clear", style: "destructive", onPress: () => void bookmarks.clear.mutateAsync().catch((error) => Alert.alert("Could not clear bookmarks", error.message)) }]);
-  const deleteAccount = () => Alert.alert("Delete Aniraku account?", "This permanently removes your profile, watch history, ratings, bookmarks, comments, notifications, preferences, and account. This cannot be undone.", [{ text: "Cancel", style: "cancel" }, { text: "Delete account", style: "destructive", onPress: () => void deleteCurrentAccount().then(() => router.replace("/(tabs)" as never)).catch((error) => Alert.alert("Account not deleted", error.message)) }]);
+  const clearHistory = () => showThemedDialog({ kicker: "HISTORY", title: "Clear watch history?", message: "This removes every synchronized history entry from your Aniraku account.", confirmLabel: "CLEAR", destructive: true, onConfirm: () => void history.clear.mutateAsync().catch((error) => showThemedToast({ message: `Could not clear history — ${error.message}`, tone: "error", actionLabel: "RETRY", onAction: clearHistory })) });
+  const clearBookmarks = () => showThemedDialog({ kicker: "SAVED", title: "Clear saved titles?", message: "This removes every synchronized bookmark from your Aniraku account.", confirmLabel: "CLEAR", destructive: true, onConfirm: () => void bookmarks.clear.mutateAsync().catch((error) => showThemedToast({ message: `Could not clear bookmarks — ${error.message}`, tone: "error", actionLabel: "RETRY", onAction: clearBookmarks })) });
+  const deleteAccount = () => showThemedDialog({ kicker: "ACCOUNT", title: "Delete Aniraku account?", message: "This permanently removes your profile, watch history, ratings, bookmarks, comments, notifications, preferences, and account. This cannot be undone.", confirmLabel: "DELETE ACCOUNT", destructive: true, onConfirm: () => void deleteCurrentAccount().then(() => router.replace("/(tabs)" as never)).catch((error) => showThemedToast({ message: `Account not deleted — ${error.message}`, tone: "error", actionLabel: "RETRY", onAction: deleteAccount })) });
+  const exportData = () => void shareAccountData().then((shared) => showThemedToast({ message: shared ? "Export ready — choose where to save it." : "Export saved to app storage — no share target available.", tone: "info" })).catch((error) => showThemedToast({ message: `Export failed — ${error instanceof Error ? error.message : "try again shortly."}`, tone: "error", actionLabel: "RETRY", onAction: exportData }));
 
   // Enabling adult content requires an explicit 18+ affirmation (one-time,
   // persisted). Disabling is always instant and never prompts.
@@ -392,6 +393,16 @@ export default function SettingsScreen() {
       </Pressable>
     </View>
 
+    {/* ── Your data ── */}
+    <View style={styles.section}><DotLabel>YOUR DATA</DotLabel></View>
+    <View style={styles.row}>
+      <View style={styles.rowIcon}><AppIcon name="download" size={18} color={nothing.white} /></View>
+      <Pressable accessibilityRole="button" onPress={exportData} style={styles.rowBody}>
+        <Text style={styles.rowLabel}>Export my data</Text>
+        <Text style={styles.rowMeta}>Everything Aniraku stores about you, as one JSON file</Text>
+      </Pressable>
+    </View>
+
     {/* ── Danger zone ── */}
     <View style={styles.section}><DotLabel tone="signal">IRREVERSIBLE</DotLabel></View>
     <View style={styles.row}>
@@ -452,7 +463,7 @@ const styles = StyleSheet.create({
 
   syncStatus: { color: nothing.white, fontWeight: "800", fontSize: 10, lineHeight: 14, letterSpacing: 0.3, paddingHorizontal: 4, paddingVertical: 4 },
   syncError: { color: nothing.red, fontWeight: "800", fontSize: 10, lineHeight: 14, letterSpacing: 0.3, paddingHorizontal: 4, paddingVertical: 4 },
-  resultOk: { color: "#86efac", fontWeight: "800", fontSize: 10, lineHeight: 15, letterSpacing: 0.3, paddingHorizontal: 4, paddingVertical: 4, marginTop: 6, borderWidth: 1, borderColor: "rgba(34,197,94,0.25)", backgroundColor: "rgba(34,197,94,0.08)", borderRadius: 8 },
+  resultOk: { color: nothing.green, fontWeight: "800", fontSize: 10, lineHeight: 15, letterSpacing: 0.3, paddingHorizontal: 4, paddingVertical: 4, marginTop: 6, borderWidth: 1, borderColor: "rgba(150,211,123,0.25)", backgroundColor: "rgba(150,211,123,0.08)", borderRadius: 8 },
   confirmBox: { marginTop: 8, padding: 12, borderRadius: 8, backgroundColor: "rgba(234,179,8,0.08)", borderWidth: 1, borderColor: "rgba(234,179,8,0.3)", gap: 10 },
   confirmCopy: { color: nothing.white, fontSize: 12, lineHeight: 18 },
   confirmActions: { flexDirection: "row", gap: 8 },

@@ -1,7 +1,15 @@
+import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { DotLabel, NothingButton, nothing } from "@/components/nothing-ui";
 
 export function LoadingState({ label = "Loading real anime data" }: { label?: string }) {
+  // House loading rule: under 300ms a load feels instant — never flash a skeleton.
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setShown(true), 300);
+    return () => clearTimeout(timer);
+  }, []);
+  if (!shown) return null;
   return <View style={styles.container}><View style={styles.loadingLine}><View style={styles.loadingFill} /><ActivityIndicator color={nothing.red} size="small" /></View><DotLabel tone="signal">LOADING</DotLabel><Text style={styles.text}>{label}</Text></View>;
 }
 

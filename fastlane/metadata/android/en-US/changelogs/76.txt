@@ -1,0 +1,3 @@
+In-app offline downloads for segmented streams: pick a quality, and the episode (video segments, playlist, and keys for encrypted sources) is saved to private app storage and plays back with no network. Downloads run in a persistent foreground service, respect Wi-Fi-only and storage-quota settings, and surface progress in the Downloads hub with a Downloaded badge on episode rows.
+
+Also in this release: themed in-app dialogs and error toasts replace every system dialog, a legal consent gate, email typo checking, resend cooldown, account data export, and player polish.

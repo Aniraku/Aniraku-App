@@ -5,4 +5,4 @@ export function EmbedPlayer({ onError: _onError, onLoaded: _onLoaded }: { uri: s
   return <View style={styles.fallback}><Text style={styles.title}>THIS SOURCE OPENS IN THE APP</Text><Text style={styles.copy}>Embedded providers use the native player for secure playback.</Text></View>;
 }
 
-const styles = StyleSheet.create({ fallback: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 28, backgroundColor: "#000000" }, title: { color: nothing.white, fontSize: 11, fontWeight: "800", letterSpacing: 0.6, textAlign: "center" }, copy: { color: nothing.muted, fontSize: 12, lineHeight: 17, textAlign: "center" } });
+const styles = StyleSheet.create({ fallback: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 28, backgroundColor: nothing.black }, title: { color: nothing.white, fontSize: 11, fontWeight: "800", letterSpacing: 0.6, textAlign: "center" }, copy: { color: nothing.muted, fontSize: 12, lineHeight: 17, textAlign: "center" } });

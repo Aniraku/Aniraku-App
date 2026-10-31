@@ -18,14 +18,6 @@ const metadataResolverUrl = configuredMetadataResolverUrl === undefined
   : configuredMetadataResolverUrl.startsWith("https://")
     ? configuredMetadataResolverUrl
     : "";
-const configuredTmdbEpisodesResolverUrl = process.env.EXPO_PUBLIC_TMDB_EPISODE_RESOLVER_URL === undefined
-  ? undefined
-  : cleanEnv(process.env.EXPO_PUBLIC_TMDB_EPISODE_RESOLVER_URL);
-const tmdbEpisodesResolverUrl = configuredTmdbEpisodesResolverUrl === undefined
-  ? "https://www.aniraku.tech/api/tmdb-episodes"
-  : configuredTmdbEpisodesResolverUrl.startsWith("https://")
-    ? configuredTmdbEpisodesResolverUrl
-    : "";
 
 function previewAnirakuProxy() {
   // Native Android has no browser window and always calls api.aniraku.tech
@@ -56,14 +48,25 @@ export const APP_CONFIG = {
   // Override with EXPO_PUBLIC_ANILIST_GRAPHQL_URL to point back at official.
   anilistGraphqlUrl: cleanEnv(process.env.EXPO_PUBLIC_ANILIST_GRAPHQL_URL) || "https://graphql.aniraku.tech",
   metadataResolverUrl,
-  // This public URL reaches the website's server-side TMDB resolver. It is not
-  // a TMDB API URL and the TMDB read token never enters an Expo environment.
-  tmdbEpisodesResolverUrl,
   directMalEnabled: cleanEnv(process.env.EXPO_PUBLIC_DIRECT_MAL) === "true" && Boolean(cleanEnv(process.env.EXPO_PUBLIC_MAL_CLIENT_ID)),
   malClientId: cleanEnv(process.env.EXPO_PUBLIC_MAL_CLIENT_ID),
   supabaseUrl: cleanEnv(process.env.EXPO_PUBLIC_SUPABASE_URL),
   supabaseAnonKey: cleanEnv(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY),
   deepLinkScheme: "aniraku",
+  // Compile-time kill switch for the native HLS download pipeline. Flipping
+  // this to false hides the download affordances (facade refuses with a
+  // reason) without touching any call sites — the instant rollback if the
+  // download path ever threatens playback stability.
+  downloadsNativeEnabled: true,
+  // Parallel segment pool for the player (the native twin of the website's
+  // hlsPrefetch): ExoPlayer reads through a disk cache and upcoming segments
+  // prefetch 8-ahead / 3-in-flight. BETA-GATED: off unless the build sets
+  // EXPO_PUBLIC_SEGMENT_POOL=1 (eas preview profile) so origin load can be
+  // observed before it ships to everyone. With the flag off the player is
+  // byte-identical to stock.
+  segmentPoolEnabled: cleanEnv(process.env.EXPO_PUBLIC_SEGMENT_POOL) === "1",
+  // Expo project ID used when registering push tokens via getExpoPushTokenAsync.
+  easProjectId: "e96fc02e-d968-4f13-a688-0d553d855df7",
 } as const;
 
 export function requirePublicConfig(value: string, name: string) {

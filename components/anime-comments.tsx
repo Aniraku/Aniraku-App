@@ -1,7 +1,8 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { router } from "expo-router";
-import { ActivityIndicator, Alert, Animated, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Animated, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppIcon } from "@/components/app-icon";
+import { showThemedDialog } from "@/components/choice-sheet";
 import { AvatarImage } from "@/components/avatar-image";
 import { ErrorState, LoadingState } from "@/components/async-state";
 import { DotLabel, NothingButton, NothingCard, nothing } from "@/components/nothing-ui";
@@ -97,15 +98,22 @@ export const AnimeComments = memo(function AnimeComments({ animeId, episodeNumbe
     }
     return true;
   };
-  const confirmDelete = (commentId: string) => Alert.alert("Delete comment?", "This permanently removes your comment.", [
-    { text: "Cancel", style: "cancel" },
-    { text: "Delete", style: "destructive", onPress: () => void comments.remove.mutate(commentId) },
-  ]);
+  const confirmDelete = (commentId: string) => showThemedDialog({
+    kicker: "COMMENT",
+    title: "Delete comment?",
+    message: "This permanently removes your comment.",
+    confirmLabel: "DELETE",
+    destructive: true,
+    onConfirm: () => void comments.remove.mutate(commentId),
+  });
   const reveal = (id: string) => {
-    Alert.alert("Spoiler Warning", "This comment contains spoilers. Reveal?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Reveal", onPress: () => setRevealed((current) => new Set(current).add(id)) },
-    ]);
+    showThemedDialog({
+      kicker: "SPOILER",
+      title: "Spoiler warning",
+      message: "This comment contains spoilers. Reveal it?",
+      confirmLabel: "REVEAL",
+      onConfirm: () => setRevealed((current) => new Set(current).add(id)),
+    });
   };
 
   return <View style={styles.section}>

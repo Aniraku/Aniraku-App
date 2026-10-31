@@ -3,7 +3,8 @@ import { useLocalSearchParams, router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery } from "@tanstack/react-query";
 import { parseRouteEpisode, parseRouteId } from "@/lib/route-params";
-import { ActivityIndicator, Alert, Animated, BackHandler, Dimensions, FlatList, LayoutChangeEvent, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import * as Network from "expo-network";
+import { ActivityIndicator, Animated, BackHandler, Dimensions, FlatList, LayoutChangeEvent, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { Image } from "expo-image";
 import Video, { type OnProgressData, type OnLoadData, type OnBufferData, type VideoRef } from "react-native-video";
 import { useKeepAwake } from "expo-keep-awake";
@@ -18,9 +19,9 @@ import {
   Lock, Rewind, FastForward, Download, DownloadSimple, CaretRight,
   Sun, PictureInPicture
 } from "phosphor-react-native";
-import { anirakuProxyUrl, getAnimeMetadata, getEpisodes, getServers, getStream, getPlaybackType, isAnirakuProxyUrl, nativePlaybackHeaders } from "@/lib/aniraku-api";
+import { anirakuProxyRequestHeaders, anirakuProxyUrl, getAnimeMetadata, getEpisodes, getEpisodesCached, getServers, getStream, getPlaybackType, isAnirakuProxyUrl, nativePlaybackHeaders, readAnimeCache, readEpisodesCache, sourceVerification, getLanguageTrackCached } from "@/lib/aniraku-api";
 import { getAnimeById, getKnownMalId, getMalIdByAnimeId } from "@/lib/anilist";
-import { enrichEpisodesWithTmdb } from "@/lib/tmdb-episodes";
+import { applyEpisodeFallbackMetadata } from "@/lib/episode-fallbacks";
 import {
   activeSkipKind,
   autoQualityLine,
@@ -61,20 +62,29 @@ import {
   type SkipKind,
   type SkipSegments,
 } from "@/lib/watch-engine";
+import { streamPoolNative } from "@/lib/stream-pool-native";
+import { isSegmentPoolEligible } from "@/lib/stream-pool";
 import { animeTitle, type Episode, type Server, type StreamResponse, type StreamSource } from "@/lib/types";
+import { useNsfwViewGate } from "@/lib/nsfw-preference";
+import { ContentLock } from "@/components/content-lock";
 import { useWatchHistory } from "@/hooks/use-watch-history";
 import { useEpisodeRatings } from "@/hooks/use-episode-ratings";
 import { AnimeComments } from "@/components/anime-comments";
 import { useProviderSync } from "@/hooks/use-provider-sync";
 import { useAnirakuAuth } from "@/providers/auth-provider";
-import { findOfflineDownload, removeOfflineDownload, selectDownloadSourceForQuality, selectMaximumQualityDownload, startMaximumQualityDownload, buildBackendDownloadOptions, hasQualityBackendDownloads, sortBackendDownloadOptions, type BackendDownloadOption, type OfflineDownload } from "@/lib/downloads";
-import { adaptiveBitrateCapOptions, selectedWatchQuality, watchQualityOptions, type WatchQualityOption } from "@/lib/watch-quality";
-import { buildDashQualityOptions, buildHlsQualityOptions, hlsVariantsCacheKey, originalStreamUrl, parseDashRepresentations, parseHlsMasterVariants, shouldRefetchVariants, shouldRefreshMasterOnVariantError, variantUrlForHeight, type HlsVariant, type VariantsCacheScope } from "@/lib/hls-variants";
+import { findOfflineDownload, removeOfflineDownload, selectDownloadSourceForQuality, selectMaximumQualityDownload, startMaximumQualityDownload, type OfflineDownload } from "@/lib/downloads";
+import { isDownloadableSource } from "@/lib/download-policy";
+import { DownloadSheet, type DownloadSheetOption } from "@/components/download-sheet";
+import { APP_CONFIG } from "@/lib/app-config";
+import { showThemedDialog } from "@/components/choice-sheet";
+import { adaptiveBitrateCapOptions, directSourceQualityOptions, selectedWatchQuality, type WatchQualityOption } from "@/lib/watch-quality";
+import { buildDashQualityOptions, buildHlsQualityOptions, codecFamilyLabel, hlsVariantsCacheKey, originalStreamUrl, parseDashRepresentations, parseHlsMasterVariants, shouldRefetchVariants, shouldRefreshMasterOnVariantError, variantUrlForHeight, type HlsVariant, type VariantsCacheScope } from "@/lib/hls-variants";
 import { AppIcon } from "@/components/app-icon";
 import { EmbedPlayer } from "@/components/embed-player";
 import { DotLabel, NothingButton, NothingCard, nothing } from "@/components/nothing-ui";
 import { NativeScreen } from "@/components/screen";
 import { SubtitleRenderer } from "@/components/subtitle-renderer";
+import { File } from "expo-file-system";
 import { SleepTimerPill } from "@/components/sleep-timer";
 import { chrome } from "@/components/player/chrome-styles";
 import { parseSubtitle, detectSubtitleFormat, detectSubtitleFormatFromContent, findActiveCues, matchSubtitleTrack, type SubtitleCue } from "@/lib/subtitle-parser";
@@ -160,9 +170,22 @@ export default function WatchScreen() {
   const animeId = parseRouteId(params.id) ?? -1;
   const invalidId = animeId <= 0;
   const episode = parseRouteEpisode(params.episode);
+  // ── Offline state ──
+  const [isOffline, setIsOffline] = useState(false);
+  useEffect(() => {
+    const sub = Network.addNetworkStateListener((state) => { setIsOffline(!state.isConnected); });
+    Network.getNetworkStateAsync().then((state) => { setIsOffline(!state.isConnected); }).catch(() => {});
+    return () => sub.remove();
+  }, []);
   const animeQuery = useQuery({
     queryKey: ["watch-anime", animeId],
-    queryFn: async () => { try { return await getAnimeMetadata(animeId); } catch { return getAnimeById(animeId); } },
+    queryFn: async () => {
+      if (isOffline) {
+        const cached = await readAnimeCache(animeId);
+        return cached;
+      }
+      try { return await getAnimeMetadata(animeId); } catch { return getAnimeById(animeId); }
+    },
     enabled: Number.isFinite(animeId) && animeId > 0,
     staleTime: 10 * 60_000,
     retry: 1,
@@ -174,17 +197,19 @@ export default function WatchScreen() {
   const history = useWatchHistory();
   const ratings = useEpisodeRatings(animeId);
   const providerSync = useProviderSync();
-  const episodeQuery = useQuery({ queryKey: ["watch-episodes", animeId], queryFn: () => getEpisodes(animeId), enabled: Number.isFinite(animeId) && animeId > 0, staleTime: 60_000 });
+  const episodeQuery = useQuery({ queryKey: ["watch-episodes", animeId], queryFn: async () => {
+    if (isOffline) { const cached = await readEpisodesCache(animeId); return cached ?? []; }
+    return getEpisodes(animeId);
+  }, enabled: Number.isFinite(animeId) && animeId > 0, staleTime: 60_000 });
   const canonicalEpisodes = episodeQuery.data ?? EMPTY_EPISODES;
   const episodeSignature = useMemo(() => canonicalEpisodes.map((item) => `${item.number}:${item.title ?? ""}:${item.thumbnail ?? ""}`).join("|"), [canonicalEpisodes]);
-  const tmdbEpisodes = useQuery({
-    queryKey: ["tmdb-episode-display", animeId, episodeSignature, watchBackdrop, title, animeQuery.data?.format],
-    queryFn: () => enrichEpisodesWithTmdb(animeId, canonicalEpisodes, { fallbackThumbnail: watchBackdrop, fallbackTitle: title, isMovie: animeQuery.data?.format === "MOVIE" }),
-    enabled: Number.isFinite(animeId) && animeId > 0 && episodeQuery.isSuccess && canonicalEpisodes.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const displayEpisodes = tmdbEpisodes.data ?? canonicalEpisodes;
+  // The backend serves episodes with AniZip + TMDB metadata already merged
+  // (titles + image.tmdb.org thumbnails) — only the display guards/fallbacks
+  // are applied client-side. No second network call.
+  const displayEpisodes = useMemo(
+    () => applyEpisodeFallbackMetadata(canonicalEpisodes, { fallbackThumbnail: watchBackdrop, fallbackTitle: title, isMovie: animeQuery.data?.format === "MOVIE" }),
+    [canonicalEpisodes, watchBackdrop, title, animeQuery.data?.format],
+  );
   const selectedEpisode = displayEpisodes.find((item) => item.number === episode);
   const episodeIsKnown = useMemo(() => canonicalEpisodes.some((item) => item.number === episode), [canonicalEpisodes, episode]);
   const invalidEpisode = Boolean(episodeQuery.isSuccess && canonicalEpisodes.length && !episodeIsKnown);
@@ -200,6 +225,8 @@ export default function WatchScreen() {
     () => isHentaiAnime({ isAdult: animeQuery.data?.isAdult, genres: animeQuery.data?.genres }),
     [animeQuery.data?.isAdult, animeQuery.data?.genres],
   );
+  // SFW gate: adult titles opened from history/deep links stay locked.
+  const nsfwBlocked = useNsfwViewGate();
   useKeepAwake("aniraku-watch");
 
   // ── Player state (react-native-video) ──
@@ -220,6 +247,7 @@ export default function WatchScreen() {
 
   // ── App state ──
   const [language, setLanguage] = useState<Language>("sub");
+  const [languageTrack, setLanguageTrack] = useState<{ sub: number; dub: number } | null>(null);
 
   const [providers, setProviders] = useState<Record<Language, Server[]>>({ sub: [], dub: [] });
   const [serverIndex, setServerIndex] = useState(0);
@@ -239,7 +267,7 @@ export default function WatchScreen() {
   const [fillMode, setFillMode] = useState<"contain" | "cover">("contain");
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [showControls, setShowControls] = useState(true);
-  type ActivePanel = "settings" | "subtitles" | "speed" | "server" | "chapters" | "source" | "quality" | "download" | null;
+  type ActivePanel = "settings" | "subtitles" | "speed" | "server" | "chapters" | "source" | "quality" | null;
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const [manualFullscreen, setManualFullscreen] = useState(false);
   const [episodeSearch, setEpisodeSearch] = useState("");
@@ -252,8 +280,9 @@ export default function WatchScreen() {
   const [skipFetchStatus, setSkipFetchStatus] = useState<SkipFetchStatus>("idle");
   const [resumePosition, setResumePosition] = useState<number | null>(null);
   const [offlineDownload, setOfflineDownload] = useState<OfflineDownload | null>(null);
-  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [downloadMessage, setDownloadMessage] = useState<string | null>(null);
+  const [downloadSheetOpen, setDownloadSheetOpen] = useState(false);
+  const [downloadOptions, setDownloadOptions] = useState<DownloadSheetOption[]>([]);
   const [requestedQuality, setRequestedQuality] = useState("auto");
   const [adaptiveBitrateCap, setAdaptiveBitrateCap] = useState<number | null>(null);
   const [subtitlePrefs, setSubtitlePrefs] = useState<SubtitlePreferences | null>(null);
@@ -410,24 +439,24 @@ export default function WatchScreen() {
     return { filteredEpisodes: filtered, totalEpisodePages: pageCount, safeEpisodePage: safePage, pagedEpisodes: episodePageSlice(filtered, safePage) };
   }, [displayEpisodes, episodePage, episodeSearch]);
 
-  const sourceQualityOptions = useMemo(() => watchQualityOptions(stream, source), [source, stream]);
+  // Non-HLS playback has no master manifest to parse — the sources the
+  // provider actually returned are the honest quality list (directSource-
+  // QualityOptions). Parsed HLS/DASH variants still win in displayedQuality-
+  // Options when present.
+  const sourceQualityOptions = useMemo(() => directSourceQualityOptions(stream, source), [source, stream]);
   const adaptiveCapOptions = useMemo(() => adaptiveBitrateCapOptions(source, videoTracks), [videoTracks, source]);
   const activeAdaptiveCap = adaptiveCapOptions.find((option) => option.maxVideoBitrate === adaptiveBitrateCap);
   const displayedQuality = activeAdaptiveCap?.label ?? selectedWatchQuality(source, requestedQuality);
   const maximumDownloadSource = useMemo(() => selectMaximumQualityDownload(stream?.sources ?? activeProvider?.sources ?? []), [activeProvider?.sources, stream?.sources]);
-  // Backend per-quality file links, collected across ALL providers for the
-  // current language — SUB and DUB option lists stay separate because
-  // activeProviders is already language-filtered. Labels with a quality
-  // ("Kiwi 1080p") become picker rows; plain labels ("Zoko") become the
-  // single default option.
-  const backendDownloadOptions = useMemo(() => sortBackendDownloadOptions(buildBackendDownloadOptions(activeProviders)), [activeProviders]);
+  // Upfront affordance: embed and dead sources can never be saved — dim the button, say why on press.
+  const downloadBlocked = Boolean(source && (getPlaybackType(source) === "embed" || sourceVerification(source) === "dead"));
   // Server picker lists only providers that actually carry something to play
-  // (stream sources or backend download links) — every row is backend-listed,
-  // never a fixed fallback name. Original indices are kept so selectServer
-  // stays aligned with activeProviders.
+  // (stream sources) — every row is backend-listed, never a fixed fallback
+  // name. Original indices are kept so selectServer stays aligned with
+  // activeProviders.
   const selectableProviders = useMemo(() => activeProviders
     .map((provider, index) => ({ provider, index }))
-    .filter(({ provider }) => (provider.sources?.length ?? 0) > 0 || (provider.downloads?.length ?? 0) > 0),
+    .filter(({ provider }) => (provider.sources?.length ?? 0) > 0),
   [activeProviders]);
   const currentRating = ratings.scoreFor(episode) ?? 0;
   const skipKind = activeSkipKind(skipSegments, currentTime);
@@ -476,15 +505,30 @@ export default function WatchScreen() {
     const preferred = matchSubtitleTrack(source.subtitles, subtitlePrefs.preferredLanguage) ?? source.subtitles[0];
     if (!preferred?.url) { parsedCuesRef.current = []; setActiveSubtitles([]); return; }
     const urlFormat = detectSubtitleFormat(preferred.url);
-    const subtitleUrl = preferred.url.includes("/api/v1/proxy?") ? preferred.url : anirakuProxyUrl(preferred.url, nativePlaybackHeaders(playbackHeaders));
-    let cancelled = false;
     const directHeaders = nativePlaybackHeaders(playbackHeaders);
-    fetch(subtitleUrl, directHeaders && !preferred.url.includes("/api/v1/proxy?") ? { headers: { ...directHeaders, Accept: "*/*" } } : undefined)
-      .then((r) => {
+    const alreadyProxied = isAnirakuProxyUrl(preferred.url);
+    const proxiedUrl = alreadyProxied ? preferred.url : anirakuProxyUrl(preferred.url, directHeaders);
+    let cancelled = false;
+    const fetchText = (target: string, requestHeaders?: Record<string, string>) =>
+      fetch(target, requestHeaders ? { headers: { ...requestHeaders, Accept: "*/*" } } : undefined).then((r) => {
         if (!r.ok) throw new Error(`subtitle ${r.status}`);
         return r.text();
-      })
-      .then((text) => {
+      });
+    // Proxy first (keeps the device IP off the CDN) with the proxy's browser
+    // identity — its gate 403s header-less requests. Some media hosts
+    // challenge the backend's plain server-side client (→ 502) while serving
+    // a real device fine — fall back to a direct fetch with the provider
+    // headers (native fetch has no CORS) so subtitles survive a
+    // backend/proxy outage. Offline bundles hand over file:// tracks — read
+    // them straight from disk.
+    let body: Promise<string>;
+    if (preferred.url.startsWith("file://")) {
+      try { body = new File(preferred.url).text(); } catch (cause) { body = Promise.reject(cause); }
+    } else {
+      body = fetchText(proxiedUrl, anirakuProxyRequestHeaders())
+        .catch(() => (alreadyProxied ? Promise.reject(new Error("subtitle proxy failed")) : fetchText(preferred.url, directHeaders)));
+    }
+    void body.then((text) => {
         if (cancelled || !text.trim()) {
           if (!cancelled) { parsedCuesRef.current = []; setActiveSubtitles([]); }
           return;
@@ -669,9 +713,18 @@ export default function WatchScreen() {
     const SERVER_RETRY_DELAYS_MS = [2000, 5000, 10000];
     const fetchServers = async (attempt: number) => {
       setServerAttempt(attempt + 1);
+      // Language-based track: skip fetching servers for a language that has
+      // zero episodes for this anime (avoids wasted backend hits).
+      const track = await getLanguageTrackCached(animeId).catch(() => null);
+      if (!cancelled) setLanguageTrack(track);
+      // track.count = number of episodes that exist for that language
+      // (e.g. { sub: 10, dub: 8 } → dub only on episodes 1–8). Skip fetching
+      // servers for a language when the current episode is beyond its count.
+      const wantSub = track === null || (track.sub ?? 0) >= episode;
+      const wantDub = track === null || (track.dub ?? 0) >= episode;
       const [subs, dubs] = await Promise.all([
-        getServers(animeId, episode, "sub").catch(() => [] as Server[]),
-        getServers(animeId, episode, "dub").catch(() => [] as Server[]),
+        (wantSub ? getServers(animeId, episode, "sub") : Promise.resolve([] as Server[])).catch(() => [] as Server[]),
+        (wantDub ? getServers(animeId, episode, "dub") : Promise.resolve([] as Server[])).catch(() => [] as Server[]),
       ]);
       if (cancelled) return;
       if (!subs.length && !dubs.length && attempt < SERVER_RETRY_DELAYS_MS.length) {
@@ -1129,10 +1182,42 @@ export default function WatchScreen() {
   }, [source?.url, useSourceProxy, playbackHeaders]);
 
   const videoSourceHeaders = useMemo(() => {
-    if (useSourceProxy) return undefined;
-    if (source && isAnirakuProxyUrl(source.url)) return undefined;
+    // Proxied playback (backend pre-proxied URLs and our own fallback wraps)
+    // must present the browser identity to api.aniraku.tech: its gate sits in
+    // front of every manifest, variant, and segment the player fetches and
+    // 403s requests without it (verified live). Upstream provider headers
+    // travel in the proxy URL's `headers` param instead.
+    if (useSourceProxy) return anirakuProxyRequestHeaders();
+    if (source && isAnirakuProxyUrl(source.url)) return anirakuProxyRequestHeaders();
     return nativePlaybackHeaders(playbackHeaders);
   }, [useSourceProxy, playbackHeaders, source?.url]);
+
+  // ── Parallel segment pool (native twin of the website's hlsPrefetch) ──
+  // Transparent inside ExoPlayer's DataSource: the mount below is untouched.
+  // begin()/end() bracket a session; a player error while pooled demotes the
+  // source to stock playback for the rest of its life (worst case = stock).
+  const [poolActive, setPoolActive] = useState(false);
+  const [poolBlocked, setPoolBlocked] = useState<Set<string>>(() => new Set());
+  /** Bumped on pool demotion: the mounted URI is unchanged, so the Video
+   *  remount needs a key change to physically reload without the pool. */
+  const [poolMountNonce, setPoolMountNonce] = useState(0);
+  const poolEligible = useMemo(
+    () => Boolean(videoSourceUri)
+      && !poolBlocked.has(source?.url ?? "")
+      && isSegmentPoolEligible({ source }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [videoSourceUri, poolBlocked, source?.url, source?.type, source?.mime, source?.verification, source?.Verification],
+  );
+  useEffect(() => {
+    if (!poolEligible) {
+      streamPoolNative.end();
+      setPoolActive(false);
+      return;
+    }
+    streamPoolNative.begin();
+    setPoolActive(true);
+    return () => streamPoolNative.end();
+  }, [poolEligible, videoSourceUri]);
 
   // ── Quality from the provider's Auto URL ──
   // Fetch the manifest the player is actually using and enumerate its real
@@ -1153,6 +1238,16 @@ export default function WatchScreen() {
     const current = sourceMirrorRef.current;
     const currentUrl = current?.url ?? null;
     if (!current || !currentUrl) {
+      setParsedQualityOptions(null);
+      setParsedQualityNote(null);
+      parsedOptionsRef.current = null;
+      parsedVariantsRef.current = null;
+      return;
+    }
+    // An offline bundle mounts as local HLS — the streaming variant menu does
+    // not apply, and re-applying a held menu would let one chip tap silently
+    // switch offline playback back to the network.
+    if (currentUrl.startsWith("file://")) {
       setParsedQualityOptions(null);
       setParsedQualityNote(null);
       parsedOptionsRef.current = null;
@@ -1250,7 +1345,9 @@ export default function WatchScreen() {
       parsedVariantsRef.current = { key: masterPlaybackUri, variants };
     };
 
-    fetch(masterPlaybackUri, directHeaders && !proxied ? { headers: { ...directHeaders, Accept: "*/*" } } : undefined)
+    fetch(masterPlaybackUri, proxied
+      ? { headers: { ...anirakuProxyRequestHeaders(), Accept: "*/*" } }
+      : directHeaders ? { headers: { ...directHeaders, Accept: "*/*" } } : undefined)
       .then((response) => {
         if (!response.ok) throw new Error(`manifest ${response.status}`);
         return response.text();
@@ -1276,6 +1373,17 @@ export default function WatchScreen() {
     const t = getPlaybackType(source);
     return t === "hls" ? "m3u8" : t === "dash" ? "mpd" : undefined;
   }, [source?.url]);
+
+  // INFO panel "Format": the playback classification, not the raw type field
+  // (a progressive MP4 with no type label used to be misreported as "HLS").
+  const sourceFormatLabel = useMemo(() => {
+    if (!source) return "HLS";
+    const kind = getPlaybackType(source);
+    if (kind === "hls") return "HLS";
+    if (kind === "dash") return "DASH";
+    if (kind === "embed") return "EMBED";
+    return source.type?.toUpperCase() || "MP4";
+  }, [source?.url, source?.type, source?.mime]);
 
   // Real ExoPlayer LoadControl — replaces the old "120s reserve / 20s cushion"
   // claims with actual buffering behavior on the shipped player.
@@ -1416,7 +1524,9 @@ export default function WatchScreen() {
     try {
       const directHeaders = nativePlaybackHeaders(playbackHeadersMirrorRef.current);
       const proxied = useSourceProxy || isAnirakuProxyUrl(staleUrl) || isAnirakuProxyUrl(masterKey);
-      const response = await fetch(masterKey, directHeaders && !proxied ? { headers: { ...directHeaders, Accept: "*/*" } } : undefined);
+      const response = await fetch(masterKey, proxied
+        ? { headers: { ...anirakuProxyRequestHeaders(), Accept: "*/*" } }
+        : directHeaders ? { headers: { ...directHeaders, Accept: "*/*" } } : undefined);
       if (!response.ok) throw new Error(`manifest ${response.status}`);
       const text = await response.text();
       const variants = parseHlsMasterVariants(text, originalStreamUrl(masterKey));
@@ -1932,84 +2042,66 @@ export default function WatchScreen() {
     setRefreshNonce((v) => v + 1);
   };
 
-  // Backend `downloads[]` links are external download pages (e.g. provider
-  // file hosts), not direct files — they open in the external browser, never
-  // through the in-app proxy saver. Every tap confirms with a "leaving the
-  // app" popup first. SUB and DUB option lists stay separate because they are
-  // built from the language-filtered provider list.
-  const openBackendDownload = (option: BackendDownloadOption) => {
-    setActivePanel(null);
-    const quality = String(option.quality ?? option.label).toUpperCase();
-    // Second gate beside buildBackendDownloadOptions' https-only filter:
-    // never hand a non-https URL to the OS browser, even if backend data
-    // changed shape.
-    let safeUrl: string | null = null;
-    try {
-      const parsed = new URL(String(option.url ?? "").trim());
-      if (parsed.protocol === "https:") safeUrl = parsed.toString();
-    } catch {
-      safeUrl = null;
+  // In-app download options: parsed HLS variants win (exact rendition with an
+  // honest size estimate); without them every distinct downloadable direct
+  // source becomes its own row, so a multi-quality progressive episode offers
+  // real choices. External backend download pages are gone — in-app or
+  // nothing (ADR-004). Options are built at press time so the variants ref is
+  // always current.
+  const buildDownloadOptions = (): DownloadSheetOption[] => {
+    const base = maximumDownloadSource ?? source;
+    if (!base) return [];
+    const variants = parsedVariantsRef.current?.variants ?? [];
+    if (variants.length > 0) {
+      return variants.map((variant) => {
+        const family = codecFamilyLabel(variant.codecs);
+        return {
+          key: `hls-${variant.height}`,
+          label: family ? `${variant.height}p · ${family}` : `${variant.height}p`,
+          quality: `${variant.height}p`,
+          source: base,
+          variantUrl: variant.url,
+          bandwidth: variant.bandwidth,
+        };
+      });
     }
-    if (!safeUrl) {
-      setDownloadMessage("THIS DOWNLOAD LINK IS NOT SUPPORTED.");
+    const byLabel = new Map<string, DownloadSheetOption>();
+    for (const item of nativeSources({ sources: stream?.sources ?? activeProvider?.sources ?? [] })) {
+      if (!isDownloadableSource(item)) continue;
+      const label = isAutoQuality(item) ? "ORIGINAL" : item.quality || "DIRECT";
+      const key = label.toLowerCase();
+      // nativeSources arrives quality-ranked — first source per label wins.
+      if (byLabel.has(key)) continue;
+      byLabel.set(key, { key: `direct-${key}`, label, quality: label === "ORIGINAL" ? "ORIGINAL DIRECT" : label, source: item });
+    }
+    if (byLabel.size > 0) return [...byLabel.values()];
+    const matched = selectDownloadSourceForQuality(stream?.sources ?? activeProvider?.sources ?? [], requestedQuality) ?? base;
+    const quality = isAutoQuality(matched) ? "ORIGINAL DIRECT" : matched.quality || "DIRECT";
+    return [{ key: "direct", label: quality === "ORIGINAL DIRECT" ? "ORIGINAL" : quality, quality, source: matched }];
+  };
+
+  const onDownloadPress = () => {
+    if (!APP_CONFIG.downloadsNativeEnabled) {
+      setDownloadMessage("DOWNLOADS ARE TEMPORARILY DISABLED IN THIS BUILD");
       return;
     }
-    Alert.alert("You're leaving Aniraku", `Open the external ${quality} download page in your browser?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Continue",
-        onPress: () => {
-          void (async () => {
-            try {
-              if (!(await Linking.canOpenURL(safeUrl))) throw new Error("unsupported");
-              await Linking.openURL(safeUrl);
-              setDownloadMessage(`OPENING ${quality} DOWNLOAD…`);
-            } catch {
-              setDownloadMessage("COULD NOT OPEN DOWNLOAD LINK.");
-            }
-          })();
-        },
-      },
-    ]);
+    const options = buildDownloadOptions();
+    // Embed/DRM/dead sources get the reason up front, not a silent sheet.
+    if (!options.length) {
+      setDownloadMessage("THIS EPISODE CANNOT BE SAVED FOR OFFLINE VIEWING");
+      return;
+    }
+    setDownloadOptions(options);
+    setDownloadSheetOpen(true);
   };
 
-  // Download icon behavior: quality options → picker modal; exactly one
-  // default-label link → open it directly; nothing from the backend → legacy
-  // in-app save of the playing stream source below.
-  const onDownloadPress = () => {
-    if (backendDownloadOptions.length === 0) { void startDownload(); return; }
-    if (hasQualityBackendDownloads(backendDownloadOptions)) { setActivePanel("download"); return; }
-    void openBackendDownload(backendDownloadOptions[0]);
+  const onDownloadStarted = (option: DownloadSheetOption) => {
+    setDownloadSheetOpen(false);
+    setDownloadMessage(`SAVING ${option.label.toUpperCase()} · TRACK IT IN DOWNLOADS`);
   };
 
-  const startDownload = async () => {
-    try {
-      setDownloadMessage(null);
-      setDownloadProgress(0);
-      const headers = stream?.headers ?? activeProvider?.headers;
-      // The chosen rendition wins over the master's highest guess: a parsed
-      // HLS variant URL for the selected height is fetched exactly. Without
-      // parsed variants the native match-or-max fallback applies.
-      const wantedHeight = Number.parseInt(String(requestedQuality ?? ""), 10);
-      const variantUrl = Number.isFinite(wantedHeight)
-        ? variantUrlForHeight(parsedVariantsRef.current?.variants ?? [], wantedHeight)
-        : null;
-      if (variantUrl) {
-        const base = maximumDownloadSource ?? source;
-        if (!base) { setDownloadMessage("DIRECT SOURCE REQUIRED FOR DOWNLOAD."); return; }
-        const entry = await startMaximumQualityDownload({ animeId, episode, language, title, source: base, variantUrl, variantQuality: `${Math.round(wantedHeight)}p`, headers, onProgress: setDownloadProgress });
-        setOfflineDownload(entry);
-        setDownloadMessage(`${entry.quality.toUpperCase()} SAVED.`);
-        return;
-      }
-      const matched = selectDownloadSourceForQuality(stream?.sources ?? activeProvider?.sources ?? [], requestedQuality);
-      if (!matched) { setDownloadMessage("DIRECT SOURCE REQUIRED FOR DOWNLOAD."); return; }
-      const entry = await startMaximumQualityDownload({ animeId, episode, language, title, source: matched, headers, onProgress: setDownloadProgress });
-      setOfflineDownload(entry);
-      setDownloadMessage(`${entry.quality.toUpperCase()} SAVED.`);
-    } catch (cause) {
-      setDownloadMessage(cause instanceof Error ? cause.message.toUpperCase() : "DOWNLOAD FAILED.");
-    } finally { setDownloadProgress(null); }
+  const onDownloadError = (message: string) => {
+    setDownloadMessage(message.toUpperCase());
   };
 
   const playOffline = () => {
@@ -2018,7 +2110,15 @@ export default function WatchScreen() {
     sourceMounted.current = true;
     setPlaybackHeaders(undefined);
     setUseSourceProxy(false);
-    setSource({ url: offlineDownload.uri, quality: `${offlineDownload.quality} · SAVED`, type: "native" });
+    setSource({
+      url: offlineDownload.uri,
+      quality: `${offlineDownload.quality} · SAVED`,
+      type: "native",
+      // Saved bundles keep the fetched subtitle tracks beside the video.
+      subtitles: offlineDownload.subtitles?.length
+        ? offlineDownload.subtitles.map((track) => ({ url: track.file, lang: track.lang, label: track.label }))
+        : undefined,
+    });
     setSourceRevision((v) => v + 1);
     setActivePanel(null);
     setDownloadMessage("PLAYING SAVED COPY.");
@@ -2119,21 +2219,18 @@ export default function WatchScreen() {
       `Episode: ${episode}`,
       `Error: ${lastPlayerError || error || "playback failed"}`,
     ].join("\n");
-    Alert.alert(
-      "Report broken source",
-      `This report includes only:\n\n${summary}\n\nShare it through your usual channels? Nothing else from your account is included.`,
-      [
-        { text: t("player.cancel"), style: "cancel" },
-        {
-          text: "Share report",
-          onPress: () => {
-            void Share.share({ title: "Aniraku broken source report", message }).catch(() => {
-              void Linking.openURL(`mailto:?subject=${encodeURIComponent("Aniraku broken source report")}&body=${encodeURIComponent(message)}`).catch(() => {});
-            });
-          },
-        },
-      ],
-    );
+    showThemedDialog({
+      kicker: "REPORT",
+      title: "Report broken source",
+      message: `This report includes only:\n\n${summary}\n\nShare it through your usual channels? Nothing else from your account is included.`,
+      confirmLabel: "SHARE REPORT",
+      cancelLabel: t("player.cancel"),
+      onConfirm: () => {
+        void Share.share({ title: "Aniraku broken source report", message }).catch(() => {
+          void Linking.openURL(`mailto:?subject=${encodeURIComponent("Aniraku broken source report")}&body=${encodeURIComponent(message)}`).catch(() => {});
+        });
+      },
+    });
   }, [activeProvider?.label, activeProvider?.provider, buildSourceReport, episode, error, language, lastPlayerError]);
 
   useEffect(() => {
@@ -2369,6 +2466,9 @@ export default function WatchScreen() {
     </NativeScreen>;
   }
 
+  if (nsfwBlocked && isHentai) {
+    return <NativeScreen><ContentLock onOpenSettings={() => router.push("/settings" as never)} /></NativeScreen>;
+  }
   return <NativeScreen scroll={false} style={styles.fill}>
     <StatusBar hidden={manualFullscreen} />
 
@@ -2378,7 +2478,7 @@ export default function WatchScreen() {
         native Video SurfaceView eats touches aimed behind it. */}
     <View style={[styles.videoShell, manualFullscreen && ps.videoShellFullscreen]}>
       {embedSource && !source ? <EmbedPlayer uri={embedSource.url} headers={nativePlaybackHeaders(playbackHeaders)} onError={() => handleProviderBlockedRef.current("player")} onLoaded={() => { embedReadyRef.current = true; setShowControls(true); }} /> : null}
-      {source ? <Video key={activeProvider?.id ?? "default"} ref={videoRef} style={StyleSheet.absoluteFill} source={{ uri: videoSourceUri, headers: videoSourceHeaders, type: videoContentType, bufferConfig: videoBufferConfig }}
+      {source ? <Video key={`${activeProvider?.id ?? "default"}${poolMountNonce ? `-${poolMountNonce}` : ""}`} ref={videoRef} style={StyleSheet.absoluteFill} source={{ uri: videoSourceUri, headers: videoSourceHeaders, type: videoContentType, bufferConfig: videoBufferConfig }}
         paused={!isPlaying} rate={is2xSeeking ? 2.0 : speed} resizeMode={fillMode} muted={muted} volume={volume}
         maxBitRate={adaptiveBitrateCap ?? undefined}
         onLoad={(data: OnLoadData) => { if (__DEV__) console.log(`[watch] first-frame t=${Date.now() - _watchMountTime}ms provider=${activeProvider?.id ?? "?"}`); setDuration(data.duration); sourceFirstFrame.current = true; sourceStarted.current = true; setPlayerStatus("playing"); setIsPlaying(true); setLastPlayerError(null); setShowControls(true); }}
@@ -2387,7 +2487,7 @@ export default function WatchScreen() {
         onVideoTracks={handleVideoTracks}
         onBandwidthUpdate={handleBandwidthUpdate}
         onPictureInPictureStatusChanged={onPipStatusChanged}
-        onError={(event: any) => { const detail = event?.error?.errorString || event?.error?.errorCode || "Unknown player error"; const mountedUrl = source?.url ?? null; if (shouldRefreshMasterOnVariantError({ errorDetail: String(detail), variantUrl: mountedUrl, refreshedAlready: variantTokenRefreshAttempted.current === mountedUrl })) { variantTokenRefreshAttempted.current = mountedUrl; void refreshVariantFromMaster(); return; } setLastPlayerError(String(detail)); setPlayerStatus("error"); if (!useSourceProxy) { setUseSourceProxy(true); setSourceRevision((v) => v + 1); return; } handleProviderBlockedRef.current("player"); }}
+        onError={(event: any) => { const detail = event?.error?.errorString || event?.error?.errorCode || "Unknown player error"; const mountedUrl = source?.url ?? null; if (poolActive) { setPoolActive(false); streamPoolNative.end(); setPoolBlocked((prev) => new Set(prev).add(String(mountedUrl ?? ""))); setPoolMountNonce((v) => v + 1); setSourceRevision((v) => v + 1); return; } if (shouldRefreshMasterOnVariantError({ errorDetail: String(detail), variantUrl: mountedUrl, refreshedAlready: variantTokenRefreshAttempted.current === mountedUrl })) { variantTokenRefreshAttempted.current = mountedUrl; void refreshVariantFromMaster(); return; } setLastPlayerError(String(detail)); setPlayerStatus("error"); if (!useSourceProxy) { setUseSourceProxy(true); setSourceRevision((v) => v + 1); return; } handleProviderBlockedRef.current("player"); }}
         onEnd={() => { const reachedEnd = duration > 30 && currentTime >= Math.max(1, duration - 2); if (!sourceStarted.current || !reachedEnd) return; if (auth.user) { history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, episodeTitle: selectedEpisode?.title || null, episodeThumbnail: selectedEpisode?.thumbnail || null, progress: duration || currentTime, duration: duration || currentTime, totalEpisodes: filteredEpisodes.length || undefined }); if (providerSync.connected.length) providerSync.pushProgress.mutate({ animeId, episode, progress: Math.floor(duration || currentTime), status: "completed" }); } showUpNext(); }}
       /> : (embedSource && !error) ? null : <View style={styles.videoPlaceholder}>
         {loadingServers ? <ProviderDiscoveryLoader attempt={serverAttempt} /> : loadingStream ? <View style={styles.thumbnailLoading}>
@@ -2411,7 +2511,7 @@ export default function WatchScreen() {
           never reads as "frozen". */}
       {source && buffering && !embedSource ? (
         <View pointerEvents="none" style={styles.bufferingVeil}>
-          <ActivityIndicator size="large" color="#FFF" />
+          <ActivityIndicator size="large" color={nothing.white} />
         </View>
       ) : null}
 
@@ -2430,7 +2530,7 @@ export default function WatchScreen() {
               <View pointerEvents="none" style={styles.scrimBottomMain} />
               <View style={styles.embedTopBar} pointerEvents="box-none">
                 <Pressable onPress={() => { if (manualFullscreen) exitFullscreen(); else router.back(); }} accessibilityRole="button" accessibilityLabel="Go back" style={styles.iconButton} hitSlop={10}>
-                  <ArrowLeft size={22} color="#FFF" weight="bold" />
+                  <ArrowLeft size={22} color={nothing.white} weight="bold" />
                 </Pressable>
                 <View pointerEvents="none" style={styles.playerTitleWrap}>
                   <Text style={styles.playerTitle} numberOfLines={1} ellipsizeMode="tail">{`${title} - Episode ${episode}`}</Text>
@@ -2446,7 +2546,7 @@ export default function WatchScreen() {
                   <Text style={styles.embedBottomLabel} numberOfLines={1}>{activeProvider ? `${activeProvider.label} · EMBEDDED STREAM` : "EMBEDDED STREAM"}</Text>
                 </View>
                 <Pressable onPress={manualFullscreen ? exitFullscreen : enterFullscreen} accessibilityRole="button" accessibilityLabel={manualFullscreen ? "Exit fullscreen" : "Enter fullscreen"} style={styles.iconButton} hitSlop={8}>
-                  {manualFullscreen ? <ArrowsIn size={20} color="#FFF" weight="bold" /> : <ArrowsOut size={20} color="#FFF" weight="bold" />}
+                  {manualFullscreen ? <ArrowsIn size={20} color={nothing.white} weight="bold" /> : <ArrowsOut size={20} color={nothing.white} weight="bold" />}
                 </Pressable>
               </View>
             </View>
@@ -2454,7 +2554,7 @@ export default function WatchScreen() {
           {!showControls && !playerLocked ? (
             <View style={styles.embedHiddenToggle} pointerEvents="box-none">
               <Pressable onPress={() => setShowControls(true)} accessibilityRole="button" accessibilityLabel="Show player overlay" style={styles.embedShowButton} hitSlop={10}>
-                <ArrowsOut size={16} color="#FFF" weight="bold" />
+                <ArrowsOut size={16} color={nothing.white} weight="bold" />
               </Pressable>
             </View>
           ) : null}
@@ -2483,7 +2583,7 @@ export default function WatchScreen() {
       {/* Double-tap feedback */}
       {doubleTapSide ? (
         <Animated.View style={[styles.doubleTapOverlay, { left: doubleTapSide === "left" ? "12%" : undefined, right: doubleTapSide === "right" ? "12%" : undefined, opacity: doubleTapAnim }]} pointerEvents="none">
-          {doubleTapSide === "left" ? <Rewind size={36} color="#FFF" weight="bold" /> : <FastForward size={36} color="#FFF" weight="bold" />}
+          {doubleTapSide === "left" ? <Rewind size={36} color={nothing.white} weight="bold" /> : <FastForward size={36} color={nothing.white} weight="bold" />}
           <Text style={styles.doubleTapText}>{doubleTapSide === "left" ? `-${doubleTapSeconds}s` : `+${doubleTapSeconds}s`}</Text>
         </Animated.View>
       ) : null}
@@ -2504,12 +2604,12 @@ export default function WatchScreen() {
           {/* TOP BAR */}
           <View style={styles.topBar}>
             <Pressable onPress={() => { if (manualFullscreen) exitFullscreen(); else router.back(); }} accessibilityRole="button" accessibilityLabel="Go back" style={styles.iconButton} hitSlop={10}>
-              <ArrowLeft size={22} color="#FFF" weight="bold" />
+              <ArrowLeft size={22} color={nothing.white} weight="bold" />
             </Pressable>
             <Text style={styles.playerTitle} numberOfLines={1} ellipsizeMode="tail">{`${title} - Episode ${episode}`}</Text>
             <View style={styles.topRightRow}>
               <Pressable onPress={() => setActivePanel("speed")} accessibilityRole="button" accessibilityLabel="Playback speed" style={styles.iconButton} hitSlop={8}>
-                <Speedometer size={18} color="#FFF" weight="bold" />
+                <Speedometer size={18} color={nothing.white} weight="bold" />
               </Pressable>
               <Pressable onPress={() => setActivePanel(activePanel === "subtitles" ? null : "subtitles")} accessibilityRole="button" accessibilityLabel="Subtitles" style={[styles.iconButton, activePanel === "subtitles" && styles.iconButtonActive]} hitSlop={8}>
                 <Subtitles size={18} color={activePanel === "subtitles" ? nothing.red : "#FFF"} weight="bold" />
@@ -2528,7 +2628,7 @@ export default function WatchScreen() {
             {(resumePosition && (duration <= 0 || resumePosition < duration * 0.9)) ? (
               <View style={styles.contextActions}>
                 <Pressable onPress={() => { pendingResume.current = resumePosition; videoRef.current?.seek(resumePosition); setResumePosition(null); }} accessibilityRole="button" style={styles.resumeBtn}>
-                  <Play size={12} color="#FFF" weight="fill" />
+                  <Play size={12} color={nothing.white} weight="fill" />
                   <Text style={styles.resumeBtnText}>{`RESUME ${formatTime(resumePosition)}`}</Text>
                 </Pressable>
               </View>
@@ -2553,52 +2653,46 @@ export default function WatchScreen() {
             <View style={styles.actionRail}>
               <View style={styles.railSide}>
                 <Pressable onPress={engagePlayerLock} accessibilityRole="button" accessibilityLabel="Lock player controls" style={styles.railBtn} hitSlop={8}>
-                  <Lock size={18} color="#FFF" weight="bold" />
+                  <Lock size={18} color={nothing.white} weight="bold" />
                 </Pressable>
                 <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setMuted((m) => !m); }} accessibilityRole="button" accessibilityLabel={muted ? "Unmute" : "Mute"} style={styles.railBtn} hitSlop={8}>
-                  {muted ? <SpeakerNone size={18} color="#FFF" weight="bold" /> : <SpeakerHigh size={18} color="#FFF" weight="bold" />}
+                  {muted ? <SpeakerNone size={18} color={nothing.white} weight="bold" /> : <SpeakerHigh size={18} color={nothing.white} weight="bold" />}
                 </Pressable>
               </View>
               <View style={styles.railCenter}>
                 <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); seekBy(-10); }} accessibilityRole="button" accessibilityLabel="Back 10 seconds" style={styles.railBtn} hitSlop={8}>
-                  <AppIcon name="rewind-10" size={23} color="#FFF" />
+                  <AppIcon name="rewind-10" size={23} color={nothing.white} />
                 </Pressable>
                 <Pressable disabled={!previousKnownEpisode} onPress={() => previousKnownEpisode && goToEpisode(previousKnownEpisode)} accessibilityRole="button" accessibilityLabel="Previous episode" style={[styles.railBtn, !previousKnownEpisode && styles.railBtnDisabled]} hitSlop={8}>
-                  <SkipBack size={20} color="#FFF" weight="fill" />
+                  <SkipBack size={20} color={nothing.white} weight="fill" />
                 </Pressable>
                 <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); setIsPlaying((p) => !p); }} onLongPress={beginHoldSpeed} onPressOut={stopHoldSpeed} delayLongPress={400} accessibilityRole="button" accessibilityLabel={isPlaying ? "Pause" : "Play"} accessibilityHint="Hold for 2x speed" style={[styles.bigPlayButton, manualFullscreen && styles.bigPlayButtonFullscreen]}>
-                  {isPlaying ? <Pause size={26} color="#000" weight="fill" /> : <Play size={26} color="#000" weight="fill" style={{ marginLeft: 2 }} />}
+                  {isPlaying ? <Pause size={26} color={nothing.black} weight="fill" /> : <Play size={26} color={nothing.black} weight="fill" style={{ marginLeft: 2 }} />}
                 </Pressable>
                 <Pressable disabled={!nextKnownEpisode} onPress={nextEpisode} accessibilityRole="button" accessibilityLabel="Next episode" style={[styles.railBtn, !nextKnownEpisode && styles.railBtnDisabled]} hitSlop={8}>
-                  <SkipForward size={20} color="#FFF" weight="fill" />
+                  <SkipForward size={20} color={nothing.white} weight="fill" />
                 </Pressable>
                 <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); seekBy(10); }} accessibilityRole="button" accessibilityLabel="Forward 10 seconds" style={styles.railBtn} hitSlop={8}>
-                  <AppIcon name="fast-forward-10" size={23} color="#FFF" />
+                  <AppIcon name="fast-forward-10" size={23} color={nothing.white} />
                 </Pressable>
               </View>
               <View style={styles.railSideRight}>
-                {downloadProgress !== null ? (
-                  /* expo-file-system's File.downloadFileAsync emits no incremental
-                     progress (only the final 1.0), so show an honest spinner. */
-                  <View style={styles.downloadBtn} accessibilityLabel="Downloading episode">
-                    <ActivityIndicator size="small" color="#FFF" />
-                  </View>
-                ) : offlineDownload ? (
+                {offlineDownload ? (
                   <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); playOffline(); }} onLongPress={() => { void removeDownload(); }} accessibilityRole="button" accessibilityLabel="Play saved download" accessibilityHint="Long press to remove the saved copy" style={styles.railBtn} hitSlop={8}>
                     <DownloadSimple size={19} color={nothing.green} weight="bold" />
                   </Pressable>
                 ) : (
-                  <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); onDownloadPress(); }} accessibilityRole="button" accessibilityLabel="Download episode" accessibilityHint="Opens quality options when the provider offers them" style={styles.railBtn} hitSlop={8}>
-                    <Download size={19} color="#FFF" weight="bold" />
+                  <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); if (downloadBlocked) { setDownloadMessage("THIS SOURCE CANNOT BE SAVED FOR OFFLINE VIEWING"); return; } onDownloadPress(); }} accessibilityRole="button" accessibilityLabel="Download episode" accessibilityHint="Opens quality options when the provider offers them" accessibilityState={{ disabled: downloadBlocked }} style={[styles.railBtn, downloadBlocked && styles.railBtnDisabled]} hitSlop={8}>
+                    <Download size={19} color={downloadBlocked ? nothing.dim : nothing.white} weight="bold" />
                   </Pressable>
                 )}
                 {pipAvailable && source ? (
                   <Pressable onPress={() => enterPiP()} accessibilityRole="button" accessibilityLabel="Picture in picture" style={styles.railBtn} hitSlop={8}>
-                    <PictureInPicture size={18} color="#FFF" weight="bold" />
+                    <PictureInPicture size={18} color={nothing.white} weight="bold" />
                   </Pressable>
                 ) : null}
                 <Pressable onPress={manualFullscreen ? exitFullscreen : enterFullscreen} accessibilityRole="button" accessibilityLabel={manualFullscreen ? "Exit fullscreen" : "Enter fullscreen"} style={styles.railBtn} hitSlop={8}>
-                  {manualFullscreen ? <ArrowsIn size={18} color="#FFF" weight="bold" /> : <ArrowsOut size={18} color="#FFF" weight="bold" />}
+                  {manualFullscreen ? <ArrowsIn size={18} color={nothing.white} weight="bold" /> : <ArrowsOut size={18} color={nothing.white} weight="bold" />}
                 </Pressable>
               </View>
             </View>
@@ -2609,14 +2703,14 @@ export default function WatchScreen() {
       {/* Skip Intro/Outro (positioned bottom-right) */}
       {skipKind === "intro" && !playerLocked ? (
         <Pressable style={styles.skipButtonOverlay} onPress={() => skip("intro")} accessibilityRole="button" accessibilityLabel="Skip intro" accessibilityHint="Skips the opening sequence">
-          <SkipForward size={14} color="#FFF" weight="bold" />
+          <SkipForward size={14} color={nothing.white} weight="bold" />
           <Text style={styles.skipButtonText}>{`SKIP INTRO`}</Text>
           <Text style={styles.skipCountdown}>{`· ${Math.max(0, Math.round((skipSegments.intro?.endTime ?? currentTime) - currentTime))}s`}</Text>
         </Pressable>
       ) : null}
       {skipKind === "outro" && !playerLocked ? (
         <Pressable style={styles.skipButtonOverlay} onPress={() => skip("outro")} accessibilityRole="button" accessibilityLabel="Skip outro" accessibilityHint="Skips the ending sequence">
-          <SkipForward size={14} color="#FFF" weight="bold" />
+          <SkipForward size={14} color={nothing.white} weight="bold" />
           <Text style={styles.skipButtonText}>{`SKIP OUTRO`}</Text>
           <Text style={styles.skipCountdown}>{`· ${Math.max(0, Math.round((skipSegments.outro?.endTime ?? currentTime) - currentTime))}s`}</Text>
         </Pressable>
@@ -2635,7 +2729,7 @@ export default function WatchScreen() {
                 <Text style={styles.upNextPlayText}>PLAY NOW</Text>
               </Pressable>
               <Pressable onPress={dismissUpNext} accessibilityRole="button" accessibilityLabel="Dismiss up next" style={styles.upNextDismiss} hitSlop={8}>
-                <X size={15} color="#FFF" weight="bold" />
+                <X size={15} color={nothing.white} weight="bold" />
               </Pressable>
             </View>
           </View>
@@ -2653,7 +2747,7 @@ export default function WatchScreen() {
       {/* Gesture HUD overlays */}
       {is2xSeeking ? (
         <View style={chrome.badge2x} pointerEvents="none">
-          <FastForward size={16} color="#FFF" weight="bold" />
+          <FastForward size={16} color={nothing.white} weight="bold" />
           <Text style={chrome.badge2xText}>2X SPEED</Text>
         </View>
       ) : null}
@@ -2661,7 +2755,7 @@ export default function WatchScreen() {
         <View style={chrome.verticalBarWrap} pointerEvents="none">
           <View style={chrome.verticalBarBg}><View style={[chrome.verticalBarFill, { height: `${volumeHud}%` }]} /></View>
           <View style={chrome.verticalBarLabel}>
-            {volumeHud === 0 ? <SpeakerNone size={14} color="#FFF" weight="bold" /> : <SpeakerHigh size={14} color="#FFF" weight="bold" />}
+            {volumeHud === 0 ? <SpeakerNone size={14} color={nothing.white} weight="bold" /> : <SpeakerHigh size={14} color={nothing.white} weight="bold" />}
             <Text style={chrome.verticalBarText}>{volumeHud}%</Text>
           </View>
         </View>
@@ -2670,7 +2764,7 @@ export default function WatchScreen() {
         <View style={chrome.verticalBarWrapLeft} pointerEvents="none">
           <View style={chrome.verticalBarBg}><View style={[chrome.verticalBarFillBright, { height: `${brightnessHud}%` }]} /></View>
           <View style={chrome.verticalBarLabel}>
-            <Sun size={14} color="#FFF" weight="bold" />
+            <Sun size={14} color={nothing.white} weight="bold" />
             <Text style={chrome.verticalBarText}>{brightnessHud}%</Text>
           </View>
         </View>
@@ -2681,7 +2775,7 @@ export default function WatchScreen() {
         <View style={ps.settingsHeader}>
           <Text style={ps.settingsHeaderText}>Settings</Text>
           <Pressable onPress={() => setActivePanel(null)} accessibilityRole="button" accessibilityLabel="Close settings" hitSlop={8}>
-            <X size={15} color="#FFF" weight="bold" />
+            <X size={15} color={nothing.white} weight="bold" />
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={ps.settingsContent} showsVerticalScrollIndicator={false}>
@@ -2689,7 +2783,13 @@ export default function WatchScreen() {
           <View style={ps.chipRow}>
             {displayedQualityOptions.length ? displayedQualityOptions.map((item: WatchQualityOption) => {
               const selected = displayedQuality.toLowerCase() === item.label.toLowerCase();
-              return <Pressable key={item.id} onPress={() => { if (source) void selectAdaptiveQuality(item); else if (item.source) selectQuality(item.source); }} style={[ps.chip, selected && ps.chipActive]}><Text style={[ps.chipText, selected && ps.chipTextActive]}>{item.label}</Text></Pressable>;
+              return <Pressable key={item.id} onPress={() => {
+                if (source && String(source.url || "").startsWith("file://")) {
+                  setDownloadMessage("THE SAVED COPY PLAYS AT ITS SAVED QUALITY");
+                  return;
+                }
+                if (source) void selectAdaptiveQuality(item); else if (item.source) selectQuality(item.source);
+              }} style={[ps.chip, selected && ps.chipActive]}><Text style={[ps.chipText, selected && ps.chipTextActive]}>{item.label}</Text></Pressable>;
             }) : <Text style={ps.emptyLine}>{t("player.nothingSelectable")}</Text>}
           </View>
           {(() => {
@@ -2714,11 +2814,11 @@ export default function WatchScreen() {
           </View>
           <View style={ps.infoRow}>
             <Text style={ps.infoLabel}>Source</Text>
-            <Text style={ps.infoValue}>{embedSource ? "Embed" : useSourceProxy ? "Proxied" : "Direct"}</Text>
+            <Text style={ps.infoValue}>{`${embedSource ? "Embed" : useSourceProxy ? "Proxied" : "Direct"}${poolActive ? " · POOL" : ""}`}</Text>
           </View>
           <View style={ps.infoRow}>
             <Text style={ps.infoLabel}>Format</Text>
-            <Text style={ps.infoValue}>{source?.type?.toUpperCase() || "HLS"}</Text>
+            <Text style={ps.infoValue}>{sourceFormatLabel}</Text>
           </View>
 
           <Text style={ps.sectionLabel}>AUTO-PLAY NEXT EPISODE</Text>
@@ -2753,7 +2853,7 @@ export default function WatchScreen() {
         <View style={ps.settingsHeader}>
           <Text style={ps.settingsHeaderText}>Subtitles</Text>
           <Pressable onPress={() => setActivePanel(null)} accessibilityRole="button" accessibilityLabel="Close subtitles" hitSlop={8}>
-            <X size={15} color="#FFF" weight="bold" />
+            <X size={15} color={nothing.white} weight="bold" />
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={ps.settingsContent} showsVerticalScrollIndicator={false}>
@@ -2834,10 +2934,10 @@ export default function WatchScreen() {
         <Text style={styles.th3Watching}><Text style={styles.th3WatchingGreen}>You are watching </Text><Text style={styles.th3WatchingWhite}>Episode {episode}</Text></Text>
         {swipeDirectionHint ? <View style={styles.swipeHintRow}><AppIcon name="chevron-left" size={12} color={previousKnownEpisode ? nothing.muted : nothing.dim} /><Text style={[styles.swipeHintText, !previousKnownEpisode && !nextKnownEpisode && { color: nothing.dim }]}>{swipeDirectionHint}</Text><AppIcon name="chevron-right" size={12} color={nextKnownEpisode ? nothing.muted : nothing.dim} /></View> : null}
         <View style={styles.th3Tabs}>
-          {providers.sub.length > 0 && providers.dub.length > 0 ? (["sub", "dub"] as Language[]).map((item) => { const active = language === item; return <Pressable key={item} accessibilityRole="tab" accessibilityLabel={`${item === "sub" ? "Subtitled" : "Dubbed"}${active ? " (selected)" : ""}`} accessibilityHint="Switch to this audio language" onPress={() => selectLanguage(item)} style={[styles.th3Tab, active && styles.th3TabActive]}><Text style={[styles.th3TabText, active && styles.th3TabTextActive]}>{item === "sub" ? "SUB" : "DUB"}</Text></Pressable>; }) : null}
+          {providers.sub.length > 0 && providers.dub.length > 0 ? (["sub", "dub"] as Language[]).map((item) => { const active = language === item; return <Pressable key={item} accessibilityRole="tab" accessibilityLabel={`${item === "sub" ? "Subtitled" : "Dubbed"}${active ? " (selected)" : ""}`} accessibilityHint="Switch to this audio language" onPress={() => selectLanguage(item)} style={[styles.th3Tab, active && styles.th3TabActive]}><Text style={[styles.th3TabText, active && styles.th3TabTextActive]}>{item === "sub" ? `SUB · ${languageTrack?.sub ?? providers.sub.length}` : `DUB · ${languageTrack?.dub ?? providers.dub.length}`}</Text></Pressable>; }) : null}
         </View>
         <View style={styles.th3Servers}>
-          {activeProviders.map((provider, index) => { const active = index === serverIndex; return <Pressable key={provider.id} accessibilityRole="button" accessibilityLabel={`Server: ${provider.label}${active ? " (selected)" : ""}`} accessibilityHint={active ? "Currently active server" : "Switch to this streaming server"} onPress={() => selectServer(index)} style={[styles.th3Server, active && styles.th3ServerActive]}><Text style={[styles.th3ServerText, active && styles.th3ServerTextActive]}>{provider.label}</Text></Pressable>; })}
+          {activeProviders.map((provider, index) => { const active = index === serverIndex; return <Pressable key={provider.id} accessibilityRole="button" accessibilityLabel={`Server: ${provider.label}${active ? " (selected)" : ""}`} accessibilityHint={active ? "Currently active server" : "Switch to this streaming server"} onPress={() => selectServer(index)} style={[styles.th3Server, active && styles.th3ServerActive]}><AppIcon name="layers" size={10} color={active ? nothing.white : nothing.muted} style={{ marginRight: 4 }} /><Text style={[styles.th3ServerText, active && styles.th3ServerTextActive]}>{provider.label}</Text></Pressable>; })}
         </View>
         <View style={styles.th3EpHead}>
           <Text style={styles.th3EpTitle}>{t("player.listOfEpisodes")}</Text>
@@ -2862,13 +2962,24 @@ export default function WatchScreen() {
     {/* ── Modal Pickers ── */}
     <Modal visible={activePanel === "speed"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>{t("player.playbackSpeed")}</Text>{[0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((val) => <Pressable key={val} style={[styles.modalItem, speed === val && styles.modalItemActive]} onPress={() => { setSpeed(val); lockedSpeed.current = val; setActivePanel(null); }}><Text style={[styles.modalItemText, speed === val && styles.modalItemTextActive]}>{val === 1.0 ? "1.0x (Normal)" : `${val}x`}</Text>{speed === val && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
 
-    <Modal visible={activePanel === "server"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>{t("player.selectServer")}</Text>{providers.sub.length > 0 && providers.dub.length > 0 ? <View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} onPress={() => selectLanguage(item)} style={[styles.language, language === item && styles.languageActive]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${providers.sub.length}` : `DUB · ${providers.dub.length}`}</Text></Pressable>)}</View> : null}
+    <Modal visible={activePanel === "server"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>{t("player.selectServer")}</Text>{providers.sub.length > 0 && providers.dub.length > 0 ? <View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} onPress={() => selectLanguage(item)} style={[styles.language, language === item && styles.languageActive]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${languageTrack?.sub ?? providers.sub.length}` : `DUB · ${languageTrack?.dub ?? providers.dub.length}`}</Text></Pressable>)}</View> : null}
       {selectableProviders.length ? selectableProviders.map(({ provider, index }) => <Pressable key={provider.id} onPress={() => { selectServer(index); setActivePanel(null); }} style={[styles.modalItem, index === serverIndex && styles.modalItemActive]}><Text style={[styles.modalItemText, index === serverIndex && styles.modalItemTextActive]}>{provider.label}</Text>{index === serverIndex && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>) : <Text style={styles.modalItemSub}>Looking for a working server…</Text>}</View></Pressable></Modal>
 
-    {/* Download quality picker: backend per-quality file links for this language */}
-    <Modal visible={activePanel === "download"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>DOWNLOAD · {language.toUpperCase()} · EP {episode}</Text>
-      {backendDownloadOptions.map((option) => <Pressable key={option.url} onPress={() => { void openBackendDownload(option); }} style={styles.modalItem}><View style={{ flex: 1 }}><Text style={styles.modalItemText}>{option.quality ?? option.label}</Text>{option.quality ? <Text style={styles.modalItemSub}>{option.label}</Text> : null}</View><Download size={18} color={nothing.muted} weight="bold" /></Pressable>)}
-    </View></Pressable></Modal>
+    {/* Download sheet: in-app quality picker → queue; progress lives in the
+        Downloads hub, never inline in the player. */}
+    <DownloadSheet
+      visible={downloadSheetOpen}
+      onClose={() => setDownloadSheetOpen(false)}
+      animeId={animeId}
+      episode={episode}
+      language={language}
+      title={title}
+      options={downloadOptions}
+      headers={stream?.headers ?? activeProvider?.headers}
+      currentQuality={requestedQuality}
+      onStarted={onDownloadStarted}
+      onError={onDownloadError}
+    />
 
     {/* Chapter List Modal */}
     <Modal visible={activePanel === "chapters" && !playerLocked} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.chapterModalSheet}>
@@ -2909,26 +3020,26 @@ export default function WatchScreen() {
 
 // ── Styles ──
 const ps = StyleSheet.create({
-  videoShellFullscreen: { position: "absolute", zIndex: 50, elevation: 50, top: 0, right: 0, bottom: 0, left: 0, width: "100%", height: "100%", aspectRatio: undefined, backgroundColor: "#000000", justifyContent: "center" },
+  videoShellFullscreen: { position: "absolute", zIndex: 50, elevation: 50, top: 0, right: 0, bottom: 0, left: 0, width: "100%", height: "100%", aspectRatio: undefined, backgroundColor: nothing.black, justifyContent: "center" },
   settingsOverlay: { position: "absolute", zIndex: 4, top: 6, right: 6, bottom: 6, width: 240, maxWidth: "76%", borderRadius: 4, backgroundColor: "rgba(9,9,9,0.92)", overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
   settingsHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
-  settingsHeaderText: { color: "#FFF", fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
+  settingsHeaderText: { color: nothing.white, fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
   settingsContent: { padding: 8, paddingBottom: 10, gap: 1 },
-  sectionLabel: { color: "#FF4D4D", fontSize: 9, fontWeight: "800", letterSpacing: 0.8, marginTop: 6, marginBottom: 2, textTransform: "uppercase" },
+  sectionLabel: { color: nothing.red, fontSize: 9, fontWeight: "800", letterSpacing: 0.8, marginTop: 6, marginBottom: 2, textTransform: "uppercase" },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 2 },
   chip: { minHeight: 26, paddingHorizontal: 8, borderRadius: 3, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", backgroundColor: "transparent", alignItems: "center", justifyContent: "center" },
   chipActive: { backgroundColor: nothing.red, borderColor: nothing.red },
   chipText: { color: "rgba(255,255,255,0.7)", fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
-  chipTextActive: { color: "#FFFFFF", fontSize: 10, fontWeight: "700" },
+  chipTextActive: { color: nothing.white, fontSize: 10, fontWeight: "700" },
   emptyLine: { color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: "500" },
   infoRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" },
   infoLabel: { color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: "600" },
   infoValue: { color: "rgba(255,255,255,0.8)", fontSize: 10, fontWeight: "700" },
   diagnosticLine: { color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: "600", letterSpacing: 0.3, marginTop: 6 },
   offsetValue: { minHeight: 26, paddingHorizontal: 10, borderRadius: 3, borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.05)" },
-  offsetValueText: { color: "#FFFFFF", fontSize: 11, fontWeight: "800", fontVariant: ["tabular-nums"], letterSpacing: 0.3 },
+  offsetValueText: { color: nothing.white, fontSize: 11, fontWeight: "800", fontVariant: ["tabular-nums"], letterSpacing: 0.3 },
   reportButton: { minHeight: 30, marginTop: 10, borderRadius: 3, borderWidth: 1, borderColor: "rgba(255,77,77,0.55)", alignItems: "center", justifyContent: "center" },
-  reportButtonText: { color: "#FF4D4D", fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+  reportButtonText: { color: nothing.red, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
 });
 
 const styles = StyleSheet.create({
@@ -2940,7 +3051,7 @@ const styles = StyleSheet.create({
   topCopy: { flex: 1, gap: 2 },
   title: { color: nothing.white, fontSize: 18, fontWeight: "900", lineHeight: 22, letterSpacing: -0.5 },
   episodeLabel: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.8 },
-  videoShell: { width: "100%", aspectRatio: 16 / 9, backgroundColor: "#000000", overflow: "hidden", position: "relative" },
+  videoShell: { width: "100%", aspectRatio: 16 / 9, backgroundColor: nothing.black, overflow: "hidden", position: "relative" },
   video: { flex: 1 },
   gestureOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 2 },
   embedChrome: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 5, flexDirection: "row", alignItems: "center", paddingHorizontal: 10, paddingVertical: 8, backgroundColor: "rgba(0,0,0,0.55)" },
@@ -2955,13 +3066,16 @@ const styles = StyleSheet.create({
   embedBottomLabel: { color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: "700", letterSpacing: 0.3 },
   miniProgress: { position: "absolute", left: 0, right: 0, bottom: 0, height: 2, backgroundColor: "rgba(255,255,255,0.22)", zIndex: 2 },
   miniProgressBuffered: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.35)" },
-  miniProgressPlayed: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "#FF4D4D" },
+  miniProgressPlayed: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: nothing.red },
   statusToast: { position: "absolute", bottom: 28, alignSelf: "center", zIndex: 14, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 8, backgroundColor: "rgba(0,0,0,0.82)", borderWidth: 1, borderColor: "rgba(255,255,255,0.14)" },
-  statusToastText: { color: "#FFF", fontSize: 11, fontWeight: "600", letterSpacing: 0.2 },
+  statusToastText: { color: nothing.white, fontSize: 11, fontWeight: "600", letterSpacing: 0.2 },
   subtitleWrapper: { ...StyleSheet.absoluteFillObject, justifyContent: "flex-end", alignItems: "center", paddingBottom: 68, zIndex: 1 },
   subtitleWrapperWithControls: { paddingBottom: 144 },
   subtitleWrapperFullscreen: { paddingBottom: 24 },
-  controlsBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: 3, justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 6 },
+  // Translucent backdrop so the control layer over ExoPlayer's SurfaceView
+  // doesn't render as a black overlay on Android (transparent overlays over
+  // SurfaceView render black on many devices).
+  controlsBackdrop: { ...StyleSheet.absoluteFillObject, zIndex: 3, justifyContent: "space-between", paddingHorizontal: 8, paddingVertical: 6, backgroundColor: "rgba(0,0,0,0.35)" },
   controlsBackdropFullscreen: { paddingHorizontal: 20, paddingVertical: 12 },
   // Edge scrims stay light on purpose: readability bands only, never a veil
   // over the picture. They mount solely with the chrome and unmount with it.
@@ -2970,7 +3084,7 @@ const styles = StyleSheet.create({
   scrimBottomMain: { position: "absolute", bottom: 0, left: 0, right: 0, height: 80, backgroundColor: "rgba(0,0,0,0.22)" },
   scrimBottomSoft: { position: "absolute", bottom: 0, left: 0, right: 0, height: 110, backgroundColor: "rgba(0,0,0,0.10)" },
   topBar: { flexDirection: "row", alignItems: "center", flexWrap: "nowrap", width: "100%" },
-  playerTitle: { flex: 1, flexShrink: 1, color: "#FFF", fontSize: 13, fontWeight: "600", marginLeft: 8, marginRight: 6 },
+  playerTitle: { flex: 1, flexShrink: 1, color: nothing.white, fontSize: 13, fontWeight: "600", marginLeft: 8, marginRight: 6 },
   topRightRow: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
   iconButton: { width: 30, height: 30, padding: 2, justifyContent: "center", alignItems: "center", flexShrink: 0 },
   iconButtonActive: { backgroundColor: "rgba(255,77,77,0.15)", borderRadius: 4 },
@@ -2980,12 +3094,12 @@ const styles = StyleSheet.create({
   subPillBadgeText: { color: nothing.black, fontSize: 10, fontWeight: "800", letterSpacing: 0.2, textTransform: "uppercase" },
   bottomDeck: { gap: 3, width: "100%" },
   timelineRow: { flexDirection: "row", alignItems: "center", gap: 4, width: "100%" },
-  timeLabel: { color: "#FFF", fontSize: 11, fontWeight: "600", minWidth: 34, textAlign: "center", flexShrink: 0, fontVariant: ["tabular-nums"] },
+  timeLabel: { color: nothing.white, fontSize: 11, fontWeight: "600", minWidth: 34, textAlign: "center", flexShrink: 0, fontVariant: ["tabular-nums"] },
   progressBarTrack: { flex: 1, height: 16, justifyContent: "center" },
   progressBuffered: { position: "absolute", height: 2, backgroundColor: "rgba(255,255,255,0.45)", borderRadius: 1 },
   progressPlayed: { position: "absolute", height: 2, backgroundColor: nothing.red, borderRadius: 1 },
   progressTrackThick: { height: 3, borderRadius: 1.5 },
-  scrubberKnob: { position: "absolute", width: 10, height: 10, borderRadius: 5, backgroundColor: "#FFF", marginLeft: -5, top: 3, elevation: 3 },
+  scrubberKnob: { position: "absolute", width: 10, height: 10, borderRadius: 5, backgroundColor: nothing.white, marginLeft: -5, top: 3, elevation: 3 },
   scrubberKnobActive: { width: 14, height: 14, borderRadius: 7, marginLeft: -7, top: 1 },
   dragPreview: { position: "absolute", top: -28, marginLeft: -24, backgroundColor: "rgba(0,0,0,0.85)", borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
   dragPreviewText: { color: nothing.white, fontSize: 11, fontWeight: "700", fontVariant: ["tabular-nums"] },
@@ -2996,33 +3110,36 @@ const styles = StyleSheet.create({
   railBtn: { width: 32, height: 32, justifyContent: "center", alignItems: "center", flexShrink: 0 },
   railBtnDisabled: { opacity: 0.35 },
   downloadBtn: { width: 32, height: 32, justifyContent: "center", alignItems: "center", flexShrink: 0, gap: 0 },
-  bigPlayButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: "#FFF", justifyContent: "center", alignItems: "center", flexShrink: 0, marginHorizontal: 4 },
+  bigPlayButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: nothing.white, justifyContent: "center", alignItems: "center", flexShrink: 0, marginHorizontal: 4 },
   bigPlayButtonFullscreen: { width: 56, height: 56, borderRadius: 28 },
   hudBadge: { position: "absolute", top: 20, alignSelf: "center", backgroundColor: "rgba(0,0,0,0.75)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 5, zIndex: 10 },
   hudPill: { position: "absolute", alignSelf: "center", backgroundColor: "rgba(0,0,0,0.8)", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 8, zIndex: 10 },
-  hudText: { color: "#FFF", fontSize: 12, fontWeight: "700" },
+  hudText: { color: nothing.white, fontSize: 12, fontWeight: "700" },
   doubleTapOverlay: { position: "absolute", top: "32%", alignItems: "center", justifyContent: "center", zIndex: 12 },
-  doubleTapText: { color: "#FFF", fontSize: 12, fontWeight: "800", marginTop: 3 },
-  chapterMarker: { position: "absolute", height: 2, backgroundColor: "#FFD600", borderRadius: 1, top: 7 },
-  skipButtonOverlay: { position: "absolute", bottom: 120, right: 12, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, flexDirection: "row", alignItems: "center", gap: 4, zIndex: 15, elevation: 6, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 8 },
+  doubleTapText: { color: nothing.white, fontSize: 12, fontWeight: "800", marginTop: 3 },
+  chapterMarker: { position: "absolute", height: 2, backgroundColor: nothing.white, borderRadius: 1, top: 7 },
+  skipButtonOverlay: { position: "absolute", bottom: 120, right: 12, backgroundColor: "rgba(255,255,255,0.92)", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, flexDirection: "row", alignItems: "center", gap: 4, zIndex: 15, elevation: 6, shadowColor: nothing.black, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 8 },
   upNextCard: { position: "absolute", bottom: 120, right: 12, zIndex: 15, elevation: 6, flexDirection: "row", gap: 8, alignItems: "center", maxWidth: 260, backgroundColor: "rgba(9,9,9,0.88)", borderRadius: 8, padding: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
   upNextPoster: { width: 44, height: 62, borderRadius: 4, backgroundColor: nothing.raised },
   upNextCopy: { flex: 1, gap: 3 },
   upNextKicker: { color: nothing.red, fontSize: 10, fontWeight: "800", letterSpacing: 0.6, fontVariant: ["tabular-nums"] },
-  upNextTitle: { color: "#FFF", fontSize: 12, fontWeight: "700" },
+  upNextTitle: { color: nothing.white, fontSize: 12, fontWeight: "700" },
   upNextRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   upNextPlay: { minHeight: 30, paddingHorizontal: 10, justifyContent: "center", borderRadius: 4, backgroundColor: nothing.red },
-  upNextPlayText: { color: "#FFF", fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
+  upNextPlayText: { color: nothing.white, fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
   upNextDismiss: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 4 },
   skipButtonText: { color: nothing.black, fontSize: 11, fontWeight: "800", letterSpacing: 0.3, textTransform: "uppercase" },
   skipCountdown: { color: nothing.muted, fontSize: 11, fontWeight: "700", letterSpacing: 0.2 },
   lockedPill: { position: "absolute", bottom: 32, alignSelf: "center", backgroundColor: "rgba(0,0,0,0.8)", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)", zIndex: 15 },
   lockedPillArmed: { borderColor: nothing.red },
-  bufferingVeil: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", zIndex: 2 },
-  lockedText: { color: "#FFF", fontSize: 11, fontWeight: "600" },
+  // Transparent overlays over ExoPlayer's SurfaceView render black on Android
+  // during buffering — an explicit backdrop keeps the veil from reading as a
+  // dead black screen.
+  bufferingVeil: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", zIndex: 2, backgroundColor: "rgba(0,0,0,0.40)" },
+  lockedText: { color: nothing.white, fontSize: 11, fontWeight: "600" },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.8)", justifyContent: "flex-end" },
   modalSheet: { backgroundColor: "rgba(9,9,9,0.96)", borderTopLeftRadius: 2, borderTopRightRadius: 2, padding: 14, gap: 1, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)" },
-  modalTitle: { color: "#FFF", fontSize: 12, fontWeight: "800", letterSpacing: 0.3, marginBottom: 4, textTransform: "uppercase" },
+  modalTitle: { color: nothing.white, fontSize: 12, fontWeight: "800", letterSpacing: 0.3, marginBottom: 4, textTransform: "uppercase" },
   modalItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" },
   modalItemActive: { backgroundColor: "rgba(255,77,77,0.06)" },
   modalItemText: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600" },
@@ -3045,8 +3162,8 @@ const styles = StyleSheet.create({
   chapterDuration: { color: nothing.dim, fontSize: 9, fontWeight: "600", fontVariant: ["tabular-nums"] },
   chapterEmptyText: { color: nothing.muted, fontSize: 11, textAlign: "center", paddingVertical: 12 },
   contextActions: { alignSelf: "flex-end", alignItems: "flex-end", gap: 4 },
-  videoPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: "#090909" },
-  thumbnailLoading: { ...StyleSheet.absoluteFillObject, overflow: "hidden", justifyContent: "flex-end", backgroundColor: "#090909" },
+  videoPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: nothing.black },
+  thumbnailLoading: { ...StyleSheet.absoluteFillObject, overflow: "hidden", justifyContent: "flex-end", backgroundColor: nothing.black },
   thumbnailLoadingShade: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.32)" },
   thumbnailLoadingContent: { zIndex: 1, gap: 6, padding: 14, paddingTop: 48, backgroundColor: "rgba(9,9,9,0.68)" },
   thumbnailPlay: { width: 34, height: 34, alignItems: "center", justifyContent: "center", backgroundColor: nothing.white, borderRadius: 4 },
@@ -3055,7 +3172,6 @@ const styles = StyleSheet.create({
   thumbnailStatus: { color: nothing.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
   placeholderText: { color: nothing.muted, fontSize: 11, fontWeight: "700", letterSpacing: 0.8 },
   errorText: { color: nothing.red, fontSize: 11, fontWeight: "600", textAlign: "center", paddingHorizontal: 20 },
-  playerOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 3, justifyContent: "space-between", padding: 8 },
   pointerBoxNone: { pointerEvents: "box-none" },
   pointerNone: { pointerEvents: "none" },
   th3Section: { gap: 10 },
@@ -3068,23 +3184,24 @@ const styles = StyleSheet.create({
   th3TabText: { color: nothing.muted, fontSize: 14, fontWeight: "700" },
   th3TabTextActive: { color: nothing.red, fontWeight: "900" },
   th3TabTextEmpty: { color: nothing.dim },
-  th3Servers: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingVertical: 4, marginHorizontal: 14 },
-  th3Server: { minHeight: 32, paddingHorizontal: 14, justifyContent: "center", borderRadius: 16, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
+  th3Servers: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingVertical: 4, marginHorizontal: 14 },
+  th3Server: { flexDirection: "row", alignItems: "center", minHeight: 28, paddingHorizontal: 10, justifyContent: "center", borderRadius: 14, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
   th3ServerActive: { backgroundColor: nothing.red, borderColor: nothing.red },
-  th3ServerText: { color: nothing.muted, fontSize: 12, fontWeight: "700" },
-  th3ServerTextActive: { color: nothing.black, fontWeight: "900" },
+  th3ServerText: { color: nothing.muted, fontSize: 11, fontWeight: "700", marginLeft: 2 },
+  th3ServerTextActive: { color: nothing.white, fontWeight: "900" },
   th3EpHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   th3EpTitle: { color: nothing.white, fontSize: 16, fontWeight: "900", letterSpacing: -0.4 },
   th3EpSearch: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, height: 34, minWidth: 140, borderWidth: 1, borderColor: nothing.line, borderRadius: 8, backgroundColor: nothing.surface },
   th3EpSearchInput: { flex: 1, color: nothing.white, fontSize: 12, paddingVertical: 0 },
   th3EpsRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   th3EpsText: { color: nothing.red, fontFamily: nothing.mono, fontSize: 11, fontWeight: "900", letterSpacing: 0.4 },
-  th3Grid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  th3EpBtn: { width: 56, height: 56, alignItems: "center", justifyContent: "center", borderRadius: 8, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface, overflow: "hidden" },
-  th3EpBtnActive: { backgroundColor: nothing.red, borderColor: nothing.red },
-  th3EpBtnText: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 13, fontWeight: "800", zIndex: 1 },
-  th3EpBtnTextActive: { color: nothing.black, fontWeight: "900" },
-  th3EpBtnFiller: { color: nothing.muted },
+  th3EpRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.03)", backgroundColor: nothing.surface },
+  th3EpRowActive: { backgroundColor: "rgba(255,77,77,0.10)", borderBottomColor: "rgba(255,77,77,0.35)" },
+  th3EpRowNumber: { minWidth: 34, color: nothing.muted, fontFamily: nothing.mono, fontSize: 12, fontWeight: "800", textAlign: "center" },
+  th3EpRowText: { color: nothing.white, fontSize: 13, fontWeight: "600", flex: 1 },
+  th3EpRowTextActive: { color: nothing.red, fontWeight: "800" },
+  th3EpRowFiller: { color: nothing.dim },
+  th3EpRowDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: nothing.red },
   resumeBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: "rgba(0,0,0,0.7)" },
   resumeBtnText: { color: nothing.white, fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
   lockedRow: { flex: 1, alignItems: "flex-end", justifyContent: "center" },
@@ -3111,7 +3228,7 @@ const styles = StyleSheet.create({
   ratingChoice: { flex: 1, height: 28, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 3 },
   ratingChoiceActive: { backgroundColor: nothing.red, borderColor: nothing.red },
   ratingChoiceText: { color: "rgba(255,255,255,0.4)", fontFamily: nothing.mono, fontSize: 9, fontWeight: "900" },
-  ratingChoiceTextActive: { color: "#FFFFFF" },
+  ratingChoiceTextActive: { color: nothing.white },
   languageRow: { flexDirection: "row", gap: 4 },
   language: { minWidth: 48, minHeight: 28, alignItems: "center", justifyContent: "center", paddingHorizontal: 8, borderRadius: 3, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", backgroundColor: "transparent" },
   languageActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.06)" },
@@ -3126,35 +3243,37 @@ const styles = StyleSheet.create({
 
 // Memoized: the watch screen re-renders every second (progress clock), and
 // re-diffing 50+ episode buttons per tick was the largest avoidable cost.
-// Track 5.2: FlatList virtualization when total episodes > 100 (e.g. One Piece).
+// Track 5.2: Compact single-column episode list. The old 56×56 square grid
+// collapsed into a thick block for long-running shows (50+ eps). Rows are
+// full-width, ~44 px tall, with the active episode highlighted and filler
+// dimmed — minimal, scannable, works at any episode count.
 const EpisodeGrid = memo(function EpisodeGrid({ episodes, activeEpisode, totalPages, page, onPageChange, onSelect, onInfo, totalEpisodeCount = 0 }: { episodes: Episode[]; activeEpisode: number; totalPages: number; page: number; onPageChange: (update: (value: number) => number) => void; onSelect: (n: number) => void; onInfo: (n: number) => void; totalEpisodeCount?: number }) {
-  // For shows with >100 total episodes, use a virtualized FlatList for the
-  // grid to avoid diffing hundreds of buttons per tick. Small episode counts
-  // keep the cheaper View.map path.
+  const renderRow = (item: Episode) => {
+    const active = item.number === activeEpisode;
+    return <Pressable key={item.number} accessibilityRole="button" accessibilityLabel={`Episode ${item.number}${item.title ? `: ${item.title}` : ""}`} accessibilityHint={active ? "Currently playing" : "Double tap to play this episode"} onPress={() => onSelect(item.number)} onLongPress={() => onInfo(item.number)} style={[styles.th3EpRow, active && styles.th3EpRowActive]}>
+      <View style={styles.th3EpRowNumber}>{item.number}</View>
+      <Text style={[styles.th3EpRowText, active ? styles.th3EpRowTextActive : item.isFiller ? styles.th3EpRowFiller : null]}>{item.title ? `Episode ${item.number} · ${item.title}` : `Episode ${item.number}`}</Text>
+      {active && <View style={styles.th3EpRowDot} />}
+    </Pressable>;
+  };
+  // For shows with >100 total episodes, use a virtualized FlatList so the list
+  // stays fluid. Small episode counts keep the cheaper View.map path.
   if (totalEpisodeCount > 100) {
     return <>
       <FlatList
         data={episodes}
         keyExtractor={(item) => String(item.number)}
-        numColumns={5}
         scrollEnabled={false}
         windowSize={3}
         maxToRenderPerBatch={8}
         removeClippedSubviews
-        renderItem={({ item }) => {
-          const active = item.number === activeEpisode;
-          return <Pressable key={item.number} accessibilityRole="button" accessibilityLabel={`Episode ${item.number}${item.title ? `: ${item.title}` : ""}`} accessibilityHint={active ? "Currently playing" : "Double tap to play this episode"} onPress={() => onSelect(item.number)} onLongPress={() => onInfo(item.number)} style={[styles.th3EpBtn, active && styles.th3EpBtnActive]}>
-            <Text style={[styles.th3EpBtnText, active ? styles.th3EpBtnTextActive : item.isFiller ? styles.th3EpBtnFiller : null]}>{item.number}</Text>
-          </Pressable>;
-        }}
+        renderItem={({ item }) => renderRow(item)}
       />
       {totalPages > 1 ? <View style={styles.episodePager}><Pressable disabled={page === 0} onPress={() => onPageChange((v) => Math.max(0, v - 1))} accessibilityRole="button" accessibilityLabel="Previous page" accessibilityHint="Shows the previous page of episodes" style={[styles.episodePagerButton, page === 0 && styles.episodePagerDisabled]}><AppIcon name="chevron-left" size={17} color={nothing.white} /><Text style={styles.episodePagerText}>PREV</Text></Pressable><Text style={styles.episodePagerIndicator}>{page + 1} / {totalPages}</Text><Pressable disabled={page >= totalPages - 1} onPress={() => onPageChange((v) => Math.min(totalPages - 1, v + 1))} accessibilityRole="button" accessibilityLabel="Next page" accessibilityHint="Shows the next page of episodes" style={[styles.episodePagerButton, page >= totalPages - 1 && styles.episodePagerDisabled]}><Text style={styles.episodePagerText}>NEXT</Text><AppIcon name="chevron-right" size={17} color={nothing.white} /></Pressable></View> : null}
     </>;
   }
   return <>
-    <View style={styles.th3Grid}>{episodes.map((item) => { const active = item.number === activeEpisode; return <Pressable key={item.number} accessibilityRole="button" accessibilityLabel={`Episode ${item.number}${item.title ? `: ${item.title}` : ""}`} accessibilityHint={active ? "Currently playing" : "Double tap to play this episode"} onPress={() => onSelect(item.number)} onLongPress={() => onInfo(item.number)} style={[styles.th3EpBtn, active && styles.th3EpBtnActive]}>
-      <Text style={[styles.th3EpBtnText, active ? styles.th3EpBtnTextActive : item.isFiller ? styles.th3EpBtnFiller : null]}>{item.number}</Text>
-    </Pressable>; })}</View>
+    {episodes.map(renderRow)}
     {totalPages > 1 ? <View style={styles.episodePager}><Pressable disabled={page === 0} onPress={() => onPageChange((v) => Math.max(0, v - 1))} accessibilityRole="button" accessibilityLabel="Previous page" accessibilityHint="Shows the previous page of episodes" style={[styles.episodePagerButton, page === 0 && styles.episodePagerDisabled]}><AppIcon name="chevron-left" size={17} color={nothing.white} /><Text style={styles.episodePagerText}>PREV</Text></Pressable><Text style={styles.episodePagerIndicator}>{page + 1} / {totalPages}</Text><Pressable disabled={page >= totalPages - 1} onPress={() => onPageChange((v) => Math.min(totalPages - 1, v + 1))} accessibilityRole="button" accessibilityLabel="Next page" accessibilityHint="Shows the next page of episodes" style={[styles.episodePagerButton, page >= totalPages - 1 && styles.episodePagerDisabled]}><Text style={styles.episodePagerText}>NEXT</Text><AppIcon name="chevron-right" size={17} color={nothing.white} /></Pressable></View> : null}
   </>;
 });

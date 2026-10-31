@@ -32,6 +32,15 @@ EXPO_PUBLIC_API_BASE_URL=
 EXPO_PUBLIC_MAL_CLIENT_ID=
 ```
 
+Optional: `EXPO_PUBLIC_SEGMENT_POOL=1` enables the parallel segment pool (the
+native twin of the website's hlsPrefetch) — it is **off in production builds
+by default** and enabled only in the eas `preview` profile; do not ship it
+enabled without checking backend load.
+
+The native Android modules under `modules/` (offline downloads, segment pool)
+autolink from the directory convention and require a prebuild (`pnpm android`)
+— they do not exist in Expo Go.
+
 Run the app:
 
 ```bash

@@ -1,0 +1,4 @@
+In-app offline downloads: pick a quality, save the episode, watch it offline.
+Themed in-app dialogs and toasts replace every system popup.
+Terms acceptance gate, email typo hints, resend cooldown, account data export.
+Download links to external sites removed.

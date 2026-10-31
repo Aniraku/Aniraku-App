@@ -41,8 +41,9 @@ export function SubtitleRenderer({ cues, preferences }: Props) {
             style={[
               styles.cueText,
               {
-                fontSize: preferences.fontSize,
                 fontFamily,
+                fontSize: preferences.fontSize,
+                lineHeight: Math.round(preferences.fontSize * 1.4),
                 textShadowRadius: outline,
               },
             ]}
@@ -73,7 +74,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     textAlign: "center",
     fontWeight: "700",
-    lineHeight: 20,
     textShadowColor: "rgba(0,0,0,0.9)",
     textShadowOffset: { width: 0, height: 1 },
   },

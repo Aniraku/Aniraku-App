@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.7.9"
+        default: "v5.8.0"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -170,26 +170,31 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.7.9 — App-styled popups, trending quick actions, gesture fixes
+            ## v5.8.0 — In-app offline downloads
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures.
 
-            - `aniraku-v5.7.9-arm64.apk`
-            - `aniraku-v5.7.9-arm32.apk`
-            - `aniraku-v5.7.9-universal.apk`
+            - `aniraku-v5.8.0-arm64.apk`
+            - `aniraku-v5.8.0-arm32.apk`
+            - `aniraku-v5.8.0-universal.apk`
+
+            ### Added
+            - **In-app offline downloads**: open the download sheet on any episode, pick a quality (real renditions with estimated sizes), and the episode saves to app-private storage as an offline bundle — playlist, segments, and key — that plays in the player with no network. Downloads run in a background service with a progress notification and are managed from the Downloads hub (Wi-Fi-only switch, storage quota, retry, delete).
+            - **"DL" badges** on episode rows and a Downloads hub with used/free storage.
+            - **Terms & Privacy consent gate** with versioned re-consent; acceptance is recorded on device.
+            - **Account data export** in Settings — everything Aniraku stores about you, as one JSON file you can share or save.
+            - **Email typo hints** at sign-up/sign-in (client-side only), a 60-second resend cooldown on verification emails, and a Terms checkbox at sign-up.
 
             ### Changed
-            - **Themed pickers everywhere**: the save-to-list picker, the Saved-tab change-status picker, and the NSFW age-verification prompt in Settings now render as in-app "nothing"-styled bottom sheets instead of stock Android alert dialogs. Tap the backdrop to dismiss.
-            - **Home Trending quick actions**: long-press a trending card for a minimal overlay — Save to My List (opens the list picker; already-saved titles offer Remove) or Watch (resumes your progress, else episode 1).
+            - **Themed dialogs and toasts everywhere**: every delete/remove/report confirmation and error notice now renders in-app in the house style instead of stock Android alert popups. Failed actions offer an inline RETRY.
+            - **Report broken source** now opens a themed confirmation before sharing the report.
 
-            ### Fixed
-            - **Accidental double-tap seeks**: a gesture cancelled mid-touch (finger drifting sideways, or a 2x-hold drifting off) left a stale tap behind — the next tap could fire an unintended ±10s jump. The tap chain now resets on every cancelled gesture.
-            - **Episode grid stuck mid-swipe**: swiping episodes with the touch stolen (call, notification) could leave the grid parked off-center. A terminate handler now springs it back.
-            - **Pre-load seeks**: double-tap seeking before the video's duration was known sought against a fake 999999s ceiling; those taps are now ignored until the video is ready.
+            ### Removed
+            - **External download links are gone**: episodes that cannot be saved in-app show a clear reason instead of a browser link.
 
             ### Housekeeping
-            - tsc clean; tests green; ESLint 0 errors / 69 warnings (at baseline).
-            - Android versionCode: 76.
+            - tsc clean; 297 tests green; ESLint 0 errors.
+            - Android versionCode: 77.
 
             Download the APK, install, and allow *install from unknown sources* if prompted.
           files: ./artifacts/*.apk

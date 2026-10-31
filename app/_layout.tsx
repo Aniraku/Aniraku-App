@@ -13,8 +13,9 @@ import { AppUpdatePrompt } from "@/components/app-update-prompt";
 import { SupportPrompt } from "@/components/support-prompt";
 import { AniListDownBanner } from "@/components/anilist-down-banner";
 import { AnnouncementBanner } from "@/components/announcement-banner";
-import { ChoiceSheetProvider } from "@/components/choice-sheet";
+import { ChoiceSheetProvider, ThemedDialogProvider, ThemedToastProvider } from "@/components/choice-sheet";
 import { FirstRunOnboarding } from "@/components/first-run-onboarding";
+import { ConsentGate } from "@/components/consent-sheet";
 import { useStartupPrefetch } from "@/hooks/use-startup-prefetch";
 import { AiringReminderScheduler } from "@/hooks/use-airing-reminders";
 
@@ -53,7 +54,7 @@ export default function RootLayout() {
     return <GestureHandlerRootView style={{ flex: 1, backgroundColor: nothing.black }}><StatusBar style="light" translucent backgroundColor="transparent" /><View style={{ flex: 1, backgroundColor: nothing.black }} /></GestureHandlerRootView>;
   }
 
-  return <GestureHandlerRootView style={{ flex: 1, backgroundColor: nothing.black }}><SafeAreaProvider><AppProviders><ChoiceSheetProvider><StartupPrefetcher /><AiringReminderScheduler /><StatusBar style="light" translucent backgroundColor="transparent" /><Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: nothing.black } }}><Stack.Screen name="(tabs)" /><Stack.Screen name="anime/[id]" /><Stack.Screen name="watch/[id]" /><Stack.Screen name="search" options={{ presentation: "card" }} /><Stack.Screen name="auth" options={{ presentation: "modal" }} /><Stack.Screen name="settings" options={{ presentation: "modal" }} /><Stack.Screen name="support" options={{ presentation: "modal" }} /><Stack.Screen name="library" /><Stack.Screen name="legal" options={{ presentation: "modal" }} /></Stack><ConnectivitySignal /><AppUpdatePrompt /><SupportPrompt /><AniListDownBanner /><AnnouncementBanner /><FirstRunOnboarding onComplete={() => {}} /></ChoiceSheetProvider></AppProviders></SafeAreaProvider></GestureHandlerRootView>;
+  return <GestureHandlerRootView style={{ flex: 1, backgroundColor: nothing.black }}><SafeAreaProvider><AppProviders><ChoiceSheetProvider><ThemedDialogProvider><ThemedToastProvider><StartupPrefetcher /><AiringReminderScheduler /><StatusBar style="light" translucent backgroundColor="transparent" /><Stack screenOptions={{ headerShown: false, animation: "fade", contentStyle: { backgroundColor: nothing.black } }}><Stack.Screen name="(tabs)" /><Stack.Screen name="anime/[id]" /><Stack.Screen name="watch/[id]" /><Stack.Screen name="search" options={{ presentation: "card" }} /><Stack.Screen name="auth" options={{ presentation: "modal" }} /><Stack.Screen name="settings" options={{ presentation: "modal" }} /><Stack.Screen name="support" options={{ presentation: "modal" }} /><Stack.Screen name="library" /><Stack.Screen name="legal" options={{ presentation: "modal" }} /></Stack><ConnectivitySignal /><AppUpdatePrompt /><SupportPrompt /><AniListDownBanner /><AnnouncementBanner /><FirstRunOnboarding onComplete={() => {}} /><ConsentGate /></ThemedToastProvider></ThemedDialogProvider></ChoiceSheetProvider></AppProviders></SafeAreaProvider></GestureHandlerRootView>;
 }
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {

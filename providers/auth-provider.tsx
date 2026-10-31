@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Session, User } from "@supabase/supabase-js";
 import { AppState } from "react-native";
 import { supabase } from "@/lib/supabase";
+import { unregisterPushTokens } from "@/lib/push-notifications";
 import { serverUserCanStartSession, sessionIsVerified } from "@/lib/auth-session";
 import { ANIRAKU_AUTH_REDIRECT_URL } from "@/lib/auth-redirect";
 import { defaultAvatar } from "@/lib/aniraku-avatars";
@@ -199,10 +200,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const signOut = useCallback(async () => {
     sessionValidation.current += 1;
+    // Stop push delivery BEFORE the session dies — the token rows were never
+    // unregistered, so the backend kept notifying a signed-out account.
+    const userId = session?.user?.id;
+    if (userId) await unregisterPushTokens(userId);
     await supabase.auth.signOut().catch(() => {});
     setSession(null);
     setProfile(null);
-  }, []);
+  }, [session?.user?.id]);
 
   const value = useMemo<AuthState>(() => ({
     session,

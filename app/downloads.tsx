@@ -1,9 +1,10 @@
 import { useEffect, useMemo } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { NetworkStateType, useNetworkState } from "expo-network";
 import { useDownloadQueue, useOfflineDownloads } from "@/hooks/use-downloads";
+import { showThemedDialog, showThemedToast } from "@/components/choice-sheet";
 import { useDownloadSettings } from "@/hooks/use-download-settings";
 import { useWatchHistory } from "@/hooks/use-watch-history";
 import { EmptyState, ErrorState, LoadingState } from "@/components/async-state";
@@ -70,13 +71,17 @@ export default function DownloadsScreen() {
   const overQuota = quotaBytes > 0 && prefs.usedBytes >= quotaBytes;
 
   const confirmRemove = (entry: OfflineDownload) => {
-    Alert.alert("Delete download?", `${entry.title} · EP ${entry.episode} will be removed from this device.`, [
-      { text: "KEEP", style: "cancel" },
-      { text: "DELETE", style: "destructive", onPress: () => void saved.remove(entry).catch(() => {
-        Alert.alert("Could not delete", "That file is still on disk. Try again in a moment.");
+    showThemedDialog({
+      kicker: "DELETE",
+      title: "Delete download?",
+      message: `${entry.title} · EP ${entry.episode} will be removed from this device.`,
+      confirmLabel: "DELETE",
+      destructive: true,
+      onConfirm: () => void saved.remove(entry).catch(() => {
+        showThemedToast({ message: "Could not delete — that file is still on disk.", tone: "error", actionLabel: "RETRY", onAction: () => confirmRemove(entry) });
         void saved.refresh();
-      }) },
-    ]);
+      }),
+    });
   };
 
   const openEpisode = (animeId: number, episode: number, title: string, image: string) =>
@@ -85,7 +90,7 @@ export default function DownloadsScreen() {
   const renderJob = (job: OfflineDownloadJob) => {
     const poster = posterByAnimeId.get(job.animeId) ?? "";
     const label = jobStatusLabel(job);
-    const tone = job.state === "failed" || job.hold ? "signal" : job.state === "done" ? "muted" : "live";
+    const tone = job.state === "downloading" ? "live" : "muted";
     return (
       <View key={job.id} style={styles.job}>
         {poster ? (
@@ -96,9 +101,9 @@ export default function DownloadsScreen() {
         <View style={styles.rowBody}>
           <Signal label={`EP ${job.episode} · ${job.quality.toUpperCase()}`} tone={tone} />
           <Text style={styles.rowTitle} numberOfLines={1}>{job.title}</Text>
-          <Text style={[styles.rowMeta, (job.state === "failed" || job.hold) && styles.rowMetaAlert]}>{label}</Text>
+          <Text style={[styles.rowMeta, (job.state === "failed" || job.hold) && styles.rowMetaAlert]}>{label}{job.state === "downloading" && job.receivedBytes > 0 ? ` · ${formatBytes(job.receivedBytes)}${job.totalBytes > 0 ? ` / ${formatBytes(job.totalBytes)}` : ""}` : ""}</Text>
           {job.state === "downloading" ? (
-            <View style={styles.progressTrack}>
+            <View style={styles.progressTrack} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(Math.min(1, Math.max(0, job.progress)) * 100) }} accessibilityLabel={`${job.title} episode ${job.episode} download progress`}>
               <View style={[styles.progress, { width: `${Math.round(Math.min(1, Math.max(0, job.progress)) * 100)}%` }]} />
             </View>
           ) : null}
@@ -106,16 +111,16 @@ export default function DownloadsScreen() {
         </View>
         <View style={styles.jobActions}>
           {job.state === "failed" ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={`Retry ${job.title}`} onPress={() => retryDownloadJob(job.id)} style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Retry ${job.title}`} onPress={() => retryDownloadJob(job.id)} style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]} hitSlop={7}>
               <AppIcon name="refresh" size={15} color={nothing.white} />
             </Pressable>
           ) : null}
           {job.state === "queued" || job.state === "downloading" ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={`Cancel ${job.title} download`} onPress={() => cancelDownloadJob(job.id)} style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Cancel ${job.title} download`} onPress={() => cancelDownloadJob(job.id)} style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]} hitSlop={7}>
               <AppIcon name="close" size={15} color={nothing.muted} />
             </Pressable>
           ) : (
-            <Pressable accessibilityRole="button" accessibilityLabel={`Dismiss ${job.title} from the queue`} onPress={() => dismissDownloadJob(job.id)} style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Dismiss ${job.title} from the queue`} onPress={() => dismissDownloadJob(job.id)} style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]} hitSlop={7}>
               <AppIcon name="trash-can-outline" size={15} color={nothing.dim} />
             </Pressable>
           )}
@@ -147,7 +152,6 @@ export default function DownloadsScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Delete ${entry.title} episode ${entry.episode} download`}
-          accessibilityHint="Long pressing the row does the same"
           hitSlop={8}
           onPress={() => confirmRemove(entry)}
           style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}
@@ -162,7 +166,7 @@ export default function DownloadsScreen() {
   const header = (
     <View>
       <View style={styles.top}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close downloads" onPress={() => router.back()} style={styles.close}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close downloads" onPress={() => router.back()} style={styles.close} hitSlop={3}>
           <AppIcon name="arrow-left" size={21} color={nothing.white} />
         </Pressable>
         <View style={styles.titleBlock}>
@@ -191,7 +195,7 @@ export default function DownloadsScreen() {
             {formatBytes(prefs.usedBytes)} USED{quotaBytes > 0 ? ` / ${formatBytes(quotaBytes)} LIMIT` : prefs.freeBytes > 0 ? ` · ${formatBytes(prefs.freeBytes)} FREE` : ""}
           </Text>
         </View>
-        <View style={styles.storageTrack}>
+        <View style={styles.storageTrack} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(fillRatio * 100) }} accessibilityLabel="Device storage used">
           <View style={[styles.storageFill, { width: `${Math.max(2, Math.round(fillRatio * 100))}%` }, overQuota && styles.storageFillOver]} />
         </View>
         <View style={styles.settingRow}>
@@ -213,6 +217,7 @@ export default function DownloadsScreen() {
                 key={mb}
                 onPress={() => prefs.setQuotaMb(mb)}
                 style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && styles.pressed]}
+                hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
               >
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>{quotaLabels[mb]}</Text>
               </Pressable>
@@ -278,9 +283,9 @@ const styles = StyleSheet.create({
   sectionHead: { minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   sectionHeadText: { gap: 4 },
   sectionTitle: { color: nothing.white, fontSize: 18, fontWeight: "900", letterSpacing: -0.4 },
-  storageText: { color: nothing.dim, fontFamily: nothing.mono, fontWeight: "900", fontSize: 11, letterSpacing: 0.3 },
+  storageText: { color: nothing.muted, fontFamily: nothing.mono, fontWeight: "900", fontSize: 11, letterSpacing: 0.3 },
   storageTrack: { height: 6, borderRadius: 3, overflow: "hidden", backgroundColor: nothing.line },
-  storageFill: { height: "100%", backgroundColor: nothing.green },
+  storageFill: { height: "100%", backgroundColor: nothing.white },
   storageFillOver: { backgroundColor: nothing.red },
   settingRow: { minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
   settingCopy: { flex: 1, gap: 3 },
@@ -300,9 +305,9 @@ const styles = StyleSheet.create({
   thumbLetter: { color: nothing.dim, fontSize: 26, fontWeight: "900" },
   rowBody: { flex: 1, justifyContent: "center", gap: 5 },
   rowTitle: { color: nothing.white, fontWeight: "900", fontSize: 14, lineHeight: 18 },
-  rowMeta: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.35 },
+  rowMeta: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.35 },
   rowMetaAlert: { color: nothing.red },
-  jobError: { color: nothing.dim, fontSize: 11, lineHeight: 15 },
+  jobError: { color: nothing.muted, fontSize: 11, lineHeight: 15 },
   progressTrack: { height: 3, overflow: "hidden", borderRadius: 2, backgroundColor: nothing.line },
   progress: { height: "100%", backgroundColor: nothing.red },
   jobActions: { flexDirection: "row", alignItems: "center", gap: 6 },

@@ -1,5 +1,5 @@
 import type { StreamResponse, StreamSource } from "@/lib/types";
-import { isAutoQuality } from "@/lib/watch-engine";
+import { isAutoQuality, nativeSources } from "@/lib/watch-engine";
 
 const QUALITY_ORDER = ["auto", "2160p", "1440p", "1080p", "720p", "480p", "360p"];
 
@@ -53,6 +53,42 @@ export function watchQualityOptions(response: StreamResponse | null, activeSourc
     requestQuality: label.toLowerCase() === "auto" ? "auto" : label,
     source: (response?.sources ?? []).find((source) => canonicalQuality(source.quality) === label),
   }));
+}
+
+/**
+ * Non-HLS quality menu built from what the provider ACTUALLY returned: one
+ * chip per distinct real source (mounted directly on selection — no
+ * re-request gamble), Auto on top, and provider-claimed labels that have no
+ * matching source trailing behind (they keep the existing quality
+ * re-request fallback). The progressive playfield has no master manifest to
+ * parse, so the sources themselves are the honest quality list.
+ */
+export function directSourceQualityOptions(response: StreamResponse | null, activeSource: StreamSource | null): WatchQualityOption[] {
+  const backed = new Map<string, WatchQualityOption>();
+  for (const source of nativeSources(response ?? { sources: [] })) {
+    const label = canonicalQuality(source.quality);
+    const key = label.toLowerCase();
+    if (backed.has(key)) continue;
+    backed.set(key, {
+      id: `src-${key}`,
+      label,
+      requestQuality: key === "auto" ? "auto" : label,
+      source,
+    });
+  }
+  if (backed.size === 0) return [];
+
+  const autoBacked = backed.get("auto");
+  const autoOption: WatchQualityOption = autoBacked
+    ? { ...autoBacked, id: "src-auto", label: "Auto" }
+    : { id: "src-auto", label: "Auto", requestQuality: "auto", source: activeSource ?? undefined };
+  const fixed = [...backed.values()]
+    .filter((option) => option.label.toLowerCase() !== "auto")
+    .sort((left, right) => rank(left.label) - rank(right.label));
+  const claimed = watchQualityOptions(response, activeSource).filter(
+    (option) => option.label.toLowerCase() !== "auto" && !option.source && !backed.has(option.label.toLowerCase()),
+  );
+  return [autoOption, ...fixed, ...claimed];
 }
 
 /**

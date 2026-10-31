@@ -1,0 +1,14 @@
+Aniraku is an anime discovery and playback app. Browse and search a large catalog, bookmark titles, track your episode progress, and watch with a gesture-driven player.
+
+Highlights:
+
+• Stream with quality selection (Auto, 1080p, 720p, and other available renditions)
+• Download episodes in-app at a pinned quality — the video, segments, and subtitles are saved to private app storage and play back with no network
+• Offline playback straight from the library — no external browser or export step
+• Continue Watching rail, watch history, and per-episode ratings
+• Bookmarks with new-episode notifications and airing reminders
+• Comments per episode, spoiler-tagged
+• Skip intro support, autoplay next episode, playback speed control, picture-in-picture
+• Dark, distraction-free "Afterimage" interface with a red accent
+
+Aniraku does not host any video. Sources come from third parties and availability can change. The app is open source under the MIT license.

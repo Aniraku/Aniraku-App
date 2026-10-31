@@ -31,6 +31,9 @@ The new direction is **Aniraku Afterimage**: a cinematic, editorial anime librar
 | Watch | The media plane is dominant. The overlay is quiet: rewind, play, forward, and one menu affordance. The source console is a bottom tool surface that appears on demand and never competes with the artwork or video. |
 | Library and profile | Content, not account explainers, fills the screen. A signed-out state is a calm welcome with one action; a signed-in state prioritizes resume rows, saved art, and useful counts. |
 | Search and settings | Search is blank, focused, and typographic. Settings is a precise grouped list with rules and leading icons, not a stack of cards. |
+| Downloads hub | A working queue, not a file manager: rows lead with title and quality, a quiet progress line under each, holds (storage / Wi-Fi) stated as one factual line. Saved copies read as library content, with a red removal affordance on intent. |
+| Download quality sheet | One decision per row: quality label with codec fact (`1080p · AVC`), an honest size on the right (`~342 MB`, `ESTIMATING…`, `LIVE — CANNOT SAVE`), the currently playing quality as a red dot — no size theater, no fake precision. |
+| Consent and 18+ lock | Full-screen editorial statements: one heading, two sentences, one decisive red action and one quiet decline. The lock replaces content, never decorates it. |
 
 ## Component limits
 

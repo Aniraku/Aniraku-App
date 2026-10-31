@@ -104,18 +104,6 @@ export function variantUrlForHeight(variants: readonly HlsVariant[], height: num
 }
 
 /**
- * Same lookup by quality label ("1080p", "720P"). Auto/master labels resolve
- * to null — Auto mounts the master, it never downloads a single rendition.
- */
-export function variantUrlForQuality(variants: readonly HlsVariant[], quality?: string | null): string | null {
-  const raw = String(quality ?? "").trim().toLowerCase();
-  if (!raw || /auto|adaptive|master|original|default/.test(raw)) return null;
-  const match = raw.match(/(2160|1440|1080|720|480|360)/);
-  if (!match) return null;
-  return variantUrlForHeight(variants, Number(match[1]));
-}
-
-/**
  * Index of the hls.js level carrying `height`, or -1. Lets the web player
  * switch renditions through the level API (ABR state survives) with a silent
  * URL-swap fallback when the height is unknown.
@@ -128,8 +116,8 @@ export function hlsLevelIndexForHeight(levels: readonly { height?: number | null
 
 /**
  * Stable cache key for parsed variants: one entry per master playback URL.
- * The proxy wrapper (with its random `rn`) is part of the key on purpose —
- * different wrappers can carry different headers/tokens.
+ * The proxy wrapper's embedded headers/token mix is part of the key on
+ * purpose — different wrappers can carry different upstream identities.
  */
 export function hlsVariantsCacheKey(playbackUrl: string | null | undefined): string | null {
   if (!playbackUrl) return null;
@@ -171,6 +159,23 @@ export function shouldRefreshMasterOnVariantError(input: { errorDetail?: string 
   if (!url) return false;
   if (!/403|forbidden|BAD_HTTP_STATUS|unauthori/i.test(String(input.errorDetail ?? ""))) return false;
   return hasExpiredEmbeddedToken(url);
+}
+
+/**
+ * Short codec family label for a #EXT-X-STREAM-INF CODECS string
+ * ("avc1.640028,mp4a.40.2" → "AVC") so quality rows can show what codec a
+ * rendition actually uses. Null when the CODECS attribute is missing or
+ * unrecognized.
+ */
+export function codecFamilyLabel(codecs?: string): string | null {
+  const raw = String(codecs ?? "").toLowerCase();
+  if (!raw) return null;
+  if (/avc1|avc3|h264/.test(raw)) return "AVC";
+  if (/hvc1|hev1|hevc|h265/.test(raw)) return "HEVC";
+  if (/av01|av1/.test(raw)) return "AV1";
+  if (/vp09|vp9/.test(raw)) return "VP9";
+  if (/vp8/.test(raw)) return "VP8";
+  return null;
 }
 
 /**
