@@ -24,14 +24,14 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.0">v5.8.0 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.1">v5.8.1 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 <br>
 
 > [!IMPORTANT]
-> **v5.8.0 is the current release** — The biggest update yet: real in-app offline downloads (native pipeline, per-quality with honest sizes), new-episode push notifications, a playback-header fix for proxied streams, consent & 18+ content locks, and a beta parallel-segment pool for faster buffering. Note: the Supabase key rotation signs everyone out once — just log back in. If you want a previous build, [v5.7.9](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.7.9) is the themed-dialogs release.
+> **v5.8.1 is the current release** — Hotfix for the watch-screen episode list crash some v5.8.0 installs hit, plus a diagnosable error screen (SHOW DETAILS reveals the exact component stack). Installs directly over v5.8.0 — same signing key, no uninstall needed. All v5.8.0 features (offline downloads, push, playback fixes) are unchanged. If you want the previous build, [v5.8.0](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.0) is the feature release.
 
 > [!CAUTION]
 >If it has saved you time, a small donation keeps it up. And the library keeps growing — **missing an anime?** Email [`sho.islam0311@proton.me`](mailto:sho.islam0311@proton.me) and it'll get added.

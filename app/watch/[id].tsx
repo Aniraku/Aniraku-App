@@ -3251,7 +3251,7 @@ const EpisodeGrid = memo(function EpisodeGrid({ episodes, activeEpisode, totalPa
   const renderRow = (item: Episode) => {
     const active = item.number === activeEpisode;
     return <Pressable key={item.number} accessibilityRole="button" accessibilityLabel={`Episode ${item.number}${item.title ? `: ${item.title}` : ""}`} accessibilityHint={active ? "Currently playing" : "Double tap to play this episode"} onPress={() => onSelect(item.number)} onLongPress={() => onInfo(item.number)} style={[styles.th3EpRow, active && styles.th3EpRowActive]}>
-      <View style={styles.th3EpRowNumber}>{item.number}</View>
+      <Text style={styles.th3EpRowNumber}>{item.number}</Text>
       <Text style={[styles.th3EpRowText, active ? styles.th3EpRowTextActive : item.isFiller ? styles.th3EpRowFiller : null]}>{item.title ? `Episode ${item.number} · ${item.title}` : `Episode ${item.number}`}</Text>
       {active && <View style={styles.th3EpRowDot} />}
     </Pressable>;

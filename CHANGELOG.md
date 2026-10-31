@@ -6,6 +6,21 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.8.1 — Hotfix: watch-screen episode list crash + diagnosable error screen
+
+`CURRENT / HOTFIX / INSTALLS OVER v5.8.0`
+
+Fixes a crash reported minutes after the v5.8.0 release, and makes any future crash instantly diagnosable.
+
+### Fixed
+- **Watch screen crash** ("Text strings must be rendered within a <Text> component"): the episode selector rendered the episode number as a bare number inside a View — any episode-list open killed the screen. Now wrapped in Text.
+
+### Added
+- **Error screen DETAILS**: the "needs to restart" screen now exposes the full component stack behind a SHOW DETAILS toggle — a screenshot of it pinpoints any future crash to the exact component.
+
+### Note
+- v5.8.1 installs directly over v5.8.0 (same stable signing key — no uninstall needed).
+
 ## v5.8.0 — Offline downloads, push notifications, the playback-header fix
 
 `CURRENT / STANDARD RELEASE / ANDROID 9+ / ARM64 + ARM32 + UNIVERSAL`

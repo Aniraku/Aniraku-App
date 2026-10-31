@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
@@ -58,5 +58,7 @@ export default function RootLayout() {
 }
 
 export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
-  return <GestureHandlerRootView style={{ flex: 1, padding: 24, gap: 14, alignItems: "center", justifyContent: "center", backgroundColor: nothing.black }}><StatusBar style="light" /><Text style={{ color: nothing.red, fontFamily: "monospace", fontSize: 11, fontWeight: "800", letterSpacing: 1 }}>APPLICATION STATE</Text><Text style={{ color: nothing.white, fontSize: 22, fontWeight: "900", textAlign: "center" }}>Aniraku needs to restart this screen.</Text><Text style={{ color: nothing.muted, fontSize: 14, lineHeight: 20, textAlign: "center" }}>{error.message || "An unexpected state occurred."}</Text><Pressable onPress={retry} style={{ minHeight: 48, paddingHorizontal: 20, alignItems: "center", justifyContent: "center", backgroundColor: nothing.white, borderRadius: 14 }}><Text style={{ color: nothing.black, fontWeight: "900" }}>Retry</Text></Pressable></GestureHandlerRootView>;
+  const [showStack, setShowStack] = useState(false);
+  const componentStack = String((error as { componentStack?: string }).componentStack ?? "").trim();
+  return <GestureHandlerRootView style={{ flex: 1, padding: 24, gap: 14, alignItems: "center", justifyContent: "center", backgroundColor: nothing.black }}><StatusBar style="light" /><Text style={{ color: nothing.red, fontFamily: "monospace", fontSize: 11, fontWeight: "800", letterSpacing: 1 }}>APPLICATION STATE</Text><Text style={{ color: nothing.white, fontSize: 22, fontWeight: "900", textAlign: "center" }}>Aniraku needs to restart this screen.</Text><Text style={{ color: nothing.muted, fontSize: 14, lineHeight: 20, textAlign: "center" }}>{error.message || "An unexpected state occurred."}</Text>{componentStack ? <Pressable onPress={() => setShowStack((s) => !s)} hitSlop={8}><Text style={{ color: nothing.dim, fontFamily: "monospace", fontSize: 10, fontWeight: "800", letterSpacing: 1 }}>{showStack ? "HIDE DETAILS" : "SHOW DETAILS"}</Text></Pressable> : null}{showStack && componentStack ? <ScrollView style={{ alignSelf: "stretch", maxHeight: 220, backgroundColor: nothing.surface, borderRadius: 8, padding: 10 }}><Text selectable style={{ color: nothing.muted, fontFamily: "monospace", fontSize: 9, lineHeight: 13 }}>{error.message}\n{componentStack}</Text></ScrollView> : null}<Pressable onPress={retry} style={{ minHeight: 48, paddingHorizontal: 20, alignItems: "center", justifyContent: "center", backgroundColor: nothing.white, borderRadius: 14 }}><Text style={{ color: nothing.black, fontWeight: "900" }}>Retry</Text></Pressable></GestureHandlerRootView>;
 }

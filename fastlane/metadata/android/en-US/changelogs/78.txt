@@ -1,0 +1,1 @@
+Fixes the watch-screen episode list crash reported on v5.8.0, and the error screen now shows a DETAILS view (component stack) so any future crash can be pinpointed from a screenshot. Installs directly over v5.8.0.
