@@ -1,0 +1,1 @@
+Downloads now run 4 segments in parallel (like the website) with live byte-level progress — no more frozen bars. ~4x faster downloads. Installs over v5.8.0–v5.8.6.

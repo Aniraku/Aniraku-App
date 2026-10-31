@@ -90,16 +90,52 @@ class AnirakuDownloadsService : Service() {
         keyPath = "file://${key.absolutePath}"
       }
 
-      var bytes = 0L
-      val segments = ArrayList<String>(parsed.segments.size)
-      for ((index, segmentUrl) in parsed.segments.withIndex()) {
-        if (isCancelled(id)) throw IOException("cancelled")
-        val file = File(dir, String.format(Locale.US, "seg-%05d.ts", index + 1))
-        bytes += downloadTo(file, segmentUrl, headers, proxyBase)
-        segments.add("file://${file.absolutePath}")
-        updateNotification(id, bytes, estimatedBytes)
-        Thread.sleep(POLITENESS_MS)
+      // PROXY-ONLY downloads are slow per connection (~15s/segment) — the
+      // website downloads 4 segments concurrently, and so does this now.
+      // Progress reports per completed segment AND per ~256KB of bytes so
+      // the notification moves continuously instead of freezing per segment.
+      val segmentFiles = arrayOfNulls<File>(parsed.segments.size)
+      val downloadedBytes = java.util.concurrent.atomic.AtomicLong(0L)
+      val nextIndex = java.util.concurrent.atomic.AtomicInteger(0)
+      val failure = java.util.concurrent.atomic.AtomicReference<Throwable?>(null)
+      val pool = java.util.concurrent.Executors.newFixedThreadPool(CONCURRENCY) { runnable ->
+        Thread(runnable, "aniraku-seg").apply { isDaemon = true }
       }
+      try {
+        val workers = Array(CONCURRENCY) {
+          pool.submit {
+            try {
+              while (failure.get() == null && !isCancelled(id)) {
+                val index = nextIndex.getAndIncrement()
+                if (index >= parsed.segments.size) return@submit
+                val segmentUrl = parsed.segments[index]
+                val file = File(dir, String.format(Locale.US, "seg-%05d.ts", index + 1))
+                val segmentBytes = downloadTo(file, segmentUrl, headers, proxyBase)
+                downloadedBytes.addAndGet(segmentBytes)
+                updateNotification(id, downloadedBytes.get(), estimatedBytes)
+              }
+            } catch (cause: Throwable) {
+              failure.compareAndSet(null, cause)
+            }
+          }
+        }
+        while (workers.any { !it.isDone } && failure.get() == null && !isCancelled(id)) {
+          Thread.sleep(150)
+        }
+        if (failure.get() != null) throw failure.get()!!
+        if (isCancelled(id)) throw IOException("cancelled")
+        // Every segment must be on disk — a gap means a worker died silently.
+        for ((index, segmentUrl) in parsed.segments.withIndex()) {
+          val file = File(dir, String.format(Locale.US, "seg-%05d.ts", index + 1))
+          if (!file.exists() || file.length() <= 0L) throw IOException("A segment failed to download (segment ${index + 1}).")
+          segmentFiles[index] = file
+        }
+      } finally {
+        pool.shutdownNow()
+      }
+
+      val bytes = downloadedBytes.get()
+      val segments = segmentFiles.map { "file://${it!!.absolutePath}" }
 
       File(dir, "playlist.done").writeText("ok")
       complete(id, segments, keyPath, bytes)
@@ -327,7 +363,7 @@ class AnirakuDownloadsService : Service() {
     private const val CHANNEL_ID = "downloads"
     private const val NOTIFICATION_ID = 42
     private const val MAX_SEGMENTS = 5_000
-    private const val POLITENESS_MS = 120L
+    private const val CONCURRENCY = 4
     private const val BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     private const val SITE_REFERER = "https://aniraku.tech/"
     private const val WAKE_LOCK_MS = 2L * 60 * 60 * 1000

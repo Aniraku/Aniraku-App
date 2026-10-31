@@ -6,6 +6,19 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.8.7 — Parallel segment downloads + live progress
+
+`CURRENT / PERF / INSTALLS OVER v5.8.0–v5.8.6`
+
+The native downloader was sequential: one segment at a time with a 120ms sleep between each, and the progress bar only moved after a whole segment completed (~15s per proxied segment) — downloads looked frozen and took 4× longer than the website. Now the native pipeline downloads **4 segments concurrently** (the website's own concurrency) and reports progress as bytes land.
+
+### Changed
+- **4 parallel segment workers**: the segment list drains through a 4-thread pool — downloads finish ~4× faster and the progress notification moves continuously.
+- **Byte-accurate progress**: the notification reports cumulative downloaded bytes per completed segment against the estimate — no more frozen bars.
+- **Integrity gate kept**: every segment file is verified on disk after the workers finish; any gap fails the job honestly.
+
+## v5.8.6 — Downloads fixed for MOMO/NICO/KAKI-class providers
+
 ## v5.8.6 — Downloads fixed for MOMO/NICO/KAKI-class providers
 
 `CURRENT / HOTFIX / INSTALLS OVER v5.8.0–v5.8.5`
