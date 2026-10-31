@@ -511,35 +511,28 @@ async function legacyDownload(legacy: NonNullable<typeof legacyModule>, url: str
  * falling through would start a second, un-cancellable download.
  */
 async function transfer(url: string, destination: File, headers: Record<string, string>, onBytes: (received: number, total: number) => void, onTask: (task: QueuedDownload["legacyTask"]) => void, isCancelled: () => boolean) {
-  // PROXY-ONLY (operator decision): provider CDNs 403 direct device fetches,
-  // so the bytes stream through the Aniraku proxy with the browser identity.
-  // The proxy hop has no resume support — progress streams from the body.
+  // PROXY-ONLY (operator decision) — and downloaded with the NATIVE resumable
+  // downloader, not JS fetch: RN's fetch has no streaming body, so the old
+  // reader-based approach died with "The source sent an empty response."
+  // The proxy hop has no resume support, but the native callback still
+  // reports bytes for the progress bar.
   const proxied = anirakuProxyUrl(url, headers);
-  const response = await fetch(proxied, { headers: anirakuProxyRequestHeaders() });
-  if (!response.ok) {
-    throw new Error(`Source returned ${response.status}.`);
+  const proxyHeaders = anirakuProxyRequestHeaders();
+  const legacy = legacyFileSystem();
+  if (destination.uri.startsWith("file://") && legacy && typeof legacy.createDownloadResumable === "function") {
+    await legacyDownload(legacy, proxied, destination, proxyHeaders, onBytes, onTask);
+    if (isCancelled()) throw new Error("Download cancelled.");
+    if (!destination.exists || destination.size <= 0) throw new Error("The source sent an empty response.");
+    return;
   }
-  if (!response.body) throw new Error("The source sent an empty response.");
-  const total = Number(response.headers.get("content-length")) || 0;
-  const reader = response.body.getReader();
-  await destination.create({ intermediates: true });
-  let received = 0;
-  const chunks: Uint8Array[] = [];
-  try {
-    while (true) {
-      if (isCancelled()) { reader.cancel(); throw new Error("Download cancelled."); }
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      received += value.length;
-      onBytes(received, total);
-    }
-    destination.write(new Uint8Array(await new Blob(chunks as BlobPart[]).arrayBuffer()));
-    if (received <= 0) throw new Error("A segment arrived empty.");
-  } catch (cause) {
+  const result = await File.downloadFileAsync(proxied, destination, { idempotent: true, headers: proxyHeaders });
+  const status = Number((result as { status?: number } | null)?.status ?? 200);
+  // An HTTP error body saved as the episode file is worse than a failed job.
+  if (!(status >= 200 && status < 300)) {
     try { if (destination.exists) destination.delete(); } catch { /* best effort */ }
-    throw cause;
+    throw new Error(`Source returned ${status}.`);
   }
+  if (isCancelled()) throw new Error("Download cancelled.");
 }
 
 function appStorageDirectory(): Directory {

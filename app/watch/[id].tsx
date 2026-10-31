@@ -2087,12 +2087,46 @@ export default function WatchScreen() {
     return [{ key: "direct", label: quality === "ORIGINAL DIRECT" ? "ORIGINAL" : quality, quality, source: matched }];
   };
 
-  const onDownloadPress = () => {
+  const onDownloadPress = async () => {
     if (!APP_CONFIG.downloadsNativeEnabled) {
       setDownloadMessage("DOWNLOADS ARE TEMPORARILY DISABLED IN THIS BUILD");
       return;
     }
-    const options = buildDownloadOptions();
+    let options = buildDownloadOptions();
+    // Press-time variant resolution (what the website's downloader does):
+    // when the sheet has no rendition rows — the quality effect never
+    // parsed this master — fetch the playlist NOW through the proxy and
+    // build rows from it, instead of refusing HLS sources outright.
+    const downloadBase = maximumDownloadSource ?? source;
+    const hasRenditionRows = options.some((option) => option.variantUrl);
+    const baseIsHls = downloadBase && getPlaybackType(downloadBase) === "hls" && !String(downloadBase.url || "").startsWith("file://");
+    if ((!hasRenditionRows || !options.length) && baseIsHls && videoSourceUri) {
+      try {
+        const response = await fetch(videoSourceUri, { headers: anirakuProxyRequestHeaders() });
+        if (response.ok) {
+          const text = await response.text();
+          let variants = parseHlsMasterVariants(text, originalStreamUrl(videoSourceUri));
+          if (!variants.length && /#EXTINF/i.test(text)) {
+            variants = [{ height: 0, bandwidth: 0, url: originalStreamUrl(videoSourceUri) }];
+          }
+          if (variants.length) {
+            const base = downloadBase;
+            options = variants.map((variant) => {
+              const family = codecFamilyLabel(variant.codecs);
+              const label = variant.height > 0 ? (family ? `${variant.height}p · ${family}` : `${variant.height}p`) : (family ? `ORIGINAL · ${family}` : "ORIGINAL");
+              return {
+                key: `hls-${variant.height}`,
+                label,
+                quality: variant.height > 0 ? `${variant.height}p` : "ORIGINAL DIRECT",
+                source: base,
+                variantUrl: variant.url,
+                bandwidth: variant.bandwidth,
+              };
+            });
+          }
+        }
+      } catch { /* keep the sync options — worst case the honest refusal stays */ }
+    }
     // Embed/DRM/dead sources get the reason up front, not a silent sheet.
     if (!options.length) {
       setDownloadMessage("THIS EPISODE CANNOT BE SAVED FOR OFFLINE VIEWING");
@@ -2689,7 +2723,7 @@ export default function WatchScreen() {
                     <DownloadSimple size={19} color={nothing.green} weight="bold" />
                   </Pressable>
                 ) : (
-                  <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); if (downloadBlocked) { setDownloadMessage("THIS SOURCE CANNOT BE SAVED FOR OFFLINE VIEWING"); return; } onDownloadPress(); }} accessibilityRole="button" accessibilityLabel="Download episode" accessibilityHint="Opens quality options when the provider offers them" accessibilityState={{ disabled: downloadBlocked }} style={[styles.railBtn, downloadBlocked && styles.railBtnDisabled]} hitSlop={8}>
+                  <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); if (downloadBlocked) { setDownloadMessage("THIS SOURCE CANNOT BE SAVED FOR OFFLINE VIEWING"); return; } void onDownloadPress(); }} accessibilityRole="button" accessibilityLabel="Download episode" accessibilityHint="Opens quality options when the provider offers them" accessibilityState={{ disabled: downloadBlocked }} style={[styles.railBtn, downloadBlocked && styles.railBtnDisabled]} hitSlop={8}>
                     <Download size={19} color={downloadBlocked ? nothing.dim : nothing.white} weight="bold" />
                   </Pressable>
                 )}

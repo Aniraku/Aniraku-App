@@ -1,0 +1,1 @@
+Fixes the two download failures reported on 5.8.4/5.8.5: progressive downloads no longer die with an empty response (native downloader through the proxy), and MOMO/KAKI-class providers now resolve download qualities at press time. Installs over v5.8.0–v5.8.5.

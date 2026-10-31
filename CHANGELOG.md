@@ -6,6 +6,18 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.8.6 — Downloads fixed for MOMO/NICO/KAKI-class providers
+
+`CURRENT / HOTFIX / INSTALLS OVER v5.8.0–v5.8.5`
+
+Two device-reported failures from the v5.8.4/5.8.5 builds, both fixed with the website's own download approach:
+
+### Fixed
+- **Progressive downloads died with "The source sent an empty response."**: the proxy transfer used web-style response streaming (`response.body.getReader()`), which React Native's fetch does not support — `body` is always null on device. The transfer now downloads through the proxy with the **native resumable downloader** (the same one that powers the progress bar), so bytes land natively with live progress.
+- **"Direct progressive source is required" on MOMO/KAKI-class providers**: providers whose playlist had no parsed renditions were refused at download time. The download press now **resolves variants at press time** — fetches the playlist through the proxy and builds quality rows from it (multi-rendition, single-rendition, and direct media playlists) — exactly what the website's downloader accepts. The size estimates for these rows work too (real sizes were already visible on NICO).
+
+## v5.8.5 — Downloads ride the same HTTP stack as playback
+
 ## v5.8.5 — Downloads ride the same HTTP stack as playback
 
 `CURRENT / ROOT-CAUSE FIX / INSTALLS OVER v5.8.0–v5.8.4`

@@ -24,14 +24,14 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.5">v5.8.5 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.6">v5.8.6 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 <br>
 
 > [!IMPORTANT]
-> **v5.8.5 is the current release** — ROOT-CAUSE fix for the download 403s: the download service was the only network path not using the playback HTTP stack — its HttpURLConnection fingerprint got challenged by Cloudflare while playback (OkHttp) passed. Downloads now ride the shared OkHttp client through the Aniraku proxy, with stage-tagged errors for pinpointing. Installs directly over v5.8.0–v5.8.4. If you want the previous build, [v5.8.4](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.4) is the subtitle hotfix.
+> **v5.8.6 is the current release** — Hotfix: progressive downloads no longer die with "The source sent an empty response" (the proxy transfer now uses the native downloader — RN fetch has no streaming body), and MOMO/KAKI-class providers resolve download qualities at press time instead of being refused. Installs directly over v5.8.0–v5.8.5. If you want the previous build, [v5.8.5](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.5) is the transport root-cause fix.
 
 > [!CAUTION]
 >If it has saved you time, a small donation keeps it up. And the library keeps growing — **missing an anime?** Email [`sho.islam0311@proton.me`](mailto:sho.islam0311@proton.me) and it'll get added.
