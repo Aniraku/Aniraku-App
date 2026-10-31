@@ -212,10 +212,19 @@ class AnirakuDownloadsService : Service() {
     return status
   }
 
-  private fun jsonHeaders(headers: Map<String, String>): String =
-    headers.entries.joinToString(",") { entry ->
-      "\"".plus(entry.key.replace("\\", "\\\\").replace("\"", "\\\"\"")).plus("\\":").plus("\\"").plus(entry.value.replace("\\", "\\\\").replace("\"", "\\\"\"")).plus("\\"")
+  private fun jsonHeaders(headers: Map<String, String>): String {
+    val json = StringBuilder("{")
+    headers.entries.forEachIndexed { index, entry ->
+      if (index > 0) json.append(',')
+      json.append('"')
+      json.append(entry.key.replace("\"", ""))
+      json.append("\":\"")
+      json.append(entry.value.replace("\"", ""))
+      json.append('"')
     }
+    json.append('}')
+    return json.toString()
+  }
 
   // ── Events ────────────────────────────────────────────────────────────────
 
