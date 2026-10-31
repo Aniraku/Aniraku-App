@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { APP_CONFIG } from "../lib/app-config";
+import { anirakuProxyRequestHeaders } from "../lib/aniraku-api";
 
 // Read through the app's config (not raw process.env): APP_CONFIG trims
 // pasted-secret whitespace, so this validates exactly what the app ships.
@@ -18,12 +19,15 @@ describe("Aniraku production service configuration", () => {
     expect(supabaseUrl).toMatch(/^https:\/\/[^/]+\.supabase\.co$/);
     expect(supabaseAnonKey).toBeTruthy();
 
+    // api.aniraku.tech sits behind the browser gate — header-less requests
+    // are 403'd (the exact contract the app's apiRequest now follows).
+    const anirakuHeaders = anirakuProxyRequestHeaders();
     const [healthResponse, authSettingsResponse, metadataResponse] = await Promise.all([
-      fetch(`${apiBase}/api/v1/health`),
+      fetch(`${apiBase}/api/v1/health`, { headers: anirakuHeaders }),
       fetch(`${supabaseUrl}/auth/v1/settings`, {
         headers: { apikey: supabaseAnonKey! },
       }),
-      fetch(`${apiBase}/api/v1/anime/16498`),
+      fetch(`${apiBase}/api/v1/anime/16498`, { headers: anirakuHeaders }),
     ]);
 
     expect(healthResponse.ok).toBe(true);
