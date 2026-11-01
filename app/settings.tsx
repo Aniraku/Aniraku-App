@@ -97,6 +97,7 @@ export default function SettingsScreen() {
     if (!auth.loading && !auth.user) router.replace("/auth" as never);
   }, [auth.loading, auth.user]);
 
+  const [avatarSheetOpen, setAvatarSheetOpen] = useState(false);
   if (auth.loading || !auth.user) {
     return <NativeScreen><View style={styles.redirectState}><DotLabel>ACCOUNT REQUIRED</DotLabel><Text style={styles.redirectTitle}>Opening account controls</Text><Text style={styles.redirectCopy}>Settings are available after your verified Aniraku session has been restored.</Text></View></NativeScreen>;
   }
@@ -176,7 +177,6 @@ export default function SettingsScreen() {
     sync.startBackgroundExport(provider);
   };
 
-  const [avatarSheetOpen, setAvatarSheetOpen] = useState(false);
   const saveAvatar = (url: string) => {
     setAvatarSheetOpen(false);
     void auth.updateProfile({ avatar_url: url }).then(() => {
