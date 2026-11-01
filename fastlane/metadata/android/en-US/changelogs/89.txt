@@ -1,0 +1,1 @@
+Live download state (no restart needed), website avatars in Settings, sign-up email verification (registered/MX/typo checks), and release-moment push via server-side scheduling. Installs over v5.8.0–v5.8.10.

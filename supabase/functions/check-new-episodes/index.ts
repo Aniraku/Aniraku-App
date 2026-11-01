@@ -75,10 +75,17 @@ Deno.serve(async (request) => {
 
   const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
-  // Verify the caller is authenticated.
-  const caller = createClient(url, serviceKey, { global: { headers: { Authorization: authHeader } } });
-  const { data: userData, error: userError } = await caller.auth.getUser();
-  if (userError || !userData?.user) return json({ error: "Unauthorized." }, 401);
+  // Two callers: a signed-in user (app pull) or the release cron (server-side
+  // scheduler with CRON_SECRET) so episodes push the moment they release.
+  const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
+  const isCron = Boolean(cronSecret) && request.headers.get("x-cron-secret") === cronSecret;
+  let callerUserId: string | null = null;
+  if (!isCron) {
+    const caller = createClient(url, serviceKey, { global: { headers: { Authorization: authHeader } } });
+    const { data: userData, error: userError } = await caller.auth.getUser();
+    if (userError || !userData?.user) return json({ error: "Unauthorized." }, 401);
+    callerUserId = userData.user.id;
+  }
 
   // Fetch every bookmark row (anime_id + user_id).
   const { data: bookmarks, error: bmError } = await admin.from("bookmarks").select("user_id, anime_id").not("anime_id", "is", null);

@@ -6,6 +6,20 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.8.10.1 — Live download state, website avatars, verified emails, release-moment push
+
+`CURRENT / FEATURE RELEASE / INSTALLS OVER v5.8.0–v5.8.10`
+
+Four feature requests from the field, one build:
+
+### Added
+- **Live download state**: when a download for the episode you're watching completes, the app tells you immediately ("EPISODE SAVED — tap the download icon to watch offline") and the rail icon turns green — no app restart or back-and-forth. The Downloads hub and episode badges already updated live.
+- **Website avatars in the app**: Settings → AVATAR opens the themed picker with the full Aniraku avatar set (the same Supabase bucket the website uses) — pick once, same avatar on web and app.
+- **Public email-verification API**: `POST /functions/v1/verify-email` answers valid (syntax + MX records), exists (already registered on Aniraku), and typo suggestions — the sign-up page now checks your email as you type and blocks duplicates before submit.
+- **Release-moment push**: check-new-episodes runs server-side every 5 minutes (pg_cron + Vault-stored secret) — the push fires the moment an episode releases, without waiting for an app open.
+
+## v5.8.10 — Offline playback plays offline
+
 ## v5.8.10 — Offline playback plays offline
 
 `CURRENT / FIX / INSTALLS OVER v5.8.0–v5.8.9`

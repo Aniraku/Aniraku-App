@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -12,6 +12,8 @@ import { useWatchHistory } from "@/hooks/use-watch-history";
 import { useProviderSync } from "@/hooks/use-provider-sync";
 import { tokenHealth } from "@/lib/provider-sync-contract";
 import { deleteCurrentAccount, shareAccountData } from "@/lib/account";
+import { AvatarPickerSheet } from "@/components/avatar-picker-sheet";
+import { avatarUrl } from "@/lib/aniraku-avatars";
 import { checkForAnirakuUpdate, type AppRelease } from "@/lib/app-update";
 import { downloadAndInstallAnirakuUpdate } from "@/lib/android-app-installer";
 import { AppIcon } from "@/components/app-icon";
@@ -174,6 +176,15 @@ export default function SettingsScreen() {
     sync.startBackgroundExport(provider);
   };
 
+  const [avatarSheetOpen, setAvatarSheetOpen] = useState(false);
+  const saveAvatar = (url: string) => {
+    setAvatarSheetOpen(false);
+    void auth.updateProfile({ avatar_url: url }).then(() => {
+      showThemedToast({ message: "Avatar updated — same avatar on the website now.", tone: "info" });
+    }).catch((error) => showThemedToast({ message: `Could not update avatar — ${error.message}`, tone: "error", actionLabel: "RETRY", onAction: () => setAvatarSheetOpen(true) }));
+  };
+  const currentAvatar = avatarUrl(auth.profile?.avatar_url) ?? "";
+
   const clearHistory = () => showThemedDialog({ kicker: "HISTORY", title: "Clear watch history?", message: "This removes every synchronized history entry from your Aniraku account.", confirmLabel: "CLEAR", destructive: true, onConfirm: () => void history.clear.mutateAsync().catch((error) => showThemedToast({ message: `Could not clear history — ${error.message}`, tone: "error", actionLabel: "RETRY", onAction: clearHistory })) });
   const clearBookmarks = () => showThemedDialog({ kicker: "SAVED", title: "Clear saved titles?", message: "This removes every synchronized bookmark from your Aniraku account.", confirmLabel: "CLEAR", destructive: true, onConfirm: () => void bookmarks.clear.mutateAsync().catch((error) => showThemedToast({ message: `Could not clear bookmarks — ${error.message}`, tone: "error", actionLabel: "RETRY", onAction: clearBookmarks })) });
   const deleteAccount = () => showThemedDialog({ kicker: "ACCOUNT", title: "Delete Aniraku account?", message: "This permanently removes your profile, watch history, ratings, bookmarks, comments, notifications, preferences, and account. This cannot be undone.", confirmLabel: "DELETE ACCOUNT", destructive: true, onConfirm: () => void deleteCurrentAccount().then(() => router.replace("/(tabs)" as never)).catch((error) => showThemedToast({ message: `Account not deleted — ${error.message}`, tone: "error", actionLabel: "RETRY", onAction: deleteAccount })) });
@@ -225,6 +236,15 @@ export default function SettingsScreen() {
         <Text style={styles.rowMeta}>VERIFIED SESSION</Text>
       </View>
       <Signal label="LIVE" tone="live" />
+    </View>
+    <View style={styles.row}>
+      <View style={styles.rowIcon}><AppIcon name="account-edit-outline" size={18} color={nothing.muted} /></View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Change avatar" onPress={() => setAvatarSheetOpen(true)} style={styles.rowBody}>
+        <Text style={styles.rowLabel}>AVATAR</Text>
+        <Text style={styles.rowMeta}>Pick from the Aniraku avatar set — synced with the website</Text>
+      </Pressable>
+      {currentAvatar ? <Image source={{ uri: currentAvatar }} style={styles.avatarPreview} /> : null}
+      <AppIcon name="chevron-right" size={16} color={nothing.muted} />
     </View>
     <View style={styles.row}>
       <View style={styles.rowIcon}><AppIcon name="logout" size={18} color={nothing.muted} /></View>
@@ -413,10 +433,12 @@ export default function SettingsScreen() {
       </Pressable>
     </View>
     <Text style={styles.footnote}>Deletion removes your synchronized data before removing your authentication record.</Text>
+      <AvatarPickerSheet visible={avatarSheetOpen} currentUrl={currentAvatar} onClose={() => setAvatarSheetOpen(false)} onPick={saveAvatar} />
   </NativeScreen>;
 }
 
 const styles = StyleSheet.create({
+  avatarPreview: { width: 34, height: 34, borderRadius: 6, borderWidth: 1, borderColor: nothing.line },
   redirectState: { flex: 1, paddingHorizontal: 24, justifyContent: "center", gap: 9 },
   redirectTitle: { color: nothing.white, fontSize: 24, fontWeight: "900", letterSpacing: -0.6 },
   redirectCopy: { color: nothing.muted, fontSize: 13, lineHeight: 19, maxWidth: 290 },

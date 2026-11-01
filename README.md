@@ -24,14 +24,14 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.10">v5.8.10 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.10.1">v5.8.10.1 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 <br>
 
 > [!IMPORTANT]
-> **v5.8.10 is the current release** — Fix: opening an episode from the Downloads hub now plays the saved copy immediately and skips the online flow entirely (the hub's play button previously dropped you into the online player). Installs directly over v5.8.0–v5.8.9. If you want the previous build, [v5.8.9](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.9) is the download-refusal root-cause fix.
+> **v5.8.10.1 is the current release** — Four additions: live download state (saved episodes reflect instantly, no restart), website avatars in Settings, a public email-verification API wired into sign-up (registered/MX/typo checks before submit), and release-moment push via server-side scheduling. Plus everything from v5.8.0–v5.8.10. If you want the previous build, [v5.8.10](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.10) is the offline-playback fix.
 
 > [!CAUTION]
 >If it has saved you time, a small donation keeps it up. And the library keeps growing — **missing an anime?** Email [`sho.islam0311@proton.me`](mailto:sho.islam0311@proton.me) and it'll get added.

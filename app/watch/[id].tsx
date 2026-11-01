@@ -62,6 +62,7 @@ import {
   type SkipKind,
   type SkipSegments,
 } from "@/lib/watch-engine";
+import { useDownloadQueue } from "@/hooks/use-downloads";
 import { streamPoolNative } from "@/lib/stream-pool-native";
 import { isSegmentPoolEligible } from "@/lib/stream-pool";
 import { animeTitle, type Episode, type Server, type StreamResponse, type StreamSource } from "@/lib/types";
@@ -563,6 +564,21 @@ export default function WatchScreen() {
     }).catch(() => { if (active) setOfflineDownload(null); });
     return () => { active = false; };
   }, [animeId, episode, language, wantsOfflinePlayback]);
+
+  // LIVE download completion: when the download for THIS episode finishes,
+  // re-resolve the offline entry (the rail icon turns green instantly) and
+  // tell the user — no app restart or back-and-forth needed.
+  const downloadQueue = useDownloadQueue();
+  const completedForThisEpisode = downloadQueue.find((job) => job.animeId === animeId && job.episode === episode && job.language === language && job.state === "done");
+  useEffect(() => {
+    if (!completedForThisEpisode) return;
+    let active = true;
+    void findOfflineDownload(animeId, episode, language).then((entry) => {
+      if (!active || !entry) return;
+      setOfflineDownload(entry);
+      setDownloadMessage(`EPISODE ${episode} SAVED · TAP THE DOWNLOAD ICON TO WATCH OFFLINE`);
+    }).catch(() => {});
+  }, [completedForThisEpisode?.id, animeId, episode, language]);
 
   useEffect(() => {
     if (episodeSearch.trim()) { setEpisodePage(0); return; }

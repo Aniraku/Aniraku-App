@@ -183,21 +183,23 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            ## v5.9.0 — Offline playback plays offline
+            ## v5.8.10.1 — Live download state, website avatars, verified emails, release-moment push
 
-            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0–v5.8.9 — same signing key, no uninstall needed.**
+            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0–v5.8.10 — same signing key, no uninstall needed.**
 
-            - `aniraku-v5.9.0-arm64.apk` — modern (64-bit) devices
-            - `aniraku-v5.9.0-arm32.apk` — older / budget (32-bit) devices
-            - `aniraku-v5.9.0-universal.apk` — every device
+            - `aniraku-v5.8.10.1-arm64.apk` — modern (64-bit) devices
+            - `aniraku-v5.8.10.1-arm32.apk` — older / budget (32-bit) devices
+            - `aniraku-v5.8.10.1-universal.apk` — every device
 
-            ### Fixed
-            - **Downloads-hub play now plays the saved copy immediately**: the watch screen auto-mounts the offline bundle when launched from the hub's play button, and the online server-discovery/stream flow is skipped entirely for that launch — zero server calls, instant playback.
+            ### Added
+            - **Live download state**: downloads completing for the episode you watch reflect instantly — the rail icon turns green and the app tells you, no restart.
+            - **Website avatars**: Settings → AVATAR picks from the full Aniraku avatar set (same bucket as the website), synced via your profile.
+            - **Email verification API**: the sign-up page now checks your email through the public verify-email endpoint — registered-account and MX/typo warnings before you submit.
+            - **Release-moment push**: check-new-episodes runs server-side every 5 minutes (pg_cron) so pushes fire the moment an episode releases.
 
-            ### Carried from v5.8.0–v5.8.9 (unchanged)
-            - HLS downloads for every provider, proxy-only transport, stable signing
-            - 4 parallel segment workers with live progress, stub-data gate
-            - Email-verification relay, watch-screen crash hotfix, diagnosable error screen
+            ### Carried from v5.8.0–v5.8.10 (unchanged)
+            - Proxy-only playback and downloads on the shared OkHttp stack, 4 parallel workers
+            - HLS downloads for every provider, offline playback from the hub, stable signing
           files: ./artifacts/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
