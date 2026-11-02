@@ -892,12 +892,20 @@ async function saveSubtitleTracks(options: {
       const alreadyProxied = isAnirakuProxyUrl(track.url);
       // The proxy hop carries the browser identity — api.aniraku.tech's gate
       // 403s header-less requests, and a skipped track means the offline
-      // bundle saves without subtitles.
-      const response = await fetch(alreadyProxied ? track.url : anirakuProxyUrl(track.url, options.headers), { headers: anirakuProxyRequestHeaders() }).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.text(); });
+      // bundle saves without subtitles. One retry: a transient proxy/CDN
+      // blip must not permanently drop a subtitle from the bundle.
+      const fetchTrackText = () => fetch(alreadyProxied ? track.url : anirakuProxyUrl(track.url, options.headers), { headers: anirakuProxyRequestHeaders() }).then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.text(); });
+      let response: string;
+      try {
+        response = await fetchTrackText();
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
+        response = await fetchTrackText();
+      }
       const file = new File(options.directory, `${options.entryId}-sub-${position}.${extension}`);
       file.write(response);
       saved.push({ lang: track.lang, label: track.label, file: file.uri });
-    } catch { /* skipped track */ }
+    } catch { /* skipped track — both attempts failed */ }
   }
   return saved;
 }

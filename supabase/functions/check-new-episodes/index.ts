@@ -25,7 +25,7 @@ const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
-const RELAY_LIMIT = 500;
+const RELAY_LIMIT = 2000;
 
 function isExpoPushToken(token: unknown): token is string {
   return typeof token === "string" && token.startsWith("ExponentPushToken[");
@@ -129,25 +129,38 @@ Deno.serve(async (request) => {
 
   let pushes = 0;
   let failed = 0;
+  // Rows whose pushes were DELIVERED (or had nothing to deliver) get stamped
+  // pushed; rows whose push failed or was deferred stay unstamped — the next
+  // run retries them. A temporary Expo/Network failure can therefore never
+  // permanently drop an episode push.
+  const stampIds: string[] = [];
   for (const [userId, row] of byUser) {
     const tokens = tokensByUser.get(userId) ?? [];
-    if (tokens.length === 0) continue;
+    if (tokens.length === 0) {
+      // No registered devices for this user — nothing to deliver, stamp so
+      // the row stops rescanning (the inbox still shows it).
+      stampIds.push(row.id);
+      continue;
+    }
     try {
       const { sent } = await pushToTokens(tokens, "New episode", row.message, { type: "new_episode", animeId: row.anime_id ?? undefined });
       pushes += sent;
-      if (sent === 0) failed += tokens.length;
-    } catch {
+      // Delivered to every registered token — stamp. A partial delivery
+      // (some tokens rejected) also stamps: the rejected tokens are stale
+      // registrations, and the row must not re-push to the working devices.
+      stampIds.push(row.id);
+      if (sent < tokens.length) failed += tokens.length - sent;
+    } catch (cause) {
       failed += tokens.length;
+      // Whole-request failure (Expo down / network) — leave unstamped so the
+      // next run retries; bounded by the 24h relay window.
+      console.error("[RELAY] push batch failed, will retry:", cause instanceof Error ? cause.message : cause);
     }
   }
 
-  // Stamp everything relayed this pass — including users without tokens —
-  // so the next run only sees genuinely new announcements.
-  if ((rows ?? []).length > 0) {
-    const stampIds = (rows ?? []).map((row) => row.id);
-    for (let i = 0; i < stampIds.length; i += 200) {
-      await admin.from("notifications").update({ pushed_at: new Date().toISOString() }).in("id", stampIds.slice(i, i + 200));
-    }
+  // Stamp only the delivered / nothing-to-deliver rows.
+  for (let i = 0; i < stampIds.length; i += 200) {
+    await admin.from("notifications").update({ pushed_at: new Date().toISOString() }).in("id", stampIds.slice(i, i + 200));
   }
 
   return json({ relayed: (rows ?? []).length, users: byUser.size, pushes, failed });

@@ -1,0 +1,1 @@
+Fixes a push-relay flaw found by automated scan: a temporary delivery failure could permanently drop an episode push — failed pushes now retry. Subtitle saves retry transient blips too. Installs over v5.8.0–v5.8.10.1.

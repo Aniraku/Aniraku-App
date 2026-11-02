@@ -6,6 +6,19 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.8.10.2 — Push-retry fix + code review hardening
+
+`CURRENT / FIX / INSTALLS OVER v5.8.0–v5.8.10.1`
+
+Automated scan (Perch) caught a real flaw in the episode-push relay: when Expo rejected a push batch or the request threw, the relay still stamped the notifications as pushed — a temporary delivery failure permanently dropped the episode push. Fixed, plus a sweep of the same silent-drop class.
+
+### Fixed
+- **Push relay stamps only delivered rows**: rows whose Expo push failed or threw stay unstamped and are retried on the next cron firing (bounded by the 24h relay window). Rows with no registered devices stamp (nothing to deliver — the inbox still shows them). Partial deliveries stamp: rejected tokens are stale registrations, and working devices must not be re-pushed.
+- **Offline subtitle fetch retry**: a transient proxy/CDN blip no longer permanently drops a subtitle from an offline bundle — one retry per track before it's skipped.
+- **CI release gate**: accepts 4-segment versions (5.8.10.1's build initially failed the tag check on the new version format).
+
+## v5.8.10.1 — Live download state, website avatars, email verification API, release-moment push
+
 ## v5.8.10.1 — Live download state, website avatars, verified emails, release-moment push
 
 `CURRENT / FEATURE RELEASE / INSTALLS OVER v5.8.0–v5.8.10`
