@@ -1,16 +1,16 @@
 {
   "version": 4,
-  "updated": "2026-10-31",
+  "updated": "2026-11-02",
   "announcements": [
     {
-      "id": "New about the V5-8-0",
+      "id": "New about the V5-8-10-1",
       "tag": "Note",
       "title": "A Quick Note from the Aniraku Team",
-      "banner": "Thank you for your continued love and support for Aniraku.I am here to Listen buddies.",
+      "banner": "Thank you for your continued love and support for Aniraku. I am here to listen, buddies.",
       "body": [
-        "Hey everyone! 👋\n\nAniraku is still very much a passion project I keep running between real life and coffee, and your support is what keeps the lights on.\n\nWe’re getting ready for V5.8.0 and I’d love your honest take: how much would you actually care about proper in-app offline downloads (no external downloader required)? Offline downloads already work on the website, and the app version is actively being built.\n\nWhile we’re at it… is there any other feature you’d really like to see next? Your feedback genuinely shapes the roadmap.\n\nIf you’re on GitHub, a star would make my day (and help the project look a bit less lonely).\n\nAlso looking for a couple of kind souls to help grow the community on Discord or Telegram. I’m… let’s just say “not a natural community manager,” so any help setting things up properly would be hugely appreciated.\n\nQuick heads-up: because of a recent PHP security situation we need to close the door on the old version. V5.7.9 will stop working soon, so I’m pushing a Beta of the new update today. Please give it a spin and shoot me an email if you run into anything weird — the faster I hear about it, the faster I can fix it.\n\nI was honestly hoping a few of you would reach out… still waiting 👀\n\nThanks for sticking with Aniraku. Now go enjoy some anime.\n\n— the guy who still hasn’t slept enough"
+        "Hey everyone! 👋\n\nAniraku is still very much a passion project I keep running between real life and coffee, and your support is what keeps the lights on.\n\nWe're now on **V5.8.10.1**. Proper in-app offline downloads are included — no external downloader required. After a download finishes you may sometimes need to go back and then return to the downloads section (or simply reopen the app) for the file to appear. That’s a known quirk I’m still smoothing out.\n\nImportant: please fully remove the old V5.7.9 before installing the latest V5.8.10.1 so everything works cleanly.\n\nI’d love to hear from you. Is there anything else you need or any feature you’d really like to see next? Your feedback genuinely shapes the roadmap. If you have anything in mind at all — bugs, missing anime, ideas, or just thoughts — just mail me. I’m honestly a bit sad that almost nobody has said much about the app so far… I keep checking my inbox hoping someone will reach out. Please don’t be shy.\n\nIf you enjoy Aniraku and want to help keep it alive, a small donation would mean the world (and a few extra coffees for late-night fixes).\n\nMissing an anime, facing an error, or just want to say hi? Email me anytime.\n\nThanks for sticking with Aniraku. Now go enjoy some anime.\n\n— the guy who still hasn’t slept enough"
       ],
-      "date": "2026-10-31",
+      "date": "2026-11-02",
       "email": "sho.islam0311@proton.me",
       "emailLabel": "Missing an anime or facing an error? Email me",
       "pinned": true,
