@@ -1,4 +1,4 @@
-/* ═══ ANIRAKU V5.4 — Nothing OS theme ═══
+/* ═══ ANIRAKU V5.8 — Nothing OS theme ═══
    Exact in-app tokens: #090909 / #141414 / #1C1C1C / #343434 /
    #F6F6F2 / #A2A2A0 / #666664 / #FF4D4D / #96D37B.
    Display + body: Space Grotesk (app default). Labels: Space Mono. */
@@ -83,10 +83,9 @@ code{font-family:var(--mono)}
 @keyframes tick{to{transform:translateX(-50%)}}
 
 /* ═══ FEATURE STRIP ═══ */
-.features{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line);max-width:1280px;margin:0 auto}
-.feature{padding:2rem clamp(1.5rem,3vw,2.6rem);border-right:1px solid var(--line);transition:background .2s var(--ease)}
-.feature:last-child{border-right:none}
-.feature:hover{background:rgba(246,246,242,.02)}
+.features{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border-bottom:1px solid var(--line);max-width:1280px;margin:0 auto}
+.feature{background:var(--black);padding:2rem clamp(1.5rem,3vw,2.6rem);transition:background .2s var(--ease)}
+.feature:hover{background:#101010}
 .feature-num{color:var(--red);font:700 .5rem/1 var(--mono);letter-spacing:.08em;margin-bottom:.8rem}
 .feature-title{color:var(--white);font:700 .72rem/1.3 var(--mono);letter-spacing:.03em;margin-bottom:.5rem}
 .feature-desc{color:var(--muted);font-size:.84rem;line-height:1.6}
@@ -106,7 +105,7 @@ code{font-family:var(--mono)}
 .screen-num{color:var(--red);font:700 .45rem/1 var(--mono);letter-spacing:.08em;margin-bottom:.6rem}
 .screen-name{color:var(--white);font:700 .62rem/1 var(--mono);letter-spacing:.06em;margin-bottom:.15rem}
 .screen-tag{color:var(--dim);font:400 .45rem/1 var(--mono);letter-spacing:.08em;margin-bottom:.9rem}
-.screen-img{width:100%;aspect-ratio:9/16;object-fit:cover;object-position:top;border-radius:var(--r-sm);border:1px solid var(--line);filter:brightness(.94);transition:filter .25s var(--ease)}
+.screen-img{width:100%;height:auto;border-radius:var(--r-sm);border:1px solid var(--line);filter:brightness(.94);transition:filter .25s var(--ease)}
 .screen-card:hover .screen-img{filter:brightness(1)}
 .screen-desc{margin-top:.9rem;color:var(--muted);font-size:.8rem;line-height:1.55}
 .screen-tags{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.7rem}
@@ -305,8 +304,6 @@ code{font-family:var(--mono)}
   .chip-a{left:8%}.chip-b{right:8%}.chip-c{left:12%}
   .screen-grid{grid-template-columns:repeat(2,1fr)}
   .features{grid-template-columns:repeat(2,1fr)}
-  .feature:nth-child(2){border-right:none}
-  .feature:nth-child(1),.feature:nth-child(2){border-bottom:1px solid var(--line)}
   .arch-grid{grid-template-columns:1fr 1fr}
   .arch-hero{grid-column:1/-1}
 }
@@ -320,11 +317,9 @@ code{font-family:var(--mono)}
   .hero-sub{font-size:.92rem}
   .hero-stats{gap:1.4rem}
   .features{grid-template-columns:1fr}
-  .feature{border-right:none;border-bottom:1px solid var(--line)}
-  .feature:last-child{border-bottom:none}
   .section{padding:3rem 1rem}
   .screen-grid{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -1rem;padding:0 1rem 1rem}
-  .screen-card{flex:0 0 78vw;scroll-snap-align:start}
+  .screen-card{flex:0 0 62vw;scroll-snap-align:start}
   .detail-grid,.watch-grid,.install-grid,.support-grid{grid-template-columns:1fr;gap:2rem}
   .arch-grid{grid-template-columns:1fr}
   .docs-grid{grid-template-columns:1fr}

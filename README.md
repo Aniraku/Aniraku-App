@@ -95,9 +95,9 @@ Read the full [Support Guide](./SUPPORT.md).
 ### Screenshots
 
 <p align="center">
-  <img src="./site/assets/screens/home.jpg" width="29%" style="border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" />
+  <img src="./site/assets/home.jpg" width="29%" style="border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" alt="Aniraku Home tab on Android — hero, Continue Watching, Trending Now" />
   &nbsp;
-  <img src="./site/assets/screens/catalog.jpg" width="29%" style="border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" />
+  <img src="./site/assets/catalog.jpg" width="29%" style="border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);" alt="Aniraku Search tab on Android — search field, top searches, trending grid" />
   &nbsp;
 </p>
 

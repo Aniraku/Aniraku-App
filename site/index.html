@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Aniraku — Anime, without the noise</title>
-  <meta name="description" content="Aniraku — Free and open source anime streaming for Android. No ads, no tracking. Momo + Niko sources, gestures, custom subtitles, offline downloads.">
+  <meta name="description" content="Aniraku — Free and open source anime streaming for Android. No ads, no tracking. AniSkip, 4-layer server fallback, custom subtitles, offline downloads, MAL + AniList sync.">
   <meta name="theme-color" content="#090909">
   <meta property="og:title" content="Aniraku — Anime, without the noise">
   <meta property="og:description" content="Free anime streaming for Android. No ads. No tracking. Open source.">
@@ -23,7 +23,7 @@
 
 <!-- ═══ NAV ═══ -->
 <nav class="nav">
-  <a href="#top" class="nav-brand"><i></i>ANIRAKU<em id="nav-version">V5.6.0</em></a>
+  <a href="#top" class="nav-brand"><i></i>ANIRAKU<em id="nav-version">V5.8.10.2</em></a>
   <div class="nav-links">
     <a href="#features">Features</a>
     <a href="#app">App</a>
@@ -45,15 +45,15 @@
   <div class="hero-bg" aria-hidden="true"></div>
   <div class="hero-inner">
     <div class="hero-copy">
-      <div class="hero-eyebrow"><i></i><b id="hero-tag">V5.6.0</b><span>STABLE · ANDROID 9+</span><span class="live-dot"></span></div>
+      <div class="hero-eyebrow"><i></i><b id="hero-tag">V5.8.10.2</b><span>STABLE · ANDROID 9+</span><span class="live-dot"></span></div>
       <h1>Anime,<br>without<br><em>the noise.</em></h1>
-      <p class="hero-sub">A free anime app for Android, built in the open. No ads, no tracking, no sign-up wall — install it, pick a show, press play.</p>
+      <p class="hero-sub">A free anime app for Android, built in the open. No ads, no tracking, no sign-up wall — install it, pick a show, press play. Offline downloads, AniSkip, and a seven-day airing schedule included.</p>
       <div class="hero-actions">
         <a href="#download" class="btn btn-primary" id="hero-download">Download APK</a>
         <a href="#app" class="btn btn-outline">See the app</a>
       </div>
       <dl class="hero-stats">
-        <div class="hero-stat"><dt>Version</dt><dd id="hero-version">V5.6.0</dd></div>
+        <div class="hero-stat"><dt>Version</dt><dd id="hero-version">V5.8.10.2</dd></div>
         <div class="hero-stat"><dt>Package</dt><dd>aniraku.anime.app</dd></div>
         <div class="hero-stat"><dt>Min Android</dt><dd>9.0+</dd></div>
         <div class="hero-stat"><dt>Builds</dt><dd>ARM64 · ARM32 · Universal</dd></div>
@@ -63,7 +63,7 @@
     <div class="hero-visual" aria-hidden="true">
       <div class="hero-glow"></div>
       <div class="phone">
-        <img src="assets/screens/home.jpg" alt="" loading="eager">
+        <img src="assets/home.jpg" alt="" loading="eager">
         <span class="phone-label">ANIRAKU V5</span>
       </div>
       <div class="chip chip-a"><i></i>CONTINUE · EP 12</div>
@@ -76,8 +76,8 @@
 <!-- ═══ TICKER ═══ -->
 <div class="ticker" aria-hidden="true">
   <div class="ticker-track">
-    <span>NO ADS</span><i></i><span>NO TRACKING</span><i></i><span>OPEN SOURCE</span><i></i><span>MOMO + NIKO</span><i></i><span>GESTURE PLAYER</span><i></i><span>OFFLINE DOWNLOADS</span><i></i><span>SLEEP TIMER</span><i></i>
-    <span>NO ADS</span><i></i><span>NO TRACKING</span><i></i><span>OPEN SOURCE</span><i></i><span>MOMO + NIKO</span><i></i><span>GESTURE PLAYER</span><i></i><span>OFFLINE DOWNLOADS</span><i></i><span>SLEEP TIMER</span><i></i>
+    <span>NO ADS</span><i></i><span>NO TRACKING</span><i></i><span>OPEN SOURCE</span><i></i><span>MULTI-PROVIDER</span><i></i><span>ANISKIP</span><i></i><span>OFFLINE DOWNLOADS</span><i></i><span>MAL + ANILIST SYNC</span><i></i>
+    <span>NO ADS</span><i></i><span>NO TRACKING</span><i></i><span>OPEN SOURCE</span><i></i><span>MULTI-PROVIDER</span><i></i><span>ANISKIP</span><i></i><span>OFFLINE DOWNLOADS</span><i></i><span>MAL + ANILIST SYNC</span><i></i>
   </div>
 </div>
 
@@ -95,11 +95,31 @@
   </div>
   <div class="feature">
     <div class="feature-num">03</div>
-    <div class="feature-title">Multi-Source</div>
-    <div class="feature-desc">Two providers under the hood. If one fails mid-episode, the app quietly tries the next one.</div>
+    <div class="feature-title">Multi-Provider</div>
+    <div class="feature-desc">Every server the backend lists, deduped, with a four-layer fallback chain. If a stream dies mid-episode, the app rotates to the next one.</div>
   </div>
   <div class="feature">
     <div class="feature-num">04</div>
+    <div class="feature-title">Offline Downloads</div>
+    <div class="feature-desc">Real in-app downloads, not an external downloader. Resumable, byte-accurate progress, Wi-Fi-only and a storage quota you set.</div>
+  </div>
+  <div class="feature">
+    <div class="feature-num">05</div>
+    <div class="feature-title">Two-Way Sync</div>
+    <div class="feature-desc">Import and export your list with MyAnimeList or AniList. Bookmarks sync in the cloud, so a new phone keeps your place.</div>
+  </div>
+  <div class="feature">
+    <div class="feature-num">06</div>
+    <div class="feature-title">Episode Alerts</div>
+    <div class="feature-desc">Follow a show and the bell does the rest. New episodes arrive as a push and in Library → Alerts, never a silent drop.</div>
+  </div>
+  <div class="feature">
+    <div class="feature-num">07</div>
+    <div class="feature-title">Real Player</div>
+    <div class="feature-desc">AniSkip, chapters, PiP, sleep timer, per-server quality memory and subtitle styling. A player, not a video tag.</div>
+  </div>
+  <div class="feature">
+    <div class="feature-num">08</div>
     <div class="feature-title">Fully Open</div>
     <div class="feature-desc">The whole codebase is on GitHub. Read it, fork it, or send a fix — that's how it got this far.</div>
   </div>
@@ -109,56 +129,80 @@
 <section class="section" id="app">
   <div class="section-label"><i></i>THE APP</div>
   <h2 class="section-title">Built <span>for you.</span></h2>
-  <p class="section-desc">Six screens, zero clutter. Here's what you're actually tapping through.</p>
+  <p class="section-desc">Real captures from v5.8.10.2 — no mockups, no relabelled screens. Here's what you're actually tapping through.</p>
 
   <div class="screen-grid reveal">
     <div class="screen-card">
       <div class="screen-num">01</div>
       <div class="screen-name">Home</div>
       <div class="screen-tag">DISCOVER</div>
-      <img class="screen-img" src="assets/screens/home.jpg" alt="Home screen" loading="lazy">
-      <div class="screen-desc">Your unfinished episodes, right at the top. It remembers where you stopped — even mid-episode.</div>
-      <div class="screen-tags"><span>Continue Watching</span><span>Trending</span><span>Upcoming</span></div>
+      <img class="screen-img" src="assets/home.jpg" alt="Home tab with hero pick, Continue Watching rail and Trending Now" loading="lazy" width="1080" height="2332">
+      <div class="screen-desc">Your unfinished episodes at the top with exact progress, a hero pick, and what's trending tonight.</div>
+      <div class="screen-tags"><span>Continue Watching</span><span>Trending Now</span><span>Pull to Refresh</span></div>
     </div>
     <div class="screen-card">
       <div class="screen-num">02</div>
-      <div class="screen-name">Catalog</div>
-      <div class="screen-tag">SEARCH</div>
-      <img class="screen-img" src="assets/screens/catalog.jpg" alt="Catalog screen" loading="lazy">
-      <div class="screen-desc">Genre, status, format, season, year — stack as many filters as you want until the list looks right.</div>
-      <div class="screen-tags"><span>Advanced Filters</span><span>Genre</span><span>Status</span></div>
+      <div class="screen-name">Search</div>
+      <div class="screen-tag">FIND IT</div>
+      <img class="screen-img" src="assets/catalog.jpg" alt="Search tab with search field, filters, top searches and trending grid" loading="lazy" width="1080" height="2322">
+      <div class="screen-desc">One search box plus real filters — genre, format, status, season, year and sort. Top searches before you type.</div>
+      <div class="screen-tags"><span>Filters</span><span>Genre</span><span>Top Searches</span></div>
     </div>
     <div class="screen-card">
       <div class="screen-num">03</div>
-      <div class="screen-name">Detail</div>
-      <div class="screen-tag">DEEP DIVE</div>
-      <img class="screen-img" src="assets/screens/details-v411-relations.jpg" alt="Detail screen" loading="lazy">
-      <div class="screen-desc">Trailer, synopsis, airing countdown, related shows, and a link you can send to a friend.</div>
-      <div class="screen-tags"><span>Trailer</span><span>Schedule</span><span>Relations</span></div>
+      <div class="screen-name">Schedule</div>
+      <div class="screen-tag">NEXT 7 DAYS</div>
+      <img class="screen-img" src="assets/watch.jpg" alt="Schedule tab showing seven days of episode air times with reminder bells" loading="lazy" width="1080" height="2319">
+      <div class="screen-desc">Everything airing in the next week, grouped by day with the exact time. Tap the bell to get a reminder.</div>
+      <div class="screen-tags"><span>7-Day View</span><span>Air Times</span><span>Reminders</span></div>
     </div>
     <div class="screen-card">
       <div class="screen-num">04</div>
-      <div class="screen-name">Watch</div>
-      <div class="screen-tag">PLAYBACK</div>
-      <img class="screen-img" src="assets/screens/watch.jpg" alt="Watch screen" loading="lazy">
-      <div class="screen-desc">The episode list, Sub and Dub servers, opening skips, ratings, and the comment thread.</div>
-      <div class="screen-tags"><span>Sub / Dub</span><span>Skip OP/ED</span><span>Discussion</span></div>
+      <div class="screen-name">Library</div>
+      <div class="screen-tag">MY LIST</div>
+      <img class="screen-img" src="assets/library.jpg" alt="Library Saved tab with status chips, sort controls and list/grid toggles" loading="lazy" width="1080" height="2311">
+      <div class="screen-desc">Saved shows with status chips, saved search, offline filter, and list or grid view. Sort by recent, title or score.</div>
+      <div class="screen-tags"><span>Status Chips</span><span>Offline Filter</span><span>Sort</span></div>
     </div>
     <div class="screen-card">
       <div class="screen-num">05</div>
-      <div class="screen-name">Player</div>
-      <div class="screen-tag">FULLSCREEN</div>
-      <img class="screen-img" src="assets/screens/watch-player.jpg" alt="Fullscreen player" loading="lazy">
-      <div class="screen-desc">Big pause button, seek bar, volume and brightness swipes, sleep timer. Nothing you have to learn.</div>
-      <div class="screen-tags"><span>Gestures</span><span>PiP</span><span>Sleep Timer</span></div>
+      <div class="screen-name">History</div>
+      <div class="screen-tag">RESUME</div>
+      <img class="screen-img" src="assets/history.jpg" alt="Library History tab with per-episode progress and resume buttons" loading="lazy" width="1080" height="2323">
+      <div class="screen-desc">Pick up where you left off. Every row shows how far into the episode you got, and resumes there.</div>
+      <div class="screen-tags"><span>Per-Episode Progress</span><span>Resume</span><span>Clear History</span></div>
     </div>
     <div class="screen-card">
       <div class="screen-num">06</div>
+      <div class="screen-name">Alerts</div>
+      <div class="screen-tag">EPISODE FEED</div>
+      <img class="screen-img" src="assets/alerts.jpg" alt="Library Alerts tab listing newly available episodes with unread state" loading="lazy" width="1080" height="2308">
+      <div class="screen-desc">When a show you follow drops an episode it lands here — and as a push notification, if you allow it.</div>
+      <div class="screen-tags"><span>New Episodes</span><span>Unread</span><span>Mark All Read</span></div>
+    </div>
+    <div class="screen-card">
+      <div class="screen-num">07</div>
+      <div class="screen-name">Profile</div>
+      <div class="screen-tag">YOUR SPACE</div>
+      <img class="screen-img" src="assets/profile.jpg" alt="Profile tab with watch statistics and top anime list" loading="lazy" width="1080" height="2308">
+      <div class="screen-desc">Hours watched, episodes, anime count, day streak, and your top shows. Avatars are preset art, synced with this site.</div>
+      <div class="screen-tags"><span>Watch Stats</span><span>Top Anime</span><span>Avatars</span></div>
+    </div>
+    <div class="screen-card">
+      <div class="screen-num">08</div>
+      <div class="screen-name">Settings</div>
+      <div class="screen-tag">CONTROL ROOM</div>
+      <img class="screen-img" src="assets/setting.jpg" alt="Settings screen with account, NSFW gate, notifications and library sync" loading="lazy" width="1080" height="2328">
+      <div class="screen-desc">NSFW gate behind an age check, notification switches, MAL and AniList import/export, and a build check.</div>
+      <div class="screen-tags"><span>NSFW Gate</span><span>MAL + AniList</span><span>Notifications</span></div>
+    </div>
+    <div class="screen-card">
+      <div class="screen-num">09</div>
       <div class="screen-name">Random</div>
       <div class="screen-tag">SURPRISE ME</div>
-      <img class="screen-img" src="assets/screens/random.jpg" alt="Random screen" loading="lazy">
-      <div class="screen-desc">For the nights when nothing sounds good. One tap, one random pick, zero regrets (usually).</div>
-      <div class="screen-tags"><span>Discovery</span><span>One Tap</span><span>Schedule</span></div>
+      <img class="screen-img" src="assets/random.jpg" alt="Random tab showing a single random anime pick" loading="lazy" width="1080" height="2329">
+      <div class="screen-desc">For the nights when nothing sounds good. One tap pulls a random title out of a pool of thousands.</div>
+      <div class="screen-tags"><span>One Tap</span><span>Poster First</span><span>Any Genre</span></div>
     </div>
   </div>
 </section>
@@ -169,21 +213,21 @@
     <div>
       <div class="section-label"><i></i>ANIME DETAIL</div>
       <h2 class="section-title">Every detail,<br><span>at a glance.</span></h2>
-      <p class="section-desc">Open any anime and you get the trailer, the synopsis, when the next episode airs, and what to watch after it ends.</p>
+      <p class="section-desc">Open any anime and you get the synopsis, when the next episode airs, the watch order, and what to start after it ends.</p>
       <div class="detail-tags">
-        <span>YouTube Trailer</span>
-        <span>Deep Link Sharing</span>
-        <span>Airing Schedule</span>
-        <span>Episode Countdown</span>
+        <span>Relationships</span>
+        <span>Recommendations</span>
+        <span>Airing Countdown</span>
+        <span>Deep Links</span>
       </div>
     </div>
     <ul class="detail-list">
-      <li><span>01</span><div><b>Auto-Play Trailer</b><p>The trailer starts playing on its own. Pulled from AniList, no YouTube app needed.</p></div></li>
-      <li><span>02</span><div><b>Share Anywhere</b><p>Every anime has a link (<code>aniraku://anime/{id}</code>) that opens straight in the app.</p></div></li>
-      <li><span>03</span><div><b>Airing Countdown</b><p>Following something weekly? It tells you exactly how long until the next episode.</p></div></li>
-      <li><span>04</span><div><b>Relations</b><p>Sequels, prequels, side stories — the whole watch order in one sideways scroll.</p></div></li>
-      <li><span>05</span><div><b>Progress Tracking</b><p>Sign in once and your spot follows you. The app always knows which episode is next.</p></div></li>
-      <li><span>06</span><div><b>Legal Info</b><p>Privacy policy, terms, DMCA, open-source licenses — all inside the app, in plain words.</p></div></li>
+      <li><span>01</span><div><b>Share Anywhere</b><p>Every anime has a link — <code>aniraku://anime/{id}</code> in the app, <code>aniraku.tech/anime/{id}</code> on the web — with a copy button.</p></div></li>
+      <li><span>02</span><div><b>Airing Countdown</b><p>Following something weekly? A live countdown shows exactly how long until the next episode, plus which episode it is.</p></div></li>
+      <li><span>03</span><div><b>Relationships</b><p>Sequels, prequels, side stories and spin-offs, grouped by relation type so the watch order isn't guesswork.</p></div></li>
+      <li><span>04</span><div><b>More Like This</b><p>A recommendations rail pulled per title, so the next show is one tap away instead of a search.</p></div></li>
+      <li><span>05</span><div><b>Notify Me</b><p>Bell icon on any anime. When a new episode drops you get a push and an entry in Library → Alerts.</p></div></li>
+      <li><span>06</span><div><b>Episode Grid</b><p>Thumbnails, filler tags, per-episode progress, a 1–10 rating on each, and 20 episodes a page.</p></div></li>
     </ul>
   </div>
 </section>
@@ -194,7 +238,7 @@
     <div>
       <div class="section-label"><i></i>WATCH</div>
       <h2 class="section-title">Watch<br><span>your way.</span></h2>
-      <p class="section-desc">It works the way your hands expect: tap to pause, swipe for volume, double-tap to skip. You'll never open the help page.</p>
+      <p class="section-desc">It works the way your hands expect: tap to pause, swipe for volume, double-tap to skip. And when a stream dies, the player rotates servers before you notice.</p>
       <div class="detail-tags">
         <span>Gesture Controls</span>
         <span>Picture-in-Picture</span>
@@ -203,11 +247,12 @@
       </div>
     </div>
     <div class="watch-notes">
-      <div class="watch-note"><b>01 · SEEK</b><p>Double-tap left to jump back 10 seconds, right to jump forward. Hold your finger down for 2× speed.</p></div>
+      <div class="watch-note"><b>01 · SEEK</b><p>Double-tap the left side to jump back 10 seconds, the right side to jump forward. Hold your finger down for 2× speed.</p></div>
       <div class="watch-note"><b>02 · SWIPE</b><p>Slide up the left edge for brightness, the right edge for volume. Drag the bar to scrub.</p></div>
-      <div class="watch-note"><b>03 · SUBTITLES</b><p>English tracks included where available, drawn big and readable over the picture.</p></div>
-      <div class="watch-note"><b>04 · SOURCES</b><p>Sub and Dub servers listed side by side. If the stream dies, the app tries the next option by itself.</p></div>
-      <div class="watch-note"><b>05 · SLEEP</b><p>Falling asleep to an episode? Set the timer from 15 minutes to 2 hours and it'll pause for you.</p></div>
+      <div class="watch-note"><b>03 · SUBTITLES</b><p>Pick the track, then set font, size, background opacity, outline thickness and offset. Preferences stick between episodes.</p></div>
+      <div class="watch-note"><b>04 · SOURCES</b><p>Sub and Dub servers side by side, each remembering its own quality. Four fallback layers rotate if a stream won't start.</p></div>
+      <div class="watch-note"><b>05 · ANISKIP</b><p>Intro and outro markers are detected automatically, with a skip button on the video — no more 90-second openings.</p></div>
+      <div class="watch-note"><b>06 · SLEEP</b><p>Timer presets from 15 minutes to 2 hours, with a countdown pill on the video. It pauses itself while you doze off.</p></div>
     </div>
   </div>
 </section>
@@ -219,19 +264,19 @@
   <p class="section-desc">No Play Store, no account, no waiting. Grab the file, tap it, done.</p>
 
   <div class="arch-grid reveal" id="arch-grid">
-    <a class="arch-card arch-hero" id="arch-universal" href="https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.0-universal.apk">
+    <a class="arch-card arch-hero" id="arch-universal" href="https://github.com/Aniraku/Aniraku-App/releases/download/v5.8.10.2/aniraku-v5.8.10.2-universal.apk">
       <span class="arch-badge">RECOMMENDED</span>
       <b>Universal</b>
       <p>All devices · ARM64 + ARM32 + x86_64</p>
-      <span class="arch-cta">Download · <em id="arch-universal-ver">V5.6.0</em> →</span>
+      <span class="arch-cta">Download · <em id="arch-universal-ver">V5.8.10.2</em> →</span>
     </a>
-    <a class="arch-card" id="arch-arm64" href="https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.0-arm64.apk">
+    <a class="arch-card" id="arch-arm64" href="https://github.com/Aniraku/Aniraku-App/releases/download/v5.8.10.2/aniraku-v5.8.10.2-arm64.apk">
       <span class="arch-badge arch-badge-alt">64-BIT</span>
       <b>ARM64</b>
       <p>Most modern phones · smaller file</p>
       <span class="arch-cta">Download APK →</span>
     </a>
-    <a class="arch-card" id="arch-arm32" href="https://github.com/Aniraku/Aniraku-App/releases/download/v5.6.0/aniraku-v5.6.0-arm32.apk">
+    <a class="arch-card" id="arch-arm32" href="https://github.com/Aniraku/Aniraku-App/releases/download/v5.8.10.2/aniraku-v5.8.10.2-arm32.apk">
       <span class="arch-badge arch-badge-alt">32-BIT</span>
       <b>ARM32</b>
       <p>Older devices · Android 9+</p>
@@ -252,7 +297,7 @@
           <li><b>03</b><p><strong>Install</strong> — open the file from your notifications and tap through.</p></li>
           <li><b>04</b><p><strong>Open &amp; watch</strong> — that's genuinely it. Sign in later if you want your list synced.</p></li>
         </ol>
-        <div class="warn"><p>Package <code>aniraku.anime.app</code> · On some devices you may need to revoke the permission after install to re-enable Play Protect.</p></div>
+        <div class="warn"><p>Package <code>aniraku.anime.app</code>. Upgrading from the old <code>aniraku.anine.app</code> alpha, or from anything older than v5.8.0? Uninstall it first — Android treats it as a separate app. On some devices you may need to revoke the permission after install to re-enable Play Protect.</p></div>
       </div>
     </div>
 
@@ -260,7 +305,7 @@
       <div class="install-box">
         <div class="install-box-header">
           <span>RELEASES</span>
-          <b id="install-latest">V5.6.0</b>
+          <b id="install-latest">V5.8.10.2</b>
         </div>
         <div id="release-list" class="release-list">
           <div class="release-loading"><div class="spinner"></div><div>Loading releases…</div></div>
@@ -354,6 +399,38 @@
     <details class="faq-item">
       <summary><span>07</span><b>Can I contribute?</b><i>+</i></summary>
       <p>Please do. Bug reports, translations, code — it all lives on GitHub and every bit helps.</p>
+    </details>
+    <details class="faq-item">
+      <summary><span>08</span><b>Do downloads actually work offline?</b><i>+</i></summary>
+      <p>Yes. Downloads are saved on your device and play with no connection at all. You can cap storage at 1, 2 or 5 GB (or leave it unlimited) and lock downloads to Wi-Fi only. Progress is tracked to the byte, and interrupted downloads resume instead of starting over.</p>
+    </details>
+    <details class="faq-item">
+      <summary><span>09</span><b>What is AniSkip?</b><i>+</i></summary>
+      <p>Intro and outro markers come from the stream's own chapter data plus AniSkip, matched to the episode you're watching. When an opening or ending starts, a skip button appears on the video with a countdown — one tap and you're past it. If a show has no timing data, the button simply never shows up.</p>
+    </details>
+    <details class="faq-item">
+      <summary><span>10</span><b>Can I import my MyAnimeList or AniList library?</b><i>+</i></summary>
+      <p>Yes. In Settings → Library Sync, connect either account to import your list and watch progress, or push your Aniraku progress back out. Import matches titles against Aniraku's catalog and tells you exactly what came across, what was already there, and what had no match.</p>
+    </details>
+    <details class="faq-item">
+      <summary><span>11</span><b>Why didn't I get a notification for a new episode?</b><i>+</i></summary>
+      <p>Notifications only fire for shows you've added to your list, and only after the episode is actually playable — we check the stream before sending anything. On Android 13 and newer you also have to allow notifications for Aniraku, and battery savers sometimes hold them back. Delivered alerts always land in Library → Alerts, so nothing is ever lost.</p>
+    </details>
+    <details class="faq-item">
+      <summary><span>12</span><b>Can I watch on my TV?</b><i>+</i></summary>
+      <p>Use Android's built-in screen mirroring or cast your whole phone to the TV — that works today. A dedicated cast button inside the app isn't planned, because screen mirroring already covers it without another moving part.</p>
+    </details>
+    <details class="faq-item">
+      <summary><span>13</span><b>How do I update to a new version?</b><i>+</i></summary>
+      <p>Settings → Application has a CHECK button that tells you when a newer build exists, and the Releases box above always links the current one. From v5.8.0 or newer the APK installs straight over the previous one, so your library and history stay put. Coming from V5.7.9 or older — including the old <code>aniraku.anine.app</code> alpha — uninstall it first; Android treats those as separate apps.</p>
+    </details>
+    <details class="faq-item">
+      <summary><span>14</span><b>How do I delete my account and data?</b><i>+</i></summary>
+      <p>Settings → Delete account wipes your profile, watch history, ratings, bookmarks, comments, notifications and preferences in one go. No account? Clearing history and saved titles in Settings removes what's stored on the device.</p>
+    </details>
+    <details class="faq-item">
+      <summary><span>15</span><b>Why is NSFW content hidden?</b><i>+</i></summary>
+      <p>It's off by default. Turning it on in Settings asks you to confirm you're 18 or older, and it only changes what the catalog search asks for — the preference itself is stored on your device. Turn it back off whenever you like.</p>
     </details>
   </div>
 </section>

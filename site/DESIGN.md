@@ -11,24 +11,24 @@ The Pages site is the public, browser-native counterpart to the Android app. It 
 | Release banner + hero | Introduces the current stable release, package name (`aniraku.anime.app`), and Android 9+ compatibility. | Download the current APK or read release notes. |
 | Architecture download grid | Offers one APK per device class: `arm64`, `arm32`, and `universal` (contains all architectures). | Download the matching APK from the named GitHub release. |
 | Install sheet | Explains direct installation and the required legacy-package removal (`aniraku.anine.app` must be uninstalled first). | Open the GitHub release. |
-| Native product rail | Shows real captures: Home, Catalog, Watch, Watch player, Random, and Anime detail. | Inspect a selected capture. |
+| Native product rail | Shows nine real captures: Home, Search, Schedule, Library, History, Alerts, Profile, Settings, and Random. | Inspect a selected capture. |
 | Playback / Watch section | Explains the native player surface, source console, and recovery states. | Read the playback notes. |
 | Release archive | Lists past releases with version, date, and per-arch download links. | Download an older build. |
 | Release archive | Latest release expanded with per-APK rows; next 4 releases as compact rows; older releases behind a "show all" toggle; footer links to GitHub releases. | Expand the latest, browse an older entry, reveal the full archive. |
 | Docs grid | Mirrors the repo docs one-to-one: Getting Started, Privacy, Terms, DMCA, Security, Support, Contributing, Changelog — each linking to the same file on `main`. | Open the matching repo doc. |
 | Support section | Voluntary funding via Patreon and Binance Pay (UID). Support never gates features. | Open Patreon or copy the Binance UID. |
-| FAQ | Answers installation, migration, streaming, account sync, and support questions. | Open a concise answer. |
+| FAQ | Answers installation, migration, downloads, AniSkip, provider sync, notifications, updates, privacy, and support questions. | Open a concise answer. |
 | Trust and docs panel | States FOSS distribution, free-instance latency expectations, privacy boundaries, and project documentation. | Open legal or source documentation. |
 
 ## Visual and interaction rules
 
 The primary desktop composition is an asymmetric command-console layout: an anchored top bar, compact release banner, wide editorial hero, narrow right-side status column, then full-width product rails. On mobile it becomes a one-handed vertical route with the download action at the top and sticky bottom navigation for the main sections.
 
-The palette is fixed to `#090909` black, `#141414` surface, `#1C1C1C` raised, `#343434` graphite line, `#F6F6F2` soft white, `#A2A2A0` muted, `#666664` dim, `#FF4D4D` signal red, and `#96D37B` availability green. Typography pairs `Space Mono` for labels, metadata, controls, and version details with `Inter` for reading and display weights. CSS interactions stay within `opacity` and `transform`, complete in 120–240 ms, and disable non-essential motion for reduced-motion users.
+The palette is fixed to `#090909` black, `#141414` surface, `#1C1C1C` raised, `#343434` graphite line, `#F6F6F2` soft white, `#A2A2A0` muted, `#666664` dim, `#FF4D4D` signal red, and `#96D37B` availability green. Typography pairs `Space Mono` for labels, metadata, controls, and version details with `Space Grotesk` for reading and display weights. CSS interactions stay within `opacity` and `transform`, complete in 120–240 ms, and disable non-essential motion for reduced-motion users.
 
 ## Content integrity
 
-- The site uses only committed real app captures from `site/assets/screens/` and local source-controlled visual assets. No generated imagery, no mislabeled states.
+- The site uses only committed real app captures from `site/assets/` and local source-controlled visual assets. No generated imagery, no mislabeled states. The gallery covers Home, Search, Schedule, Library, History, Alerts, Profile, Settings, and Random; the `avatar.jpg` capture (Profile with the avatar picker expanded) is reserved and must carry an avatar-specific caption if used.
 - Release actions always target the named GitHub release (`https://github.com/Aniraku/Aniraku-App/releases/download/vX.Y.Z/aniraku-vX.Y.Z-<arch>.apk`). The `universal` APK contains all architectures.
 - The package-migration warning (uninstall legacy `aniraku.anine.app`) and Android 9+ compatibility stay visible before the visitor scrolls.
 - Support copy names only live routes: Patreon and Binance Pay. Removed routes (e.g. USDT) must not reappear in copy or QR assets served by the page.
@@ -47,4 +47,4 @@ When cutting a new app release, update the site in the same pass:
 
 ## Public deployment QA
 
-The public URL `https://aniraku.github.io/Aniraku-App/` serves the static `site/` artifact via GitHub Pages. After each site change, verify on desktop and at the `720px` mobile breakpoint: hero version matches the latest tag, all three APK links download, the product rail renders real captures, support links resolve, and the FAQ single-open behavior still works.
+The public URL `https://aniraku.github.io/Aniraku-App/` serves the static `site/` artifact via GitHub Pages. After each site change, verify on desktop and at the `720px` mobile breakpoint: hero version matches the latest tag, all three APK links download, the product rail renders real captures, support links resolve, and every FAQ entry opens and closes independently.
