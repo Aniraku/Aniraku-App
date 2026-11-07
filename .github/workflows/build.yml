@@ -183,7 +183,7 @@ jobs:
           draft: false
           prerelease: true
           body: |
-            ## V5.9 (Beta) — Downloads rebuilt, App Links, kinder signup
+            ## V5.9 (Beta) — Downloads rebuilt, App Links, improved sign-up
 
             Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0–v5.8.10.2 — same signing key, no uninstall needed.**
 
@@ -192,15 +192,15 @@ jobs:
             - `aniraku-v5.9.0.0-universal.apk` — every device
 
             ### Fixed
-            - **Saved episodes play with Wi-Fi or mobile data ON** — a server-discovery race wiped the just-mounted offline copy the moment the network resolved; airplane mode was masking it.
-            - **Downloads on fMP4 providers** — the downloader refused every `#EXT-X-MAP` stream while providers migrated; bundles now carry the init segment and verify it.
-            - **Separate-audio providers keep sound** — the audio track downloads alongside and the bundle groups video + audio.
-            - **Share opens the app, not a 404** — native share sheet, real `/info/{id}` links, verified Android App Links.
+            - **Saved episodes play with Wi-Fi or mobile data ON** — a server-discovery race dismissed the just-mounted offline copy when the network resolved; offline playback previously only worked in airplane mode.
+            - **Downloads on fMP4 providers** — the downloader rejected every `#EXT-X-MAP` stream after the provider migration; bundles now fetch the init segment and verify it.
+            - **Separate-audio providers keep sound** — the audio track downloads alongside the video and the bundle groups both.
+            - **Share opens the app** — native share sheet, correct `/info/{id}` links, and verified Android App Links.
             - **Quality switching keeps audio** on separate-audio servers.
-            - **Kinder signup** — tappable terms row and a "check your mail" confirmation.
-            - **SUB/DUB chips show server counts**, oversized-UI fix for large system fonts, faster lighter Home with a truthful "Coming soon" rail.
+            - **Sign-up improvements** — reliable terms acceptance control and a "check your mail" confirmation before account creation.
+            - **Interface corrections** — SUB/DUB chips show server counts, oversized UI fixed for large system fonts, faster Home with an accurate "Coming soon" rail.
 
-            Bugs or missing anime? Mail **sho.islam0311@proton.me** — it fuels the next fix.
+            Found a bug or a missing anime? Mail **sho.islam0311@proton.me** — it directly shapes the next release.
           files: ./artifacts/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
