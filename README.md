@@ -24,14 +24,14 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.9.0.0">v5.9.0.0 (Beta) Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.9.0.0">v5.9(Beta) Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 <br>
 
 > [!IMPORTANT]
-> **v5.9.0.0 (Beta) is the current release** — Downloads rebuilt for fMP4 and separate-audio providers (the long-standing "downloads don't work" breaker), shared anime links now open the app via verified Android App Links, quality switching keeps audio on separate-audio servers, and a kinder signup flow (tappable terms row + a "check your mail" confirmation). Installs directly over v5.8.0–v5.8.10.2. The stable previous build is [v5.8.10.2](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.10.2).
+> **v5.9 (Beta) is the current release** — Downloads rebuilt for fMP4 and separate-audio providers (the long-standing "downloads don't work" breaker), shared anime links now open the app via verified Android App Links, quality switching keeps audio on separate-audio servers, and a kinder signup flow (tappable terms row + a "check your mail" confirmation). Installs directly over v5.8.0–v5.8.10.2. The stable previous build is [v5.8.10.2](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.10.2).
 
 > [!CAUTION]
 >If it has saved you time, a small donation keeps it up. And the library keeps growing — **missing an anime?** Email [`sho.islam0311@proton.me`](mailto:sho.islam0311@proton.me) and it'll get added.
