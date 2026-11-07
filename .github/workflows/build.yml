@@ -179,26 +179,28 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          name: Aniraku ${{ env.RELEASE_TAG }}
+          name: Aniraku V5.9
           draft: false
-          prerelease: false
+          prerelease: true
           body: |
-            ## v5.8.10.2 — Push-retry fix + code review hardening
+            ## V5.9 (Beta) — Downloads rebuilt, App Links, kinder signup
 
-            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0–v5.8.10.1 — same signing key, no uninstall needed.**
+            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0–v5.8.10.2 — same signing key, no uninstall needed.**
 
-            - `aniraku-v5.8.10.2-arm64.apk` — modern (64-bit) devices
-            - `aniraku-v5.8.10.2-arm32.apk` — older / budget (32-bit) devices
-            - `aniraku-v5.8.10.2-universal.apk` — every device
+            - `aniraku-v5.9.0.0-arm64.apk` — modern (64-bit) devices
+            - `aniraku-v5.9.0.0-arm32.apk` — older / budget (32-bit) devices
+            - `aniraku-v5.9.0.0-universal.apk` — every device
 
             ### Fixed
-            - **Push-relay retry**: when Expo rejects a push batch or the request throws, the relay no longer stamps the notifications as pushed — failed pushes retry on the next cron firing, so a temporary delivery failure can never permanently drop an episode push.
-            - **Offline subtitle saves retry** transient proxy/CDN blips instead of permanently dropping the track.
-            - **CI release gate**: accepts 4-segment versions.
+            - **Saved episodes play with Wi-Fi or mobile data ON** — a server-discovery race wiped the just-mounted offline copy the moment the network resolved; airplane mode was masking it.
+            - **Downloads on fMP4 providers** — the downloader refused every `#EXT-X-MAP` stream while providers migrated; bundles now carry the init segment and verify it.
+            - **Separate-audio providers keep sound** — the audio track downloads alongside and the bundle groups video + audio.
+            - **Share opens the app, not a 404** — native share sheet, real `/info/{id}` links, verified Android App Links.
+            - **Quality switching keeps audio** on separate-audio servers.
+            - **Kinder signup** — tappable terms row and a "check your mail" confirmation.
+            - **SUB/DUB chips show server counts**, oversized-UI fix for large system fonts, faster lighter Home with a truthful "Coming soon" rail.
 
-            ### Carried from v5.8.0–v5.8.10.1 (unchanged)
-            - Proxy-only playback and downloads on the shared OkHttp stack, 4 parallel workers
-            - HLS downloads for every provider, offline auto-play from the hub, stable signing
+            Bugs or missing anime? Mail **sho.islam0311@proton.me** — it fuels the next fix.
           files: ./artifacts/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

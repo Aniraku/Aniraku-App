@@ -289,3 +289,66 @@ describe("cache key invalidation logic", () => {
     expect(shouldRefetchVariants(null, base)).toBe(true);
   });
 });
+
+describe("separate-audio renditions", () => {
+  const AUDIO_MASTER = [
+    "#EXTM3U",
+    "#EXT-X-VERSION:7",
+    '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud1",NAME="English",DEFAULT=YES,AUTOSELECT=YES,URI="audio/eng/index.m3u8"',
+    '#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="EN",URI="subs/en.m3u8"',
+    "#EXT-X-STREAM-INF:BANDWIDTH=5120000,RESOLUTION=1920x1080,AUDIO=\"aud1\",CODECS=\"avc1.640028,mp4a.40.2\"",
+    "1080/playlist.m3u8",
+    "#EXT-X-STREAM-INF:BANDWIDTH=2470000,RESOLUTION=1280x720,AUDIO=\"aud1\"",
+    "720/index.m3u8",
+    "",
+  ].join("\n");
+
+  it("parses audio renditions into group-id → absolute URL", async () => {
+    const { parseHlsAudioRenditions } = await import("../lib/hls-variants");
+    const renditions = parseHlsAudioRenditions(AUDIO_MASTER, "https://cdn.example/hls/master.m3u8");
+    expect(renditions.size).toBe(1);
+    expect(renditions.get("aud1")).toBe("https://cdn.example/hls/audio/eng/index.m3u8");
+  });
+
+  it("ignores subtitle groups and URI-less audio entries", async () => {
+    const { parseHlsAudioRenditions } = await import("../lib/hls-variants");
+    const none = parseHlsAudioRenditions("#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a1\",NAME=\"X\"\n", "https://cdn.example/");
+    expect(none.size).toBe(0);
+  });
+
+  it("captures the audio group id on parsed variants", async () => {
+    const { parseHlsMasterVariants } = await import("../lib/hls-variants");
+    const variants = parseHlsMasterVariants(AUDIO_MASTER, "https://cdn.example/hls/master.m3u8");
+    expect(variants.every((variant) => variant.audioGroupId === "aud1")).toBe(true);
+  });
+
+  it("builds audio-preserving options that mount the master with a resolution cap", async () => {
+    const { buildHlsQualityOptions, parseHlsMasterVariants } = await import("../lib/hls-variants");
+    const source = { url: "https://cdn.example/hls/master.m3u8", quality: "Auto", type: "hls" };
+    const variants = parseHlsMasterVariants(AUDIO_MASTER, "https://cdn.example/hls/master.m3u8");
+    const options = buildHlsQualityOptions(source as never, variants, { proxied: false, masterMountUrl: "https://cdn.example/hls/master.m3u8" });
+    expect(options).toHaveLength(3); // Auto + 1080p + 720p
+    const capped = options.filter((option) => option.resolutionCap);
+    expect(capped.map((option) => option.resolutionCap)).toEqual([1080, 720]);
+    // Every capped row mounts the SAME master URL, not the bare variant.
+    for (const option of capped) {
+      expect(option.source?.url).toBe("https://cdn.example/hls/master.m3u8");
+    }
+    // Auto stays a plain source without a cap.
+    expect(options[0]?.resolutionCap).toBeUndefined();
+    expect(options[0]?.label).toBe("Auto");
+  });
+
+  it("keeps the proven URL-swap mount when no master URL is given", async () => {
+    const { buildHlsQualityOptions, parseHlsMasterVariants } = await import("../lib/hls-variants");
+    const source = { url: "https://cdn.example/hls/master.m3u8", quality: "Auto", type: "hls" };
+    const variants = parseHlsMasterVariants(AUDIO_MASTER, "https://cdn.example/hls/master.m3u8");
+    const options = buildHlsQualityOptions(source as never, variants, { proxied: false });
+    const fixed = options.filter((option) => option.id !== "hls-auto");
+    expect(fixed.map((option) => option.source?.url)).toEqual([
+      "https://cdn.example/hls/1080/playlist.m3u8",
+      "https://cdn.example/hls/720/index.m3u8",
+    ]);
+    expect(fixed.every((option) => option.resolutionCap === undefined)).toBe(true);
+  });
+});

@@ -11,6 +11,10 @@ export type WatchQualityOption = {
   /** Android-only local ExoPlayer ceiling for an actual adaptive variant. */
   maxVideoBitrate?: number | null;
   isAdaptiveCap?: boolean;
+  /** Audio-preserving rendition pin: mount the MASTER and let ExoPlayer pick
+   *  this height, instead of swapping to the variant URL (which drops the
+   *  master's separate audio group and would play silent). */
+  resolutionCap?: number;
 };
 
 export type LoadedVideoTrackLike = {

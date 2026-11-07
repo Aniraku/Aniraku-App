@@ -9,6 +9,9 @@ export type HlsVariant = {
   /** Absolute CDN URL of the variant media playlist. */
   url: string;
   codecs?: string;
+  /** Rendition-group id of the variant's separate audio track ("a1"), when
+   *  the provider serves audio as its own playlist instead of muxed-in. */
+  audioGroupId?: string | null;
 };
 
 const STREAM_INF_ATTRIBUTES = /([A-Z0-9-]+)=("[^"]*"|[^,]*)/g;
@@ -84,7 +87,8 @@ export function parseHlsMasterVariants(text: string, baseUrl: string): HlsVarian
     const key = `${resolution.height}`;
     const existing = byKey.get(key);
     if (!existing || bandwidth > existing.bandwidth) {
-      byKey.set(key, { height: resolution.height, width: resolution.width, bandwidth, url: absolute, codecs: attributes.CODECS });
+      const audioGroupId = attributes.AUDIO ? attributes.AUDIO : null;
+      byKey.set(key, { height: resolution.height, width: resolution.width, bandwidth, url: absolute, codecs: attributes.CODECS, audioGroupId });
     }
   }
 
@@ -182,15 +186,22 @@ export function codecFamilyLabel(codecs?: string): string | null {
  * Turns parsed variants into quality options whose selection mounts the
  * variant playlist URL directly — the rendition the provider actually
  * advertises on the Auto URL, not a claimed label or a bitrate hope.
+ *
+ * `masterMountUrl` opts the menu into audio-preserving selection: for
+ * masters with a separate audio group, a mounted variant URL would play
+ * silent (the audio lives in the group's own playlist), so variant rows
+ * mount the MASTER and pin the rendition height through the player's
+ * resolution selection instead.
  */
 export function buildHlsQualityOptions(
   activeSource: StreamSource,
   variants: HlsVariant[],
-  mode: { proxied: boolean; headers?: Record<string, string> },
+  mode: { proxied: boolean; headers?: Record<string, string>; masterMountUrl?: string | null },
 ): WatchQualityOption[] {
   if (variants.length < 2) return [];
 
   const playbackUrl = (cdnUrl: string) => (mode.proxied ? anirakuProxyUrl(cdnUrl, mode.headers) : cdnUrl);
+  const audioPreserving = Boolean(mode.masterMountUrl);
 
   return [
     {
@@ -203,13 +214,41 @@ export function buildHlsQualityOptions(
       id: `hls-${variant.height}-${variant.bandwidth}`,
       label: `${variant.height}p`,
       requestQuality: `${variant.height}p`,
-      source: { ...activeSource, url: playbackUrl(variant.url), quality: `${variant.height}p` },
+      source: audioPreserving
+        ? { ...activeSource, url: mode.masterMountUrl as string, quality: `${variant.height}p` }
+        : { ...activeSource, url: playbackUrl(variant.url), quality: `${variant.height}p` },
+      ...(audioPreserving ? { resolutionCap: variant.height } : {}),
     })),
   ];
 }
 
 const DASH_REPRESENTATION = /<Representation\b[^>]*>/g;
 const DASH_ATTRIBUTE = /\b(height|bandwidth)="(\d+)"/g;
+
+/**
+ * Separate-audio renditions of a master playlist: group-id → absolute CDN
+ * URL of the audio media playlist (TYPE=AUDIO entries that carry a URI).
+ * Providers like YUI/settlar serve audio as its own playlist — a video-only
+ * download of those streams would be silent, so the download pipeline
+ * fetches the audio track alongside and the bundle keeps sound.
+ */
+export function parseHlsAudioRenditions(text: string, baseUrl: string): Map<string, string> {
+  const renditions = new Map<string, string>();
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("#EXT-X-MEDIA:")) continue;
+    const attributes: Record<string, string> = {};
+    for (const [, key, rawValue] of trimmed.slice(trimmed.indexOf(":") + 1).matchAll(STREAM_INF_ATTRIBUTES)) {
+      attributes[key] = rawValue.replace(/^"|"$/g, "");
+    }
+    if (!/^AUDIO$/i.test(attributes.TYPE ?? "")) continue;
+    const groupId = attributes["GROUP-ID"] ?? "";
+    if (!groupId || !attributes.URI) continue;
+    const absolute = resolveVariantUrl(attributes.URI, baseUrl);
+    if (absolute && !renditions.has(groupId)) renditions.set(groupId, absolute);
+  }
+  return renditions;
+}
 
 /**
  * DASH manifests can't be "mounted per rendition" the way HLS variant

@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Dimensions, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Dimensions, InteractionManager, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { AppIcon } from "@/components/app-icon";
 import { nothing } from "@/components/nothing-ui";
 import { APP_CONFIG } from "@/lib/app-config";
 
 let lastCheckAt = 0;
 const CHECK_INTERVAL_MS = 5 * 60_000;
+/** First probe waits for startup to settle — the health check never competes with first paint. */
+const STARTUP_DELAY_MS = 10_000;
 
 export function AniListDownBanner() {
   const [visible, setVisible] = useState(false);
@@ -14,9 +16,15 @@ export function AniListDownBanner() {
 
   useEffect(() => {
     if (!APP_CONFIG.anilistGraphqlUrl) return;
-    checkAniList();
+    let interaction: { cancel: () => void } | null = null;
+    const startup = setTimeout(() => {
+      interaction = InteractionManager.runAfterInteractions(() => {
+        checkAniList();
+        return null as unknown as void;
+      });
+    }, STARTUP_DELAY_MS);
     const interval = setInterval(checkAniList, CHECK_INTERVAL_MS);
-    return () => clearInterval(interval);
+    return () => { clearTimeout(startup); interaction?.cancel(); clearInterval(interval); };
   }, []);
 
   const checkAniList = async () => {

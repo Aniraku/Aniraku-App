@@ -1,18 +1,20 @@
 {
-  "version": 4,
-  "updated": "2026-11-02",
+  "version": 7,
+  "updated": "2026-11-07",
   "announcements": [
     {
-      "id": "New about the V5-8-10-2",
-      "tag": "Note",
-      "title": "A Quick Note from the Aniraku Team",
-      "banner": "Thank you for your continued love and support for Aniraku.",
+      "id": "v5-9-beta-heartbeat",
+      "tag": "Thanks",
+      "title": "Aniraku runs on you",
+      "banner": "V5.9 (Beta) is out. Downloads rebuilt — again — because your silence is the only bug I can't fix.",
       "body": [
-        "Hey everyone… 👋\n\nAniraku is still just a passion project I keep running between real life, caffeine, and the occasional existential crisis. Your support is literally what keeps the lights on (and me from deleting the whole repo at 3 a.m.).\n\nWe’re now on V5.8.10.2. Proper in-app offline downloads are finally here — no external downloader required. After a download finishes you might need to go back and then return to the downloads page, or just reopen the app, for the file to show up. Yeah… that little quirk is still living its best life. Working on it.\n\nPlease fully uninstall the old V5.7.9 before installing the latest V5.8.10.1 so nothing breaks in mysterious ways.\n\nAlso… I’m still looking for a couple of kind souls to help me grow a proper Discord and Telegram community. I’m not exactly a natural community manager (more like the quiet guy who just wants everyone to watch anime in peace), so any help setting things up the right way would mean a lot.\n\nI’d love to hear from you. Is there anything else you need? Any feature that would make your day? Bugs? Missing titles? Random thoughts? Just mail me. I’m honestly a little sad that almost nobody has said much about the app so far… I keep checking my inbox like a protagonist waiting for that one important letter that never comes. Don’t leave me hanging, okay?\n\nIf you enjoy Aniraku and want to help keep this little project alive, a small donation would mean the world (and a few extra coffees for those late-night fix sessions).\n\nMissing an anime, facing an error, or just want to say hi? Email me anytime.\n\nThanks for sticking with Aniraku. Now go enjoy some anime… and maybe reply to this lonely developer once in a while.\n\n— the guy who still hasn’t slept enough"
+        "Hey everyone… 👋\n\nV5.9 (Beta) just landed. Downloads were rebuilt from the ground up — twice — because anime providers apparently rotate their whole video pipeline more often than I rotate my sleep schedule. Quality switching got smarter, sharing finally opens the app instead of a 404 graveyard, and saved episodes now play even when your Wi-Fi is showing off.\n\nIf Aniraku worked when you needed it — mail me. If it broke — mail me twice. Bugs, missing anime, feature ideas, or just a plain \"hey, it works\": every message lands in my inbox and every one of them is fuel for the next fix. Silence, meanwhile, is how a project quietly dies at 3 a.m. Don't make me haunt the issue tracker alone.\n\nStill looking for a couple of kind souls to help grow a proper Discord and Telegram community. I'm the quiet guy who wants everyone to watch anime in peace — not the one managing welcome channels — so a hand setting things up right would mean a lot.\n\nAnd if you can, a small Patreon pledge keeps the servers alive and the developer caffeinated. Bug reports are accepted. Compliments are hoarded. Both are read.\n\nNow go enjoy some anime.\n\n— the guy who still hasn't slept enough"
       ],
-      "date": "2026-11-02",
+      "date": "2026-11-07",
+      "ctaLabel": "Support on Patreon",
+      "ctaWeb": "https://patreon.com/ShoIslam",
       "email": "sho.islam0311@proton.me",
-      "emailLabel": "Missing an anime or facing an error? Email me",
+      "emailLabel": "Mail me anything — seriously",
       "pinned": true,
       "active": true
     }

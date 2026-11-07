@@ -33,6 +33,8 @@ class AnirakuDownloadsModule : Module() {
         putExtra("headers", options["headers"] as? String ?: "{}")
         putExtra("estimatedBytes", (options["estimatedBytes"] as? Number)?.toLong() ?: 0L)
         putExtra("proxyBase", options["proxyBase"] as? String ?: "")
+        // Separate-audio support: empty = video-only bundle (as before).
+        putExtra("audioBase", options["audioBase"] as? String ?: "")
       }
       context.startForegroundService(intent)
     }

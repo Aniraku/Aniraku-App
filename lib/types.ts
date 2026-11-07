@@ -11,6 +11,9 @@ export type AnimeRelationEdge = {
   node?: Anime | null;
 };
 
+/** AniList FuzzyDate — parts may be missing (year-only announcements). */
+export type FuzzyDate = { year?: number | null; month?: number | null; day?: number | null };
+
 export type Anime = {
   id: number;
   type?: string | null;
@@ -27,6 +30,7 @@ export type Anime = {
   popularity?: number | null;
   season?: string | null;
   seasonYear?: number | null;
+  startDate?: FuzzyDate | null;
   nextAiringEpisode?: { episode: number; airingAt: number } | null;
   isAdult?: boolean | null;
   idMal?: number | null;
@@ -36,6 +40,17 @@ export type Anime = {
   relations?: { edges?: AnimeRelationEdge[] | null } | null;
   trailer?: { id?: string | null; site?: string | null; thumbnail?: string | null } | null;
 };
+
+/** True when the title's start date has already passed (status lag on
+ *  AniList can leave a started show marked NOT_YET_RELEASED briefly). */
+export function animeHasStarted(anime: Pick<Anime, "startDate">, now = new Date()): boolean {
+  const { year, month, day } = anime.startDate ?? {};
+  if (!year) return false; // year-less announcements carry no claim to compare
+  // Missing month/day degrade to the start of that month/year (UTC — close
+  // enough for a "has it begun airing at all" check).
+  const start = Date.UTC(year, (month ?? 1) - 1, day ?? 1);
+  return start < Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+}
 
 export type AnimePage = {
   pageInfo: { currentPage: number; hasNextPage: boolean; total?: number | null };

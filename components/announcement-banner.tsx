@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Dimensions, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Animated, Dimensions, InteractionManager, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { AppIcon } from "@/components/app-icon";
@@ -30,22 +30,27 @@ export function AnnouncementBanner() {
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      try {
-        const list = await fetchAnnouncements();
-        const banner = selectBannerAnnouncement(list);
-        if (!banner || cancelled) return;
-        const dismissedId = dismissedThisSession.has(banner.id) ? banner.id : null;
-        if (shouldShowAnnouncement({ announcement: banner, dismissedId })) {
-          setAnnouncement(banner);
-          setVisible(true);
+    // The GitHub round trip waits for first interactions to settle — startup
+    // keeps its budget for the home feed and auth chain.
+    const interaction = InteractionManager.runAfterInteractions(() => {
+      void (async () => {
+        try {
+          const list = await fetchAnnouncements();
+          const banner = selectBannerAnnouncement(list);
+          if (!banner || cancelled) return;
+          const dismissedId = dismissedThisSession.has(banner.id) ? banner.id : null;
+          if (shouldShowAnnouncement({ announcement: banner, dismissedId })) {
+            setAnnouncement(banner);
+            setVisible(true);
+          }
+        } catch {
+          // Offline or GitHub unreachable — no banner. That's fine.
         }
-      } catch {
-        // Offline or GitHub unreachable — no banner. That's fine.
-      }
-    })();
+      })();
+    });
     return () => {
       cancelled = true;
+      interaction.cancel();
     };
   }, []);
 

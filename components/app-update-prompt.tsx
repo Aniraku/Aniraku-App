@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, AppState, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, AppState, InteractionManager, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { AppIcon } from "@/components/app-icon";
@@ -24,9 +24,11 @@ export function AppUpdatePrompt() {
   }, []);
 
   useEffect(() => {
-    void check();
+    // The release check waits for first interactions to settle — startup
+    // shouldn't spend its network/JS budget on a GitHub round trip.
+    const interaction = InteractionManager.runAfterInteractions(() => { void check(); });
     const sub = AppState.addEventListener("change", (s) => { if (s === "active") void check(); });
-    return () => sub.remove();
+    return () => { interaction.cancel(); sub.remove(); };
   }, [check]);
 
   const dismiss = async () => {

@@ -6,6 +6,7 @@ import { router } from "expo-router";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { getAnimePage, isAniListRateLimitError } from "@/lib/anilist";
+import { POSTER_W, getOptimizedImageUri } from "@/lib/image-optimization";
 import { nsfwFilterParam, useNsfwPreference } from "@/lib/nsfw-preference";
 import { EMPTY_FILTERS, QUICK_GENRES, countActiveFilters, filterSignature, hasActiveFilters, type SearchFilters } from "@/lib/search-filters";
 import { animeTitle, type Anime } from "@/lib/types";
@@ -265,10 +266,13 @@ export default function CatalogScreen() {
                 {topSearches.data.media.slice(0, 8).map((anime, index) => {
                   const title = animeTitle(anime);
                   const image = anime.coverImage?.large || anime.coverImage?.extraLarge || "";
+                  // Same optimized width every other poster surface uses —
+                  // the raw `large` CDN asset is several times the render size.
+                  const artwork = image ? getOptimizedImageUri(image, POSTER_W) : "";
                   return (
                     <Pressable key={anime.id} accessibilityRole="button" accessibilityLabel={title} accessibilityHint="Opens anime details" onPress={() => { prefetch(anime.id); router.push(`/anime/${anime.id}` as never); }} style={({ pressed }) => [styles.topCard, pressed && styles.pressed]}>
                       <View style={styles.topCardImage}>
-                        <Image source={{ uri: image }} style={StyleSheet.absoluteFill} contentFit="cover" transition={0} cachePolicy="memory-disk" />
+                        <Image source={{ uri: artwork }} style={StyleSheet.absoluteFill} contentFit="cover" transition={120} cachePolicy="memory-disk" recyclingKey={artwork || undefined} />
                         <View style={styles.topCardRank}><Text style={styles.topCardRankText}>{String(index + 1).padStart(2, "0")}</Text></View>
                       </View>
                       <Text style={styles.topCardTitle} numberOfLines={2}>{title}</Text>

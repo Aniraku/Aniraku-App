@@ -24,6 +24,8 @@ export type HlsMediaPlaylist = {
   segments: Array<{ uri: string; duration: number }>;
   /** URI of the (single) AES-128 key, or null for clear streams. */
   keyUri: string | null;
+  /** URI of the fMP4 init segment (#EXT-X-MAP), or null for MPEG-TS. */
+  mapUri: string | null;
   endList: boolean;
 };
 
@@ -38,7 +40,8 @@ function parseTagAttributes(line: string): Record<string, string> {
 /** Parses a variant media playlist. Null when it carries no segments at all. */
 export function parseMediaPlaylist(text: string): HlsMediaPlaylist | null {
   const segments: Array<{ uri: string; duration: number }> = [];
-  let keyUri: string | null = null;
+  const keyUris = new Set<string>();
+  const mapUris = new Set<string>();
   let endList = false;
 
   for (const rawLine of text.split(/\r?\n/)) {
@@ -54,7 +57,12 @@ export function parseMediaPlaylist(text: string): HlsMediaPlaylist | null {
     }
     if (line.startsWith("#EXT-X-KEY")) {
       const uri = parseTagAttributes(line).URI;
-      if (uri) keyUri = uri;
+      if (uri) keyUris.add(uri);
+      continue;
+    }
+    if (line.startsWith("#EXT-X-MAP")) {
+      const uri = parseTagAttributes(line).URI;
+      if (uri) mapUris.add(uri);
       continue;
     }
     if (line.startsWith("#EXT-X-ENDLIST")) { endList = true; continue; }
@@ -65,7 +73,11 @@ export function parseMediaPlaylist(text: string): HlsMediaPlaylist | null {
   }
 
   if (!segments.length || segments.some((segment) => !segment.uri)) return null;
-  return { segments, keyUri, endList };
+  // A single key/init segment is representable as a flat bundle; playlists
+  // that rotate keys or switch maps mid-stream are not — null fails every
+  // consumer cleanly (estimate, rewrite, verify) instead of half-mounting.
+  if (keyUris.size > 1 || mapUris.size > 1) return null;
+  return { segments, keyUri: keyUris.size === 1 ? [...keyUris][0] : null, mapUri: mapUris.size === 1 ? [...mapUris][0] : null, endList };
 }
 
 /**
@@ -103,9 +115,10 @@ type RewriteInput = {
 };
 
 /**
- * Rewrites every segment URI (and the AES-128 key URI) of a downloaded
- * variant playlist to its local file. One unmappable URI fails the whole
- * rewrite: a playlist that half-points at the network must never exist.
+ * Rewrites every segment URI (and the AES-128 key / fMP4 init segment URIs)
+ * of a downloaded variant playlist to its local file. One unmappable URI
+ * fails the whole rewrite: a playlist that half-points at the network must
+ * never exist.
  */
 export function rewritePlaylistUris(text: string, input: RewriteInput): string | null {
   const playlist = parseMediaPlaylist(text);
@@ -117,6 +130,8 @@ export function rewritePlaylistUris(text: string, input: RewriteInput): string |
   };
   const keyLocal = playlist.keyUri ? localUri(playlist.keyUri) : null;
   if (playlist.keyUri && !keyLocal) return null;
+  const mapLocal = playlist.mapUri ? localUri(playlist.mapUri) : null;
+  if (playlist.mapUri && !mapLocal) return null;
 
   const out: string[] = [];
   for (const rawLine of text.split(/\r?\n/)) {
@@ -126,6 +141,12 @@ export function rewritePlaylistUris(text: string, input: RewriteInput): string |
       if (!line.includes('URI="')) { out.push(line); continue; }
       // Replace only the URI value — IV= and other attributes must survive.
       out.push(line.replace(/URI="[^"]*"/, `URI="${keyLocal}"`));
+      continue;
+    }
+    if (line.startsWith("#EXT-X-MAP")) {
+      if (!line.includes('URI="')) { out.push(line); continue; }
+      // IV= / BYTERANGE= attributes on the map must survive the swap too.
+      out.push(line.replace(/URI="[^"]*"/, `URI="${mapLocal}"`));
       continue;
     }
     if (line.startsWith("#EXTINF:")) { out.push(line); continue; }
@@ -139,14 +160,17 @@ export function rewritePlaylistUris(text: string, input: RewriteInput): string |
 
 /**
  * Formats the bundle pipeline cannot reproduce, checked before any download
- * starts: fMP4 init segments, byte-range segments, and playlists that rotate
- * encryption keys. Null means the playlist is representable.
+ * starts: byte-range segments, playlists that rotate encryption keys, and
+ * playlists that switch fMP4 init segments. A SINGLE #EXT-X-MAP is fine —
+ * fMP4 VODs download with their init segment. Null means the playlist is
+ * representable.
  */
 export function unsupportedPlaylistReason(text: string): string | null {
   // Tag-line match only (^#EXT-X-…): the bare word "byterange" inside a
   // comment or a segment path must not refuse an otherwise clean playlist.
-  if (/^#EXT-X-MAP[\s:]/m.test(text) || /^#EXT-X-BYTERANGE[\s:]/m.test(text)) return "This stream's format cannot be saved.";
+  if (/^#EXT-X-BYTERANGE[\s:]/m.test(text)) return "This stream's format cannot be saved.";
   if (new Set([...text.matchAll(/#EXT-X-KEY:.*?URI="([^"]+)"/g)].map((match) => match[1])).size > 1) return "This stream's encryption cannot be saved.";
+  if (new Set([...text.matchAll(/#EXT-X-MAP:.*?URI="([^"]+)"/g)].map((match) => match[1])).size > 1) return "This stream's format cannot be saved.";
   return null;
 }
 
@@ -161,6 +185,8 @@ export function verifyPlaylistIntegrity(text: string, exists: (uri: string) => b
   // A rewritten bundle may keep only local keys — a remote key means the
   // rewrite failed or a new key appeared after download.
   if (playlist.keyUri && !playlist.keyUri.startsWith("file://")) return false;
+  // Same for the fMP4 init segment: a remote #EXT-X-MAP breaks offline play.
+  if (playlist.mapUri && !playlist.mapUri.startsWith("file://")) return false;
   for (const segment of playlist.segments) {
     if (!segment.uri.startsWith("file://")) return false;
     let present = false;
@@ -171,6 +197,11 @@ export function verifyPlaylistIntegrity(text: string, exists: (uri: string) => b
     let keyPresent = false;
     try { keyPresent = exists(playlist.keyUri); } catch { keyPresent = false; }
     if (!keyPresent) return false;
+  }
+  if (playlist.mapUri) {
+    let mapPresent = false;
+    try { mapPresent = exists(playlist.mapUri); } catch { mapPresent = false; }
+    if (!mapPresent) return false;
   }
   return true;
 }

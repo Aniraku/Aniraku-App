@@ -113,6 +113,38 @@ const fields = `
   trailer { id site thumbnail }
 `;
 
+/**
+ * Home tab payload: slimAnimeFields plus exactly what the Home hero card
+ * renders (banner art, score, color) and the start date the Coming-soon rail
+ * filters on. The fat fragment shipped ~1 KB of description + trailer
+ * metadata per title ×36 titles on every cold start.
+ */
+const homeMediaFields = `
+  id type title { romaji english native } coverImage { large extraLarge color } bannerImage
+  format status episodes averageScore isAdult startDate { year month day }
+  nextAiringEpisode { episode airingAt }
+`;
+
+/** AniList broadcast seasons in calendar order. */
+type AniListSeason = "WINTER" | "SPRING" | "SUMMER" | "FALL";
+
+/**
+ * The NEXT broadcast season from `now` — the window the Coming-soon rail
+ * queries. AniList seasons: Winter = Jan–Mar, Spring = Apr–Jun, Summer =
+ * Jul–Sep, Fall = Oct–Dec. The Winter following a Fall belongs to the
+ * FOLLOWING calendar year (FALL 2026 → WINTER 2027), otherwise AniList
+ * returns nothing for the season+year pair.
+ */
+export function upcomingSeasonTarget(now = new Date()): { season: AniListSeason; year: number } {
+  const month = now.getMonth();
+  const year = now.getFullYear();
+  // Fall (Oct–Dec) wraps into next year's Winter.
+  if (month >= 9) return { season: "WINTER", year: year + 1 };
+  if (month >= 6) return { season: "FALL", year };
+  if (month >= 3) return { season: "SUMMER", year };
+  return { season: "SPRING", year };
+}
+
 const detailFields = `${fields}
   relations {
     edges {
@@ -126,10 +158,13 @@ const pageQuery = `query MediaPage($page: Int!, $perPage: Int!, $sort: [MediaSor
   Page(page: $page, perPage: $perPage) { pageInfo { currentPage hasNextPage total } media(type: ANIME, isAdult: $isAdult, sort: $sort, search: $search, status: $status, season: $season, seasonYear: $seasonYear, genre: $genre, format: $format) { ${fields} } }
 }`;
 
-const homeQuery = `query Home($isAdult: Boolean) {
-  trending: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: $isAdult, sort: [TRENDING_DESC, POPULARITY_DESC]) { ${fields} } }
-  popular: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: $isAdult, sort: [POPULARITY_DESC]) { ${fields} } }
-  upcoming: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: $isAdult, status: NOT_YET_RELEASED, sort: [POPULARITY_DESC]) { ${fields} } }
+const homeQuery = `query Home($isAdult: Boolean, $upcomingSeason: MediaSeason, $upcomingYear: Int) {
+  trending: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: $isAdult, sort: [TRENDING_DESC, POPULARITY_DESC]) { ${homeMediaFields} } }
+  popular: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: $isAdult, sort: [POPULARITY_DESC]) { ${homeMediaFields} } }
+  # Coming soon: the NEXT broadcast season, soonest start first. Bare
+  # NOT_YET_RELEASED + POPULARITY_DESC surfaced years-out announcements (and
+  # briefly-lagging already-aired titles) — the season window is the bound.
+  upcoming: Page(page: 1, perPage: 12) { media(type: ANIME, isAdult: $isAdult, status: NOT_YET_RELEASED, season: $upcomingSeason, seasonYear: $upcomingYear, sort: [START_DATE, POPULARITY_DESC]) { ${homeMediaFields} } }
 }`;
 
 export type AiringScheduleWindow = { startAt: number; endAt: number };
@@ -158,7 +193,6 @@ const slimAnimeFields = `
   id type title { romaji english native } coverImage { large extraLarge } format status episodes
   nextAiringEpisode { episode airingAt }
 `;
-
 const poolFields = `
   id type title { romaji english native } coverImage { large extraLarge color } format status episodes genres season seasonYear isAdult
 `;
@@ -325,7 +359,8 @@ export async function getAnimePage(options: {
 }
 
 export async function getHomeAnime(isAdult?: boolean | null) {
-  const data = await request<{ trending: AnimePage; popular: AnimePage; upcoming: AnimePage }>(homeQuery, { isAdult });
+  const upcoming = upcomingSeasonTarget();
+  const data = await request<{ trending: AnimePage; popular: AnimePage; upcoming: AnimePage }>(homeQuery, { isAdult, upcomingSeason: upcoming.season, upcomingYear: upcoming.year });
   return { trending: data.trending.media, popular: data.popular.media, upcoming: data.upcoming.media };
 }
 

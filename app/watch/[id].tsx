@@ -6,7 +6,7 @@ import { parseRouteEpisode, parseRouteId } from "@/lib/route-params";
 import * as Network from "expo-network";
 import { ActivityIndicator, Animated, BackHandler, Dimensions, FlatList, LayoutChangeEvent, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { Image } from "expo-image";
-import Video, { type OnProgressData, type OnLoadData, type OnBufferData, type VideoRef } from "react-native-video";
+import Video, { SelectedVideoTrackType, type OnProgressData, type OnLoadData, type OnBufferData, type VideoRef } from "react-native-video";
 import { useKeepAwake } from "expo-keep-awake";
 import { StatusBar } from "expo-status-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
@@ -79,7 +79,7 @@ import { DownloadSheet, type DownloadSheetOption } from "@/components/download-s
 import { APP_CONFIG } from "@/lib/app-config";
 import { showThemedDialog } from "@/components/choice-sheet";
 import { adaptiveBitrateCapOptions, directSourceQualityOptions, selectedWatchQuality, type WatchQualityOption } from "@/lib/watch-quality";
-import { buildDashQualityOptions, buildHlsQualityOptions, codecFamilyLabel, hlsVariantsCacheKey, originalStreamUrl, parseDashRepresentations, parseHlsMasterVariants, shouldRefetchVariants, shouldRefreshMasterOnVariantError, variantUrlForHeight, type HlsVariant, type VariantsCacheScope } from "@/lib/hls-variants";
+import { buildDashQualityOptions, buildHlsQualityOptions, codecFamilyLabel, hlsVariantsCacheKey, originalStreamUrl, parseDashRepresentations, parseHlsAudioRenditions, parseHlsMasterVariants, shouldRefetchVariants, shouldRefreshMasterOnVariantError, variantUrlForHeight, type HlsVariant, type VariantsCacheScope } from "@/lib/hls-variants";
 import { AppIcon } from "@/components/app-icon";
 import { EmbedPlayer } from "@/components/embed-player";
 import { DotLabel, NothingButton, NothingCard, nothing } from "@/components/nothing-ui";
@@ -288,6 +288,19 @@ export default function WatchScreen() {
   const [downloadOptions, setDownloadOptions] = useState<DownloadSheetOption[]>([]);
   const [requestedQuality, setRequestedQuality] = useState("auto");
   const [adaptiveBitrateCap, setAdaptiveBitrateCap] = useState<number | null>(null);
+  // Audio-preserving rendition pin: on masters with a separate audio group,
+  // quality rows mount the MASTER and pin the height here (a bare variant URL
+  // would drop the audio group and play silent). Cleared when the source URL
+  // changes (provider/episode/offline mount) and by non-cap picks.
+  const [videoTrackSelection, setVideoTrackSelection] = useState<{ type: SelectedVideoTrackType; value: number } | null>(null);
+  /** The sourceRevision a cap mount produced — that revision keeps its pin. */
+  const capMountNonce = useRef(0);
+  // The rendition pin survives only the sourceRevision a cap mount created —
+  // every other remount (episode, provider, retry, offline bundle) unpins.
+  useEffect(() => {
+    if (capMountNonce.current === sourceRevision) return;
+    setVideoTrackSelection(null);
+  }, [sourceRevision]);
   const [subtitlePrefs, setSubtitlePrefs] = useState<SubtitlePreferences | null>(null);
   const [activeSubtitles, setActiveSubtitles] = useState<SubtitleCue[]>([]);
   const [playerLocked, setPlayerLocked] = useState(false);
@@ -394,7 +407,7 @@ export default function WatchScreen() {
   // One cache entry per master playback URL. Entries are dropped only when the
   // variants scope rotates (provider / episode / refresh / master) — opening
   // the settings sheet changes none of those, so it never re-fetches.
-  const hlsVariantsCache = useRef(new Map<string, { options: WatchQualityOption[]; variants: HlsVariant[] }>());
+  const hlsVariantsCache = useRef(new Map<string, { options: WatchQualityOption[]; variants: HlsVariant[]; audioRenditions?: Map<string, string> }>());
   const parsedOptionsRef = useRef<{ key: string; options: WatchQualityOption[] } | null>(null);
   // Raw parsed renditions for the current master: downloads fetch the exact
   // variant URL for the chosen height, and the token guard re-resolves the
@@ -714,9 +727,13 @@ export default function WatchScreen() {
   // ── Server discovery ──
   useEffect(() => {
     // Offline launches (Downloads-hub play) never touch the online flow —
-    // the saved copy mounts from the offline effect below.
+    // the saved copy mounts from the offline effect below. NO clearing here:
+    // this effect re-runs when the episode/anime queries RESOLVE (i.e. when
+    // the network is up), and clearEpisodePlayback() used to wipe the
+    // already-mounted bundle — offline playback died exactly when Wi-Fi or
+    // mobile data was on, and only "worked" in airplane mode because the
+    // queries never resolved and never re-ran this effect.
     if (wantsOfflinePlayback) {
-      clearEpisodePlayback();
       setProviders({ sub: [], dub: [] });
       setLoadingServers(false);
       setLoadingStream(false);
@@ -1147,14 +1164,18 @@ export default function WatchScreen() {
 
   // Anonymous progress is also remembered locally while watching.
   useEffect(() => {
-    if (auth.user || !source || currentTime < 1 || duration <= 0 || currentTime - lastHistorySync.current < 10) return;
+    if (auth.user || !source || currentTime < 1 || duration <= 0 || currentTime - lastHistorySync.current < 60) return;
     lastHistorySync.current = currentTime;
     void AsyncStorage.setItem(`aniraku-watch-local:${animeId}:${episode}`, JSON.stringify({ progress: currentTime, duration, savedAt: Date.now() })).catch(() => {});
   }, [animeId, auth.user, currentTime, duration, episode, source]);
 
   // ── History sync ──
+  // 60s cadence (matching the provider-sync throttle pattern): each save is
+  // 2-3 Supabase round trips + a full-table invalidation refetch + an
+  // AsyncStorage rewrite — a 10s cadence re-ran that storm continuously
+  // while watching.
   useEffect(() => {
-    if (!auth.user || !source || currentTime < 1 || duration <= 0 || currentTime - lastHistorySync.current < 10) return;
+    if (!auth.user || !source || currentTime < 1 || duration <= 0 || currentTime - lastHistorySync.current < 60) return;
     lastHistorySync.current = currentTime;
     history.save.mutate({ animeId, animeTitle: title, animeImage: image || null, episode, episodeTitle: selectedEpisode?.title || null, episodeThumbnail: selectedEpisode?.thumbnail || null, progress: currentTime, duration, totalEpisodes: filteredEpisodes.length || undefined });
   }, [animeId, auth.user, currentTime, duration, episode, filteredEpisodes.length, history.save, image, selectedEpisode?.title, selectedEpisode?.thumbnail, source, title]);
@@ -1364,7 +1385,9 @@ export default function WatchScreen() {
           setParsedQualityOptions(options);
           parsedOptionsRef.current = { key: masterPlaybackUri, options };
           parsedVariantsRef.current = { key: masterPlaybackUri, variants };
-          selectQualityRef.current(match.source);
+          // Route through the option selector so audio-preserving rows apply
+          // their rendition pin (not just the source swap).
+          void selectQualityOptionRef.current(match);
           return;
         }
       } else {
@@ -1393,11 +1416,21 @@ export default function WatchScreen() {
         if (playbackType === "hls" && variants.length === 0 && /#EXTINF/i.test(text)) {
           variants = [{ height: 0, bandwidth: 0, url: originalStreamUrl(masterPlaybackUri) }];
         }
+        // Separate-audio renditions ride along: download rows for variants
+        // that advertise an AUDIO group carry the audio playlist URL so the
+        // saved bundle keeps sound.
+        const audioRenditions = playbackType === "hls" ? parseHlsAudioRenditions(text, originalStreamUrl(masterPlaybackUri)) : undefined;
+        // Audio-preserving quality menu: on masters with a separate audio
+        // group, a mounted variant URL would play silent, so variant rows
+        // mount the master and pin the height via resolution selection.
+        const masterMountUrl = audioRenditions && audioRenditions.size > 0
+          ? (proxied ? anirakuProxyUrl(masterPlaybackUri, directHeaders) : masterPlaybackUri)
+          : null;
         const options = playbackType === "dash"
           ? buildDashQualityOptions(activeSource, variants)
-          : buildHlsQualityOptions(activeSource, variants, { proxied, headers: directHeaders });
+          : buildHlsQualityOptions(activeSource, variants, { proxied, headers: directHeaders, masterMountUrl });
         if (!options.length && !(playbackType === "hls" && variants.length >= 1)) { setParsedQualityOptions(null); parsedOptionsRef.current = null; parsedVariantsRef.current = null; return; }
-        hlsVariantsCache.current.set(masterPlaybackUri, { options, variants });
+        hlsVariantsCache.current.set(masterPlaybackUri, { options, variants, audioRenditions });
         if (options.length) await applyRemembered(options, variants);
         else { setParsedQualityOptions(null); parsedOptionsRef.current = null; }
       })
@@ -1504,6 +1537,9 @@ export default function WatchScreen() {
     }
     sourceMounted.current = true;
     setAdaptiveBitrateCap(null);
+    // Any direct-source mount starts un-pinned; the audio-preserving cap
+    // path re-applies its pin right after this call when it applies.
+    setVideoTrackSelection(null);
     setEmbedSource(null);
     setSource(next);
     setUseSourceProxy(isProxySource(next));
@@ -1529,7 +1565,32 @@ export default function WatchScreen() {
       setActivePanel(null);
       return;
     }
-    if (choice.source) { selectQuality(choice.source); return; }
+    if (choice.source) {
+      // Audio-preserving pick: mount the MASTER (never the bare variant —
+      // it would drop the separate audio group) and pin the rendition height
+      // through the player's resolution selection.
+      if (choice.resolutionCap && choice.resolutionCap > 0) {
+        const masterUrl = choice.source.url;
+        if (sourceMirrorRef.current?.url === masterUrl) {
+          // Master already mounted — the pin applies live, no remount.
+          setVideoTrackSelection({ type: SelectedVideoTrackType.RESOLUTION, value: choice.resolutionCap });
+          setRequestedQuality(choice.requestQuality);
+          const rememberedLabel = choice.requestQuality.toLowerCase();
+          void rememberProviderQuality(activeProvider?.id, rememberedLabel !== "auto" ? rememberedLabel : null);
+          setActivePanel(null);
+          return;
+        }
+        // The remount bumps sourceRevision; the nonce marks THIS revision as
+        // a cap mount so the reset effect keeps the pin.
+        capMountNonce.current = sourceRevision + 1;
+        selectQuality(choice.source);
+        setVideoTrackSelection({ type: SelectedVideoTrackType.RESOLUTION, value: choice.resolutionCap });
+        return;
+      }
+      setVideoTrackSelection(null);
+      selectQuality(choice.source);
+      return;
+    }
     if (choice.requestQuality === "auto" && isAutoQuality(source)) { setRequestedQuality("auto"); setActivePanel(null); return; }
     try {
       setLoadingStream(true);
@@ -1546,6 +1607,8 @@ export default function WatchScreen() {
       setLoadingStream(false);
     }
   };
+  const selectQualityOptionRef = useRef(selectAdaptiveQuality);
+  selectQualityOptionRef.current = selectAdaptiveQuality;
 
   // Token-expiry guard: a mounted variant URL 403s with a rotted embedded
   // timestamp → refresh the master once and re-resolve the same height before
@@ -1573,7 +1636,7 @@ export default function WatchScreen() {
       if (!targetCdn) throw new Error("no variant");
       const freshOptions = buildHlsQualityOptions(stale, variants, { proxied, headers: directHeaders });
       if (freshOptions.length) {
-        hlsVariantsCache.current.set(masterKey, { options: freshOptions, variants });
+        hlsVariantsCache.current.set(masterKey, { options: freshOptions, variants, audioRenditions: parseHlsAudioRenditions(text, originalStreamUrl(masterKey)) });
         setParsedQualityOptions(freshOptions);
         parsedOptionsRef.current = { key: masterKey, options: freshOptions };
         parsedVariantsRef.current = { key: masterKey, variants };
@@ -2090,6 +2153,9 @@ export default function WatchScreen() {
     if (!base) return [];
     const variants = parsedVariantsRef.current?.variants ?? [];
     if (variants.length > 0) {
+      // Separate-audio providers: the audio playlist URL rides each variant
+      // row so the bundle keeps sound (a video-only save would be silent).
+      const audioRenditions = parsedVariantsRef.current ? hlsVariantsCache.current.get(parsedVariantsRef.current.key)?.audioRenditions : undefined;
       return variants.map((variant) => {
         const family = codecFamilyLabel(variant.codecs);
         return {
@@ -2099,6 +2165,7 @@ export default function WatchScreen() {
           source: base,
           variantUrl: variant.url,
           bandwidth: variant.bandwidth,
+          audioPlaylistUrl: variant.audioGroupId ? audioRenditions?.get(variant.audioGroupId) ?? null : null,
         };
       });
     }
@@ -2141,6 +2208,7 @@ export default function WatchScreen() {
           }
           if (variants.length) {
             const base = downloadBase;
+            const audioRenditions = parseHlsAudioRenditions(text, originalStreamUrl(videoSourceUri));
             options = variants.map((variant) => {
               const family = codecFamilyLabel(variant.codecs);
               const label = variant.height > 0 ? (family ? `${variant.height}p · ${family}` : `${variant.height}p`) : (family ? `ORIGINAL · ${family}` : "ORIGINAL");
@@ -2151,6 +2219,7 @@ export default function WatchScreen() {
                 source: base,
                 variantUrl: variant.url,
                 bandwidth: variant.bandwidth,
+                audioPlaylistUrl: variant.audioGroupId ? audioRenditions.get(variant.audioGroupId) ?? null : null,
               };
             });
           }
@@ -2173,6 +2242,16 @@ export default function WatchScreen() {
 
   const onDownloadError = (message: string) => {
     setDownloadMessage(message.toUpperCase());
+  };
+
+  /** SUB/DUB chip label — the number is the SERVER count for the current
+   *  episode in that language (the chips sit beside the server picker; the
+   *  per-language EPISODE counts the track probe uses stay internal). */
+  const languageChipLabel = (item: Language) => {
+    const label = item === "sub" ? "SUB" : "DUB";
+    if (loadingServers) return `${label} · …`;
+    const count = item === "sub" ? providers.sub.length : providers.dub.length;
+    return `${label} · ${count}`;
   };
 
   /** Mounts a saved copy as the active source (shared by the rail button and
@@ -2267,7 +2346,10 @@ export default function WatchScreen() {
       clearInterval(timer);
       setUpNextCountdown(null);
       upNextFireRef.current();
-    }, 250);
+      // 1s cadence: the display is whole seconds, and the countdown state
+      // lives on the watch screen — a 250ms tick re-rendered the whole
+      // screen 4×/s on top of the playback progress ticks.
+    }, 1000);
     return () => clearInterval(timer);
   }, [autoPlayNext, upNextVisible, source?.url, nextKnownEpisode, isPlaying, playerLocked]);
 
@@ -2558,6 +2640,11 @@ export default function WatchScreen() {
       {source ? <Video key={`${activeProvider?.id ?? "default"}${poolMountNonce ? `-${poolMountNonce}` : ""}`} ref={videoRef} style={StyleSheet.absoluteFill} source={{ uri: videoSourceUri, headers: videoSourceHeaders, type: videoContentType, bufferConfig: videoBufferConfig }}
         paused={!isPlaying} rate={is2xSeeking ? 2.0 : speed} resizeMode={fillMode} muted={muted} volume={volume}
         maxBitRate={adaptiveBitrateCap ?? undefined}
+        selectedVideoTrack={videoTrackSelection ?? undefined}
+        // 1s progress ticks: the default (~250ms) re-rendered the entire
+        // watch screen 4×/s during playback for a scrubber that shows
+        // whole seconds.
+        progressUpdateInterval={1000}
         onLoad={(data: OnLoadData) => { if (__DEV__) console.log(`[watch] first-frame t=${Date.now() - _watchMountTime}ms provider=${activeProvider?.id ?? "?"}`); setDuration(data.duration); sourceFirstFrame.current = true; sourceStarted.current = true; setPlayerStatus("playing"); setIsPlaying(true); setLastPlayerError(null); setShowControls(true); }}
         onProgress={handleVideoProgress}
         onBuffer={(data: OnBufferData) => { setBuffering(data.isBuffering); }}
@@ -2610,7 +2697,7 @@ export default function WatchScreen() {
                   <ArrowLeft size={22} color={nothing.white} weight="bold" />
                 </Pressable>
                 <View pointerEvents="none" style={styles.playerTitleWrap}>
-                  <Text style={styles.playerTitle} numberOfLines={1} ellipsizeMode="tail">{`${title} - Episode ${episode}`}</Text>
+                  <Text allowFontScaling={false} style={styles.playerTitle} numberOfLines={1} ellipsizeMode="tail">{`${title} - Episode ${episode}`}</Text>
                 </View>
                 <View pointerEvents="box-none" style={styles.topRightRow}>
                   <Pressable onPress={() => setShowControls(false)} accessibilityRole="button" accessibilityLabel="Hide overlay" style={styles.subPillBadge} hitSlop={8}>
@@ -2683,7 +2770,7 @@ export default function WatchScreen() {
             <Pressable onPress={() => { if (manualFullscreen) exitFullscreen(); else router.back(); }} accessibilityRole="button" accessibilityLabel="Go back" style={styles.iconButton} hitSlop={10}>
               <ArrowLeft size={22} color={nothing.white} weight="bold" />
             </Pressable>
-            <Text style={styles.playerTitle} numberOfLines={1} ellipsizeMode="tail">{`${title} - Episode ${episode}`}</Text>
+            <Text allowFontScaling={false} style={styles.playerTitle} numberOfLines={1} ellipsizeMode="tail">{`${title} - Episode ${episode}`}</Text>
             <View style={styles.topRightRow}>
               <Pressable onPress={() => setActivePanel("speed")} accessibilityRole="button" accessibilityLabel="Playback speed" style={styles.iconButton} hitSlop={8}>
                 <Speedometer size={18} color={nothing.white} weight="bold" />
@@ -2713,7 +2800,7 @@ export default function WatchScreen() {
 
             {/* Timeline */}
             <View style={styles.timelineRow}>
-              <Text style={styles.timeLabel}>{formatTime(currentTime)}</Text>
+              <Text allowFontScaling={false} style={styles.timeLabel}>{formatTime(currentTime)}</Text>
               <View style={styles.progressBarTrack} onLayout={onProgressLayout} onTouchStart={onBarTouchStart} onTouchMove={onBarTouchMove} onTouchEnd={seekFromBar} accessibilityRole="adjustable" accessibilityLabel="Seek bar">
                 <View style={[styles.progressBuffered, dragPct !== null && styles.progressTrackThick, { width: `${bufferPct}%` }]} />
                 <View style={[styles.progressPlayed, dragPct !== null && styles.progressTrackThick, { width: `${dragPct !== null ? dragPct : progressPct}%` }]} />
@@ -2721,7 +2808,7 @@ export default function WatchScreen() {
                 <View style={[styles.scrubberKnob, dragPct !== null && styles.scrubberKnobActive, { left: `${dragPct !== null ? dragPct : progressPct}%` }]} />
                 {dragPct !== null ? <View style={[styles.dragPreview, { left: `${Math.max(0, Math.min(dragPct, 100))}%` }]}><Text style={styles.dragPreviewText}>{formatTime((dragPct / 100) * duration)}</Text></View> : null}
               </View>
-              <Text style={styles.timeLabel}>{formatTime(duration)}</Text>
+              <Text allowFontScaling={false} style={styles.timeLabel}>{formatTime(duration)}</Text>
             </View>
 
             {/* Action rail — reference layout: lock+volume | −10 prev play next +10 | download fullscreen.
@@ -2781,14 +2868,14 @@ export default function WatchScreen() {
       {skipKind === "intro" && !playerLocked ? (
         <Pressable style={styles.skipButtonOverlay} onPress={() => skip("intro")} accessibilityRole="button" accessibilityLabel="Skip intro" accessibilityHint="Skips the opening sequence">
           <SkipForward size={14} color={nothing.white} weight="bold" />
-          <Text style={styles.skipButtonText}>{`SKIP INTRO`}</Text>
+          <Text allowFontScaling={false} style={styles.skipButtonText}>{`SKIP INTRO`}</Text>
           <Text style={styles.skipCountdown}>{`· ${Math.max(0, Math.round((skipSegments.intro?.endTime ?? currentTime) - currentTime))}s`}</Text>
         </Pressable>
       ) : null}
       {skipKind === "outro" && !playerLocked ? (
         <Pressable style={styles.skipButtonOverlay} onPress={() => skip("outro")} accessibilityRole="button" accessibilityLabel="Skip outro" accessibilityHint="Skips the ending sequence">
           <SkipForward size={14} color={nothing.white} weight="bold" />
-          <Text style={styles.skipButtonText}>{`SKIP OUTRO`}</Text>
+          <Text allowFontScaling={false} style={styles.skipButtonText}>{`SKIP OUTRO`}</Text>
           <Text style={styles.skipCountdown}>{`· ${Math.max(0, Math.round((skipSegments.outro?.endTime ?? currentTime) - currentTime))}s`}</Text>
         </Pressable>
       ) : null}
@@ -3011,7 +3098,7 @@ export default function WatchScreen() {
         <Text style={styles.th3Watching}><Text style={styles.th3WatchingGreen}>You are watching </Text><Text style={styles.th3WatchingWhite}>Episode {episode}</Text></Text>
         {swipeDirectionHint ? <View style={styles.swipeHintRow}><AppIcon name="chevron-left" size={12} color={previousKnownEpisode ? nothing.muted : nothing.dim} /><Text style={[styles.swipeHintText, !previousKnownEpisode && !nextKnownEpisode && { color: nothing.dim }]}>{swipeDirectionHint}</Text><AppIcon name="chevron-right" size={12} color={nextKnownEpisode ? nothing.muted : nothing.dim} /></View> : null}
         <View style={styles.th3Tabs}>
-          {providers.sub.length > 0 && providers.dub.length > 0 ? (["sub", "dub"] as Language[]).map((item) => { const active = language === item; return <Pressable key={item} accessibilityRole="tab" accessibilityLabel={`${item === "sub" ? "Subtitled" : "Dubbed"}${active ? " (selected)" : ""}`} accessibilityHint="Switch to this audio language" onPress={() => selectLanguage(item)} style={[styles.th3Tab, active && styles.th3TabActive]}><Text style={[styles.th3TabText, active && styles.th3TabTextActive]}>{item === "sub" ? `SUB · ${languageTrack?.sub ?? providers.sub.length}` : `DUB · ${languageTrack?.dub ?? providers.dub.length}`}</Text></Pressable>; }) : null}
+          {providers.sub.length > 0 && providers.dub.length > 0 ? (["sub", "dub"] as Language[]).map((item) => { const active = language === item; return <Pressable key={item} accessibilityRole="tab" accessibilityLabel={`${item === "sub" ? "Subtitled" : "Dubbed"}${active ? " (selected)" : ""}`} accessibilityHint="Switch to this audio language" onPress={() => selectLanguage(item)} style={[styles.th3Tab, active && styles.th3TabActive]}><Text allowFontScaling={false} style={[styles.th3TabText, active && styles.th3TabTextActive]}>{item === "sub" ? languageChipLabel("sub") : languageChipLabel("dub")}</Text></Pressable>; }) : null}
         </View>
         <View style={styles.th3Servers}>
           {activeProviders.map((provider, index) => { const active = index === serverIndex; return <Pressable key={provider.id} accessibilityRole="button" accessibilityLabel={`Server: ${provider.label}${active ? " (selected)" : ""}`} accessibilityHint={active ? "Currently active server" : "Switch to this streaming server"} onPress={() => selectServer(index)} style={[styles.th3Server, active && styles.th3ServerActive]}><AppIcon name="layers" size={10} color={active ? nothing.white : nothing.muted} style={{ marginRight: 4 }} /><Text style={[styles.th3ServerText, active && styles.th3ServerTextActive]}>{provider.label}</Text></Pressable>; })}
@@ -3037,10 +3124,10 @@ export default function WatchScreen() {
     </ScrollView> : null}
 
     {/* ── Modal Pickers ── */}
-    <Modal visible={activePanel === "speed"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>{t("player.playbackSpeed")}</Text>{[0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((val) => <Pressable key={val} style={[styles.modalItem, speed === val && styles.modalItemActive]} onPress={() => { setSpeed(val); lockedSpeed.current = val; setActivePanel(null); }}><Text style={[styles.modalItemText, speed === val && styles.modalItemTextActive]}>{val === 1.0 ? "1.0x (Normal)" : `${val}x`}</Text>{speed === val && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
+    <Modal visible={activePanel === "speed"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text allowFontScaling={false} style={styles.modalTitle}>{t("player.playbackSpeed")}</Text>{[0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((val) => <Pressable key={val} style={[styles.modalItem, speed === val && styles.modalItemActive]} onPress={() => { setSpeed(val); lockedSpeed.current = val; setActivePanel(null); }}><Text allowFontScaling={false} style={[styles.modalItemText, speed === val && styles.modalItemTextActive]}>{val === 1.0 ? "1.0x (Normal)" : `${val}x`}</Text>{speed === val && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
 
-    <Modal visible={activePanel === "server"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text style={styles.modalTitle}>{t("player.selectServer")}</Text>{providers.sub.length > 0 && providers.dub.length > 0 ? <View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} onPress={() => selectLanguage(item)} style={[styles.language, language === item && styles.languageActive]}><Text style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? `SUB · ${languageTrack?.sub ?? providers.sub.length}` : `DUB · ${languageTrack?.dub ?? providers.dub.length}`}</Text></Pressable>)}</View> : null}
-      {selectableProviders.length ? selectableProviders.map(({ provider, index }) => <Pressable key={provider.id} onPress={() => { selectServer(index); setActivePanel(null); }} style={[styles.modalItem, index === serverIndex && styles.modalItemActive]}><Text style={[styles.modalItemText, index === serverIndex && styles.modalItemTextActive]}>{provider.label}</Text>{index === serverIndex && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>) : <Text style={styles.modalItemSub}>Looking for a working server…</Text>}</View></Pressable></Modal>
+    <Modal visible={activePanel === "server"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text allowFontScaling={false} style={styles.modalTitle}>{t("player.selectServer")}</Text>{providers.sub.length > 0 && providers.dub.length > 0 ? <View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} onPress={() => selectLanguage(item)} style={[styles.language, language === item && styles.languageActive]}><Text allowFontScaling={false} style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? languageChipLabel("sub") : languageChipLabel("dub")}</Text></Pressable>)}</View> : null}
+      {selectableProviders.length ? selectableProviders.map(({ provider, index }) => <Pressable key={provider.id} onPress={() => { selectServer(index); setActivePanel(null); }} style={[styles.modalItem, index === serverIndex && styles.modalItemActive]}><Text allowFontScaling={false} style={[styles.modalItemText, index === serverIndex && styles.modalItemTextActive]}>{provider.label}</Text>{index === serverIndex && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>) : <Text style={styles.modalItemSub}>Looking for a working server…</Text>}</View></Pressable></Modal>
 
     {/* Download sheet: in-app quality picker → queue; progress lives in the
         Downloads hub, never inline in the player. */}
@@ -3060,7 +3147,7 @@ export default function WatchScreen() {
 
     {/* Chapter List Modal */}
     <Modal visible={activePanel === "chapters" && !playerLocked} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.chapterModalSheet}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={styles.modalTitle}>{t("player.chapters")}</Text><Pressable onPress={() => setActivePanel(null)}><X size={20} color={nothing.muted} weight="bold" /></Pressable></View>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text allowFontScaling={false} style={styles.modalTitle}>{t("player.chapters")}</Text><Pressable onPress={() => setActivePanel(null)}><X size={20} color={nothing.muted} weight="bold" /></Pressable></View>
       {duration <= 0 ? <Text style={styles.chapterEmptyText}>No duration data available yet.</Text> : (
         <View style={styles.chapterList}>
           {(() => {

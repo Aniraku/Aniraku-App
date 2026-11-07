@@ -238,6 +238,9 @@ type DownloadRequest = {
   /** HLS only: direct CDN variant playlist URL and variant bandwidth. */
   playlistUrl?: string;
   bandwidth?: number;
+  /** HLS only: CDN URL of the variant's separate audio playlist — present
+   *  means the bundle must carry the audio track (or it would be silent). */
+  audioPlaylistUrl?: string;
   entryId: string;
   onProgress?: ((fraction: number) => void) | undefined;
 };
@@ -491,7 +494,12 @@ function legacyFileSystem() {
 }
 
 async function legacyDownload(legacy: NonNullable<typeof legacyModule>, url: string, destination: File, headers: Record<string, string>, onBytes: (received: number, total: number) => void, onTask: (task: QueuedDownload["legacyTask"]) => void) {
-  const task = legacy.createDownloadResumable!(url, destination.uri, { headers }, (progress: { totalBytesWritten?: number; expectedTotalBytes?: number } | null | undefined) => {
+  if (typeof legacy.createDownloadResumable !== "function") {
+    // The guarded caller only gets here when the module exists; a shape
+    // change still fails with a readable error instead of a TypeError.
+    throw new Error("The transfer engine is unavailable in this build.");
+  }
+  const task = legacy.createDownloadResumable(url, destination.uri, { headers }, (progress: { totalBytesWritten?: number; expectedTotalBytes?: number } | null | undefined) => {
     const received = Number(progress?.totalBytesWritten);
     const total = Number(progress?.expectedTotalBytes);
     if (Number.isFinite(received) && received > 0) onBytes(received, Number.isFinite(total) && total > 0 ? total : 0);
@@ -596,7 +604,7 @@ async function performDownload(internal: QueuedDownload, callbacks: TransferCall
 // ── Native HLS bundle jobs ─────────────────────────────────────────────────
 
 type NativeJobHandle = {
-  resolve: (result: { segments: string[]; keyPath: string | null; bytes: number }) => void;
+  resolve: (result: { segments: string[]; keyPath: string | null; initPath: string | null; audioSegments: string[]; audioKeyPath: string | null; audioInitPath: string | null; bytes: number }) => void;
   reject: (error: Error) => void;
   onProgress: (received: number, total: number) => void;
   cleanup: () => void;
@@ -606,7 +614,7 @@ const nativeJobs = new Map<string, NativeJobHandle>();
 /** Estimated bytes of active jobs — charged against the quota hold while they run. */
 const pendingEstimates = new Map<string, number>();
 
-function runNativeJob(id: string, options: { dir: string; base: string; title: string; headers: string; estimatedBytes: number; proxyBase?: string }, hooks: { onProgress: (received: number, total: number) => void }): Promise<{ segments: string[]; keyPath: string | null; bytes: number }> {
+function runNativeJob(id: string, options: { dir: string; base: string; title: string; headers: string; estimatedBytes: number; proxyBase?: string; audioBase?: string }, hooks: { onProgress: (received: number, total: number) => void }): Promise<{ segments: string[]; keyPath: string | null; initPath: string | null; audioSegments: string[]; audioKeyPath: string | null; audioInitPath: string | null; bytes: number }> {
   return new Promise((resolve, reject) => {
     let lastProgressAt = Date.now();
     const progressUnsub = nativeDownloads.onProgress((progress) => {
@@ -620,7 +628,15 @@ function runNativeJob(id: string, options: { dir: string; base: string; title: s
       if (!handle) return;
       handle.cleanup();
       if (result.state === "complete" && result.segments) {
-        handle.resolve({ segments: result.segments, keyPath: result.keyPath ?? null, bytes: result.bytes ?? 0 });
+        handle.resolve({
+          segments: result.segments,
+          keyPath: result.keyPath ?? null,
+          initPath: result.initPath ?? null,
+          audioSegments: result.audioSegments ?? [],
+          audioKeyPath: result.audioKeyPath ?? null,
+          audioInitPath: result.audioInitPath ?? null,
+          bytes: result.bytes ?? 0,
+        });
       } else {
         handle.reject(new Error(result.reason || "Download failed."));
       }
@@ -649,11 +665,25 @@ function runNativeJob(id: string, options: { dir: string; base: string; title: s
   });
 }
 
+/** A staged provider playlist (raw CDN text) awaiting its native fetch. */
+type StagedPlaylist = { text: string; baseUrl: string; parsed: NonNullable<ReturnType<typeof parseMediaPlaylist>> };
+
+async function fetchPlaylistViaProxy(url: string, headers: Record<string, string>): Promise<string> {
+  const response = await fetch(anirakuProxyUrl(url, headers), { headers: anirakuProxyRequestHeaders() });
+  if (!response.ok) throw new Error(`Source returned ${response.status}.`);
+  return response.text();
+}
+
 /**
- * Offline HLS bundle: JS validates + stages the variant playlist, the native
- * service fetches key + segments straight from the CDN with the playback
- * headers, then JS rewrites every URI to file:// and verifies the bundle.
- * Any failure deletes the directory — a half-pointing playlist never exists.
+ * Offline HLS bundle: JS validates + stages the variant playlist (and the
+ * variant's separate audio playlist, when the provider serves one), the
+ * native service fetches key + fMP4 init + segments straight from the CDN
+ * with the playback headers, then JS rewrites every URI to file:// and
+ * verifies the bundle. Video-only bundles keep the flat media-playlist
+ * layout; separate-audio bundles assemble a small offline master playlist
+ * that points video and audio at their local copies so saved episodes keep
+ * sound. Any failure deletes the directory — a half-pointing playlist never
+ * exists.
  */
 async function performHlsDownload(internal: QueuedDownload, callbacks: TransferCallbacks): Promise<OfflineDownload> {
   const request = internal.request;
@@ -666,23 +696,36 @@ async function performHlsDownload(internal: QueuedDownload, callbacks: TransferC
 
     // PROXY-ONLY (operator decision): fetch the playlist through the Aniraku
     // proxy with the browser identity.
-    const response = await fetch(anirakuProxyUrl(playlistUrl, request.headers), { headers: anirakuProxyRequestHeaders() });
-    if (!response.ok) throw new Error(`Source returned ${response.status}.`);
-    const text = await response.text();
-    const parsed = parseMediaPlaylist(text);
-    if (!parsed) throw new Error("This stream could not be read for download.");
-    if (!parsed.endList) throw new Error("Live or endless streams cannot be saved.");
-    const unsupported = unsupportedPlaylistReason(text);
+    const videoText = await fetchPlaylistViaProxy(playlistUrl, request.headers);
+    const videoParsed = parseMediaPlaylist(videoText);
+    if (!videoParsed) throw new Error("This stream could not be read for download.");
+    if (!videoParsed.endList) throw new Error("Live or endless streams cannot be saved.");
+    const unsupported = unsupportedPlaylistReason(videoText);
     if (unsupported) throw new Error(unsupported);
 
-    const estimated = estimateHlsSize(text, request.bandwidth ?? 0);
+    // Separate audio: the variant advertised an AUDIO group with its own
+    // playlist — fetch + stage it too, or the saved copy would be silent.
+    // A provider that advertises audio but serves an unusable playlist fails
+    // honestly here instead of saving a silent episode.
+    let audio: StagedPlaylist | null = null;
+    if (request.audioPlaylistUrl) {
+      const audioText = await fetchPlaylistViaProxy(request.audioPlaylistUrl, request.headers);
+      const audioParsed = parseMediaPlaylist(audioText);
+      if (!audioParsed || !audioParsed.endList || unsupportedPlaylistReason(audioText)) {
+        throw new Error("The episode's audio track could not be saved.");
+      }
+      audio = { text: audioText, baseUrl: request.audioPlaylistUrl, parsed: audioParsed };
+    }
+
+    const estimated = estimateHlsSize(videoText, request.bandwidth ?? 0);
     if (estimated) pendingEstimates.set(request.entryId, estimated);
     if (estimated) {
       const free = getFreeDiskSpace();
       if (free > 0 && free < estimated * 1.15) throw new Error("Not enough space for this download. Free up space or pick a lower quality.");
     }
 
-    new File(dir, "source.m3u8").write(text);
+    new File(dir, "source.m3u8").write(videoText);
+    if (audio) new File(dir, "audio-source.m3u8").write(audio.text);
     // Subtitles are tiny — stage them beside the bundle while the video runs.
     const savedSubtitles = await saveSubtitleTracks({ tracks: request.subtitleTracks, entryId: request.entryId, headers: request.headers, directory: dir });
     const result = await runNativeJob(internal.nativeId ?? internal.job.id, {
@@ -692,6 +735,7 @@ async function performHlsDownload(internal: QueuedDownload, callbacks: TransferC
       headers: JSON.stringify(request.headers),
       estimatedBytes: estimated ?? 0,
       proxyBase: APP_CONFIG.apiBaseUrl,
+      ...(audio ? { audioBase: audio.baseUrl } : {}),
     }, {
       onProgress: (received, total) => callbacks.onProgress(total > 0 ? Math.min(0.99, received / total) : undefined, received, total),
     });
@@ -703,28 +747,57 @@ async function performHlsDownload(internal: QueuedDownload, callbacks: TransferC
 
     // Map absolute CDN URIs → the native writer's file paths, in playlist order.
     const map = new Map<string, string>();
-    parsed.segments.forEach((segment, position) => {
+    videoParsed.segments.forEach((segment, position) => {
       const absolute = resolveSegmentUrl(segment.uri, playlistUrl);
       const local = result.segments[position];
       if (absolute && local) map.set(absolute, local);
     });
-    if (parsed.keyUri) {
-      const absoluteKey = resolveSegmentUrl(parsed.keyUri, playlistUrl);
-      if (absoluteKey && result.keyPath) map.set(absoluteKey, result.keyPath);
+    if (videoParsed.keyUri && result.keyPath) {
+      const absoluteKey = resolveSegmentUrl(videoParsed.keyUri, playlistUrl);
+      if (absoluteKey) map.set(absoluteKey, result.keyPath);
     }
-    const rewritten = rewritePlaylistUris(text, { baseUrl: playlistUrl, mapUri: (url) => map.get(url) ?? null });
-    if (!rewritten) throw new Error("The saved copy is incomplete.");
+    if (videoParsed.mapUri && result.initPath) {
+      const absoluteMap = resolveSegmentUrl(videoParsed.mapUri, playlistUrl);
+      if (absoluteMap) map.set(absoluteMap, result.initPath);
+    }
+    const rewrittenVideo = rewritePlaylistUris(videoText, { baseUrl: playlistUrl, mapUri: (url) => map.get(url) ?? null });
+    if (!rewrittenVideo) throw new Error("The saved copy is incomplete.");
 
-    const playlistFile = new File(dir, "playlist.m3u8");
-    playlistFile.write(rewritten);
-    if (!verifyPlaylistIntegrity(rewritten, (uri) => {
-      try { return new File(uri).exists; } catch { return false; }
-    })) {
-      throw new Error("The saved copy failed its integrity check.");
+    let playlistFile: File;
+    if (!audio) {
+      // Flat layout (unchanged): playlist.m3u8 IS the rewritten media playlist.
+      playlistFile = new File(dir, "playlist.m3u8");
+      playlistFile.write(rewrittenVideo);
+      if (!verifyPlaylistIntegrity(rewrittenVideo, fileExists)) throw new Error("The saved copy failed its integrity check.");
+    } else {
+      // Separate-audio layout: an offline master keeps video and audio grouped.
+      const mapAudio = new Map<string, string>();
+      audio.parsed.segments.forEach((segment, position) => {
+        const absolute = resolveSegmentUrl(segment.uri, audio.baseUrl);
+        const local = result.audioSegments[position];
+        if (absolute && local) mapAudio.set(absolute, local);
+      });
+      if (audio.parsed.keyUri && result.audioKeyPath) {
+        const absoluteKey = resolveSegmentUrl(audio.parsed.keyUri, audio.baseUrl);
+        if (absoluteKey) mapAudio.set(absoluteKey, result.audioKeyPath);
+      }
+      if (audio.parsed.mapUri && result.audioInitPath) {
+        const absoluteMap = resolveSegmentUrl(audio.parsed.mapUri, audio.baseUrl);
+        if (absoluteMap) mapAudio.set(absoluteMap, result.audioInitPath);
+      }
+      const rewrittenAudio = rewritePlaylistUris(audio.text, { baseUrl: audio.baseUrl, mapUri: (url) => mapAudio.get(url) ?? null });
+      if (!rewrittenAudio) throw new Error("The saved audio track is incomplete.");
+      new File(dir, "video.m3u8").write(rewrittenVideo);
+      new File(dir, "audio-track.m3u8").write(rewrittenAudio);
+      if (!verifyPlaylistIntegrity(rewrittenVideo, fileExists)) throw new Error("The saved copy failed its integrity check.");
+      if (!verifyPlaylistIntegrity(rewrittenAudio, fileExists)) throw new Error("The saved audio track failed its integrity check.");
+      playlistFile = new File(dir, "playlist.m3u8");
+      playlistFile.write(buildOfflineMaster(request.bandwidth ?? 0));
     }
     // source.m3u8 carries provider URLs (possibly tokenized) — the rewritten
     // playlist replaces it, so the provider copy does not stay on disk.
     try { new File(dir, "source.m3u8").delete(); } catch { /* best effort */ }
+    try { if (audio) new File(dir, "audio-source.m3u8").delete(); } catch { /* best effort */ }
 
     callbacks.onProgress(1, result.bytes, result.bytes);
     const entry: OfflineDownload = { id: request.entryId, animeId: request.animeId, episode: request.episode, title: request.title, quality: request.quality, language: request.language, uri: playlistFile.uri, downloadUrl: "", savedAt: Date.now(), size: result.bytes, subtitles: savedSubtitles };
@@ -737,9 +810,29 @@ async function performHlsDownload(internal: QueuedDownload, callbacks: TransferC
   }
 }
 
+function fileExists(uri: string): boolean {
+  try { return new File(uri).exists; } catch { return false; }
+}
+
+/**
+ * The offline master playlist that groups a downloaded video variant with its
+ * downloaded audio track. Relative URIs resolve against the master's own
+ * location inside the bundle directory; ExoPlayer infers the codecs from the
+ * segments themselves.
+ */
+function buildOfflineMaster(bandwidth: number): string {
+  const variantBandwidth = bandwidth > 0 ? Math.round(bandwidth) : 2_000_000;
+  return [
+    "#EXTM3U",
+    '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="Audio",DEFAULT=YES,AUTOSELECT=YES,URI="audio-track.m3u8"',
+    `#EXT-X-STREAM-INF:BANDWIDTH=${variantBandwidth},AUDIO="aud"`,
+    "video.m3u8",
+  ].join("\n");
+}
+
 // ── Public entry point ────────────────────────────────────────────────────
 
-export type StartDownloadInput = { animeId: number; episode: number; language: "sub" | "dub"; title: string; source: StreamSource; variantUrl?: string | null; variantQuality?: string | null; bandwidth?: number; headers?: Record<string, string>; onProgress?: (fraction: number) => void };
+export type StartDownloadInput = { animeId: number; episode: number; language: "sub" | "dub"; title: string; source: StreamSource; variantUrl?: string | null; variantQuality?: string | null; bandwidth?: number; headers?: Record<string, string>; /** Separate-audio playlist URL for variants that advertise an AUDIO group. */ audioPlaylistUrl?: string | null; onProgress?: (fraction: number) => void };
 
 /** Request builder — exported for tests. */
 export function buildDownloadRequest(input: StartDownloadInput): DownloadRequest {
@@ -784,7 +877,7 @@ export function buildDownloadRequest(input: StartDownloadInput): DownloadRequest
     const playlistUrl = originalStreamUrl(directUrl);
     if (!/^https:\/\//i.test(playlistUrl)) throw new Error("This source cannot be downloaded directly.");
     const quality = String(input.variantQuality ?? "").trim() || input.source.quality || "VARIANT";
-    return { kind: "hls", animeId: input.animeId, episode: input.episode, language: input.language, title: input.title, quality, filename: "", downloadUrl: "", headers, subtitleTracks: input.source.subtitles, playlistUrl, bandwidth: Math.max(0, Math.round(Number(input.bandwidth ?? 0)) || 0), entryId, onProgress: input.onProgress };
+    return { kind: "hls", animeId: input.animeId, episode: input.episode, language: input.language, title: input.title, quality, filename: "", downloadUrl: "", headers, subtitleTracks: input.source.subtitles, playlistUrl, bandwidth: Math.max(0, Math.round(Number(input.bandwidth ?? 0)) || 0), audioPlaylistUrl: String(input.audioPlaylistUrl ?? "").trim() || undefined, entryId, onProgress: input.onProgress };
   }
 
   if (!useExplicit && !isDownloadableSource(input.source)) throw new Error("This provider only offers adaptive, embedded, or protected playback. A direct progressive source is required for downloading.");

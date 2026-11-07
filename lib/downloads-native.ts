@@ -14,6 +14,12 @@ export type NativeDownloadResult = {
   reason?: string;
   segments?: string[];
   keyPath?: string | null;
+  /** fMP4 init segment (#EXT-X-MAP) — null for MPEG-TS playlists. */
+  initPath?: string | null;
+  /** Separate-audio track: segment file URIs + key/init, empty when video-only. */
+  audioSegments?: string[];
+  audioKeyPath?: string | null;
+  audioInitPath?: string | null;
   bytes?: number;
 };
 
@@ -31,6 +37,8 @@ declare class AnirakuDownloadsNativeModule extends NativeModule<DownloadEvents> 
     headers: string;
     estimatedBytes: number;
     proxyBase?: string;
+    /** CDN URL of the staged audio.m3u8 — empty/absent = video-only. */
+    audioBase?: string;
   }): void;
   cancel(id: string): void;
 }

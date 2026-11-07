@@ -1,0 +1,3 @@
+Downloads rebuilt: fMP4 streams save again and separate-audio providers keep sound. Fixed: saved episodes play even with Wi-Fi/data on. Shared anime links open the app directly (App Links). Quality switching keeps audio. Kinder signup: tappable terms + "check your mail" step. SUB/DUB chips show server counts, large-font UI fix, faster Home.
+
+Bugs or missing anime? Mail sho.islam0311@proton.me — it fuels the next fix.

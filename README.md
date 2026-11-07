@@ -24,14 +24,14 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.10.2">v5.8.10.2 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.9.0.0">v5.9.0.0 (Beta) Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 <br>
 
 > [!IMPORTANT]
-> **v5.8.10.2 is the current release** — Push-relay fix (found by automated scan): a temporary delivery failure no longer permanently drops an episode push — failed pushes retry on the next cron pass; offline subtitle saves retry transient blips. Installs directly over v5.8.0–v5.8.10.1. If you want the previous build, [v5.8.10.1](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.10.1) is the four-feature release.
+> **v5.9.0.0 (Beta) is the current release** — Downloads rebuilt for fMP4 and separate-audio providers (the long-standing "downloads don't work" breaker), shared anime links now open the app via verified Android App Links, quality switching keeps audio on separate-audio servers, and a kinder signup flow (tappable terms row + a "check your mail" confirmation). Installs directly over v5.8.0–v5.8.10.2. The stable previous build is [v5.8.10.2](https://github.com/Aniraku/Aniraku-App/releases/tag/v5.8.10.2).
 
 > [!CAUTION]
 >If it has saved you time, a small donation keeps it up. And the library keeps growing — **missing an anime?** Email [`sho.islam0311@proton.me`](mailto:sho.islam0311@proton.me) and it'll get added.

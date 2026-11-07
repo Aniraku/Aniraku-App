@@ -1,8 +1,29 @@
 // verify-email — PUBLIC endpoint for the Aniraku sign-up page.
-// Answers three questions before the user submits the form:
-//   valid  — format is a deliverable-looking email (syntax + MX records)
-//   exists — an Aniraku account with this email is already registered
-//   suggestion — a likely typo correction (gmial.com → gmail.com)
+// Answers four questions before the user submits the form:
+//   valid       — format is a deliverable-looking email (syntax + MX records)
+//   exists      — an Aniraku account with this email is already registered
+//   deliverable — the MAILBOX itself exists (SMTP-level). null = unknown:
+//                 catch-all domain, provider not configured, or provider
+//                 could not answer. Only a confirmed miss yields false.
+//   suggestion  — a likely typo correction (gmial.com → gmail.com)
+//
+// Mailbox verification keeps Supabase's confirmation-email credits from
+// burning on addresses that can never receive them (XXXXX212@gmail.com
+// passes syntax + MX but no mailbox is listening).
+//
+// ── Mailbox provider setup (optional but recommended) ─────────────────────
+// Any one of these free-tier APIs enables the `deliverable` answer. Set the
+// provider name + its key as Supabase secrets (supabase secrets set ...):
+//   • mailboxlayer (apilayer) — 250 free checks/month, `smtp_check` flag.
+//       supabase secrets set EMAIL_VERIFIER=mailboxlayer MAILBOXLAYER_API_KEY=...
+//   • emailable — 250 free checks/month, `state: deliverable|undeliverable`.
+//       supabase secrets set EMAIL_VERIFIER=emailable EMAILABLE_API_KEY=...
+//   • zerobounce — 100 free checks/month, `status: valid|invalid|catch-all`.
+//       supabase secrets set EMAIL_VERIFIER=zerobounce ZEROBOUNCE_API_KEY=...
+// Without a provider the endpoint still answers valid/exists/suggestion and
+// reports `deliverable: null` (unknown) — the sign-up form only blocks on a
+// confirmed false.
+//
 // Public by design: no auth. Light in-memory per-IP rate limiting.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -17,7 +38,6 @@ const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
-const GENERIC_DOMAINS = new Set(["gmail.com", "outlook.com", "hotmail.com", "yahoo.com", "icloud.com", "proton.me", "protonmail.com", "live.com", "aol.com"]);
 
 const KNOWN_DOMAINS = [
   "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "outlook.sa",
@@ -75,6 +95,80 @@ async function mxRecords(domain: string): Promise<string[]> {
   }
 }
 
+// ── mailbox-level verification (provider adapters) ────────────────────────
+
+type MailboxAnswer = { deliverable: boolean | null; catchAll: boolean };
+
+const PROVIDER_TIMEOUT_MS = 4_000;
+
+async function fetchWithTimeout(url: string): Promise<Response | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** mailboxlayer: smtp_check 1 = mailbox confirmed, 0 = confirmed missing. */
+async function mailboxlayer(email: string): Promise<MailboxAnswer> {
+  const key = Deno.env.get("MAILBOXLAYER_API_KEY") ?? "";
+  const response = await fetchWithTimeout(
+    `https://apilayer.net/api/check?access_key=${encodeURIComponent(key)}&email=${encodeURIComponent(email)}&smtp=1&catch_all=1`,
+  );
+  if (!response?.ok) return { deliverable: null, catchAll: false };
+  const data = await response.json().catch(() => null) as { smtp_check?: number; mx_found?: boolean | string; catch_all?: boolean | string } | null;
+  if (!data || typeof data.smtp_check !== "number") return { deliverable: null, catchAll: false };
+  const mxFound = data.mx_found === true || data.mx_found === "true";
+  if (data.smtp_check === 1) return { deliverable: true, catchAll: data.catch_all === true || data.catch_all === "true" };
+  // A 0 answer only counts as a miss when the domain itself was reachable.
+  if (data.smtp_check === 0 && mxFound) return { deliverable: false, catchAll: false };
+  return { deliverable: null, catchAll: false };
+}
+
+/** emailable: state deliverable | undeliverable | risky | unknown. */
+async function emailable(email: string): Promise<MailboxAnswer> {
+  const key = Deno.env.get("EMAILABLE_API_KEY") ?? "";
+  const response = await fetchWithTimeout(
+    `https://api.emailable.com/v1/verify?api_key=${encodeURIComponent(key)}&email=${encodeURIComponent(email)}`,
+  );
+  if (!response?.ok) return { deliverable: null, catchAll: false };
+  const data = await response.json().catch(() => null) as { state?: string; reason?: string } | null;
+  if (!data?.state) return { deliverable: null, catchAll: false };
+  if (data.state === "deliverable") return { deliverable: true, catchAll: false };
+  if (data.state === "undeliverable") return { deliverable: false, catchAll: false };
+  return { deliverable: null, catchAll: data.state === "risky" && /catch[- ]?all/i.test(data.reason ?? "") };
+}
+
+/** zerobounce: status valid | invalid | catch-all | unknown | ... */
+async function zerobounce(email: string): Promise<MailboxAnswer> {
+  const key = Deno.env.get("ZEROBOUNCE_API_KEY") ?? "";
+  const response = await fetchWithTimeout(
+    `https://api.zerobounce.net/v2/validate?api_key=${encodeURIComponent(key)}&email=${encodeURIComponent(email)}`,
+  );
+  if (!response?.ok) return { deliverable: null, catchAll: false };
+  const data = await response.json().catch(() => null) as { status?: string } | null;
+  if (!data?.status) return { deliverable: null, catchAll: false };
+  if (data.status === "valid") return { deliverable: true, catchAll: false };
+  if (data.status === "invalid") return { deliverable: false, catchAll: false };
+  return { deliverable: null, catchAll: data.status === "catch-all" };
+}
+
+async function mailboxAnswer(email: string): Promise<MailboxAnswer> {
+  const provider = (Deno.env.get("EMAIL_VERIFIER") ?? "").trim().toLowerCase();
+  try {
+    if (provider === "mailboxlayer") return await mailboxlayer(email);
+    if (provider === "emailable") return await emailable(email);
+    if (provider === "zerobounce") return await zerobounce(email);
+  } catch {
+    // provider hiccups must never break the endpoint — fall through to null
+  }
+  return { deliverable: null, catchAll: false };
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
@@ -89,14 +183,14 @@ Deno.serve(async (request) => {
   } catch {
     return json({ error: "Invalid JSON body." }, 400);
   }
-  if (!email || email.length > 254) return json({ valid: false, exists: false, mx: false, reason: "empty" });
+  if (!email || email.length > 254) return json({ valid: false, exists: false, mx: false, deliverable: null, catch_all: false, reason: "empty" });
 
   if (!EMAIL_RE.test(email)) {
-    return json({ valid: false, exists: false, mx: false, suggestion: suggestionFor(email), reason: "format" });
+    return json({ valid: false, exists: false, mx: false, deliverable: null, catch_all: false, suggestion: suggestionFor(email), reason: "format" });
   }
 
   const domain = email.slice(email.lastIndexOf("@") + 1);
-  const [mx, suggestion] = await Promise.all([mxRecords(domain), Promise.resolve(suggestionFor(email))]);
+  const [mx, mailbox, suggestion] = await Promise.all([mxRecords(domain), mailboxAnswer(email), Promise.resolve(suggestionFor(email))]);
 
   // Existence: an Aniraku account with this email is already registered?
   // The service role reads the users table without touching auth flows.
@@ -113,11 +207,17 @@ Deno.serve(async (request) => {
     }
   }
 
+  // No MX ⇒ the domain cannot receive mail at all; a provider verdict about
+  // the mailbox would be noise. A confirmed mailbox answer stands on its own.
+  const deliverable = mx.length === 0 ? null : mailbox.deliverable;
+
   return json({
     email,
     valid: mx.length > 0,
     exists,
     mx: mx.slice(0, 3),
+    deliverable,
+    catch_all: mx.length === 0 ? false : mailbox.catchAll,
     suggestion: mx.length === 0 ? suggestion : null,
   });
 });

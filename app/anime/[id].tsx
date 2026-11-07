@@ -3,8 +3,8 @@ import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, Vi
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import * as Clipboard from "expo-clipboard";
 import { getAnimeById, getRecommendations } from "@/lib/anilist";
+import { animeInfoWebUrl } from "@/lib/site-links";
 import { BANNER_W, POSTER_W, getOptimizedImageUri } from "@/lib/image-optimization";
 import { parseRouteId } from "@/lib/route-params";
 import { getEpisodes } from "@/lib/aniraku-api";
@@ -24,7 +24,6 @@ import { useWatchHistory } from "@/hooks/use-watch-history";
 import { useOfflineDownloadIds } from "@/hooks/use-downloads";
 import { AnimeComments } from "@/components/anime-comments";
 import { ErrorState, LoadingState } from "@/components/async-state";
-import { showChoiceSheet, showThemedToast } from "@/components/choice-sheet";
 import { AppIcon } from "@/components/app-icon";
 import { AiringSchedule } from "@/components/airing-schedule";
 import { DotLabel, NothingButton, nothing, Signal } from "@/components/nothing-ui";
@@ -108,18 +107,19 @@ export default function AnimeDetailScreen() {
   const lastAvailableEpisode = episodeRows.at(-1)?.number ?? Math.max(data.episodes ?? 1, 1);
   const displayedResume = Math.min(resumeEpisode, lastAvailableEpisode);
   const shareThisAnime = () => {
-    const deepLink = `aniraku://anime/${id}`;
-    const webUrl = `https://aniraku.tech/anime/${id}`;
-    const link = Platform.OS === "ios" ? deepLink : webUrl;
-    showChoiceSheet({
-      kicker: "SHARE",
-      title: "Share this anime",
-      message: title,
-      options: [
-        { key: "share", label: "SHARE", onPress: () => { void Share.share({ title, message: `Watch ${title} on Aniraku\n${link}`, url: Platform.OS === "ios" ? deepLink : webUrl }).catch(() => {}); } },
-        { key: "copy", label: "COPY LINK", onPress: () => { void Clipboard.setStringAsync(webUrl).then(() => showThemedToast({ message: "LINK COPIED — PASTE IT ANYWHERE", tone: "info" })).catch(() => {}); } },
-      ],
-    });
+    // One canonical link: the website's /info/{id} App Link (the historical
+    // /anime/{id} path no longer exists on the site). With Aniraku installed
+    // Android opens it straight into the app (assetlinks.json + alias
+    // routes); without the app it opens the website. The OS native share
+    // sheet opens on press — no intermediary menu.
+    const link = animeInfoWebUrl(id);
+    void Share.share({
+      title,
+      // Android sends only `message`; the URL rides inside it. iOS attaches
+      // `url` as its own share item alongside the message.
+      message: `Watch ${title} on Aniraku\n${link}`,
+      ...(Platform.OS === "ios" ? { url: link } : {}),
+    }).catch(() => {});
   };
 
   return <NativeScreen>

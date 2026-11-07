@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { getHomeAnime, getHomeRailAnime } from "@/lib/anilist";
+import { getHomeAnime, getHomeRailAnime, upcomingSeasonTarget } from "@/lib/anilist";
 import { BANNER_W, POSTER_W, getOptimizedImageUri } from "@/lib/image-optimization";
 import { nsfwFilterParam, useNsfwPreference } from "@/lib/nsfw-preference";
-import { animeTitle } from "@/lib/types";
+import { animeHasStarted, animeTitle } from "@/lib/types";
 import { hapticLight } from "@/lib/haptics";
 import { usePrefetchAnime } from "@/lib/prefetch";
 import { showChoiceSheet, showThemedDialog, showThemedToast } from "@/components/choice-sheet";
@@ -200,6 +200,13 @@ export default function HomeScreen() {
   // explicit value every navigation back to Home re-entered the default stale
   // window and re-fetched trending under the temporary 30 req/min AniList cap.
   const home = useQuery({ queryKey: ["home-anime", isAdultParam], queryFn: () => getHomeAnime(isAdultParam), staleTime: 10 * 60_000, retry: 3, retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000) });
+  // Coming soon: the query already pins the next season + soonest start, but
+  // AniList's status flag can lag a title that just began airing (and the
+  // cache can outlive a season flip) — belt-and-braces drop started titles.
+  const upcomingAnime = useMemo(
+    () => (home.data?.upcoming ?? []).filter((anime) => !animeHasStarted(anime)),
+    [home.data?.upcoming],
+  );
   // Home costs 2 AniList requests total under the temporary 30 req/min cap:
   // this merged rails call fires at start (no serial gating behind `home`),
   // so Top Movies paints with the hero instead of seconds later.
@@ -268,7 +275,7 @@ export default function HomeScreen() {
       {home.data.popular.length ? <AnimeRail label="03" title="Popular releases" items={home.data.popular} seeAllParams={{ sort: "POPULARITY_DESC", title: "Popular Releases" }} /> : null}
       {rails.data?.topMovies?.length ? <AnimeRail label="04" title="Top movies" items={rails.data.topMovies} seeAllParams={{ format: "MOVIE", sort: "SCORE_DESC", title: "Top Movies" }} /> : rails.isPending ? <RailPlaceholder title="Top movies" /> : null}
       {rails.data?.justFinished?.length ? <AnimeRail label="05" title="Just finished" items={rails.data.justFinished} seeAllParams={{ status: "FINISHED", sort: "END_DATE_DESC", title: "Just Finished" }} /> : rails.isPending ? <RailPlaceholder title="Just finished" /> : null}
-      {home.data.upcoming.length ? <AnimeRail label="06" title="Coming soon" items={home.data.upcoming} seeAllParams={{ status: "NOT_YET_RELEASED", sort: "POPULARITY_DESC", title: "Coming Soon" }} /> : null}
+      {upcomingAnime.length ? <AnimeRail label="06" title="Coming soon" items={upcomingAnime} seeAllParams={{ status: "NOT_YET_RELEASED", sort: "START_DATE", season: upcomingSeasonTarget().season, year: String(upcomingSeasonTarget().year), title: "Coming Soon" }} /> : null}
     </ScrollView>
     <NotificationSheet visible={notifSheetVisible} onClose={() => setNotifSheetVisible(false)} />
   </NativeScreen>;

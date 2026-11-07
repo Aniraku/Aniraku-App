@@ -23,6 +23,9 @@ export type DownloadSheetOption = {
   variantUrl?: string | null;
   /** Variant bandwidth (bit/s) for the size estimate. */
   bandwidth?: number;
+  /** Separate-audio playlist for variants that advertise an AUDIO group —
+   *  saved without it, the episode would be silent. */
+  audioPlaylistUrl?: string | null;
 };
 
 type Estimate = { bytes: number | null; live: boolean };
@@ -158,6 +161,7 @@ export function DownloadSheet({ visible, onClose, animeId, episode, language, ti
         variantUrl: option.variantUrl ?? null,
         variantQuality: option.quality,
         bandwidth: option.bandwidth,
+        audioPlaylistUrl: option.audioPlaylistUrl ?? null,
         headers,
       });
       onStarted(option);

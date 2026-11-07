@@ -4,18 +4,18 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import * as Linking from "expo-linking";
-import * as Clipboard from "expo-clipboard";
 import { AppIcon } from "@/components/app-icon";
 import type { Anime } from "@/lib/types";
 import { animeTitle } from "@/lib/types";
 import { usePrefetchAnime } from "@/lib/prefetch";
 import { POSTER_W, getOptimizedImageUri } from "@/lib/image-optimization";
+import { animeInfoWebUrl } from "@/lib/site-links";
 import { nothing, Signal } from "@/components/nothing-ui";
 import { LIST_STATUS_LABELS } from "@/lib/list-status";
 import { useBookmarks } from "@/hooks/use-bookmarks";
 import { useWatchHistory } from "@/hooks/use-watch-history";
 import { useAnirakuAuth } from "@/providers/auth-provider";
-import { showChoiceSheet, showThemedToast } from "@/components/choice-sheet";
+import { showThemedToast } from "@/components/choice-sheet";
 
 type ActionItem = { label: string; icon: string; onPress: () => void };
 
@@ -37,20 +37,19 @@ function airedEpisodeCount(anime: Anime): number {
   return total !== null ? Math.min(aired, total) : aired;
 }
 
-/** Same deep-link/share pattern as the detail screen's share button. */
+/** Native share sheet on press — same link the detail screen shares. */
 function shareAnime(anime: Anime, title: string) {
-  const deepLink = `aniraku://anime/${anime.id}`;
-  const webUrl = `https://aniraku.tech/anime/${anime.id}`;
-  const link = Platform.OS === "ios" ? deepLink : webUrl;
-  showChoiceSheet({
-    kicker: "SHARE",
-    title: "Share this anime",
-    message: title,
-    options: [
-      { key: "share", label: "SHARE", onPress: () => { void Share.share({ title, message: `Watch ${title} on Aniraku\n${link}`, url: Platform.OS === "ios" ? deepLink : webUrl }).then((result) => { if (result?.action !== "dismissedAction") showQuickFeedback(`Shared "${title}"`); }).catch(() => { showQuickFeedback("Unable to share right now"); }); } },
-      { key: "copy", label: "COPY LINK", onPress: () => { void Clipboard.setStringAsync(webUrl).then(() => showThemedToast({ message: "LINK COPIED — PASTE IT ANYWHERE", tone: "info" })).catch(() => {}); } },
-    ],
-  });
+  // One canonical link: the website's /info/{id} App Link. With Aniraku
+  // installed Android opens it straight into the app; without the app it
+  // opens the website.
+  const link = animeInfoWebUrl(anime.id);
+  void Share.share({
+    title,
+    // Android sends only `message`; the URL rides inside it. iOS attaches
+    // `url` as its own share item alongside the message.
+    message: `Watch ${title} on Aniraku\n${link}`,
+    ...(Platform.OS === "ios" ? { url: link } : {}),
+  }).then((result) => { if (result?.action !== "dismissedAction") showQuickFeedback(`Shared "${title}"`); }).catch(() => { showQuickFeedback("Unable to share right now"); });
 }
 
 function AnimeCardBase({ anime, compact = false }: { anime: Anime; compact?: boolean }) {
@@ -94,7 +93,7 @@ function AnimeCardBase({ anime, compact = false }: { anime: Anime; compact?: boo
         onPressOut={cancelLongPress}
         style={({ pressed }) => [styles.card, compact && styles.compactCard, pressed && styles.pressed]}
       >
-        <View style={styles.media}><View style={styles.artFallback}><Text style={styles.fallbackInitial}>{title.charAt(0)}</Text></View>{artwork ? <Image source={{ uri: artwork }} style={styles.poster} contentFit="cover" transition={0} cachePolicy="memory-disk" /> : null}{anime.nextAiringEpisode ? <View style={styles.topline}><Signal label={`EP ${anime.nextAiringEpisode.episode}`} /></View> : null}</View>
+        <View style={styles.media}><View style={styles.artFallback}><Text style={styles.fallbackInitial}>{title.charAt(0)}</Text></View>{artwork ? <Image source={{ uri: artwork }} style={styles.poster} contentFit="cover" transition={120} cachePolicy="memory-disk" recyclingKey={artwork} /> : null}{anime.nextAiringEpisode ? <View style={styles.topline}><Signal label={`EP ${anime.nextAiringEpisode.episode}`} /></View> : null}</View>
         <View style={styles.meta}><Text numberOfLines={2} style={styles.title}>{title}</Text><Text style={styles.detail}>{anime.format || "ANIME"}{anime.averageScore ? ` · ${Math.round(anime.averageScore)}%` : ""}</Text></View>
       </Pressable>
 

@@ -14,7 +14,7 @@ const env = {
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
-  version: "5.8.10.2",
+  version: "5.9.0.0",
   orientation: "default",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
@@ -29,7 +29,7 @@ const config: ExpoConfig = {
     infoPlist: { ITSAppUsesNonExemptEncryption: false },
   },
   android: {
-    versionCode: 90,
+    versionCode: 91,
     adaptiveIcon: { backgroundColor: "#090909", foregroundImage: "./assets/images/android-icon-foreground.png" },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
@@ -38,7 +38,15 @@ const config: ExpoConfig = {
     intentFilters: [
       { action: "VIEW", autoVerify: true, data: [{ scheme: env.scheme, host: "auth" }], category: ["BROWSABLE", "DEFAULT"] },
       { action: "VIEW", data: [{ scheme: env.scheme, host: "anime", pathPattern: ".*" }], category: ["BROWSABLE", "DEFAULT"] },
-      { action: "VIEW", autoVerify: true, data: [{ scheme: "https", host: "aniraku.tech", pathPrefix: "/anime/" }], category: ["BROWSABLE", "DEFAULT"] },
+      // Android App Links: the website serves /.well-known/assetlinks.json for
+      // this app's signing cert, so verified https links to the site's real
+      // routes (/info/{id}, /watch/{id}) open the app directly. /anime/ stays
+      // claimed for links shared by older app builds.
+      { action: "VIEW", autoVerify: true, data: [
+        { scheme: "https", host: "aniraku.tech", pathPrefix: "/info/" },
+        { scheme: "https", host: "aniraku.tech", pathPrefix: "/watch/" },
+        { scheme: "https", host: "aniraku.tech", pathPrefix: "/anime/" },
+      ], category: ["BROWSABLE", "DEFAULT"] },
     ],
   },
   web: { bundler: "metro", output: "static", favicon: "./assets/images/favicon.png" },

@@ -45,7 +45,15 @@ describe("AniList query construction", () => {
     expect(body.query).toContain("trending:");
     expect(body.query).toContain("popular:");
     expect(body.query).toContain("upcoming:");
-    expect(body.variables).toEqual({});
+    // Coming soon pins the NEXT broadcast season (status lag and
+    // years-out announcements made bare NOT_YET_RELEASED + POPULARITY_DESC
+    // list titles that already aired) and sorts soonest start first.
+    expect(body.query).toContain("season: $upcomingSeason");
+    expect(body.query).toContain("sort: [START_DATE, POPULARITY_DESC]");
+    expect(["WINTER", "SPRING", "SUMMER", "FALL"]).toContain(body.variables.upcomingSeason);
+    const nowYear = new Date().getFullYear();
+    expect(body.variables.upcomingYear).toBeGreaterThanOrEqual(nowYear);
+    expect(body.variables.upcomingYear).toBeLessThanOrEqual(nowYear + 1);
     expect(home.upcoming).toMatchObject([{ id: 3, status: "NOT_YET_RELEASED" }]);
   });
 

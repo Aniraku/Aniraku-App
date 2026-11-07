@@ -31,6 +31,15 @@ function StartupPrefetcher() {
 Text.defaultProps = { ...(Text.defaultProps ?? {}), style: [{ fontFamily: "SpaceGrotesk-Regular" }, Text.defaultProps?.style].filter(Boolean) };
 // @ts-expect-error — same as above
 TextInput.defaultProps = { ...(TextInput.defaultProps ?? {}), style: [{ fontFamily: "SpaceGrotesk-Regular" }, TextInput.defaultProps?.style].filter(Boolean) };
+// Cap OS font-scale at 135%: with a large Android system font the dense
+// screens (player chrome, rails, sheets) blew past their fixed layouts and
+// rendered oversized. 1.35 keeps scaling meaningful for accessibility
+// without breaking fixed-size chrome. Player chrome opts out entirely with
+// allowFontScaling={false} (app/watch).
+// @ts-expect-error — same defaultProps mechanism as above
+Text.defaultProps = { ...(Text.defaultProps ?? {}), maxFontSizeMultiplier: 1.35 };
+// @ts-expect-error — same
+TextInput.defaultProps = { ...(TextInput.defaultProps ?? {}), maxFontSizeMultiplier: 1.35 };
 
 export const unstable_settings = { anchor: "(tabs)" };
 
