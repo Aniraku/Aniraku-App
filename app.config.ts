@@ -14,7 +14,7 @@ const env = {
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
-  version: "5.9.0.0",
+  version: "5.9.1.0",
   orientation: "default",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
@@ -29,7 +29,7 @@ const config: ExpoConfig = {
     infoPlist: { ITSAppUsesNonExemptEncryption: false },
   },
   android: {
-    versionCode: 91,
+    versionCode: 92,
     adaptiveIcon: { backgroundColor: "#090909", foregroundImage: "./assets/images/android-icon-foreground.png" },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
@@ -61,7 +61,7 @@ const config: ExpoConfig = {
     ["expo-secure-store", { configureAndroidBackup: false }],
     ["expo-notifications", { icon: "./assets/images/icon.png", color: "#FF4D4D" }],
     ["expo-splash-screen", { image: "./assets/images/splash-icon.png", imageWidth: 200, resizeMode: "contain", backgroundColor: "#090909", dark: { backgroundColor: "#090909" } }],
-      ["expo-build-properties", { android: { buildArchs: ["armeabi-v7a", "arm64-v8a", "x86_64"], minSdkVersion: 28 } }],
+      ["expo-build-properties", { android: { buildArchs: ["armeabi-v7a", "arm64-v8a", "x86_64"], minSdkVersion: 28, enableProguardInReleaseBuilds: true } }],
   ],
   // Keep file-route typing, but remove optional compiler/runtime experiments
   // from the compatibility build's startup path.

@@ -127,6 +127,7 @@ jobs:
         run: |
           bash scripts/patch-release-signing.sh "aniraku-release.keystore"
           bash scripts/patch-build-abi.sh "${{ matrix.arch }}"
+          bash scripts/patch-hardening.sh
         env:
           ANIRAKU_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           ANIRAKU_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -179,26 +180,33 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          name: Aniraku V5.9
+          name: Aniraku V5.9.1
           draft: false
-          prerelease: true
+          prerelease: false
           body: |
-            ## V5.9 (Beta) — Downloads rebuilt, App Links, improved sign-up
+            ## V5.9.1 — Reverse-engineering hardening, honest refusals, auth-sunset notice
 
-            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0–v5.8.10.2 — same signing key, no uninstall needed.**
+            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0–v5.9.0.0 — same signing key, no uninstall needed.** This release is the latest stable; the V5.9 beta feature set carried unchanged after an 8-day field soak.
 
-            - `aniraku-v5.9.0.0-arm64.apk` — modern (64-bit) devices
-            - `aniraku-v5.9.0.0-arm32.apk` — older / budget (32-bit) devices
-            - `aniraku-v5.9.0.0-universal.apk` — every device
+            - `aniraku-v5.9.1.0-arm64.apk` — modern (64-bit) devices
+            - `aniraku-v5.9.1.0-arm32.apk` — older / budget (32-bit) devices
+            - `aniraku-v5.9.1.0-universal.apk` — every device
+
+            ### Security
+            - **Release builds are R8-obfuscated**: the shipped DEX no longer carries readable class/method names for the streaming pipeline (provider rotation, download orchestration, proxy headers) — reverse-engineering tooling hits renamed symbols. The JS layer ships as Hermes bytecode, not source. Keep rules preserve only reflection-resolved surfaces (custom expo modules, expo-modules-core, react-native-video, OkHttp).
+            - **Packaging-gate audit**: flagged literals assessed one by one — all UI copy and public domain lists; no secrets, no license gates.
 
             ### Fixed
             - **Saved episodes play with Wi-Fi or mobile data ON** — a server-discovery race dismissed the just-mounted offline copy when the network resolved; offline playback previously only worked in airplane mode.
-            - **Downloads on fMP4 providers** — the downloader rejected every `#EXT-X-MAP` stream after the provider migration; bundles now fetch the init segment and verify it.
+            - **Downloads on fMP4 providers** — the downloader rejected every `#EXT-X-MAP` stream after the provider migration; bundles now fetch the init segment and verify it. Ranged init segments (`#EXT-X-MAP` with `BYTERANGE`) are refused honestly.
             - **Separate-audio providers keep sound** — the audio track downloads alongside the video and the bundle groups both.
             - **Share opens the app** — native share sheet, correct `/info/{id}` links, and verified Android App Links.
             - **Quality switching keeps audio** on separate-audio servers.
             - **Sign-up improvements** — reliable terms acceptance control and a "check your mail" confirmation before account creation.
             - **Interface corrections** — SUB/DUB chips show server counts, oversized UI fixed for large system fonts, faster Home with an accurate "Coming soon" rail.
+
+            ### Notice
+            - **Sign-in on builds older than v5.8.0 is being retired.** Your account is NOT affected — nothing is deleted. Update to this release and sign back in.
 
             Found a bug or a missing anime? Mail **sho.islam0311@proton.me** — it directly shapes the next release.
           files: ./artifacts/*.apk

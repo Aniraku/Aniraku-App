@@ -44,5 +44,5 @@ Leaves device: metadata/auth/library sync. **New**: user IP + Referer/UA now vis
 App-private-only + no share/export + external links removed strengthens the non-facilitation narrative: copies sandboxed, non-copyable by design, deleted with app data. Update DMCA.md Scope: offline copies are app-sandboxed; remedy remains delisting routes; no server hosting or caching of media.
 
 ## New consent/auth surfaces (round-6)
-- Signup email validation runs client-side only (no pre-send server probe — avoids new abuse surface).
+- Signup email validation: client-side sanity checks PLUS an optional server-side pre-send probe (`verify-email` edge function → mailbox-existence provider, env-keyed). Unauthenticated input is rate-limited per IP and fails open (`deliverable: null`); the provider integration ships dormant until secrets are configured. Revise the abuse-surface posture if a provider is enabled.
 - Consent acceptance records: versioned string in user profile (server) + local; deletion/export endpoints must be auth-scoped to the owning session and rate-limited.

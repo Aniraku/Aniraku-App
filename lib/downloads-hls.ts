@@ -169,6 +169,10 @@ export function unsupportedPlaylistReason(text: string): string | null {
   // Tag-line match only (^#EXT-X-…): the bare word "byterange" inside a
   // comment or a segment path must not refuse an otherwise clean playlist.
   if (/^#EXT-X-BYTERANGE[\s:]/m.test(text)) return "This stream's format cannot be saved.";
+  // A MAP carrying BYTERANGE has its own line, so the segment check above
+  // misses it — the native fetcher downloads ranged inits WHOLE, which would
+  // bake an invalid bundle. Refuse honestly instead.
+  if (/^#EXT-X-MAP[\s:][^\n]*\bBYTERANGE=/m.test(text)) return "This stream's format cannot be saved.";
   if (new Set([...text.matchAll(/#EXT-X-KEY:.*?URI="([^"]+)"/g)].map((match) => match[1])).size > 1) return "This stream's encryption cannot be saved.";
   if (new Set([...text.matchAll(/#EXT-X-MAP:.*?URI="([^"]+)"/g)].map((match) => match[1])).size > 1) return "This stream's format cannot be saved.";
   return null;

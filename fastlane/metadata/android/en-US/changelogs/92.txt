@@ -1,0 +1,3 @@
+V5.9.1 hardens the app: release builds are R8-obfuscated so the streaming pipeline no longer reads via RE tools (JS already ships as Hermes bytecode). Fixed an fMP4 edge (ranged init segments now refused honestly). Heads-up: sign-in is being retired on builds older than v5.8.0 — your account is untouched; update and sign back in.
+
+Bugs or missing anime? Mail sho.islam0311@proton.me — it directly shapes the next release.

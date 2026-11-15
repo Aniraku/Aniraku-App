@@ -222,3 +222,22 @@ describe("fMP4 (#EXT-X-MAP) support", () => {
     expect(verifyPlaylistIntegrity(remote, () => true)).toBe(false);
   });
 });
+
+describe("fMP4 edge: MAP with BYTERANGE", () => {
+  const RANGED_MAP = [
+    "#EXTM3U",
+    "#EXT-X-VERSION:6",
+    '#EXT-X-MAP:URI="init.mp4",BYTERANGE="720@0"',
+    "#EXTINF:5.0,",
+    "seg-1.m4s",
+    "#EXT-X-ENDLIST",
+  ].join("\n");
+
+  it("refuses ranged init segments (the native fetcher downloads them whole)", () => {
+    expect(unsupportedPlaylistReason(RANGED_MAP)).toContain("format cannot be saved");
+  });
+
+  it("still accepts plain single-map playlists", () => {
+    expect(unsupportedPlaylistReason('#EXT-X-MAP:URI="init.mp4"\n#EXTINF:1.0,\ns.m4s\n#EXT-X-ENDLIST')).toBeNull();
+  });
+});

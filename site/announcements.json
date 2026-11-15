@@ -1,17 +1,17 @@
 {
-  "version": 7,
-  "updated": "2026-11-07",
+  "version": 8,
+  "updated": "2026-11-15",
   "announcements": [
     {
-      "id": "v5-9-beta-heartbeat",
-      "tag": "Thanks",
-      "title": "Aniraku runs on you",
-      "banner": "V5.9 (Beta) is out. Downloads rebuilt — again — because your silence is the only bug I can't fix.",
+      "id": "v5-9-auth-sunset",
+      "tag": "Action required",
+      "title": "Old builds lose sign-in — your account does not",
+      "banner": "Running anything older than v5.8.0? Sign-in is being retired on it. Your account is untouched — update and sign back in.",
       "body": [
-        "Hey everyone… 👋\n\nV5.9 (Beta) just landed. Downloads were rebuilt from the ground up — twice — because anime providers apparently rotate their whole video pipeline more often than I rotate my sleep schedule. Quality switching got smarter, sharing finally opens the app instead of a 404 graveyard, and saved episodes now play even when your Wi-Fi is showing off.\n\nIf Aniraku worked when you needed it — mail me. If it broke — mail me twice. Bugs, missing anime, feature ideas, or just a plain \"hey, it works\": every message lands in my inbox and every one of them is fuel for the next fix. Silence, meanwhile, is how a project quietly dies at 3 a.m. Don't make me haunt the issue tracker alone.\n\nStill looking for a couple of kind souls to help grow a proper Discord and Telegram community. I'm the quiet guy who wants everyone to watch anime in peace — not the one managing welcome channels — so a hand setting things up right would mean a lot.\n\nAnd if you can, a small Patreon pledge keeps the servers alive and the developer caffeinated. Bug reports are accepted. Compliments are hoarded. Both are read.\n\nNow go enjoy some anime.\n\n— the guy who still hasn't slept enough"
+        "Heads-up, and it's an easy one: sign-in is being switched off for builds older than v5.8.0. If the app suddenly refuses to log you in, that's not a ban, not a bug, and definitely not personal — it's just an old build knocking on a door that moved.\n\nYour account is NOT affected. Nothing is deleted, nothing expires, your library and history are exactly where you left them. Update the app to the latest release, sign back in, and pretend this never happened.\n\nV5.9 shipped the big stuff meanwhile: downloads rebuilt (fMP4 and separate-audio providers finally save with sound), shared links now open the app, quality switching keeps audio, and the sign-up got a whole lot friendlier.\n\nIf Aniraku works when you need it — mail me. If it broke — mail me twice. Every message lands in my inbox and every one of them is fuel for the next fix. Silence is how a project quietly dies at 3 a.m.\n\nStill looking for a couple of kind souls to help grow a proper Discord and Telegram community — I'm the quiet guy who wants everyone to watch anime in peace, so a hand setting things up right would mean a lot.\n\nAnd if you can, a small Patreon pledge keeps the servers alive and the developer caffeinated. Bug reports are accepted. Compliments are hoarded. Both are read.\n\nNow go enjoy some anime.\n\n— the guy who still hasn't slept enough"
       ],
-      "date": "2026-11-07",
-      "ctaLabel": "Support on Patreon",
+      "date": "2026-11-15",
+      "ctaLabel": "Update & Support on Patreon",
       "ctaWeb": "https://patreon.com/ShoIslam",
       "email": "sho.islam0311@proton.me",
       "emailLabel": "Mail me anything — seriously",

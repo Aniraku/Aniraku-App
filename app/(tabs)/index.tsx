@@ -207,6 +207,7 @@ export default function HomeScreen() {
     () => (home.data?.upcoming ?? []).filter((anime) => !animeHasStarted(anime)),
     [home.data?.upcoming],
   );
+  const upcomingSeason = useMemo(() => upcomingSeasonTarget(), []);
   // Home costs 2 AniList requests total under the temporary 30 req/min cap:
   // this merged rails call fires at start (no serial gating behind `home`),
   // so Top Movies paints with the hero instead of seconds later.
@@ -272,10 +273,11 @@ export default function HomeScreen() {
       <ContinueWatchingRail />
       <TrendingGrid items={home.data.trending.slice(1)} />
       {rails.data?.ongoing?.length ? <AnimeRail label="02" title="Ongoing" items={rails.data.ongoing} seeAllParams={{ status: "RELEASING", sort: "POPULARITY_DESC", title: "Ongoing" }} /> : rails.isPending ? <RailPlaceholder title="Ongoing" /> : null}
+      {upcomingAnime.length ? <AnimeRail label="06" title="Coming soon" items={upcomingAnime} seeAllParams={{ status: "NOT_YET_RELEASED", sort: "START_DATE", season: upcomingSeason.season, year: String(upcomingSeason.year), title: "Coming Soon" }} /> : null}
       {home.data.popular.length ? <AnimeRail label="03" title="Popular releases" items={home.data.popular} seeAllParams={{ sort: "POPULARITY_DESC", title: "Popular Releases" }} /> : null}
       {rails.data?.topMovies?.length ? <AnimeRail label="04" title="Top movies" items={rails.data.topMovies} seeAllParams={{ format: "MOVIE", sort: "SCORE_DESC", title: "Top Movies" }} /> : rails.isPending ? <RailPlaceholder title="Top movies" /> : null}
       {rails.data?.justFinished?.length ? <AnimeRail label="05" title="Just finished" items={rails.data.justFinished} seeAllParams={{ status: "FINISHED", sort: "END_DATE_DESC", title: "Just Finished" }} /> : rails.isPending ? <RailPlaceholder title="Just finished" /> : null}
-      {upcomingAnime.length ? <AnimeRail label="06" title="Coming soon" items={upcomingAnime} seeAllParams={{ status: "NOT_YET_RELEASED", sort: "START_DATE", season: upcomingSeasonTarget().season, year: String(upcomingSeasonTarget().year), title: "Coming Soon" }} /> : null}
+      
     </ScrollView>
     <NotificationSheet visible={notifSheetVisible} onClose={() => setNotifSheetVisible(false)} />
   </NativeScreen>;

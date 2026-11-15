@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap
  * time: reads the pre-fetched media playlist (source.m3u8 written by JS),
  * fetches the AES-128 key, fMP4 init segment (#EXT-X-MAP) and every segment
  * straight from the provider CDN with the playback headers, and stores them
- * app-privately. When JS also staged an audio playlist (audio.m3u8 +
+ * app-privately. When JS also staged an audio playlist (audio-source.m3u8 +
  * audioBase extra) the separate audio track downloads alongside so the saved
  * copy keeps sound on separate-audio providers. JS rewrites the playlist to
  * file:// URIs on completion and owns the queue.
@@ -90,7 +90,7 @@ class AnirakuDownloadsService : Service() {
       if (parsed.segments.isEmpty()) throw IOException("The playlist carries no segments.")
       if (parsed.segments.size > MAX_SEGMENTS) throw IOException("This stream is too large to save.")
 
-      // Separate-audio providers: JS stages audio.m3u8 and passes its CDN
+      // Separate-audio providers: JS stages audio-source.m3u8 and passes its CDN
       // URL — download the audio track alongside so the bundle keeps sound.
       val audioPlaylist = if (audioBaseUrl.isNotEmpty() && File(dir, "audio-source.m3u8").exists()) {
         val audioText = File(dir, "audio-source.m3u8").readText()

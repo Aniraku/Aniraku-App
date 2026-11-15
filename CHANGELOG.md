@@ -6,6 +6,21 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.9.1.0 (V5.9.1) — RE hardening, honest refusals, auth-sunset notice
+
+`CURRENT / HARDENING + FIX / INSTALLS OVER v5.8.0–v5.9.0.0`
+
+### Security
+- **Release builds are R8-obfuscated** (`enableProguardInReleaseBuilds`): the release DEX no longer carries readable class/method names for the streaming pipeline (provider rotation, download orchestration, proxy headers) — jadx-style tooling hits renamed symbols. Hermes already ships the JS layer as bytecode, not source. Keep rules (`scripts/patch-hardening.sh`, wired into CI after prebuild) preserve only reflection-resolved surfaces: the two custom expo modules, expo-modules-core, react-native-video, OkHttp.
+- **Packaging-gate audit** (blind-llm-agents lint): flagged literals assessed one by one — all UI copy and public domain lists; no secrets, no license gates. Documented rather than obfuscated: encrypting user-facing strings would break the app.
+
+### Fixed
+- **fMP4 edge: `#EXT-X-MAP` with `BYTERANGE`** is now refused honestly — the native fetcher downloads ranged init segments whole, which would have baked an invalid bundle and passed the old byte-range check.
+- Stale comments and the threat-model posture note updated (audio-source.m3u8 staging; the server-side verify-email probe documented as dormant-until-configured).
+
+### Announcement
+- **Auth sunset notice**: builds older than v5.8.0 lose sign-in as the old auth path is retired. Accounts are NOT affected — nothing is deleted; update the app and sign back in.
+
 ## v5.9.0.0 (Beta) — Downloads rebuilt, App Links, kinder signup
 
 `BETA / FEATURE + FIX RELEASE / INSTALLS OVER v5.8.0–v5.8.10.2`
