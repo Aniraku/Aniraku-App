@@ -84,8 +84,8 @@ export default function DownloadsScreen() {
     });
   };
 
-  const openEpisode = (animeId: number, episode: number, title: string, image: string) =>
-    router.push({ pathname: "/watch/[id]", params: { id: String(animeId), episode: String(episode), title, image, offline: "1" } } as never);
+  const openEpisode = (animeId: number, episode: number, title: string, image: string, language: OfflineDownload["language"]) =>
+    router.push({ pathname: "/watch/[id]", params: { id: String(animeId), episode: String(episode), title, image, offline: "1", language } } as never);
 
   const renderJob = (job: OfflineDownloadJob) => {
     const poster = posterByAnimeId.get(job.animeId) ?? "";
@@ -135,7 +135,7 @@ export default function DownloadsScreen() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Play ${entry.title} episode ${entry.episode} offline`}
-        onPress={() => openEpisode(entry.animeId, entry.episode, entry.title, poster)}
+        onPress={() => openEpisode(entry.animeId, entry.episode, entry.title, poster, entry.language)}
         onLongPress={() => confirmRemove(entry)}
         style={({ pressed }) => [styles.row, pressed && styles.pressed]}
       >

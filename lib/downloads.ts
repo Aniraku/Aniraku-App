@@ -64,6 +64,13 @@ export async function findOfflineDownload(animeId: number, episode: number, lang
   return new File(entry.uri).exists ? entry : null;
 }
 
+/** Offline launch lookup: an old Downloads-hub route dropped the saved
+ *  language, so accept this episode's other track instead of mounting nothing. */
+export async function findOfflineDownloadForPlayback(animeId: number, episode: number, language: "sub" | "dub") {
+  return (await findOfflineDownload(animeId, episode, language))
+    ?? findOfflineDownload(animeId, episode, language === "sub" ? "dub" : "sub");
+}
+
 export async function listOfflineDownloads(): Promise<OfflineDownload[]> {
   return readIndex();
 }

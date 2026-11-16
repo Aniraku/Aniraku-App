@@ -24,14 +24,14 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.9.1.0">V5.9.1 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.9.2.0">V5.9.2 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 <br>
 
 > [!IMPORTANT]
-> **v5.9.1 is the current release** — the V5.9 beta feature set (fMP4 + separate-audio downloads, App Links, audio-preserving quality, kinder signup) carried unchanged after an 8-day soak, now with R8-obfuscated release builds so the streaming pipeline resists reverse-engineering. Sign-in on builds older than v5.8.0 is being retired — accounts are untouched; update and sign back in. Installs directly over v5.8.0–v5.9.0.0.
+> **v5.9.2 is the current release** — compatibility fix for the backend's token-link proxy: playback, HLS quality parsing, downloads, saved episodes (including DUB), and subtitles now resolve opaque `/api/v1/proxy?k=…` links against `api.aniraku.tech`. Subtitles keep riding the proxy even though the API no longer returns provider Referer/UA headers. Installs directly over v5.8.0–v5.9.1.0.
 
 > [!CAUTION]
 >If it has saved you time, a small donation keeps it up. And the library keeps growing — **missing an anime?** Email [`sho.islam0311@proton.me`](mailto:sho.islam0311@proton.me) and it'll get added.

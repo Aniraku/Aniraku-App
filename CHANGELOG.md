@@ -6,6 +6,19 @@ This is the public record of meaningful native Android releases. For the current
 
 ## Unreleased
 
+## v5.9.2.0 (V5.9.2) — token-link playback, downloads and subtitles restored
+
+`CURRENT / COMPATIBILITY FIX / INSTALLS OVER v5.8.0–v5.9.1.0`
+
+### Fixed
+- **Playback against the tokenized proxy**: the backend now mints relative `/api/v1/proxy?k=…` links and strips provider headers from `/servers` and `/stream`. The app roots every relative backend link at `api.aniraku.tech` before ExoPlayer, HLS quality parsing, subtitle fetches, or download requests see it — playback no longer hands the player a relative URL.
+- **Downloads work again**: the download builder requires an absolute `https://` playlist, so token links failed before the job started. Token links are now absolute at the API boundary; new HLS bundles download and existing saved bundles open.
+- **Subtitles load without provider Referer/UA**: subtitle URLs are proxy-wrapped by the app, and the backend proxy supplies the browser identity now that the API no longer returns provider headers. Relative subtitle links are rooted at the API host too.
+- **Saved DUB episodes open offline**: the Downloads hub now passes the saved language, and the watch screen falls back to the other saved track for the same episode instead of mounting nothing.
+
+### Announcement
+- Release announcement updated for the token-link migration, subtitle wrapping, restored downloads, and offline DUB playback.
+
 ## v5.9.1.0 (V5.9.1) — RE hardening, honest refusals, auth-sunset notice
 
 `CURRENT / HARDENING + FIX / INSTALLS OVER v5.8.0–v5.9.0.0`

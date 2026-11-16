@@ -180,30 +180,23 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          name: Aniraku V5.9.1
+          name: Aniraku V5.9.2
           draft: false
           prerelease: false
           body: |
-            ## V5.9.1 — Reverse-engineering hardening, honest refusals, auth-sunset notice
+            ## V5.9.2 — Token-link playback, downloads and subtitles restored
 
-            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0–v5.9.0.0 — same signing key, no uninstall needed.** This release is the latest stable; the V5.9 beta feature set carried unchanged after an 8-day field soak.
+            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0–v5.9.1.0 — same signing key, no uninstall needed.**
 
-            - `aniraku-v5.9.1.0-arm64.apk` — modern (64-bit) devices
-            - `aniraku-v5.9.1.0-arm32.apk` — older / budget (32-bit) devices
-            - `aniraku-v5.9.1.0-universal.apk` — every device
-
-            ### Security
-            - **Release builds are R8-obfuscated**: the shipped DEX no longer carries readable class/method names for the streaming pipeline (provider rotation, download orchestration, proxy headers) — reverse-engineering tooling hits renamed symbols. The JS layer ships as Hermes bytecode, not source. Keep rules preserve only reflection-resolved surfaces (custom expo modules, expo-modules-core, react-native-video, OkHttp).
-            - **Packaging-gate audit**: flagged literals assessed one by one — all UI copy and public domain lists; no secrets, no license gates.
+            - `aniraku-v5.9.2.0-arm64.apk` — modern (64-bit) devices
+            - `aniraku-v5.9.2.0-arm32.apk` — older / budget (32-bit) devices
+            - `aniraku-v5.9.2.0-universal.apk` — every device
 
             ### Fixed
-            - **Saved episodes play with Wi-Fi or mobile data ON** — a server-discovery race dismissed the just-mounted offline copy when the network resolved; offline playback previously only worked in airplane mode.
-            - **Downloads on fMP4 providers** — the downloader rejected every `#EXT-X-MAP` stream after the provider migration; bundles now fetch the init segment and verify it. Ranged init segments (`#EXT-X-MAP` with `BYTERANGE`) are refused honestly.
-            - **Separate-audio providers keep sound** — the audio track downloads alongside the video and the bundle groups both.
-            - **Share opens the app** — native share sheet, correct `/info/{id}` links, and verified Android App Links.
-            - **Quality switching keeps audio** on separate-audio servers.
-            - **Sign-up improvements** — reliable terms acceptance control and a "check your mail" confirmation before account creation.
-            - **Interface corrections** — SUB/DUB chips show server counts, oversized UI fixed for large system fonts, faster Home with an accurate "Coming soon" rail.
+            - **Token-link playback** — the backend now mints relative `/api/v1/proxy?k=…` links and strips provider headers. The app roots every relative link at `api.aniraku.tech` before ExoPlayer, HLS parsing, subtitles, or downloads see it.
+            - **Downloads save again** — the download builder requires an absolute `https://` playlist; token links are now absolute at the API boundary, so new HLS bundles download and existing saved bundles open.
+            - **Subtitles load without provider Referer/UA** — subtitles stay proxy-wrapped by the app; the backend proxy supplies the browser identity now that `/servers` and `/stream` no longer return provider headers.
+            - **Saved DUB episodes open offline** — the Downloads hub now passes the saved language, and the watch screen falls back to the other saved track for the same episode instead of mounting nothing.
 
             ### Notice
             - **Sign-in on builds older than v5.8.0 is being retired.** Your account is NOT affected — nothing is deleted. Update to this release and sign back in.

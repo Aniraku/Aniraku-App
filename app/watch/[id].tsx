@@ -73,7 +73,7 @@ import { useEpisodeRatings } from "@/hooks/use-episode-ratings";
 import { AnimeComments } from "@/components/anime-comments";
 import { useProviderSync } from "@/hooks/use-provider-sync";
 import { useAnirakuAuth } from "@/providers/auth-provider";
-import { findOfflineDownload, removeOfflineDownload, selectDownloadSourceForQuality, selectMaximumQualityDownload, startMaximumQualityDownload, type OfflineDownload } from "@/lib/downloads";
+import { findOfflineDownload, findOfflineDownloadForPlayback, removeOfflineDownload, selectDownloadSourceForQuality, selectMaximumQualityDownload, startMaximumQualityDownload, type OfflineDownload } from "@/lib/downloads";
 import { isDownloadableSource } from "@/lib/download-policy";
 import { DownloadSheet, type DownloadSheetOption } from "@/components/download-sheet";
 import { APP_CONFIG } from "@/lib/app-config";
@@ -167,8 +167,9 @@ const _watchMountTime = __DEV__ ? Date.now() : 0;
 if (__DEV__) console.log("[watch] mount t=0");
 
 export default function WatchScreen() {
-  const params = useLocalSearchParams<{ id?: string | string[]; episode?: string | string[]; title?: string; image?: string; offline?: string }>();
+  const params = useLocalSearchParams<{ id?: string | string[]; episode?: string | string[]; title?: string; image?: string; offline?: string; language?: string | string[] }>();
   const wantsOfflinePlayback = params.offline === "1";
+  const routeLanguage: Language | null = params.language === "dub" ? "dub" : params.language === "sub" ? "sub" : null;
 
   const animeId = parseRouteId(params.id) ?? -1;
   const invalidId = animeId <= 0;
@@ -249,7 +250,7 @@ export default function WatchScreen() {
   const [parsedQualityNote, setParsedQualityNote] = useState<string | null>(null);
 
   // ── App state ──
-  const [language, setLanguage] = useState<Language>("sub");
+  const [language, setLanguage] = useState<Language>(routeLanguage ?? "sub");
   const [languageTrack, setLanguageTrack] = useState<{ sub: number; dub: number } | null>(null);
 
   const [providers, setProviders] = useState<Record<Language, Server[]>>({ sub: [], dub: [] });
@@ -522,8 +523,7 @@ export default function WatchScreen() {
     if (!preferred?.url) { parsedCuesRef.current = []; setActiveSubtitles([]); return; }
     const urlFormat = detectSubtitleFormat(preferred.url);
     const directHeaders = nativePlaybackHeaders(playbackHeaders);
-    const alreadyProxied = isAnirakuProxyUrl(preferred.url);
-    const proxiedUrl = alreadyProxied ? preferred.url : anirakuProxyUrl(preferred.url, directHeaders);
+    const proxiedUrl = anirakuProxyUrl(preferred.url, directHeaders);
     let cancelled = false;
     const fetchText = (target: string, requestHeaders?: Record<string, string>) =>
       fetch(target, requestHeaders ? { headers: { ...requestHeaders, Accept: "*/*" } } : undefined).then((r) => {
@@ -568,13 +568,16 @@ export default function WatchScreen() {
   // ── Effects ──
   useEffect(() => {
     let active = true;
-    void findOfflineDownload(animeId, episode, language).then((entry) => {
+    const resolve = async () => {
+      const entry = await findOfflineDownloadForPlayback(animeId, episode, language).catch(() => null);
       if (!active) return;
+      if (entry && entry.language !== language) setLanguage(entry.language);
       setOfflineDownload(entry);
       // Launched from the Downloads hub play button: mount the saved copy
       // immediately and keep every online fetch out of the offline flow.
       if (entry && wantsOfflinePlayback && !sourceMounted.current) mountOfflineCopy(entry);
-    }).catch(() => { if (active) setOfflineDownload(null); });
+    };
+    void resolve();
     return () => { active = false; };
   }, [animeId, episode, language, wantsOfflinePlayback]);
 
@@ -1233,7 +1236,7 @@ export default function WatchScreen() {
   const videoSourceUri = useMemo(() => {
     if (!source) return undefined;
     if (source.url.startsWith("file://") || source.url.startsWith("content://")) return source.url;
-    if (isAnirakuProxyUrl(source.url)) return source.url;
+    if (isAnirakuProxyUrl(source.url)) return anirakuProxyUrl(source.url, nativePlaybackHeaders(playbackHeaders));
     const directHeaders = nativePlaybackHeaders(playbackHeaders);
     return anirakuProxyUrl(source.url, directHeaders);
   }, [source?.url, playbackHeaders]);

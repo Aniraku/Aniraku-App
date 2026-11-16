@@ -60,7 +60,7 @@ vi.mock("@/lib/watch-engine", () => ({
 }));
 
 const { APP_CONFIG } = await import("@/lib/app-config");
-const { buildDownloadRequest, resolveDownloadHold, startMaximumQualityDownload } = await import("@/lib/downloads");
+const { buildDownloadRequest, findOfflineDownloadForPlayback, resolveDownloadHold, startMaximumQualityDownload } = await import("@/lib/downloads");
 const { BROWSER_UA, getPlaybackType, sourceVerification } = await import("@/lib/aniraku-api");
 
 const INDEX_KEY = "aniraku.offline-downloads.v1";
@@ -80,6 +80,14 @@ describe("resolveDownloadHold", () => {
   it("passes clear settings and usable connections", async () => {
     expect(await resolveDownloadHold({ wifiOnly: false, quotaMb: 0 })).toBeNull();
     expect(await resolveDownloadHold({ wifiOnly: true, quotaMb: 0 })).toBeNull();
+  });
+});
+
+describe("findOfflineDownloadForPlayback", () => {
+  it("falls back to the other saved language for the same episode", async () => {
+    storage.set(INDEX_KEY, JSON.stringify([{ id: "7:3:dub", uri: "file:///d/7:3:dub/playlist.m3u8", language: "dub", size: 1 }]));
+    const entry = await findOfflineDownloadForPlayback(7, 3, "sub");
+    expect(entry?.language).toBe("dub");
   });
 });
 

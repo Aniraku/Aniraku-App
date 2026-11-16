@@ -1,0 +1,3 @@
+V5.9.2 fixes playback, downloads, and subtitles after the backend moved to token links. Saved episodes now open offline again, including DUB copies. Install straight over V5.9.1 — your account, library, and downloads are untouched.
+
+Bugs or missing anime? Mail sho.islam0311@proton.me — it directly shapes the next release.

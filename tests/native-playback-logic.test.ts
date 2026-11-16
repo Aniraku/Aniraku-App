@@ -48,6 +48,20 @@ describe("Aniraku native playback coordination", () => {
     expect(anirakuProxyUrl(preProxied, { Referer: "https://megaplay.buzz/" })).toBe(preProxied);
   });
 
+  it("roots relative token links and subtitles at the API host", () => {
+    expect(anirakuProxyUrl("/api/v1/proxy?k=opaque", { Referer: "https://megaplay.buzz/" }))
+      .toBe("https://api.aniraku.tech/api/v1/proxy?k=opaque");
+    const stream = normalizeStreamResponse({
+      sources: [{
+        url: "/api/v1/proxy?k=opaque",
+        subtitles: [{ url: "/api/v1/proxy?k=subtitle", label: "English" }],
+      }],
+    });
+    expect(stream.sources[0].url).toBe("https://api.aniraku.tech/api/v1/proxy?k=opaque");
+    expect(stream.sources[0].subtitles?.[0].url).toBe("https://api.aniraku.tech/api/v1/proxy?k=subtitle");
+    expect(stream.sources[0].subtitles?.[0].label).toBe("English");
+  });
+
   it("normalizes the deployed backend skip segment fields", () => {
     const stream = normalizeStreamResponse({ sources: [], intro: { start: 47.3, end: 137.3 }, outro: { start: 1344.9, end: 1434.9 } });
     expect(stream.intro).toEqual({ startTime: 47.3, endTime: 137.3 });

@@ -164,13 +164,29 @@ export function isAnirakuProxyUrl(url: string) {
   return String(url ?? "").includes("/api/v1/proxy?");
 }
 
+/** Backend token links are minted relative (`/api/v1/proxy?k=...`); the
+ *  player, HLS fetches, and downloads need them rooted at api.aniraku.tech. */
+export function absoluteAnirakuUrl(url: string) {
+  const value = String(url ?? "");
+  return value.startsWith("/api/v1/") ? `${APP_CONFIG.apiBaseUrl}${value}` : value;
+}
+
+const absoluteSubtitles = (subtitles?: Array<{ url: string; label?: string; lang?: string }>) =>
+  subtitles?.map((track) => ({ ...track, url: absoluteAnirakuUrl(track.url) }));
+
+const absoluteSource = (source: StreamSource): StreamSource => ({
+  ...source,
+  url: absoluteAnirakuUrl(source.url),
+  ...(source.subtitles ? { subtitles: absoluteSubtitles(source.subtitles) } : {}),
+});
+
 export function anirakuProxyUrl(url: string, headers?: Record<string, string>) {
   // The backend now returns pre-proxied stream URLs (verification: "proxy",
   // url already points at /api/v1/proxy?...). Re-wrapping them produces a
   // proxy-of-proxy URL that the backend rejects with
   // {"error":"proxy target not allowed"} → HTTP 403 → ExoPlayer
   // ERROR_CODE_IO_BAD_HTTP_STATUS. Play those URLs as-is.
-  if (isAnirakuProxyUrl(url)) return url;
+  if (isAnirakuProxyUrl(url)) return absoluteAnirakuUrl(url);
   // No cache-buster nonce: tokenized upstream URLs are unique per fetch, and
   // the proxy's edge cache answers repeat requests (cf-cache-status: HIT,
   // immutable segments) — a unique `rn` per wrapper defeated that entirely.
@@ -197,7 +213,12 @@ export function normalizeStreamResponse(payload: BackendStreamResponse): StreamR
     startTime: segment.startTime ?? segment.start,
     endTime: segment.endTime ?? segment.end,
   } : undefined;
-  return { ...payload, intro: normalizeSegment(payload.intro), outro: normalizeSegment(payload.outro) };
+  return {
+    ...payload,
+    sources: payload.sources?.map(absoluteSource) ?? payload.sources,
+    intro: normalizeSegment(payload.intro),
+    outro: normalizeSegment(payload.outro),
+  };
 }
 
 export async function getAnimeMetadata(animeId: number): Promise<Anime> {
@@ -270,9 +291,9 @@ export async function getServers(animeId: number, episode: number, lang: "sub" |
         provider: providerName || dedupeKey,
         label: String(server.name || server.provider || "ANIKOTO").toUpperCase(),
         lang: (server.lang || lang) as "sub" | "dub",
-        sources: server.sources,
+        sources: server.sources?.map(absoluteSource),
         headers: server.headers,
-        subtitles: server.subtitles,
+        subtitles: server.subtitles && absoluteSubtitles(server.subtitles),
       });
     }
     return servers;
