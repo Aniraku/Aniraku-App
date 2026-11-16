@@ -3,12 +3,12 @@
   "updated": "2026-11-16",
   "announcements": [
     {
-      "id": "v5-9-2-fix-in-progress",
-      "tag": "Heads-up",
-      "title": "Playback and downloads are broken — I'm on it",
-      "banner": "I'm aware playback, downloads, and subtitles are misbehaving after the backend token-link change. Nothing is lost — give me some time for a few backend tweaks, then V5.9.2 ships.",
+      "id": "v5-9-2-token-links",
+      "tag": "Update available",
+      "title": "V5.9.2 is out — downloads and subtitles are back",
+      "banner": "The backend moved to opaque token links. V5.9.2 learns the new handshake: playback, downloads, saved episodes (DUB included), and subtitles work again — update in place.",
       "body": [
-        "Quick status, because I know some of you are hitting this right now: playback, downloads, and subtitles are misbehaving after the backend switched to opaque token links. You are not doing anything wrong, and nothing is lost — your account, library, history, and saved files are all still there.\n\nI'm working through the backend tweaks now. Once those settle, V5.9.2 goes out with the app-side fix: token links rooted correctly, downloads saving again, subtitles loading without the provider Referer/UA headers the API no longer returns, and saved DUB episodes opening offline.\n\nPlease give me a little time. If a downloaded episode refuses to play right now, don't delete it — it should open after the update. I'll post here the moment the build is actually live.\n\nIf you want to help me kill this faster, mail me the anime, episode, SUB or DUB, and what happened — black screen, error message, or the download never finishing. That narrows it down immediately.\n\n— the guy who is definitely not sleeping until this one is fixed"
+        "Quick one, because this one is all plumbing: the backend swapped raw playback URLs for opaque token links and stopped echoing provider Referer/UA headers. The app was still asking for the old handshake, so playback, downloads, and saved episodes could fail depending on which screen you opened first.\n\nV5.9.2 roots every relative token link at api.aniraku.tech before the player or downloader touches it. Downloads save again, and saved bundles open even when the copy was downloaded in DUB — the Downloads hub used to forget which track you saved, then look for a SUB file that was never there.\n\nSubtitles are fixed too. They still ride the Aniraku proxy, and now that the API no longer hands out provider Referer/UA headers, the proxy supplies the browser identity itself. Subtitle URLs also get rooted at the API host like everything else, so a tokenized link can never reach the subtitle parser as a relative path.\n\nInstall straight over V5.9.1. Your account, library, history, and downloaded files are untouched.\n\nIf something still refuses to play, tell me the anime, episode, and whether it was SUB or DUB — that is the fastest way to kill the next bug.\n\nNow go enjoy some anime.\n\n— the guy who still hasn't slept enough"
       ],
       "date": "2026-11-16",
       "ctaLabel": "Update & Support on Patreon",
