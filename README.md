@@ -31,7 +31,7 @@
 <br>
 
 > [!IMPORTANT]
-> **v5.9.2 is the current release** — compatibility fix for the backend's token-link proxy: playback, HLS quality parsing, downloads, saved episodes (including DUB), and subtitles now resolve opaque `/api/v1/proxy?k=…` links against `api.aniraku.tech`. Subtitles keep riding the proxy even though the API no longer returns provider Referer/UA headers. Installs directly over v5.8.0–v5.9.1.0.
+> **v5.9.2 is the current release** — compatibility fix for the backend's token-link proxy: playback, HLS quality parsing, downloads, saved episodes (including DUB), and subtitles now resolve opaque `/api/v1/proxy?k=…` links against `Backend`. Subtitles keep riding the proxy even though the API no longer returns provider Referer/UA headers. Installs directly over v5.8.0–v5.9.1.0.
 
 > [!CAUTION]
 >If it has saved you time, a small donation keeps it up. And the library keeps growing — **missing an anime?** Email [`sho.islam0311@proton.me`](mailto:sho.islam0311@proton.me) and it'll get added.
