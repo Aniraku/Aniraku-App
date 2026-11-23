@@ -33,7 +33,7 @@ export function SleepTimer({ remaining, onSetRemaining, onClear }: SleepTimerPro
       <View style={styles.activeTimer}>
         <AppIcon name="sleep" size={16} color={nothing.red} />
         <Text style={styles.timerText}>{`${mins}:${String(secs).padStart(2, "0")}`}</Text>
-        <Pressable onPress={clearTimer} style={styles.cancelBtn}>
+        <Pressable accessibilityRole="button" onPress={clearTimer} style={styles.cancelBtn}>
           <AppIcon name="close" size={14} color={nothing.muted} />
         </Pressable>
       </View>
@@ -48,7 +48,7 @@ export function SleepTimer({ remaining, onSetRemaining, onClear }: SleepTimerPro
       </View>
       <View style={styles.presets}>
         {PRESETS.map((preset) => (
-          <Pressable
+          <Pressable accessibilityRole="button"
             key={preset.minutes}
             onPress={() => setTimer(preset.minutes)}
             style={({ pressed }) => [styles.presetBtn, pressed && styles.pressed]}
@@ -66,7 +66,7 @@ export function SleepTimerPill({ remaining, onPress }: { remaining: number; onPr
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
   return (
-    <Pressable onPress={onPress} style={styles.pill}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.pill}>
       <AppIcon name="sleep" size={13} color={nothing.black} />
       <Text style={styles.pillText}>{`${mins}:${String(secs).padStart(2, "0")}`}</Text>
     </Pressable>
@@ -76,7 +76,7 @@ export function SleepTimerPill({ remaining, onPress }: { remaining: number; onPr
 const styles = StyleSheet.create({
   container: { gap: 8 },
   header: { flexDirection: "row", alignItems: "center", gap: 6 },
-  heading: { color: nothing.white, fontSize: 10, fontWeight: "800", letterSpacing: 0.6 },
+  heading: { color: nothing.white, fontSize: 11, fontWeight: "800", letterSpacing: 0.6 },
   presets: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   presetBtn: { minWidth: 50, minHeight: 32, alignItems: "center", justifyContent: "center", paddingHorizontal: 10, borderWidth: 1, borderColor: nothing.line, borderRadius: 8 },
   presetText: { color: nothing.white, fontWeight: "700", fontSize: 12, letterSpacing: 0.2 },

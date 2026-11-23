@@ -41,5 +41,5 @@ export function AiringSchedule({ nextAiringEpisode, totalEpisodes }: AiringSched
 const styles = StyleSheet.create({
   container: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: nothing.line },
   rule: { width: 18, height: 2, backgroundColor: nothing.red },
-  line: { flex: 1, color: nothing.muted, fontFamily: nothing.mono, fontWeight: "800", fontSize: 10, letterSpacing: 0.5 },
+  line: { flex: 1, color: nothing.muted, fontFamily: nothing.mono, fontWeight: "800", fontSize: 11, letterSpacing: 0.5 },
 });

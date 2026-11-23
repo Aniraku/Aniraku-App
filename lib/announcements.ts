@@ -7,6 +7,9 @@
 export const ANNOUNCEMENTS_RAW_URL =
   "https://raw.githubusercontent.com/Aniraku/Aniraku-App/main/site/announcements.json";
 
+/** Last announcement id the user closed — it never re-opens by itself. */
+export const ANNOUNCEMENT_DISMISS_KEY = "aniraku.announcement.dismissed.v1";
+
 export type Announcement = {
   id: string;
   title: string;

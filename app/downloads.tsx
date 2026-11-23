@@ -24,18 +24,18 @@ import { Toggle } from "@/components/toggle";
 
 const MEGABYTE = 1024 * 1024;
 const quotaOptionsMb = [0, 1024, 2048, 5120];
-const quotaLabels: Record<number, string> = { 0: "UNLIMITED", 1024: "1 GB", 2048: "2 GB", 5120: "5 GB" };
+const quotaLabels: Record<number, string> = { 0: "Unlimited", 1024: "1 GB", 2048: "2 GB", 5120: "5 GB" };
 
 const jobStateLabel: Record<OfflineDownloadJob["state"], string> = {
-  queued: "QUEUED",
-  downloading: "DOWNLOADING",
-  done: "SAVED",
-  failed: "FAILED",
+  queued: "Queued",
+  downloading: "Downloading",
+  done: "Saved",
+  failed: "Failed",
 };
 
 function jobStatusLabel(job: OfflineDownloadJob): string {
-  if (job.state === "queued" && job.hold === "wifi") return "WAITING FOR WI-FI";
-  if (job.state === "queued" && job.hold === "quota") return "STORAGE LIMIT REACHED";
+  if (job.state === "queued" && job.hold === "wifi") return "Waiting for Wi-Fi";
+  if (job.state === "queued" && job.hold === "quota") return "Storage limit reached";
   return jobStateLabel[job.state];
 }
 
@@ -90,7 +90,7 @@ export default function DownloadsScreen() {
   const renderJob = (job: OfflineDownloadJob) => {
     const poster = posterByAnimeId.get(job.animeId) ?? "";
     const label = jobStatusLabel(job);
-    const tone = job.state === "downloading" ? "live" : "muted";
+    const tone = job.state === "failed" ? "signal" : job.state === "downloading" ? "live" : "muted";
     return (
       <View key={job.id} style={styles.job}>
         {poster ? (
@@ -145,9 +145,9 @@ export default function DownloadsScreen() {
           <View style={styles.thumbFallback}><Text style={styles.thumbLetter}>{String(entry.title || "A").charAt(0).toUpperCase()}</Text></View>
         )}
         <View style={styles.rowBody}>
-          <Signal label={`EP ${entry.episode} · ${entry.quality.toUpperCase()}`} />
+          <Signal label={`EP ${entry.episode} · ${entry.quality.toUpperCase()}`} tone="muted" />
           <Text style={styles.rowTitle} numberOfLines={1}>{entry.title}</Text>
-          <Text style={styles.rowMeta}>{formatBytes(entry.size)} · SAVED ON THIS DEVICE</Text>
+          <Text style={styles.rowMeta}>{`${formatBytes(entry.size)} · Saved on this device`}</Text>
         </View>
         <Pressable
           accessibilityRole="button"
@@ -158,7 +158,7 @@ export default function DownloadsScreen() {
         >
           <AppIcon name="trash-can-outline" size={16} color={nothing.dim} />
         </Pressable>
-        <AppIcon name="play-circle-outline" size={20} color={nothing.red} />
+        <AppIcon name="play-circle-outline" size={20} color={nothing.white} />
       </Pressable>
     );
   };
@@ -166,7 +166,7 @@ export default function DownloadsScreen() {
   const header = (
     <View>
       <View style={styles.top}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close downloads" onPress={() => router.back()} style={styles.close} hitSlop={3}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close downloads" onPress={() => router.back()} style={styles.close} hitSlop={4}>
           <AppIcon name="arrow-left" size={21} color={nothing.white} />
         </Pressable>
         <View style={styles.titleBlock}>
@@ -178,7 +178,7 @@ export default function DownloadsScreen() {
 
       {!supported ? (
         <View style={styles.banner}>
-          <Signal label="NOT AVAILABLE ON THIS DEVICE" tone="signal" />
+          <Signal label="Not available on this device" tone="muted" />
           <Text style={styles.bannerText}>
             Saving episodes for offline playback is Android-only right now. Everything you save on Android still shows up here.
           </Text>
@@ -188,7 +188,7 @@ export default function DownloadsScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHead}>
           <View style={styles.sectionHeadText}>
-            <DotLabel tone="live">STORAGE</DotLabel>
+            <DotLabel>Storage</DotLabel>
             <Text style={styles.sectionTitle}>Save settings</Text>
           </View>
           <Text style={styles.storageText}>
@@ -205,7 +205,7 @@ export default function DownloadsScreen() {
           </View>
           <Toggle enabled={prefs.settings.wifiOnly} onToggle={() => void prefs.toggleWifiOnly()} label="Wi-Fi only downloads" />
         </View>
-        {waitingForWifi ? <Signal label="WAITING FOR WI-FI — QUEUE PAUSED" tone="signal" /> : null}
+        {waitingForWifi ? <Signal label="Waiting for Wi-Fi — queue paused" tone="muted" /> : null}
         <View style={styles.quotaRow}>
           {quotaOptionsMb.map((mb) => {
             const active = prefs.settings.quotaMb === mb;
@@ -231,7 +231,7 @@ export default function DownloadsScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHead}>
             <View style={styles.sectionHeadText}>
-              <DotLabel tone="live">QUEUE</DotLabel>
+              <DotLabel>Queue</DotLabel>
               <Text style={styles.sectionTitle}>Downloading</Text>
             </View>
             <Text style={styles.storageText}>{String(queue.length).padStart(2, "0")}</Text>
@@ -249,7 +249,7 @@ export default function DownloadsScreen() {
   ) : saved.entries.length === 0 ? (
     <EmptyState
       label="Episodes you save for offline play land here."
-      action={{ label: "BROWSE CATALOG", onPress: () => router.push("/catalog" as never) }}
+      action={{ label: "Browse catalog", onPress: () => router.push("/catalog" as never) }}
     />
   ) : (
     saved.entries.map(renderSavedEntry)
@@ -274,10 +274,10 @@ export default function DownloadsScreen() {
 
 const styles = StyleSheet.create({
   top: { minHeight: 82, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 10 },
-  close: { width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.raised, alignItems: "center", justifyContent: "center" },
+  close: { width: 42, height: 42, borderRadius: 8, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.raised, alignItems: "center", justifyContent: "center" },
   titleBlock: { flex: 1, gap: 2 },
   title: { color: nothing.white, fontSize: 24, fontWeight: "900", letterSpacing: -0.65 },
-  banner: { gap: 8, padding: 14, marginBottom: 18, borderRadius: 12, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface, borderLeftWidth: 2, borderLeftColor: nothing.red },
+  banner: { gap: 8, padding: 14, marginBottom: 18, borderRadius: 8, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
   bannerText: { color: nothing.muted, fontSize: 13, lineHeight: 19, maxWidth: 330 },
   section: { marginBottom: 22, gap: 10 },
   sectionHead: { minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
@@ -290,11 +290,11 @@ const styles = StyleSheet.create({
   settingRow: { minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
   settingCopy: { flex: 1, gap: 3 },
   settingTitle: { color: nothing.white, fontSize: 14, fontWeight: "800" },
-  settingHint: { color: nothing.dim, fontSize: 12, lineHeight: 17 },
+  settingHint: { color: nothing.muted, fontSize: 12, lineHeight: 17 },
   quotaRow: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
-  chip: { minHeight: 32, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", borderRadius: 4, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
+  chip: { minHeight: 40, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", borderRadius: 4, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
   chipActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.1)" },
-  chipText: { color: nothing.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.2 },
+  chipText: { color: nothing.muted, fontSize: 12, fontWeight: "700" },
   chipTextActive: { color: nothing.red },
   overQuota: { color: nothing.red, fontSize: 12, lineHeight: 17 },
   listSection: { gap: 4 },
@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
   thumbLetter: { color: nothing.dim, fontSize: 26, fontWeight: "900" },
   rowBody: { flex: 1, justifyContent: "center", gap: 5 },
   rowTitle: { color: nothing.white, fontWeight: "900", fontSize: 14, lineHeight: 18 },
-  rowMeta: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.35 },
+  rowMeta: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 11, fontWeight: "700", letterSpacing: 0.2 },
   rowMetaAlert: { color: nothing.red },
   jobError: { color: nothing.muted, fontSize: 11, lineHeight: 15 },
   progressTrack: { height: 3, overflow: "hidden", borderRadius: 2, backgroundColor: nothing.line },

@@ -4,11 +4,11 @@ import type { Anime } from "@/lib/types";
 import { AnimeCard } from "@/components/anime-card";
 import { nothing } from "@/components/nothing-ui";
 
-export function AnimeRail({ label, title, items, seeAllParams }: { label: string; title: string; items: Anime[]; seeAllParams?: Record<string, string> }) {
+export function AnimeRail({ title, items, seeAllParams }: { title: string; items: Anime[]; seeAllParams?: Record<string, string> }) {
   return <View style={styles.section}>
     <View style={styles.heading}>
-      <View style={styles.headingCopy}><Text style={styles.label}>{label}</Text><Text style={styles.title}>{title}</Text></View>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title} catalog`} accessibilityHint="Double tap to browse the full catalog" onPress={() => { if (seeAllParams) router.push({ pathname: "/search", params: seeAllParams } as never); else router.push("/catalog" as never); }} style={styles.browse}><Text style={styles.browseText}>VIEW ALL</Text><Text style={styles.browseArrow}>↗</Text></Pressable>
+      <Text style={styles.title}>{title}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Open ${title} catalog`} accessibilityHint="Double tap to browse the full catalog" onPress={() => { if (seeAllParams) router.push({ pathname: "/search", params: seeAllParams } as never); else router.push("/catalog" as never); }} style={styles.browse}><Text style={styles.browseText}>View all</Text><Text style={styles.browseArrow}>↗</Text></Pressable>
     </View>
     <FlatList
       horizontal
@@ -28,12 +28,10 @@ export function AnimeRail({ label, title, items, seeAllParams }: { label: string
 
 const styles = StyleSheet.create({
   section: { gap: 14 },
-  heading: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
-  headingCopy: { gap: 3 },
-  label: { color: nothing.muted, fontFamily: nothing.mono, fontWeight: "800", fontSize: 10, letterSpacing: 0.8 },
-  title: { color: nothing.white, marginTop: 3, fontSize: 24, fontWeight: "900", letterSpacing: -0.7 },
-  browse: { minHeight: 30, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 },
-  browseText: { color: nothing.white, fontWeight: "800", fontSize: 10, letterSpacing: 0.4 },
-  browseArrow: { color: nothing.red, fontSize: 14, fontWeight: "900" },
+  heading: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  title: { color: nothing.white, fontSize: 24, fontWeight: "900", letterSpacing: -0.7 },
+  browse: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, paddingHorizontal: 4 },
+  browseText: { color: nothing.muted, fontWeight: "700", fontSize: 12.5 },
+  browseArrow: { color: nothing.muted, fontSize: 14, fontWeight: "900" },
   rail: { gap: 14, paddingRight: 18 },
 });

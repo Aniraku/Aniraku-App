@@ -34,14 +34,14 @@ export function NotificationSheet({ visible, onClose }: { visible: boolean; onCl
             {unreadCount > 0 ? <Text style={styles.badge}>{unreadCount}</Text> : null}
           </View>
           <View style={styles.filterRow}>
-            <Pressable onPress={() => setFilter("unread")} style={[styles.filterBtn, filter === "unread" && styles.filterActive]}>
+            <Pressable accessibilityRole="button" onPress={() => setFilter("unread")} style={[styles.filterBtn, filter === "unread" && styles.filterActive]}>
               <Text style={[styles.filterText, filter === "unread" && styles.filterTextActive]}>UNREAD</Text>
             </Pressable>
-            <Pressable onPress={() => setFilter("all")} style={[styles.filterBtn, filter === "all" && styles.filterActive]}>
+            <Pressable accessibilityRole="button" onPress={() => setFilter("all")} style={[styles.filterBtn, filter === "all" && styles.filterActive]}>
               <Text style={[styles.filterText, filter === "all" && styles.filterTextActive]}>ALL</Text>
             </Pressable>
             {unreadCount > 0 ? (
-              <Pressable onPress={() => markAllRead.mutate()} style={styles.markAllBtn}>
+              <Pressable accessibilityRole="button" onPress={() => markAllRead.mutate()} style={styles.markAllBtn}>
                 <Text style={styles.markAllText}>MARK ALL READ</Text>
               </Pressable>
             ) : null}
@@ -56,7 +56,7 @@ export function NotificationSheet({ visible, onClose }: { visible: boolean; onCl
               data={filtered}
               keyExtractor={(item) => String(item.id)}
               renderItem={({ item }) => (
-                <Pressable
+                <Pressable accessibilityRole="button"
                   onPress={() => { if (!item.read) markRead.mutate(item.id); }}
                   style={[styles.row, !item.read && styles.rowUnread]}
                 >
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
   filterText: { color: nothing.dim, fontSize: 11, fontWeight: "700", letterSpacing: 0.8 },
   filterTextActive: { color: nothing.white },
   markAllBtn: { marginLeft: "auto", paddingHorizontal: 8, paddingVertical: 4 },
-  markAllText: { color: nothing.red, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+  markAllText: { color: nothing.red, fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
   empty: { alignItems: "center", gap: 10, paddingVertical: 36 },
   emptyText: { color: nothing.dim, fontSize: 13 },
   list: { paddingHorizontal: 18 },

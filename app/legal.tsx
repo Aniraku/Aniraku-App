@@ -84,7 +84,7 @@ export default function LegalScreen() {
   if (activePage) {
     const Content = contentMap[activePage];
     return <NativeScreen>
-      <Pressable onPress={() => setActivePage(null)} style={styles.back}>
+      <Pressable accessibilityRole="button" onPress={() => setActivePage(null)} style={styles.back}>
         <AppIcon name="arrow-left" size={18} color={nothing.white} />
         <Text style={styles.backText}>BACK</Text>
       </Pressable>
@@ -96,8 +96,8 @@ export default function LegalScreen() {
   }
 
   return <NativeScreen>
-    <View style={styles.top}><Pressable onPress={() => router.back()} style={styles.close}><AppIcon name="arrow-left" size={21} color={nothing.white} /></Pressable><View style={styles.titleBlock}><DotLabel>ACCOUNT / CONTROL ROOM</DotLabel><Text style={styles.title}>Legal</Text></View></View>
-    {sections.map((section) => <Pressable key={section.key} onPress={() => setActivePage(section.key)} style={({ pressed }) => pressed && styles.pressed}>
+    <View style={styles.top}><Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.close}><AppIcon name="arrow-left" size={21} color={nothing.white} /></Pressable><View style={styles.titleBlock}><DotLabel>Account</DotLabel><Text style={styles.title}>Legal</Text></View></View>
+    {sections.map((section) => <Pressable accessibilityRole="button" key={section.key} onPress={() => setActivePage(section.key)} style={({ pressed }) => pressed && styles.pressed}>
       <NothingCard style={styles.card}>
         <View style={styles.cardRow}>
           <View style={styles.cardBody}><Text style={styles.cardTitle}>{section.label}</Text><Text style={styles.copy}>{section.detail}</Text></View>
@@ -125,10 +125,10 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: 40 },
   legalContent: { gap: 12 },
   legalHeading: { color: nothing.white, fontSize: 22, fontWeight: "900", letterSpacing: -0.5 },
-  legalDate: { color: nothing.dim, fontSize: 10, letterSpacing: 0.4 },
+  legalDate: { color: nothing.dim, fontSize: 11, letterSpacing: 0.4 },
   legalBody: { color: nothing.muted, fontSize: 13, lineHeight: 20 },
   licenseRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: nothing.line },
   licenseName: { color: nothing.white, fontWeight: "800", fontSize: 13 },
-  licenseType: { color: nothing.red, fontSize: 10, fontWeight: "700", marginTop: 2 },
+  licenseType: { color: nothing.red, fontSize: 11, fontWeight: "700", marginTop: 2 },
   licenseCopyright: { color: nothing.dim, fontSize: 11, marginTop: 2 },
 });

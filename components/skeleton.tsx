@@ -1,73 +1,55 @@
-import { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, View, type ViewStyle } from "react-native";
+import { StyleSheet, View, type ViewStyle } from "react-native";
 import { nothing } from "@/components/nothing-ui";
 
-function usePulse(duration = 1200) {
-  const opacity = useRef(new Animated.Value(0.3)).current;
-  useEffect(() => {
-    const loop = Animated.loop(Animated.sequence([
-      Animated.timing(opacity, { toValue: 0.6, duration, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 0.3, duration, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-    ]));
-    loop.start();
-    return () => loop.stop();
-  }, [duration]);
-  return opacity;
-}
-
+// House loading rule: placeholders are flat bars at real size — no shimmer loop.
 export function Skeleton({ style }: { style?: ViewStyle }) {
-  const opacity = usePulse();
-  return <Animated.View style={[styles.base, style, { opacity }]} />;
+  return <View style={[styles.base, style]} />;
 }
 
 export function SkeletonCard() {
-  const opacity = usePulse(1400);
   return (
     <View style={cardStyles.container}>
-      <Animated.View style={[cardStyles.poster, { opacity }]} />
+      <View style={cardStyles.poster} />
       <View style={cardStyles.body}>
-        <Animated.View style={[cardStyles.title, { opacity }]} />
-        <Animated.View style={[cardStyles.subtitle, { opacity }]} />
+        <View style={cardStyles.title} />
+        <View style={cardStyles.subtitle} />
       </View>
     </View>
   );
 }
 
 export function SkeletonRail() {
-  const opacity = usePulse(1300);
   return (
     <View style={railStyles.container}>
-      <Animated.View style={[railStyles.poster, { opacity }]} />
-      <Animated.View style={[railStyles.title, { opacity }]} />
+      <View style={railStyles.poster} />
+      <View style={railStyles.title} />
     </View>
   );
 }
 
 export function SkeletonEpisode() {
-  const opacity = usePulse(1100);
   return (
     <View style={epStyles.container}>
-      <Animated.View style={[epStyles.thumbnail, { opacity }]} />
+      <View style={epStyles.thumbnail} />
       <View style={epStyles.body}>
-        <Animated.View style={[epStyles.title, { opacity }]} />
-        <Animated.View style={[epStyles.meta, { opacity }]} />
+        <View style={epStyles.title} />
+        <View style={epStyles.meta} />
       </View>
     </View>
   );
 }
 
 export function SkeletonHero() {
-  const opacity = usePulse(1500);
   return (
     <View style={heroStyles.container}>
-      <Animated.View style={[heroStyles.image, { opacity }]} />
+      <View style={heroStyles.image} />
       <View style={heroStyles.content}>
-        <Animated.View style={[heroStyles.badge, { opacity }]} />
-        <Animated.View style={[heroStyles.title, { opacity }]} />
-        <Animated.View style={[heroStyles.meta, { opacity }]} />
+        <View style={heroStyles.badge} />
+        <View style={heroStyles.title} />
+        <View style={heroStyles.meta} />
         <View style={heroStyles.buttons}>
-          <Animated.View style={[heroStyles.playBtn, { opacity }]} />
-          <Animated.View style={[heroStyles.listBtn, { opacity }]} />
+          <View style={heroStyles.playBtn} />
+          <View style={heroStyles.listBtn} />
         </View>
       </View>
     </View>
@@ -118,8 +100,8 @@ const heroStyles = StyleSheet.create({
   title: { width: "80%", height: 28, backgroundColor: nothing.line, borderRadius: 4 },
   meta: { width: "50%", height: 12, backgroundColor: nothing.line, borderRadius: 4 },
   buttons: { flexDirection: "row", gap: 10, marginTop: 4 },
-  playBtn: { width: 100, height: 36, backgroundColor: nothing.line, borderRadius: 20 },
-  listBtn: { width: 100, height: 36, backgroundColor: nothing.line, borderRadius: 20 },
+  playBtn: { width: 100, height: 36, backgroundColor: nothing.line, borderRadius: 8 },
+  listBtn: { width: 100, height: 36, backgroundColor: nothing.line, borderRadius: 8 },
 });
 
 const gridStyles = StyleSheet.create({

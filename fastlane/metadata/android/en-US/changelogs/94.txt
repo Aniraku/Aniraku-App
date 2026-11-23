@@ -1,0 +1,3 @@
+V5.9.3 — fixes the download 502s after the token-link migration, FlixCloud is now a normal HLS provider, and launch popups are reduced (onboarding and supporter takeover removed; announcements arrive once per id).
+
+Bugs or missing anime? Mail sho.islam0311@proton.me — it directly shapes the next release.

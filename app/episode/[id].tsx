@@ -44,15 +44,15 @@ export default function EpisodeInfoScreen() {
 
   return <NativeScreen>
     <NativeHeader eyebrow="WATCH" title="Episode info" />
-    <View style={styles.hero}>{image ? <Image source={{ uri: getOptimizedImageUri(image, THUMBNAIL_W) }} style={styles.thumbnail} contentFit="cover" transition={150} cachePolicy="memory-disk" /> : <View style={styles.thumbnail} />}<View style={styles.heroCopy}><DotLabel tone="live">EPISODE {String(episodeNumber).padStart(2, "0")}</DotLabel><Text style={styles.animeTitle} numberOfLines={2}>{title}</Text><Text style={styles.meta}>{`EPISODE ${episodeNumber} OF ${rows.length || "?"}${selected?.isFiller ? " · FILLER" : ""}`}</Text></View></View>
+    <View style={styles.hero}>{image ? <Image source={{ uri: getOptimizedImageUri(image, THUMBNAIL_W) }} style={styles.thumbnail} contentFit="cover" transition={150} cachePolicy="memory-disk" /> : <View style={styles.thumbnail} />}<View style={styles.heroCopy}><DotLabel>{`Episode ${String(episodeNumber).padStart(2, "0")}`}</DotLabel><Text style={styles.animeTitle} numberOfLines={2}>{title}</Text><Text style={styles.meta}>{`EPISODE ${episodeNumber} OF ${rows.length || "?"}${selected?.isFiller ? " · FILLER" : ""}`}</Text></View></View>
     <DotLabel>EPISODE DETAILS</DotLabel>
     <Text style={styles.episodeTitle}>{selected?.title || params.episodeTitle || `Episode ${episodeNumber}`}</Text>
     <Text style={styles.description}>{selected?.description || "A description is not available from the current provider for this episode."}</Text>
     {selected?.isFiller ? <Text style={styles.filler}>FILLER / RECAP</Text> : null}
-    <NothingButton label={`WATCH EPISODE ${episodeNumber}`} onPress={() => openWatch()} />
+    <NothingButton label={`Watch episode ${episodeNumber}`} sentence onPress={() => openWatch()} />
     <View style={styles.navigation}>
       <Pressable accessibilityRole="button" disabled={!previous} onPress={() => previous && goInfo(previous)} style={[styles.navText, !previous && styles.disabled]}><AppIcon name="chevron-left" size={18} color={nothing.white} /><Text style={styles.navText}>Previous</Text></Pressable>
-      <Pressable accessibilityRole="button" onPress={() => router.push((`/anime/${animeId}`) as never)} style={styles.navText}><AppIcon name="movie-open-outline" size={18} color={nothing.red} /><Text style={styles.navText}>All episodes</Text></Pressable>
+      <Pressable accessibilityRole="button" onPress={() => router.push((`/anime/${animeId}`) as never)} style={styles.navText}><AppIcon name="movie-open-outline" size={18} color={nothing.white} /><Text style={styles.navText}>All episodes</Text></Pressable>
       <Pressable accessibilityRole="button" disabled={!next} onPress={() => next && goInfo(next)} style={[styles.navText, !next && styles.disabled]}><Text style={styles.navText}>Next</Text><AppIcon name="chevron-right" size={18} color={nothing.white} /></Pressable>
     </View>
   </NativeScreen>;
@@ -63,10 +63,10 @@ const styles = StyleSheet.create({
   thumbnail: { width: 122, height: 82, borderRadius: 6, backgroundColor: nothing.raised },
   heroCopy: { flex: 1, gap: 7 },
   animeTitle: { color: nothing.white, fontSize: 21, fontWeight: "900", lineHeight: 25 },
-  meta: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.35 },
+  meta: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 0.35 },
   episodeTitle: { color: nothing.white, fontSize: 18, fontWeight: "900", lineHeight: 23, marginTop: 6 },
   description: { color: nothing.muted, fontSize: 14, lineHeight: 21 },
-  filler: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.35 },
+  filler: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 0.35 },
   navigation: { flexDirection: "row", gap: 7 },
   navText: { flex: 1, minHeight: 42, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, borderBottomWidth: 1, borderBottomColor: nothing.line },
   disabled: { opacity: 0.28 },

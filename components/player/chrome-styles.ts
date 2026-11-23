@@ -45,7 +45,7 @@ export const chrome = StyleSheet.create({
   },
   serverPillText: {
     color: nothing.black,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.2,
   },
@@ -68,7 +68,7 @@ export const chrome = StyleSheet.create({
   },
   resumePillText: {
     color: "#FFF",
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.3,
   },
@@ -110,7 +110,7 @@ export const chrome = StyleSheet.create({
     left: 0,
     height: 2,
     borderRadius: 1,
-    backgroundColor: "rgba(255,255,255,0.35)",
+    backgroundColor: "rgba(255,255,255,0.55)",
   },
   timelinePlayed: {
     position: "absolute",

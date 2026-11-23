@@ -28,7 +28,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   header: { minHeight: 68, paddingTop: 6, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerText: { gap: 2 },
-  eyebrow: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 1 },
+  eyebrow: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 1 },
   headerTitle: { color: nothing.white, fontSize: 28, fontWeight: "900", letterSpacing: -0.9 },
   searchButton: { width: 42, height: 42, borderRadius: 8, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, backgroundColor: "transparent" },
   pressed: nothing.pressed,

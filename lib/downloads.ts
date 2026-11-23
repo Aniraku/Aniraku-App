@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Directory, File, Paths } from "expo-file-system";
 import * as Network from "expo-network";
 import { Platform } from "react-native";
-import { anirakuProxyRequestHeaders, anirakuProxyUrl, BROWSER_UA, getPlaybackType, isAnirakuProxyUrl, nativePlaybackHeaders, sourceVerification } from "@/lib/aniraku-api";
+import { anirakuProxyRequestHeaders, anirakuProxyUrl, BROWSER_UA, isAnirakuProxyUrl, nativePlaybackHeaders, sourceVerification } from "@/lib/aniraku-api";
 import { APP_CONFIG } from "@/lib/app-config";
 import { estimateHlsSize, isBundleImplausiblySmall, parseMediaPlaylist, resolveSegmentUrl, rewritePlaylistUris, unsupportedPlaylistReason, verifyPlaylistIntegrity } from "@/lib/downloads-hls";
 import { nativeDownloads } from "@/lib/downloads-native";
@@ -695,14 +695,20 @@ async function fetchPlaylistViaProxy(url: string, headers: Record<string, string
 async function performHlsDownload(internal: QueuedDownload, callbacks: TransferCallbacks): Promise<OfflineDownload> {
   const request = internal.request;
   const playlistUrl = request.playlistUrl ?? "";
+  // Fetch the playlist through the URL the backend issued — a `?url=…&headers=…`
+  // wrapper or a `?k=…` token carries the provider identity (Referer/Origin/
+  // Cookie). Unwrapping it and re-wrapping with app headers makes the backend
+  // re-emit segment URLs with those app headers, and picky CDNs answer
+  // "error code: 502". Unwrap ONLY as the base for relative-URI resolution.
+  const playlistBase = originalStreamUrl(playlistUrl);
   const dir = bundleDirectory(request.entryId);
   try {
     callbacks.onStart();
     if (dir.exists) dir.delete();
     dir.create({ intermediates: true, idempotent: true });
 
-    // PROXY-ONLY (operator decision): fetch the playlist through the Aniraku
-    // proxy with the browser identity.
+    // PROXY-ONLY (operator decision): fetch the playlist through the backend
+    // wrapper/token with the browser identity — the provider headers live there.
     const videoText = await fetchPlaylistViaProxy(playlistUrl, request.headers);
     const videoParsed = parseMediaPlaylist(videoText);
     if (!videoParsed) throw new Error("This stream could not be read for download.");
@@ -721,7 +727,9 @@ async function performHlsDownload(internal: QueuedDownload, callbacks: TransferC
       if (!audioParsed || !audioParsed.endList || unsupportedPlaylistReason(audioText)) {
         throw new Error("The episode's audio track could not be saved.");
       }
-      audio = { text: audioText, baseUrl: request.audioPlaylistUrl, parsed: audioParsed };
+      // Resolve the audio playlist's relative URIs against its real CDN base,
+      // not the backend wrapper (same rule as the video playlist).
+      audio = { text: audioText, baseUrl: originalStreamUrl(request.audioPlaylistUrl), parsed: audioParsed };
     }
 
     const estimated = estimateHlsSize(videoText, request.bandwidth ?? 0);
@@ -737,7 +745,7 @@ async function performHlsDownload(internal: QueuedDownload, callbacks: TransferC
     const savedSubtitles = await saveSubtitleTracks({ tracks: request.subtitleTracks, entryId: request.entryId, headers: request.headers, directory: dir });
     const result = await runNativeJob(internal.nativeId ?? internal.job.id, {
       dir: dir.uri,
-      base: playlistUrl,
+      base: playlistBase,
       title: internal.job.title,
       headers: JSON.stringify(request.headers),
       estimatedBytes: estimated ?? 0,
@@ -755,19 +763,19 @@ async function performHlsDownload(internal: QueuedDownload, callbacks: TransferC
     // Map absolute CDN URIs → the native writer's file paths, in playlist order.
     const map = new Map<string, string>();
     videoParsed.segments.forEach((segment, position) => {
-      const absolute = resolveSegmentUrl(segment.uri, playlistUrl);
+      const absolute = resolveSegmentUrl(segment.uri, playlistBase);
       const local = result.segments[position];
       if (absolute && local) map.set(absolute, local);
     });
     if (videoParsed.keyUri && result.keyPath) {
-      const absoluteKey = resolveSegmentUrl(videoParsed.keyUri, playlistUrl);
+      const absoluteKey = resolveSegmentUrl(videoParsed.keyUri, playlistBase);
       if (absoluteKey) map.set(absoluteKey, result.keyPath);
     }
     if (videoParsed.mapUri && result.initPath) {
-      const absoluteMap = resolveSegmentUrl(videoParsed.mapUri, playlistUrl);
+      const absoluteMap = resolveSegmentUrl(videoParsed.mapUri, playlistBase);
       if (absoluteMap) map.set(absoluteMap, result.initPath);
     }
-    const rewrittenVideo = rewritePlaylistUris(videoText, { baseUrl: playlistUrl, mapUri: (url) => map.get(url) ?? null });
+    const rewrittenVideo = rewritePlaylistUris(videoText, { baseUrl: playlistBase, mapUri: (url) => map.get(url) ?? null });
     if (!rewrittenVideo) throw new Error("The saved copy is incomplete.");
 
     let playlistFile: File;
@@ -879,18 +887,22 @@ export function buildDownloadRequest(input: StartDownloadInput): DownloadRequest
     if (sourceVerification(input.source) === "dead") {
       throw new Error("This provider's stream cannot be downloaded.");
     }
-    // A proxied wrapper hides the real CDN URL — unwrap it so the service
-    // fetches segments directly (ADR-003); headers stay in memory only.
-    const playlistUrl = originalStreamUrl(directUrl);
+    // Keep the URL exactly as the backend issued it. A `?url=…&headers=…`
+    // wrapper or a `?k=…` token carries the provider identity the CDN
+    // requires; unwrapping it and re-wrapping with app headers makes the
+    // backend re-emit segment URLs without Referer/Origin/Cookie and the
+    // upstream answers "error code: 502" (verified live, flixcloud/anv/animex).
+    const playlistUrl = directUrl;
     if (!/^https:\/\//i.test(playlistUrl)) throw new Error("This source cannot be downloaded directly.");
     const quality = String(input.variantQuality ?? "").trim() || input.source.quality || "VARIANT";
     return { kind: "hls", animeId: input.animeId, episode: input.episode, language: input.language, title: input.title, quality, filename: "", downloadUrl: "", headers, subtitleTracks: input.source.subtitles, playlistUrl, bandwidth: Math.max(0, Math.round(Number(input.bandwidth ?? 0)) || 0), audioPlaylistUrl: String(input.audioPlaylistUrl ?? "").trim() || undefined, entryId, onProgress: input.onProgress };
   }
 
   if (!useExplicit && !isDownloadableSource(input.source)) throw new Error("This provider only offers adaptive, embedded, or protected playback. A direct progressive source is required for downloading.");
-  // Proxied progressive sources unwrap to their CDN URL so the server stays
-  // out of the download path (ADR-003).
-  const fileUrl = originalStreamUrl(directUrl);
+  // Keep the backend wrapper/token for progressive sources too — the proxy hop
+  // supplies the provider identity at transfer time (anirakuProxyUrl passes
+  // pre-proxied URLs through untouched).
+  const fileUrl = directUrl;
   if (!/^https:\/\//i.test(fileUrl)) throw new Error("This source cannot be downloaded directly.");
   const quality = useExplicit
     ? (String(input.variantQuality ?? "").trim() || input.source.quality || "VARIANT")

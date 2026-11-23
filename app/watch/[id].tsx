@@ -19,7 +19,7 @@ import {
   Lock, Rewind, FastForward, Download, DownloadSimple, CaretRight,
   Sun, PictureInPicture
 } from "phosphor-react-native";
-import { anirakuProxyRequestHeaders, anirakuProxyUrl, getAnimeMetadata, getEpisodes, getEpisodesCached, getServers, getStream, getPlaybackType, isAnirakuProxyUrl, nativePlaybackHeaders, readAnimeCache, readEpisodesCache, sourceVerification, getLanguageTrackCached } from "@/lib/aniraku-api";
+import { anirakuProxyRequestHeaders, anirakuProxyUrl, getAnimeMetadata, getEpisodes, getServers, getStream, getPlaybackType, isAnirakuProxyUrl, nativePlaybackHeaders, readAnimeCache, readEpisodesCache, sourceVerification, getLanguageTrackCached } from "@/lib/aniraku-api";
 import { getAnimeById, getKnownMalId, getMalIdByAnimeId } from "@/lib/anilist";
 import { applyEpisodeFallbackMetadata } from "@/lib/episode-fallbacks";
 import {
@@ -73,7 +73,7 @@ import { useEpisodeRatings } from "@/hooks/use-episode-ratings";
 import { AnimeComments } from "@/components/anime-comments";
 import { useProviderSync } from "@/hooks/use-provider-sync";
 import { useAnirakuAuth } from "@/providers/auth-provider";
-import { findOfflineDownload, findOfflineDownloadForPlayback, removeOfflineDownload, selectDownloadSourceForQuality, selectMaximumQualityDownload, startMaximumQualityDownload, type OfflineDownload } from "@/lib/downloads";
+import { findOfflineDownload, findOfflineDownloadForPlayback, removeOfflineDownload, selectDownloadSourceForQuality, selectMaximumQualityDownload, type OfflineDownload } from "@/lib/downloads";
 import { isDownloadableSource } from "@/lib/download-policy";
 import { DownloadSheet, type DownloadSheetOption } from "@/components/download-sheet";
 import { APP_CONFIG } from "@/lib/app-config";
@@ -105,6 +105,11 @@ const TAP_WINDOW_MS = 300;
 const SKIP_HOLD_MS = 400;
 // ── Gesture boundaries: each gesture owns its zone, no overlaps ──
 const TAP_SLOP_PX = 14; // max move to still count as a tap
+const SWIPE_BOUND = 120; // episode-swipe travel before rubber-band resistance
+/** Progressive resistance past a drag bound — nothing stops dead. */
+function rubberband(overshoot: number, dimension = 320, constant = 0.55) {
+  return (overshoot * dimension * constant) / (dimension + constant * Math.abs(overshoot));
+}
 const HOLD_DRIFT_PX = 26; // wobble tolerated while holding still (2x arm / hold) before it cancels
 const SWIPE_ACTIVATE_PX = 22; // vertical travel before brightness/volume engages
 const SWIPE_DIRECTION_RATIO = 1.4; // |dy| must dominate |dx| or swipe is ignored
@@ -206,7 +211,6 @@ export default function WatchScreen() {
     return getEpisodes(animeId);
   }, enabled: Number.isFinite(animeId) && animeId > 0, staleTime: 60_000 });
   const canonicalEpisodes = episodeQuery.data ?? EMPTY_EPISODES;
-  const episodeSignature = useMemo(() => canonicalEpisodes.map((item) => `${item.number}:${item.title ?? ""}:${item.thumbnail ?? ""}`).join("|"), [canonicalEpisodes]);
   // The backend serves episodes with AniZip + TMDB metadata already merged
   // (titles + image.tmdb.org thumbnails) — only the display guards/fallbacks
   // are applied client-side. No second network call.
@@ -251,7 +255,6 @@ export default function WatchScreen() {
 
   // ── App state ──
   const [language, setLanguage] = useState<Language>(routeLanguage ?? "sub");
-  const [languageTrack, setLanguageTrack] = useState<{ sub: number; dub: number } | null>(null);
 
   const [providers, setProviders] = useState<Record<Language, Server[]>>({ sub: [], dub: [] });
   const [serverIndex, setServerIndex] = useState(0);
@@ -277,7 +280,13 @@ export default function WatchScreen() {
   const [episodeSearch, setEpisodeSearch] = useState("");
   const [episodePage, setEpisodePage] = useState(0);
   const [progressWidth, setProgressWidth] = useState(0);
-  const [dragPct, setDragPct] = useState<number | null>(null);
+  // Scrub bar: position rides an Animated.Value (no re-render per move);
+  // React state only carries the throttled preview label and the scrubbing flag.
+  const dragPctAnim = useRef(new Animated.Value(0)).current;
+  const dragPctRef = useRef(0);
+  const lastPreviewUpdate = useRef(0);
+  const [dragPreviewPct, setDragPreviewPct] = useState<number | null>(null);
+  const [isScrubbing, setIsScrubbing] = useState(false);
   const [skipSegments, setSkipSegments] = useState<SkipSegments>({ intro: null, outro: null });
   // AniSkip telemetry (Track 4): distinguishes "no skip data" (empty) from
   // "request timed out" (timeout) in the error-card diagnostic line.
@@ -765,7 +774,6 @@ export default function WatchScreen() {
       // Language-based track: skip fetching servers for a language that has
       // zero episodes for this anime (avoids wasted backend hits).
       const track = await getLanguageTrackCached(animeId).catch(() => null);
-      if (!cancelled) setLanguageTrack(track);
       // track.count = number of episodes that exist for that language
       // (e.g. { sub: 10, dub: 8 } → dub only on episodes 1–8). Skip fetching
       // servers for a language when the current episode is beyond its count.
@@ -1417,7 +1425,7 @@ export default function WatchScreen() {
         // playlist have no variant menu — but they ARE downloadable: expose
         // the media playlist itself to the download pipeline.
         if (playbackType === "hls" && variants.length === 0 && /#EXTINF/i.test(text)) {
-          variants = [{ height: 0, bandwidth: 0, url: originalStreamUrl(masterPlaybackUri) }];
+          variants = [{ height: 0, bandwidth: 0, url: masterPlaybackUri }];
         }
         // Separate-audio renditions ride along: download rows for variants
         // that advertise an AUDIO group carry the audio playlist URL so the
@@ -1606,7 +1614,7 @@ export default function WatchScreen() {
       setRequestedQuality(choice.requestQuality);
       selectQuality(replacement);
     } catch (cause) {
-      setDownloadMessage(cause instanceof Error ? cause.message.toUpperCase() : "QUALITY COULD NOT BE CHANGED.");
+      setDownloadMessage(cause instanceof Error ? cause.message : "The quality could not be changed.");
       setLoadingStream(false);
     }
   };
@@ -2207,7 +2215,7 @@ export default function WatchScreen() {
           const text = await response.text();
           let variants = parseHlsMasterVariants(text, originalStreamUrl(videoSourceUri));
           if (!variants.length && /#EXTINF/i.test(text)) {
-            variants = [{ height: 0, bandwidth: 0, url: originalStreamUrl(videoSourceUri) }];
+            variants = [{ height: 0, bandwidth: 0, url: videoSourceUri }];
           }
           if (variants.length) {
             const base = downloadBase;
@@ -2240,11 +2248,11 @@ export default function WatchScreen() {
 
   const onDownloadStarted = (option: DownloadSheetOption) => {
     setDownloadSheetOpen(false);
-    setDownloadMessage(`SAVING ${option.label.toUpperCase()} · TRACK IT IN DOWNLOADS`);
+    setDownloadMessage(`Saving ${option.label} — track it in Downloads.`);
   };
 
   const onDownloadError = (message: string) => {
-    setDownloadMessage(message.toUpperCase());
+    setDownloadMessage(message);
   };
 
   /** SUB/DUB chip label — the number is the SERVER count for the current
@@ -2420,21 +2428,26 @@ export default function WatchScreen() {
           Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.2,
         onPanResponderMove: (_, gestureState) => {
           if (swipeAnimating.current) return;
-          const clamped = Math.max(-120, Math.min(120, gestureState.dx));
+          const dx = gestureState.dx;
+          const clamped = Math.abs(dx) <= SWIPE_BOUND ? dx : Math.sign(dx) * (SWIPE_BOUND + rubberband(Math.abs(dx) - SWIPE_BOUND));
           swipeOffsetX.setValue(clamped);
         },
         onPanResponderRelease: (_, gestureState) => {
           if (swipeAnimating.current) return;
           const dx = gestureState.dx;
-          const shouldAdvance = dx < -50 && Boolean(nextKnownEpisode);
-          const shouldGoBack = dx > 50 && Boolean(previousKnownEpisode);
+          // RN PanResponder velocity is px/ms — 0.3 px/ms ≈ 300 px/s: a flick commits.
+          const flick = Math.abs(gestureState.vx) > 0.3;
+          const shouldAdvance = (dx < -50 || (flick && gestureState.vx < 0)) && Boolean(nextKnownEpisode);
+          const shouldGoBack = (dx > 50 || (flick && gestureState.vx > 0)) && Boolean(previousKnownEpisode);
           if (!shouldAdvance && !shouldGoBack) {
-            Animated.spring(swipeOffsetX, { toValue: 0, useNativeDriver: true }).start();
+            // Weak release: snap back fast, carrying a little of the finger's speed.
+            Animated.spring(swipeOffsetX, { toValue: 0, speed: 30, bounciness: 6, velocity: gestureState.vx * 1000, useNativeDriver: true }).start();
             return;
           }
           swipeAnimating.current = true;
-          const offscreen = dx < 0 ? -Dimensions.get("window").width : Dimensions.get("window").width;
-          Animated.timing(swipeOffsetX, { toValue: offscreen, duration: 180, useNativeDriver: true }).start(() => {
+          const offscreen = dx < 0 || gestureState.vx < 0 ? -Dimensions.get("window").width : Dimensions.get("window").width;
+          // Commit flight inherits the release velocity — a flick flies faster than a drag.
+          Animated.spring(swipeOffsetX, { toValue: offscreen, speed: 30, bounciness: 0, velocity: gestureState.vx * 1000, useNativeDriver: true }).start(() => {
             swipeOffsetX.setValue(0);
             swipeAnimating.current = false;
             if (shouldAdvance && nextKnownEpisode) {
@@ -2465,20 +2478,33 @@ export default function WatchScreen() {
 
   const seekFromBar = (event: { nativeEvent: { locationX: number } }) => {
     if (duration > 0 && progressWidth > 0) {
-      const target = Math.max(0, Math.min(duration, (event.nativeEvent.locationX / progressWidth) * duration));
+      const target = Math.max(0, Math.min(duration, (dragPctRef.current / 100) * duration));
       markIntentionalSeek(target);
       videoRef.current?.seek(target);
     }
-    setDragPct(null);
+    setIsScrubbing(false);
+    setDragPreviewPct(null);
   };
 
   const onBarTouchMove = (event: { nativeEvent: { locationX: number } }) => {
     if (duration > 0 && progressWidth > 0) {
-      setDragPct(Math.max(0, Math.min(100, (event.nativeEvent.locationX / progressWidth) * 100)));
+      const pct = Math.max(0, Math.min(100, (event.nativeEvent.locationX / progressWidth) * 100));
+      dragPctRef.current = pct;
+      dragPctAnim.setValue(pct); // layout props can't ride the native driver; JS writes still skip the render cycle
+      const now = Date.now();
+      if (now - lastPreviewUpdate.current >= 60) {
+        lastPreviewUpdate.current = now;
+        setDragPreviewPct(pct); // feeds ONLY the scrub time label
+      }
     }
   };
 
-  const onBarTouchStart = () => { setDragPct(progressPct); };
+  const onBarTouchStart = () => {
+    dragPctRef.current = progressPct;
+    dragPctAnim.setValue(progressPct);
+    setIsScrubbing(true);
+    setDragPreviewPct(progressPct);
+  };
 
   const enterFullscreen = useCallback(() => {
     // Close every overlay so fullscreen never opens with a hidden-behind-modal
@@ -2568,12 +2594,12 @@ export default function WatchScreen() {
   useEffect(() => {
     const hasPlayable = Boolean(source) || Boolean(embedSource);
     if (!hasPlayable || !showControls || activePanel) return;
-    if (dragPct !== null) return; // never hide the chrome out from under a scrub
+    if (isScrubbing) return; // never hide the chrome out from under a scrub
     // NOTE: currentTime is deliberately NOT a dep — progress ticks every
     // second and would reset this timer forever, so chrome could never hide.
     const timer = setTimeout(() => setShowControls(false), 3_500);
     return () => clearTimeout(timer);
-  }, [showControls, activePanel, manualFullscreen, source?.url, embedSource?.url, dragPct]);
+  }, [showControls, activePanel, manualFullscreen, source?.url, embedSource?.url, isScrubbing]);
 
   useEffect(() => {
     if (embedSource && !source) setShowControls(true);
@@ -2660,8 +2686,8 @@ export default function WatchScreen() {
         {loadingServers ? <ProviderDiscoveryLoader attempt={serverAttempt} /> : loadingStream ? <View style={styles.thumbnailLoading}>
           <Image source={{ uri: selectedEpisode?.thumbnail || watchBackdrop || image || "" }} style={StyleSheet.absoluteFillObject} contentFit="cover" cachePolicy="memory-disk" />
           <View style={styles.thumbnailLoadingShade} />
-          <View style={styles.thumbnailLoadingContent}><View style={styles.thumbnailPlay}><Play size={18} color={nothing.black} weight="fill" /></View><Text style={styles.thumbnailEpisode}>EPISODE {episode}</Text><Text numberOfLines={2} style={styles.thumbnailTitle}>{selectedEpisode?.title || title}</Text><Text style={styles.thumbnailStatus}>STARTING VIDEO</Text></View>
-        </View> : error ? <Text style={styles.errorText}>{error}</Text> : <Text style={styles.placeholderText}>PREPARING VIDEO</Text>}
+          <View style={styles.thumbnailLoadingContent}><View style={styles.thumbnailPlay}><Play size={18} color={nothing.black} weight="fill" /></View><Text style={styles.thumbnailEpisode}>{`Episode ${episode}`}</Text><Text numberOfLines={2} style={styles.thumbnailTitle}>{selectedEpisode?.title || title}</Text><Text style={styles.thumbnailStatus}>Starting video</Text></View>
+        </View> : error ? <Text style={styles.errorText}>{error}</Text> : <Text style={styles.placeholderText}>Preparing video</Text>}
       </View>}
 
       {/* ── Subtitle Layer (lifts above the bottom deck while chrome is
@@ -2796,7 +2822,7 @@ export default function WatchScreen() {
               <View style={styles.contextActions}>
                 <Pressable onPress={() => { pendingResume.current = resumePosition; videoRef.current?.seek(resumePosition); setResumePosition(null); }} accessibilityRole="button" style={styles.resumeBtn}>
                   <Play size={12} color={nothing.white} weight="fill" />
-                  <Text style={styles.resumeBtnText}>{`RESUME ${formatTime(resumePosition)}`}</Text>
+                  <Text style={styles.resumeBtnText}>{`Resume ${formatTime(resumePosition)}`}</Text>
                 </Pressable>
               </View>
             ) : null}
@@ -2805,11 +2831,15 @@ export default function WatchScreen() {
             <View style={styles.timelineRow}>
               <Text allowFontScaling={false} style={styles.timeLabel}>{formatTime(currentTime)}</Text>
               <View style={styles.progressBarTrack} onLayout={onProgressLayout} onTouchStart={onBarTouchStart} onTouchMove={onBarTouchMove} onTouchEnd={seekFromBar} accessibilityRole="adjustable" accessibilityLabel="Seek bar">
-                <View style={[styles.progressBuffered, dragPct !== null && styles.progressTrackThick, { width: `${bufferPct}%` }]} />
-                <View style={[styles.progressPlayed, dragPct !== null && styles.progressTrackThick, { width: `${dragPct !== null ? dragPct : progressPct}%` }]} />
+                <View style={[styles.progressBuffered, isScrubbing && styles.progressTrackThick, { width: `${bufferPct}%` }]} />
+                {isScrubbing
+                  ? <Animated.View style={[styles.progressPlayed, styles.progressTrackThick, { width: dragPctAnim.interpolate({ inputRange: [0, 100], outputRange: ["0%", "100%"] }) }]} />
+                  : <View style={[styles.progressPlayed, { width: `${progressPct}%` }]} />}
                 {chapterTrack.map((segment) => <View key={segment.kind} style={[styles.chapterMarker, { left: `${segment.leftPct}%`, width: `${segment.widthPct}%` }]} />)}
-                <View style={[styles.scrubberKnob, dragPct !== null && styles.scrubberKnobActive, { left: `${dragPct !== null ? dragPct : progressPct}%` }]} />
-                {dragPct !== null ? <View style={[styles.dragPreview, { left: `${Math.max(0, Math.min(dragPct, 100))}%` }]}><Text style={styles.dragPreviewText}>{formatTime((dragPct / 100) * duration)}</Text></View> : null}
+                {isScrubbing
+                  ? <Animated.View style={[styles.scrubberKnob, styles.scrubberKnobActive, { left: dragPctAnim.interpolate({ inputRange: [0, 100], outputRange: ["0%", "100%"] }) }]} />
+                  : <View style={[styles.scrubberKnob, { left: `${progressPct}%` }]} />}
+                {dragPreviewPct !== null ? <View style={[styles.dragPreview, { left: `${Math.max(0, Math.min(dragPreviewPct, 100))}%` }]}><Text style={styles.dragPreviewText}>{formatTime((dragPreviewPct / 100) * duration)}</Text></View> : null}
               </View>
               <Text allowFontScaling={false} style={styles.timeLabel}>{formatTime(duration)}</Text>
             </View>
@@ -2950,9 +2980,9 @@ export default function WatchScreen() {
           <View style={ps.chipRow}>
             {displayedQualityOptions.length ? displayedQualityOptions.map((item: WatchQualityOption) => {
               const selected = displayedQuality.toLowerCase() === item.label.toLowerCase();
-              return <Pressable key={item.id} onPress={() => {
+              return <Pressable accessibilityRole="button" key={item.id} onPress={() => {
                 if (source && String(source.url || "").startsWith("file://")) {
-                  setDownloadMessage("THE SAVED COPY PLAYS AT ITS SAVED QUALITY");
+                  setDownloadMessage("The saved copy plays at its saved quality");
                   return;
                 }
                 if (source) void selectAdaptiveQuality(item); else if (item.source) selectQuality(item.source);
@@ -3027,10 +3057,10 @@ export default function WatchScreen() {
           <Text style={ps.sectionLabel}>{t("player.subtitles")}</Text>
           <View style={ps.chipRow}>
             {source.subtitles?.length ? <>
-              <Pressable onPress={() => updateSubtitlePrefs({ enabled: false })} style={[ps.chip, subtitlePrefs && !subtitlePrefs.enabled && ps.chipActive]}>
+              <Pressable accessibilityRole="button" onPress={() => updateSubtitlePrefs({ enabled: false })} style={[ps.chip, subtitlePrefs && !subtitlePrefs.enabled && ps.chipActive]}>
                 <Text style={[ps.chipText, subtitlePrefs && !subtitlePrefs.enabled && ps.chipTextActive]}>{t("player.off")}</Text>
               </Pressable>
-              {source.subtitles.map((sub) => { const active = subtitlePrefs?.enabled && selectedSubtitleUrl === sub.url; return <Pressable key={sub.url} onPress={() => updateSubtitlePrefs({ enabled: true, preferredLanguage: sub.lang || sub.label || "en" })} style={[ps.chip, active && ps.chipActive]}><Text numberOfLines={1} style={[ps.chipText, active && ps.chipTextActive]}>{sub.label || sub.lang || "Track"}</Text></Pressable>; })}
+              {source.subtitles.map((sub) => { const active = subtitlePrefs?.enabled && selectedSubtitleUrl === sub.url; return <Pressable accessibilityRole="button" key={sub.url} onPress={() => updateSubtitlePrefs({ enabled: true, preferredLanguage: sub.lang || sub.label || "en" })} style={[ps.chip, active && ps.chipActive]}><Text numberOfLines={1} style={[ps.chipText, active && ps.chipTextActive]}>{sub.label || sub.lang || "Track"}</Text></Pressable>; })}
             </> : <Text style={ps.emptyLine}>{t("player.noTracks")}</Text>}
           </View>
 
@@ -3038,7 +3068,7 @@ export default function WatchScreen() {
           <View style={ps.chipRow}>
             {[{ label: "S", value: 12 }, { label: "M", value: 14 }, { label: "L", value: 18 }].map((preset) => {
               const active = (subtitlePrefs?.fontSize ?? 14) === preset.value;
-              return <Pressable key={preset.label} onPress={() => updateSubtitlePrefs({ enabled: true, fontSize: preset.value })} style={[ps.chip, active && ps.chipActive]}><Text style={[ps.chipText, active && ps.chipTextActive]}>{preset.label}</Text></Pressable>;
+              return <Pressable accessibilityRole="button" key={preset.label} onPress={() => updateSubtitlePrefs({ enabled: true, fontSize: preset.value })} style={[ps.chip, active && ps.chipActive]}><Text style={[ps.chipText, active && ps.chipTextActive]}>{preset.label}</Text></Pressable>;
             })}
           </View>
 
@@ -3047,7 +3077,7 @@ export default function WatchScreen() {
             {BG_OPACITY_PRESETS.map((val) => {
               const active = (subtitlePrefs?.bgOpacity ?? 0.55) === val;
               const label = val === 0 ? "Off" : `${Math.round(val * 100)}%`;
-              return <Pressable key={val} onPress={() => updateSubtitlePrefs({ enabled: true, bgOpacity: val })} style={[ps.chip, active && ps.chipActive]}><Text style={[ps.chipText, active && ps.chipTextActive]}>{label}</Text></Pressable>;
+              return <Pressable accessibilityRole="button" key={val} onPress={() => updateSubtitlePrefs({ enabled: true, bgOpacity: val })} style={[ps.chip, active && ps.chipActive]}><Text style={[ps.chipText, active && ps.chipTextActive]}>{label}</Text></Pressable>;
             })}
           </View>
 
@@ -3056,7 +3086,7 @@ export default function WatchScreen() {
             {OUTLINE_PRESETS.map((val) => {
               const active = (subtitlePrefs?.outlineThickness ?? 2) === val;
               const label = val === 0 ? "Off" : `${val}px`;
-              return <Pressable key={val} onPress={() => updateSubtitlePrefs({ enabled: true, outlineThickness: val })} style={[ps.chip, active && ps.chipActive]}><Text style={[ps.chipText, active && ps.chipTextActive]}>{label}</Text></Pressable>;
+              return <Pressable accessibilityRole="button" key={val} onPress={() => updateSubtitlePrefs({ enabled: true, outlineThickness: val })} style={[ps.chip, active && ps.chipActive]}><Text style={[ps.chipText, active && ps.chipTextActive]}>{label}</Text></Pressable>;
             })}
           </View>
 
@@ -3064,7 +3094,7 @@ export default function WatchScreen() {
           <View style={ps.chipRow}>
             {SUBTITLE_FONTS.map((font) => {
               const active = (subtitlePrefs?.fontFamily ?? "default") === font.id;
-              return <Pressable key={font.id} onPress={() => updateSubtitlePrefs({ enabled: true, fontFamily: font.id })} style={[ps.chip, active && ps.chipActive]}><Text style={[ps.chipText, active && ps.chipTextActive]}>{font.label}</Text></Pressable>;
+              return <Pressable accessibilityRole="button" key={font.id} onPress={() => updateSubtitlePrefs({ enabled: true, fontFamily: font.id })} style={[ps.chip, active && ps.chipActive]}><Text style={[ps.chipText, active && ps.chipTextActive]}>{font.label}</Text></Pressable>;
             })}
           </View>
 
@@ -3096,9 +3126,9 @@ export default function WatchScreen() {
     {error ? <View style={styles.errorAction}><NothingCard style={styles.errorCard}><DotLabel tone="muted">{futureRelease ? "FUTURE EPISODE" : "VIDEO UNAVAILABLE"}</DotLabel><Text style={styles.errorCopy}>{error}</Text>{lastPlayerError ? <Text style={styles.errorCopy}>{humanPlayerError(lastPlayerError) ?? "Playback failed on this server."}</Text> : null}{lastPlayerError ? <Text style={ps.diagnosticLine}>{`PLAYER · ${lastPlayerError}`}</Text> : null}{skipFetchStatus !== "idle" && skipFetchStatus !== "ok" ? <Text style={ps.diagnosticLine}>{`SKIP DATA · ${skipFetchStatus.toUpperCase()}`}</Text> : null}{futureRelease ? null : <View style={styles.errorBtnRow}><NothingButton label={t("player.retry")} onPress={retry} variant="outline" /><NothingButton label={t("player.switchServer")} onPress={() => handleProviderBlocked("permanent")} variant="outline" /><NothingButton label={t("player.copyError")} onPress={() => { void Clipboard.setStringAsync(`${error}${lastPlayerError ? `\nPLAYER · ${lastPlayerError}` : ""}${skipFetchStatus !== "idle" && skipFetchStatus !== "ok" ? `\nSKIP DATA · ${skipFetchStatus.toUpperCase()}` : ""}\nSERVER · ${activeProvider?.label || "UNKNOWN"} · ${embedSource ? "EMBED" : useSourceProxy ? "PROXY" : "DIRECT"}`).catch(() => {}); }} variant="outline" /><NothingButton label="Report source" onPress={reportBrokenSource} variant="outline" /></View>}</NothingCard></View> : null}
 
     {/* ── Below player ── */}
-    {!manualFullscreen ? <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} removeClippedSubviews={Platform.OS === "android"}>
+    {!manualFullscreen ? <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} removeClippedSubviews={Platform.OS === "android"} keyboardShouldPersistTaps="handled">
       <View style={styles.th3Section}>
-        <Text style={styles.th3Watching}><Text style={styles.th3WatchingGreen}>You are watching </Text><Text style={styles.th3WatchingWhite}>Episode {episode}</Text></Text>
+        <Text style={styles.th3Watching}><Text style={styles.th3WatchingMuted}>You are watching </Text><Text style={styles.th3WatchingWhite}>Episode {episode}</Text></Text>
         {swipeDirectionHint ? <View style={styles.swipeHintRow}><AppIcon name="chevron-left" size={12} color={previousKnownEpisode ? nothing.muted : nothing.dim} /><Text style={[styles.swipeHintText, !previousKnownEpisode && !nextKnownEpisode && { color: nothing.dim }]}>{swipeDirectionHint}</Text><AppIcon name="chevron-right" size={12} color={nextKnownEpisode ? nothing.muted : nothing.dim} /></View> : null}
         <View style={styles.th3Tabs}>
           {providers.sub.length > 0 && providers.dub.length > 0 ? (["sub", "dub"] as Language[]).map((item) => { const active = language === item; return <Pressable key={item} accessibilityRole="tab" accessibilityLabel={`${item === "sub" ? "Subtitled" : "Dubbed"}${active ? " (selected)" : ""}`} accessibilityHint="Switch to this audio language" onPress={() => selectLanguage(item)} style={[styles.th3Tab, active && styles.th3TabActive]}><Text allowFontScaling={false} style={[styles.th3TabText, active && styles.th3TabTextActive]}>{item === "sub" ? languageChipLabel("sub") : languageChipLabel("dub")}</Text></Pressable>; }) : null}
@@ -3112,25 +3142,25 @@ export default function WatchScreen() {
         <View style={styles.th3EpsRow}>
           <AppIcon name="options" size={14} color={nothing.muted} />
           <Text style={styles.th3EpsText}>EPS: {episodePage * EPISODE_PAGE_SIZE + 1}-{Math.min((episodePage + 1) * EPISODE_PAGE_SIZE, filteredEpisodes.length)}</Text>
-          <View style={styles.th3EpSearch}><AppIcon name="magnify" size={14} color={nothing.muted} /><TextInput value={episodeSearch} onChangeText={setEpisodeSearch} placeholder="Ep number" placeholderTextColor={nothing.dim} style={styles.th3EpSearchInput} returnKeyType="done" keyboardType={episodeSearch && /\d/.test(episodeSearch) ? "number-pad" : "default"} /></View>
+          <View style={styles.th3EpSearch}><AppIcon name="magnify" size={14} color={nothing.muted} /><TextInput value={episodeSearch} onChangeText={setEpisodeSearch} placeholder="Episode number" placeholderTextColor={nothing.placeholder} style={styles.th3EpSearchInput} returnKeyType="done" autoComplete="off" keyboardType={episodeSearch && /\d/.test(episodeSearch) ? "number-pad" : "default"} /></View>
         </View>
-        {episodeQuery.isPending ? <View style={styles.episodeLoading}><ActivityIndicator color={nothing.white} /><Text style={styles.episodeLoadingText}>LOADING EPISODES</Text></View> : filteredEpisodes.length ? <>
+        {episodeQuery.isPending ? <View style={styles.episodeLoading}><ActivityIndicator color={nothing.white} /><Text style={styles.episodeLoadingText}>Loading episodes</Text></View> : filteredEpisodes.length ? <>
           <Animated.View style={[styles.episodeSwipeContainer, { transform: [{ translateX: swipeOffsetX }] }]} {...episodeSwipeResponder.panHandlers}>
             <EpisodeGrid episodes={pagedEpisodes} activeEpisode={episode} totalPages={totalEpisodePages} page={safeEpisodePage} onPageChange={setEpisodePage} onSelect={goToEpisode} onInfo={openEpisodeInfo} totalEpisodeCount={filteredEpisodes.length} />
           </Animated.View>
         </> : <Text style={styles.emptyEpisodeText}>{episodeSearch ? "No episodes match your search." : "No episodes are listed for this title."}</Text>}
       </View>
       <View style={styles.watchCommunitySection}>
-        <View style={styles.ratingRow}><Text style={styles.ratingPrompt}>{currentRating ? `${t("player.youRated")} ${currentRating}/10` : t("player.rateEpisode")}</Text><View style={styles.ratingChoices}>{Array.from({ length: 10 }, (_, index) => index + 1).map((score) => <Pressable key={score} onPress={() => { if (!auth.user) { router.push("/auth" as never); return; } ratings.setRating.mutate({ episode, score }); }} style={[styles.ratingChoice, currentRating >= score && styles.ratingChoiceActive]}><Text style={[styles.ratingChoiceText, currentRating >= score && styles.ratingChoiceTextActive]}>{score}</Text></Pressable>)}</View></View>
+        <View style={styles.ratingRow}><Text style={styles.ratingPrompt}>{currentRating ? `${t("player.youRated")} ${currentRating}/10` : t("player.rateEpisode")}</Text><View style={styles.ratingChoices}>{Array.from({ length: 10 }, (_, index) => index + 1).map((score) => <Pressable accessibilityRole="button" key={score} onPress={() => { if (!auth.user) { router.push("/auth" as never); return; } ratings.setRating.mutate({ episode, score }); }} style={[styles.ratingChoice, currentRating >= score && styles.ratingChoiceActive]}><Text style={[styles.ratingChoiceText, currentRating >= score && styles.ratingChoiceTextActive]}>{score}</Text></Pressable>)}</View></View>
         <AnimeComments animeId={animeId} episodeNumber={episode} />
       </View>
     </ScrollView> : null}
 
     {/* ── Modal Pickers ── */}
-    <Modal visible={activePanel === "speed"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text allowFontScaling={false} style={styles.modalTitle}>{t("player.playbackSpeed")}</Text>{[0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((val) => <Pressable key={val} style={[styles.modalItem, speed === val && styles.modalItemActive]} onPress={() => { setSpeed(val); lockedSpeed.current = val; setActivePanel(null); }}><Text allowFontScaling={false} style={[styles.modalItemText, speed === val && styles.modalItemTextActive]}>{val === 1.0 ? "1.0x (Normal)" : `${val}x`}</Text>{speed === val && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
+    <Modal visible={activePanel === "speed"} transparent animationType="fade"><Pressable accessibilityRole="button" style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text allowFontScaling={false} style={styles.modalTitle}>{t("player.playbackSpeed")}</Text>{[0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((val) => <Pressable accessibilityRole="button" key={val} style={[styles.modalItem, speed === val && styles.modalItemActive]} onPress={() => { setSpeed(val); lockedSpeed.current = val; setActivePanel(null); }}><Text allowFontScaling={false} style={[styles.modalItemText, speed === val && styles.modalItemTextActive]}>{val === 1.0 ? "1.0x (Normal)" : `${val}x`}</Text>{speed === val && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>)}</View></Pressable></Modal>
 
-    <Modal visible={activePanel === "server"} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text allowFontScaling={false} style={styles.modalTitle}>{t("player.selectServer")}</Text>{providers.sub.length > 0 && providers.dub.length > 0 ? <View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable key={item} onPress={() => selectLanguage(item)} style={[styles.language, language === item && styles.languageActive]}><Text allowFontScaling={false} style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? languageChipLabel("sub") : languageChipLabel("dub")}</Text></Pressable>)}</View> : null}
-      {selectableProviders.length ? selectableProviders.map(({ provider, index }) => <Pressable key={provider.id} onPress={() => { selectServer(index); setActivePanel(null); }} style={[styles.modalItem, index === serverIndex && styles.modalItemActive]}><Text allowFontScaling={false} style={[styles.modalItemText, index === serverIndex && styles.modalItemTextActive]}>{provider.label}</Text>{index === serverIndex && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>) : <Text style={styles.modalItemSub}>Looking for a working server…</Text>}</View></Pressable></Modal>
+    <Modal visible={activePanel === "server"} transparent animationType="fade"><Pressable accessibilityRole="button" style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.modalSheet}><Text allowFontScaling={false} style={styles.modalTitle}>{t("player.selectServer")}</Text>{providers.sub.length > 0 && providers.dub.length > 0 ? <View style={styles.languageRow}>{(["sub", "dub"] as Language[]).map((item) => <Pressable accessibilityRole="button" key={item} onPress={() => selectLanguage(item)} style={[styles.language, language === item && styles.languageActive]}><Text allowFontScaling={false} style={[styles.languageText, language === item && styles.languageTextActive]}>{item === "sub" ? languageChipLabel("sub") : languageChipLabel("dub")}</Text></Pressable>)}</View> : null}
+      {selectableProviders.length ? selectableProviders.map(({ provider, index }) => <Pressable accessibilityRole="button" key={provider.id} onPress={() => { selectServer(index); setActivePanel(null); }} style={[styles.modalItem, index === serverIndex && styles.modalItemActive]}><Text allowFontScaling={false} style={[styles.modalItemText, index === serverIndex && styles.modalItemTextActive]}>{provider.label}</Text>{index === serverIndex && <Check size={20} color={nothing.red} weight="bold" />}</Pressable>) : <Text style={styles.modalItemSub}>Looking for a working server…</Text>}</View></Pressable></Modal>
 
     {/* Download sheet: in-app quality picker → queue; progress lives in the
         Downloads hub, never inline in the player. */}
@@ -3149,8 +3179,8 @@ export default function WatchScreen() {
     />
 
     {/* Chapter List Modal */}
-    <Modal visible={activePanel === "chapters" && !playerLocked} transparent animationType="fade"><Pressable style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.chapterModalSheet}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text allowFontScaling={false} style={styles.modalTitle}>{t("player.chapters")}</Text><Pressable onPress={() => setActivePanel(null)}><X size={20} color={nothing.muted} weight="bold" /></Pressable></View>
+    <Modal visible={activePanel === "chapters" && !playerLocked} transparent animationType="fade"><Pressable accessibilityRole="button" style={styles.modalBackdrop} onPress={() => setActivePanel(null)}><View style={styles.chapterModalSheet}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text allowFontScaling={false} style={styles.modalTitle}>{t("player.chapters")}</Text><Pressable accessibilityRole="button" onPress={() => setActivePanel(null)}><X size={20} color={nothing.muted} weight="bold" /></Pressable></View>
       {duration <= 0 ? <Text style={styles.chapterEmptyText}>No duration data available yet.</Text> : (
         <View style={styles.chapterList}>
           {(() => {
@@ -3163,7 +3193,7 @@ export default function WatchScreen() {
               const isPast = currentTime >= ch.endTime;
               const durationSec = ch.endTime - ch.startTime;
               return (
-                <Pressable key={ch.kind} onPress={() => { seekTo(ch.startTime); setActivePanel(null); }} style={[styles.chapterItem, isActive && styles.chapterItemActive, isPast && styles.chapterItemPast]}>
+                <Pressable accessibilityRole="button" key={ch.kind} onPress={() => { seekTo(ch.startTime); setActivePanel(null); }} style={[styles.chapterItem, isActive && styles.chapterItemActive, isPast && styles.chapterItemPast]}>
                   <View style={styles.chapterItemLeft}>
                     <View style={[styles.chapterDot, isActive && styles.chapterDotActive, isPast && styles.chapterDotPast]} />
                     <View style={styles.chapterInfo}>
@@ -3192,21 +3222,21 @@ const ps = StyleSheet.create({
   settingsHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
   settingsHeaderText: { color: nothing.white, fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
   settingsContent: { padding: 8, paddingBottom: 10, gap: 1 },
-  sectionLabel: { color: nothing.red, fontSize: 9, fontWeight: "800", letterSpacing: 0.8, marginTop: 6, marginBottom: 2, textTransform: "uppercase" },
+  sectionLabel: { color: nothing.red, fontSize: 11, fontWeight: "800", letterSpacing: 0.8, marginTop: 6, marginBottom: 2, textTransform: "uppercase" },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 2 },
-  chip: { minHeight: 26, paddingHorizontal: 8, borderRadius: 3, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", backgroundColor: "transparent", alignItems: "center", justifyContent: "center" },
+  chip: { minHeight: 48, paddingHorizontal: 10, borderRadius: 3, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", backgroundColor: "transparent", alignItems: "center", justifyContent: "center" },
   chipActive: { backgroundColor: nothing.red, borderColor: nothing.red },
-  chipText: { color: "rgba(255,255,255,0.7)", fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
-  chipTextActive: { color: nothing.white, fontSize: 10, fontWeight: "700" },
-  emptyLine: { color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: "500" },
+  chipText: { color: "rgba(255,255,255,0.85)", fontSize: 11, fontWeight: "700" },
+  chipTextActive: { color: nothing.white, fontSize: 11, fontWeight: "700" },
+  emptyLine: { color: nothing.muted, fontSize: 11, fontWeight: "500" },
   infoRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" },
-  infoLabel: { color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: "600" },
-  infoValue: { color: "rgba(255,255,255,0.8)", fontSize: 10, fontWeight: "700" },
-  diagnosticLine: { color: "rgba(255,255,255,0.3)", fontSize: 9, fontWeight: "600", letterSpacing: 0.3, marginTop: 6 },
+  infoLabel: { color: nothing.muted, fontSize: 11, fontWeight: "600" },
+  infoValue: { color: nothing.white, fontSize: 11, fontWeight: "700" },
+  diagnosticLine: { color: nothing.muted, fontSize: 11, fontWeight: "600", letterSpacing: 0.2, marginTop: 6 },
   offsetValue: { minHeight: 26, paddingHorizontal: 10, borderRadius: 3, borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.05)" },
   offsetValueText: { color: nothing.white, fontSize: 11, fontWeight: "800", fontVariant: ["tabular-nums"], letterSpacing: 0.3 },
   reportButton: { minHeight: 30, marginTop: 10, borderRadius: 3, borderWidth: 1, borderColor: "rgba(255,77,77,0.55)", alignItems: "center", justifyContent: "center" },
-  reportButtonText: { color: nothing.red, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+  reportButtonText: { color: nothing.red, fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
 });
 
 const styles = StyleSheet.create({
@@ -3217,7 +3247,7 @@ const styles = StyleSheet.create({
   closeButton: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 6 },
   topCopy: { flex: 1, gap: 2 },
   title: { color: nothing.white, fontSize: 18, fontWeight: "900", lineHeight: 22, letterSpacing: -0.5 },
-  episodeLabel: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.8 },
+  episodeLabel: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 0.8 },
   videoShell: { width: "100%", aspectRatio: 16 / 9, backgroundColor: nothing.black, overflow: "hidden", position: "relative" },
   video: { flex: 1 },
   gestureOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 2 },
@@ -3232,7 +3262,7 @@ const styles = StyleSheet.create({
   embedBottomInfo: { flex: 1, flexShrink: 1, marginRight: 6 },
   embedBottomLabel: { color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: "700", letterSpacing: 0.3 },
   miniProgress: { position: "absolute", left: 0, right: 0, bottom: 0, height: 2, backgroundColor: "rgba(255,255,255,0.22)", zIndex: 2 },
-  miniProgressBuffered: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.35)" },
+  miniProgressBuffered: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.55)" },
   miniProgressPlayed: { position: "absolute", top: 0, left: 0, bottom: 0, backgroundColor: nothing.red },
   statusToast: { position: "absolute", bottom: 28, alignSelf: "center", zIndex: 14, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 8, backgroundColor: "rgba(0,0,0,0.82)", borderWidth: 1, borderColor: "rgba(255,255,255,0.14)" },
   statusToastText: { color: nothing.white, fontSize: 11, fontWeight: "600", letterSpacing: 0.2 },
@@ -3256,9 +3286,9 @@ const styles = StyleSheet.create({
   iconButton: { width: 30, height: 30, padding: 2, justifyContent: "center", alignItems: "center", flexShrink: 0 },
   iconButtonActive: { backgroundColor: "rgba(255,77,77,0.15)", borderRadius: 4 },
   orientationBadge: { backgroundColor: "rgba(255,77,77,0.85)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 3 },
-  orientationBadgeText: { color: nothing.white, fontFamily: nothing.mono, fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
+  orientationBadgeText: { color: nothing.white, fontFamily: nothing.mono, fontSize: 11, fontWeight: "900", letterSpacing: 0.5 },
   subPillBadge: { backgroundColor: nothing.red, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5, flexShrink: 0 },
-  subPillBadgeText: { color: nothing.black, fontSize: 10, fontWeight: "800", letterSpacing: 0.2, textTransform: "uppercase" },
+  subPillBadgeText: { color: nothing.black, fontSize: 11, fontWeight: "800", letterSpacing: 0.2, textTransform: "uppercase" },
   bottomDeck: { gap: 3, width: "100%" },
   timelineRow: { flexDirection: "row", alignItems: "center", gap: 4, width: "100%" },
   timeLabel: { color: nothing.white, fontSize: 11, fontWeight: "600", minWidth: 34, textAlign: "center", flexShrink: 0, fontVariant: ["tabular-nums"] },
@@ -3289,11 +3319,11 @@ const styles = StyleSheet.create({
   upNextCard: { position: "absolute", bottom: 120, right: 12, zIndex: 15, elevation: 6, flexDirection: "row", gap: 8, alignItems: "center", maxWidth: 260, backgroundColor: "rgba(9,9,9,0.88)", borderRadius: 8, padding: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
   upNextPoster: { width: 44, height: 62, borderRadius: 4, backgroundColor: nothing.raised },
   upNextCopy: { flex: 1, gap: 3 },
-  upNextKicker: { color: nothing.red, fontSize: 10, fontWeight: "800", letterSpacing: 0.6, fontVariant: ["tabular-nums"] },
+  upNextKicker: { color: nothing.red, fontSize: 11, fontWeight: "800", letterSpacing: 0.6, fontVariant: ["tabular-nums"] },
   upNextTitle: { color: nothing.white, fontSize: 12, fontWeight: "700" },
   upNextRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   upNextPlay: { minHeight: 30, paddingHorizontal: 10, justifyContent: "center", borderRadius: 4, backgroundColor: nothing.red },
-  upNextPlayText: { color: nothing.white, fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
+  upNextPlayText: { color: nothing.white, fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
   upNextDismiss: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 4 },
   skipButtonText: { color: nothing.black, fontSize: 11, fontWeight: "800", letterSpacing: 0.3, textTransform: "uppercase" },
   skipCountdown: { color: nothing.muted, fontSize: 11, fontWeight: "700", letterSpacing: 0.2 },
@@ -3310,7 +3340,7 @@ const styles = StyleSheet.create({
   modalItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" },
   modalItemActive: { backgroundColor: "rgba(255,77,77,0.06)" },
   modalItemText: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "600" },
-  modalItemSub: { color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: "600", marginTop: 1 },
+  modalItemSub: { color: nothing.muted, fontSize: 11, fontWeight: "600", marginTop: 1 },
   modalItemTextActive: { color: nothing.red, fontWeight: "700" },
   chapterModalSheet: { backgroundColor: "rgba(9,9,9,0.96)", borderTopLeftRadius: 2, borderTopRightRadius: 2, padding: 14, gap: 4, maxHeight: "70%", borderWidth: 1, borderColor: "rgba(255,255,255,0.06)" },
   chapterList: { gap: 1 },
@@ -3324,9 +3354,9 @@ const styles = StyleSheet.create({
   chapterInfo: { gap: 1 },
   chapterName: { color: nothing.white, fontSize: 11, fontWeight: "700" },
   chapterNameActive: { color: nothing.red },
-  chapterTimestamp: { color: nothing.muted, fontSize: 9, fontWeight: "500", fontVariant: ["tabular-nums"] },
+  chapterTimestamp: { color: nothing.muted, fontSize: 11, fontWeight: "500", fontVariant: ["tabular-nums"] },
   chapterItemRight: { flexDirection: "row", alignItems: "center", gap: 6 },
-  chapterDuration: { color: nothing.dim, fontSize: 9, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  chapterDuration: { color: nothing.dim, fontSize: 11, fontWeight: "600", fontVariant: ["tabular-nums"] },
   chapterEmptyText: { color: nothing.muted, fontSize: 11, textAlign: "center", paddingVertical: 12 },
   contextActions: { alignSelf: "flex-end", alignItems: "flex-end", gap: 4 },
   videoPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: nothing.black },
@@ -3334,16 +3364,16 @@ const styles = StyleSheet.create({
   thumbnailLoadingShade: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.32)" },
   thumbnailLoadingContent: { zIndex: 1, gap: 6, padding: 14, paddingTop: 48, backgroundColor: "rgba(9,9,9,0.68)" },
   thumbnailPlay: { width: 34, height: 34, alignItems: "center", justifyContent: "center", backgroundColor: nothing.white, borderRadius: 4 },
-  thumbnailEpisode: { color: nothing.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+  thumbnailEpisode: { color: nothing.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
   thumbnailTitle: { color: nothing.white, fontSize: 14, lineHeight: 18, fontWeight: "900" },
-  thumbnailStatus: { color: nothing.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+  thumbnailStatus: { color: nothing.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
   placeholderText: { color: nothing.muted, fontSize: 11, fontWeight: "700", letterSpacing: 0.8 },
   errorText: { color: nothing.red, fontSize: 11, fontWeight: "600", textAlign: "center", paddingHorizontal: 20 },
   pointerBoxNone: { pointerEvents: "box-none" },
   pointerNone: { pointerEvents: "none" },
   th3Section: { gap: 10 },
   th3Watching: { fontSize: 16, fontWeight: "900", letterSpacing: -0.4, textAlign: "center", paddingVertical: 10, marginHorizontal: -14, backgroundColor: nothing.surface, borderBottomWidth: 1, borderBottomColor: nothing.line },
-  th3WatchingGreen: { color: nothing.red, fontSize: 16, fontWeight: "900", letterSpacing: -0.4 },
+  th3WatchingMuted: { color: nothing.muted, fontSize: 16, fontWeight: "900", letterSpacing: -0.4 },
   th3WatchingWhite: { color: nothing.white, fontSize: 16, fontWeight: "900", letterSpacing: -0.4 },
   th3Tabs: { flexDirection: "row", gap: 16, marginHorizontal: 14, borderBottomWidth: 1, borderBottomColor: nothing.line },
   th3Tab: { flex: 1, alignItems: "center", paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: "transparent", marginBottom: -1 },
@@ -3370,7 +3400,7 @@ const styles = StyleSheet.create({
   th3EpRowFiller: { color: nothing.dim },
   th3EpRowDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: nothing.red },
   resumeBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: "rgba(0,0,0,0.7)" },
-  resumeBtnText: { color: nothing.white, fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
+  resumeBtnText: { color: nothing.white, fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
   lockedRow: { flex: 1, alignItems: "flex-end", justifyContent: "center" },
   errorBtnRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   errorAction: { paddingHorizontal: 12, paddingTop: 10 },
@@ -3378,34 +3408,34 @@ const styles = StyleSheet.create({
   errorCopy: { color: nothing.muted, fontSize: 12, lineHeight: 16 },
   scroll: { padding: 14, gap: 12 },
   episodeLoading: { minHeight: 72, alignItems: "center", justifyContent: "center", gap: 7, borderTopWidth: 1, borderTopColor: nothing.line },
-  episodeLoadingText: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "900", letterSpacing: 0.7 },
+  episodeLoadingText: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 11, fontWeight: "900", letterSpacing: 0.7 },
   episodePager: { flexDirection: "row", alignItems: "center", gap: 6 },
   episodePagerButton: { flex: 1, minHeight: 32, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3 },
   episodePagerDisabled: { opacity: 0.3 },
-  episodePagerText: { color: nothing.white, fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
-  episodePagerIndicator: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
+  episodePagerText: { color: nothing.white, fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
+  episodePagerIndicator: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
   emptyEpisodeText: { color: nothing.muted, paddingVertical: 14, textAlign: "center", fontSize: 12 },
   swipeHintRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, marginBottom: 2 },
-  swipeHintText: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
+  swipeHintText: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 11, fontWeight: "700", letterSpacing: 0.3 },
   episodeSwipeContainer: { overflow: "hidden" },
   watchCommunitySection: { gap: 10, paddingTop: 2 },
   ratingRow: { gap: 5, paddingVertical: 8, borderTopWidth: 1, borderBottomWidth: 1, borderColor: nothing.line },
-  ratingPrompt: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 9, fontWeight: "900", letterSpacing: 0.4, textTransform: "uppercase" },
+  ratingPrompt: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 11, fontWeight: "900", letterSpacing: 0.4, textTransform: "uppercase" },
   ratingChoices: { flexDirection: "row", gap: 3 },
   ratingChoice: { flex: 1, height: 28, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", borderRadius: 3 },
   ratingChoiceActive: { backgroundColor: nothing.red, borderColor: nothing.red },
-  ratingChoiceText: { color: "rgba(255,255,255,0.4)", fontFamily: nothing.mono, fontSize: 9, fontWeight: "900" },
+  ratingChoiceText: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 11, fontWeight: "900" },
   ratingChoiceTextActive: { color: nothing.white },
   languageRow: { flexDirection: "row", gap: 4 },
   language: { minWidth: 48, minHeight: 28, alignItems: "center", justifyContent: "center", paddingHorizontal: 8, borderRadius: 3, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", backgroundColor: "transparent" },
   languageActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.06)" },
   languageDisabled: { opacity: 0.3 },
-  languageText: { color: "rgba(255,255,255,0.5)", fontFamily: nothing.mono, fontSize: 9, fontWeight: "900", letterSpacing: 0.2 },
+  languageText: { color: "rgba(255,255,255,0.5)", fontFamily: nothing.mono, fontSize: 11, fontWeight: "900", letterSpacing: 0.2 },
   languageTextActive: { color: nothing.red },
   providerDiscovery: { width: "100%", maxWidth: 260, alignItems: "center", gap: 10 },
   providerDiscoveryCopy: { alignItems: "center", gap: 3 },
-  providerDiscoveryTitle: { color: nothing.white, fontFamily: nothing.mono, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
-  providerDiscoveryDetail: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.6 },
+  providerDiscoveryTitle: { color: nothing.white, fontFamily: nothing.mono, fontSize: 11, fontWeight: "900", letterSpacing: 1 },
+  providerDiscoveryDetail: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 0.6 },
 });
 
 // Memoized: the watch screen re-renders every second (progress clock), and

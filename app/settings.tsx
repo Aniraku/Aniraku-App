@@ -57,11 +57,11 @@ export default function SettingsScreen() {
             limited: false,
           });
         setSyncResult((r) => ({ ...r, [provider]: { type: "ok", text } }));
-        setSyncMessage(text.toUpperCase());
+        setSyncMessage(text);
       } else if (job.status === "error") {
         const text = job.message ?? "Export failed";
         setSyncResult((r) => ({ ...r, [provider]: { type: "error", text } }));
-        setSyncMessage(text.toUpperCase());
+        setSyncMessage(text);
       }
     }
   }, [sync.exportJobs]);
@@ -108,21 +108,21 @@ export default function SettingsScreen() {
     try {
       const result = await checkForAnirakuUpdate(installedVersion, { force: true });
       setAvailableRelease(result.available ? result.release : null);
-      setUpdateMessage(result.available && result.release ? `V${result.release.version} IS READY TO INSTALL.` : "YOU ARE USING THE LATEST PUBLISHED BUILD.");
+      setUpdateMessage(result.available && result.release ? `v${result.release.version} is ready to install.` : "You are using the latest published build.");
     } catch (error) {
-      setUpdateMessage(error instanceof Error ? error.message.toUpperCase() : "UPDATE STATUS IS UNAVAILABLE.");
+      setUpdateMessage(error instanceof Error ? error.message : "Update status is unavailable.");
     } finally { setCheckingUpdate(false); }
   };
 
   const installAvailableRelease = async () => {
     if (!availableRelease) return;
     setInstallingUpdate(true);
-    setUpdateMessage("DOWNLOADING VERIFIED APK.");
+    setUpdateMessage("Downloading the verified APK.");
     try {
       await downloadAndInstallAnirakuUpdate(availableRelease);
-      setUpdateMessage("OPENING ANDROID INSTALLER.");
+      setUpdateMessage("Opening the Android installer.");
     } catch (error) {
-      setUpdateMessage(error instanceof Error ? error.message.toUpperCase() : "THE UPDATE COULD NOT START.");
+      setUpdateMessage(error instanceof Error ? error.message : "The update could not start.");
     } finally { setInstallingUpdate(false); }
   };
 
@@ -131,9 +131,9 @@ export default function SettingsScreen() {
       setSyncMessage(null);
       const url = await sync.authorize.mutateAsync(provider);
       await WebBrowser.openBrowserAsync(url, { toolbarColor: nothing.black, controlsColor: nothing.white, showTitle: false });
-      setSyncMessage(`FINISH ${PROVIDER_LABELS[provider].toUpperCase()} APPROVAL IN BROWSER, THEN TAP REFRESH.`);
+      setSyncMessage(`Finish ${PROVIDER_LABELS[provider]} approval in the browser, then tap Refresh.`);
     } catch (error) {
-      setSyncMessage(error instanceof Error ? error.message.toUpperCase() : "PROVIDER CONNECTION COULD NOT START.");
+      setSyncMessage(error instanceof Error ? error.message : "Provider connection could not start.");
     }
   };
 
@@ -152,11 +152,11 @@ export default function SettingsScreen() {
       const data = await sync.importLibrary.mutateAsync(provider);
       const text = describeImport(data);
       setSyncResult((r) => ({ ...r, [provider]: { type: "ok", text } }));
-      setSyncMessage(text.toUpperCase());
+      setSyncMessage(text);
     } catch (error) {
       const text = error instanceof Error ? error.message : "Import failed";
       setSyncResult((r) => ({ ...r, [provider]: { type: "error", text } }));
-      setSyncMessage(text.toUpperCase());
+      setSyncMessage(text);
     } finally {
       setTransferBusy("");
     }
@@ -169,7 +169,7 @@ export default function SettingsScreen() {
     if (job?.status === "running") {
       const label = SYNC_LABELS[provider] ?? provider;
       const text = `Export to ${label} is already running in the background`;
-      setSyncMessage(text.toUpperCase());
+      setSyncMessage(text);
       return;
     }
     setSyncResult((r) => ({ ...r, [provider]: null }));
@@ -223,7 +223,7 @@ export default function SettingsScreen() {
         <AppIcon name="arrow-left" size={21} color={nothing.white} />
       </Pressable>
       <View style={styles.titleBlock}>
-        <DotLabel>ACCOUNT / CONTROL ROOM</DotLabel>
+        <DotLabel>Account</DotLabel>
         <Text style={styles.title}>{t("settings.title")}</Text>
       </View>
     </View>
@@ -233,14 +233,14 @@ export default function SettingsScreen() {
       <View style={styles.rowIcon}><AppIcon name="account" size={18} color={nothing.muted} /></View>
       <View style={styles.rowBody}>
         <Text style={styles.rowLabel}>{auth.user.email}</Text>
-        <Text style={styles.rowMeta}>VERIFIED SESSION</Text>
+        <Text style={styles.rowMeta}>Verified session</Text>
       </View>
-      <Signal label="LIVE" tone="live" />
+      <Signal label="Live" tone="positive" />
     </View>
     <View style={styles.row}>
       <View style={styles.rowIcon}><AppIcon name="account-edit-outline" size={18} color={nothing.muted} /></View>
       <Pressable accessibilityRole="button" accessibilityLabel="Change avatar" onPress={() => setAvatarSheetOpen(true)} style={styles.rowBody}>
-        <Text style={styles.rowLabel}>AVATAR</Text>
+        <Text style={styles.rowLabel}>Avatar</Text>
         <Text style={styles.rowMeta}>Pick from the Aniraku avatar set — synced with the website</Text>
       </Pressable>
       {currentAvatar ? <Image source={{ uri: currentAvatar }} style={styles.avatarPreview} /> : null}
@@ -258,8 +258,8 @@ export default function SettingsScreen() {
     <View style={styles.row}>
       <View style={styles.rowIcon}><AppIcon name="cellphone-arrow-down" size={18} color={nothing.muted} /></View>
       <View style={styles.rowBody}>
-        <Text style={styles.rowLabel}>ANIRAKU V{installedVersion}</Text>
-        <Text style={styles.rowMeta}>{updateMessage || "CHECK FOR THE LATEST BUILD"}</Text>
+        <Text style={styles.rowLabel}>Aniraku v{installedVersion}</Text>
+        <Text style={styles.rowMeta}>{updateMessage || "Check for the latest build"}</Text>
       </View>
       <Pressable accessibilityRole="button" disabled={checkingUpdate} onPress={() => void checkForUpdate()} style={styles.rowAction}>
         <Text style={styles.rowActionText}>{checkingUpdate ? "..." : t("settings.check")}</Text>
@@ -268,7 +268,7 @@ export default function SettingsScreen() {
     {availableRelease ? <View style={styles.row}>
       <View style={styles.rowIcon}><AppIcon name="download" size={18} color={nothing.red} /></View>
       <Pressable accessibilityRole="button" disabled={installingUpdate} onPress={() => void installAvailableRelease()} style={styles.rowBody}>
-        <Text style={[styles.rowLabel, { color: nothing.red }]}>{installingUpdate ? "PREPARING INSTALL" : `INSTALL V${availableRelease.version}`}</Text>
+        <Text style={[styles.rowLabel, { color: nothing.red }]}>{installingUpdate ? "Preparing install" : `Install v${availableRelease.version}`}</Text>
       </Pressable>
     </View> : null}
 
@@ -321,7 +321,7 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
     </View>
-    <Text style={styles.lead}>Move your list between Aniraku and your streaming accounts. Import pulls a provider&apos;s library into Aniraku — favorites with their list statuses (Watching, Plan to Watch, Completed, …), episode progress and scores; local progress reconciles exactly to the provider (stale imported rows are trimmed, real watches are never touched, existing ratings are kept). Export writes each title&apos;s current status and the episodes you actually watched (Plan to Watch exports 0 episodes), skipping titles that already match.</Text>
+    <Text style={styles.lead}>Import pulls a provider&apos;s library into Aniraku — statuses, progress and scores. Export writes the titles and episodes you actually watched, skipping titles that already match.</Text>
 
     {(["mal", "anilist"] as SyncProvider[]).map((provider) => {
       const item = sync.status.data?.[provider];
@@ -341,41 +341,41 @@ export default function SettingsScreen() {
           <View style={styles.rowIcon}><ProviderMark provider={provider} size={18} muted={!connected} /></View>
           <View style={styles.rowBody}>
             <Text style={styles.rowLabel}>{PROVIDER_LABELS[provider]}</Text>
-            <Text style={styles.rowMeta}>{connected ? item?.username ? `READY AS ${item.username.toUpperCase()}` : tokenHealth(item?.expires_at) : item?.configured ? "CONNECT THIS ACCOUNT TO IMPORT OR EXPORT" : "NOT CONFIGURED"}</Text>
+            <Text style={styles.rowMeta}>{connected ? item?.username ? `Ready as ${item.username}` : tokenHealth(item?.expires_at) : item?.configured ? "Connect this account to import or export" : "Not configured"}</Text>
           </View>
-          <Signal label={connected ? "LIVE" : "OFF"} tone={connected ? "live" : "muted"} />
+          <Signal label={connected ? "Live" : "Off"} tone={connected ? "positive" : "muted"} />
         </View>
         {connected ? <View style={styles.providerActions}>
           <Pressable disabled={busy} accessibilityRole="button" onPress={() => void runImport(provider)} style={[styles.providerBtn, busy && styles.btnDisabled]}>
-            <Text style={styles.providerBtnText}>{transferBusy === `${provider}-import` ? "IMPORTING…" : t("settings.import")}</Text>
+            <Text style={styles.providerBtnText}>{transferBusy === `${provider}-import` ? "Importing…" : t("settings.import")}</Text>
           </Pressable>
           <Pressable disabled={busy} accessibilityRole="button" onPress={() => setConfirmExport(provider)} style={[styles.providerBtn, busy && styles.btnDisabled]}>
-            <Text style={styles.providerBtnText}>{jobRunning ? "EXPORTING…" : t("settings.export")}</Text>
+            <Text style={styles.providerBtnText}>{jobRunning ? "Exporting…" : t("settings.export")}</Text>
           </Pressable>
-          <Pressable disabled={busy} accessibilityRole="button" onPress={() => void sync.disconnect.mutateAsync(provider).then(() => setSyncMessage(`${PROVIDER_LABELS[provider].toUpperCase()} DISCONNECTED.`)).catch((error) => setSyncMessage(error.message.toUpperCase()))} style={[styles.providerBtn, styles.disconnectBtn, busy && styles.btnDisabled]}>
+          <Pressable disabled={busy} accessibilityRole="button" onPress={() => void sync.disconnect.mutateAsync(provider).then(() => setSyncMessage(`${PROVIDER_LABELS[provider]} disconnected.`)).catch((error) => setSyncMessage(error.message))} style={[styles.providerBtn, styles.disconnectBtn, busy && styles.btnDisabled]}>
             <Text style={[styles.providerBtnText, styles.disconnectText]}>{t("settings.disconnect")}</Text>
           </Pressable>
         </View> : <View style={styles.providerActions}>
           <Pressable disabled={!item?.configured || busy} accessibilityRole="button" onPress={() => void connectProvider(provider)} style={[styles.providerBtn, styles.connectBtn, (!item?.configured || busy) && styles.btnDisabled]}>
-            <Text style={styles.connectBtnText}>{busy ? "OPENING LINK" : `CONNECT ${PROVIDER_LABELS[provider].toUpperCase()}`}</Text>
+            <Text style={styles.connectBtnText}>{busy ? "Opening link" : `Connect ${PROVIDER_LABELS[provider]}`}</Text>
           </Pressable>
         </View>}
-        {result ? <Text style={result.type === "error" ? styles.syncError : styles.resultOk}>{result.type === "error" ? `⚠ ${result.text.toUpperCase()}` : `✓ ${result.text.toUpperCase()}`}</Text> : null}
-        {jobRunning ? <Text style={styles.resultOk}>EXPORTING TO {(SYNC_LABELS[provider] ?? provider).toUpperCase()} IN THE BACKGROUND… {job.exported} TITLES SO FAR (CHUNK {job.chunks}) — YOU CAN LEAVE THIS PAGE, THE BELL WILL NOTIFY YOU WHEN IT FINISHES.{job.note ? ` ${job.note.toUpperCase()}` : ""}</Text> : null}
+        {result ? <Text style={result.type === "error" ? styles.syncError : styles.resultOk}>{result.text}</Text> : null}
+        {jobRunning ? <Text style={styles.resultOk}>Exporting to {SYNC_LABELS[provider] ?? provider} in the background… {job.exported} titles so far (chunk {job.chunks}). You can leave this page — the bell notifies you when it finishes.{job.note ? ` ${job.note}` : ""}</Text> : null}
         {confirming ? <View style={styles.confirmBox}>
           <Text style={styles.confirmCopy}>Add your Aniraku favorites to your {SYNC_LABELS[provider]} library, preserving list status, watch progress and scores? Titles that already match are skipped.</Text>
           <View style={styles.confirmActions}>
             <Pressable disabled={busy} accessibilityRole="button" onPress={() => runExport(provider)} style={[styles.providerBtn, busy && styles.btnDisabled]}>
-              <Text style={styles.providerBtnText}>{jobRunning ? "EXPORTING…" : "YES, EXPORT"}</Text>
+              <Text style={styles.providerBtnText}>{jobRunning ? "Exporting…" : "Yes, export"}</Text>
             </Pressable>
             <Pressable disabled={busy} accessibilityRole="button" onPress={() => setConfirmExport("")} style={[styles.providerBtn, busy && styles.btnDisabled]}>
-              <Text style={styles.providerBtnText}>CANCEL</Text>
+              <Text style={styles.providerBtnText}>Cancel</Text>
             </Pressable>
           </View>
         </View> : null}
       </View>;
     })}
-    {sync.status.isPending ? <Text style={styles.syncStatus}>CHECKING PROVIDER STATUS</Text> : sync.status.isError ? <Text style={styles.syncError}>{sync.status.error instanceof Error ? sync.status.error.message.toUpperCase() : "SYNC STATUS UNAVAILABLE"}</Text> : null}
+    {sync.status.isPending ? <Text style={styles.syncStatus}>Checking provider status</Text> : sync.status.isError ? <Text style={styles.syncError}>{sync.status.error instanceof Error ? sync.status.error.message : "Sync status is unavailable."}</Text> : null}
     {syncMessage ? <Text style={styles.syncStatus}>{syncMessage}</Text> : null}
     <Text style={styles.footnote}>Connect in the browser while signed in, approve the provider, then return here and refresh.</Text>
 
@@ -465,29 +465,29 @@ const styles = StyleSheet.create({
   rowBody: { flex: 1, gap: 2 },
   rowLabel: { color: nothing.white, fontSize: 14, fontWeight: "800" },
   rowMeta: { color: nothing.muted, fontSize: 11, lineHeight: 15 },
-  rowAction: { paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
-  rowActionText: { color: nothing.white, fontWeight: "800", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase" },
+  rowAction: { minHeight: 44, paddingHorizontal: 12, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
+  rowActionText: { color: nothing.white, fontWeight: "700", fontSize: 12 },
 
-  lead: { color: nothing.muted, fontSize: 12, lineHeight: 17, paddingHorizontal: 4, paddingBottom: 8 },
-  footnote: { color: nothing.dim, fontSize: 11, lineHeight: 16, paddingHorizontal: 4, paddingTop: 4, paddingBottom: 8 },
+  lead: { color: nothing.muted, fontSize: 13, lineHeight: 19, paddingHorizontal: 4, paddingBottom: 8 },
+  footnote: { color: nothing.muted, fontSize: 12, lineHeight: 17, paddingHorizontal: 4, paddingTop: 4, paddingBottom: 8 },
 
-  refresh: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
-  refreshText: { color: nothing.white, fontWeight: "800", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase" },
+  refresh: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 44, paddingHorizontal: 12, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
+  refreshText: { color: nothing.white, fontWeight: "700", fontSize: 12 },
 
-  providerActions: { flexDirection: "row", gap: 6, paddingHorizontal: 40, paddingBottom: 10 },
-  providerBtn: { paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
-  providerBtnText: { color: nothing.white, fontWeight: "800", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase" },
+  providerActions: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 4, paddingBottom: 10 },
+  providerBtn: { minHeight: 44, paddingHorizontal: 14, justifyContent: "center", borderWidth: 1, borderColor: nothing.line, borderRadius: 4 },
+  providerBtnText: { color: nothing.white, fontWeight: "700", fontSize: 12 },
   connectBtn: { backgroundColor: nothing.white, borderColor: nothing.white },
-  connectBtnText: { color: nothing.black, fontWeight: "800", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase" },
+  connectBtnText: { color: nothing.black, fontWeight: "700", fontSize: 12 },
   disconnectBtn: { borderColor: "rgba(255,77,77,0.4)" },
   disconnectText: { color: nothing.red },
   btnDisabled: { opacity: 0.4 },
 
-  syncStatus: { color: nothing.white, fontWeight: "800", fontSize: 10, lineHeight: 14, letterSpacing: 0.3, paddingHorizontal: 4, paddingVertical: 4 },
-  syncError: { color: nothing.red, fontWeight: "800", fontSize: 10, lineHeight: 14, letterSpacing: 0.3, paddingHorizontal: 4, paddingVertical: 4 },
-  resultOk: { color: nothing.green, fontWeight: "800", fontSize: 10, lineHeight: 15, letterSpacing: 0.3, paddingHorizontal: 4, paddingVertical: 4, marginTop: 6, borderWidth: 1, borderColor: "rgba(150,211,123,0.25)", backgroundColor: "rgba(150,211,123,0.08)", borderRadius: 8 },
-  confirmBox: { marginTop: 8, padding: 12, borderRadius: 8, backgroundColor: "rgba(234,179,8,0.08)", borderWidth: 1, borderColor: "rgba(234,179,8,0.3)", gap: 10 },
-  confirmCopy: { color: nothing.white, fontSize: 12, lineHeight: 18 },
+  syncStatus: { color: nothing.muted, fontWeight: "600", fontSize: nothing.type.status, lineHeight: 18, paddingHorizontal: 4, paddingVertical: 4 },
+  syncError: { color: nothing.red, fontWeight: "600", fontSize: nothing.type.status, lineHeight: 18, paddingHorizontal: 4, paddingVertical: 4 },
+  resultOk: { color: nothing.green, fontWeight: "600", fontSize: nothing.type.status, lineHeight: 18, paddingHorizontal: 10, paddingVertical: 8, marginTop: 6, borderWidth: 1, borderColor: "rgba(150,211,123,0.25)", backgroundColor: "rgba(150,211,123,0.08)", borderRadius: 8 },
+  confirmBox: { marginTop: 8, padding: 12, borderRadius: 8, backgroundColor: nothing.raised, borderWidth: 1, borderColor: nothing.line, gap: 10 },
+  confirmCopy: { color: nothing.white, fontSize: nothing.type.status, lineHeight: 18 },
   confirmActions: { flexDirection: "row", gap: 8 },
 
   nsfwWarning: { flex: 1, color: nothing.red, fontSize: 11, lineHeight: 16, fontWeight: "700" },

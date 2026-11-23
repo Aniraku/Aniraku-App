@@ -41,8 +41,8 @@ export function SearchFilterSheet({ visible, filters, onClose, onApply }: Props)
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(event) => event.stopPropagation()}>
+      <Pressable accessibilityRole="button" style={styles.backdrop} onPress={onClose}>
+        <Pressable accessibilityRole="button" style={styles.sheet} onPress={(event) => event.stopPropagation()}>
           <View style={styles.header}>
             <Text style={styles.title}>FILTERS</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="Close filters" onPress={onClose} hitSlop={10} style={({ pressed }) => pressed && styles.pressed}>

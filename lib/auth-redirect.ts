@@ -1,4 +1,6 @@
-export const ANIRAKU_AUTH_REDIRECT_URL = "aniraku://auth";
+/** HTTPS App Link target — verified Android App Links cannot be hijacked by
+ *  another installed app the way the legacy `aniraku://auth` scheme can. */
+export const ANIRAKU_AUTH_REDIRECT_URL = "https://aniraku.tech/auth";
 
 export function signUpVerificationNotice(email: string) {
   const destination = email.trim() || "your email address";

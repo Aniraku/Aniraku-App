@@ -61,7 +61,7 @@ vi.mock("@/lib/watch-engine", () => ({
 
 const { APP_CONFIG } = await import("@/lib/app-config");
 const { buildDownloadRequest, findOfflineDownloadForPlayback, resolveDownloadHold, startMaximumQualityDownload } = await import("@/lib/downloads");
-const { BROWSER_UA, getPlaybackType, sourceVerification } = await import("@/lib/aniraku-api");
+const { BROWSER_UA, isAnirakuProxyUrl, sourceVerification } = await import("@/lib/aniraku-api");
 
 const INDEX_KEY = "aniraku.offline-downloads.v1";
 
@@ -149,6 +149,38 @@ describe("buildDownloadRequest", () => {
     expect(request.kind).toBe("file");
     expect(request.downloadUrl).toBe("https://cdn.example.com/file.mp4");
     expect(request.filename).toContain(".mp4");
+  });
+
+  it("keeps the backend proxy wrapper on a variant URL (provider identity rides in it)", () => {
+    // Regression: unwrapping `?url=…&headers=…` and re-wrapping with app
+    // headers drops the provider Referer/Origin/Cookie, so the backend emits
+    // segment URLs without them and the CDN answers "error code: 502".
+    const wrapped = "https://api.aniraku.tech/api/v1/proxy?url=https%3A%2F%2Fcdn.example.com%2Fv%2F720.m3u8&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fprovider.example%2F%22%7D";
+    vi.mocked(isAnirakuProxyUrl).mockReturnValue(true);
+    try {
+      const request = buildDownloadRequest({
+        ...base,
+        source: { url: wrapped, quality: "Auto", type: "hls" },
+        variantUrl: wrapped,
+        variantQuality: "720p",
+      });
+      expect(request.kind).toBe("hls");
+      expect(request.playlistUrl).toBe(wrapped);
+    } finally {
+      vi.mocked(isAnirakuProxyUrl).mockReturnValue(false);
+    }
+  });
+
+  it("keeps a backend proxy wrapper on progressive sources", () => {
+    const wrapped = "https://api.aniraku.tech/api/v1/proxy?url=https%3A%2F%2Fcdn.example.com%2Fep.mp4&headers=%7B%22Referer%22%3A%22https%3A%2F%2Fprovider.example%2F%22%7D";
+    vi.mocked(isAnirakuProxyUrl).mockReturnValue(true);
+    try {
+      const request = buildDownloadRequest({ ...base, source: { url: wrapped, quality: "720p", type: "file" } });
+      expect(request.kind).toBe("file");
+      expect(request.downloadUrl).toBe(wrapped);
+    } finally {
+      vi.mocked(isAnirakuProxyUrl).mockReturnValue(false);
+    }
   });
 
   it("refuses a non-https explicit variant URL", () => {

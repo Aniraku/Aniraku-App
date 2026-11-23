@@ -123,7 +123,7 @@ export const AnimeComments = memo(function AnimeComments({ animeId, episodeNumbe
     </View>
     {auth.user ? <NothingCard style={styles.composer}>
       {replyTo ? <View style={styles.replyBar}><Text style={styles.replyBarText} numberOfLines={1}>Replying to {authorName(replyTo)}</Text><Pressable accessibilityRole="button" accessibilityLabel="Cancel reply" onPress={() => setReplyTo(null)} style={styles.replyBarClose}><AppIcon name="close" size={14} color={nothing.muted} /></Pressable></View> : null}
-      <TextInput value={content} onChangeText={setContent} placeholder={replyTo ? "Write a reply" : "Share a thought"} placeholderTextColor={nothing.dim} style={styles.input} multiline maxLength={2000} textAlignVertical="top" />
+      <TextInput value={content} onChangeText={setContent} placeholder={replyTo ? "Write a reply" : "Share a thought"} placeholderTextColor={nothing.placeholder} style={styles.input} multiline maxLength={2000} textAlignVertical="top" />
       <View style={styles.composerActions}>
         <Pressable accessibilityRole="button" accessibilityLabel={spoiler ? "Spoiler protection enabled" : "Mark comment as a spoiler"} accessibilityState={{ selected: spoiler }} onPress={() => setSpoiler((value) => !value)} style={({ pressed }) => [styles.tool, spoiler && styles.toolActive, pressed && styles.pressed]}><AppIcon name="eye-off-outline" size={16} color={spoiler ? nothing.red : nothing.white} /><Text style={[styles.toolText, spoiler && styles.toolTextActive]}>SPOILER</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Post comment" disabled={!canPost || comments.add.isPending} onPress={post} style={({ pressed }) => [styles.send, (!canPost || comments.add.isPending) && styles.sendDisabled, pressed && styles.pressed]}>{comments.add.isPending ? <ActivityIndicator size="small" color={nothing.black} /> : <AppIcon name="send" size={16} color={nothing.black} />}</Pressable>
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
   composerActions: { alignItems: "center", borderTopColor: nothing.line, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row", gap: 7, paddingTop: 8 },
   tool: { alignItems: "center", borderColor: "transparent", borderRadius: 7, borderWidth: 1, flexDirection: "row", gap: 5, minHeight: 30, paddingHorizontal: 8 },
   toolActive: { backgroundColor: "rgba(255,77,77,0.10)", borderColor: "rgba(255,77,77,0.55)" },
-  toolText: { color: nothing.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.45 },
+  toolText: { color: nothing.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.45 },
   toolTextActive: { color: nothing.red },
   send: { alignItems: "center", backgroundColor: nothing.white, borderRadius: 7, height: 30, justifyContent: "center", marginLeft: "auto", width: 34 },
   sendDisabled: { opacity: 0.4 },
@@ -198,10 +198,10 @@ const styles = StyleSheet.create({
   initialAvatarText: { color: nothing.black, fontSize: 11, fontWeight: "800" },
   authorCopy: { flex: 1, gap: 1 },
   authorName: { color: nothing.white, fontSize: 13, fontWeight: "800" },
-  authorMeta: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.45 },
+  authorMeta: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 0.45 },
   commentText: { color: nothing.white, fontSize: 14, lineHeight: 20 },
   commentGif: { alignSelf: "flex-start", borderRadius: 7, height: 144, maxWidth: "100%", width: 220 },
   spoilerShield: { alignItems: "center", backgroundColor: "rgba(255,77,77,0.07)", borderColor: "rgba(255,77,77,0.55)", borderRadius: 7, borderStyle: "dashed", borderWidth: 1, flexDirection: "row", gap: 7, justifyContent: "center", minHeight: 48, paddingHorizontal: 10 },
-  spoilerText: { color: nothing.white, fontSize: 10, fontWeight: "800", letterSpacing: 0.35, textAlign: "center" },
-  revealed: { color: nothing.red, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+  spoilerText: { color: nothing.white, fontSize: 11, fontWeight: "800", letterSpacing: 0.35, textAlign: "center" },
+  revealed: { color: nothing.red, fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
 });

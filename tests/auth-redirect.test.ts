@@ -3,7 +3,7 @@ import { ANIRAKU_AUTH_REDIRECT_URL, readCallbackValue, signUpVerificationNotice,
 
 describe("Aniraku Android email verification redirect", () => {
   it("uses the exact registered Android auth callback and gives actionable inbox plus Spam/Junk guidance", () => {
-    expect(ANIRAKU_AUTH_REDIRECT_URL).toBe("aniraku://auth");
+    expect(ANIRAKU_AUTH_REDIRECT_URL).toBe("https://aniraku.tech/auth");
     expect(signUpVerificationNotice("member@aniraku.tech")).toContain("member@aniraku.tech");
     expect(signUpVerificationNotice("member@aniraku.tech")).toContain("Spam or Junk");
     expect(signUpVerificationNotice("member@aniraku.tech")).toContain("Confirm email address");

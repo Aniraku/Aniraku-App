@@ -253,11 +253,10 @@ export async function hasDubForEpisode(animeId: number, episode: number): Promis
   }
 }
 
-const UNSUPPORTED_PROVIDERS = new Set(["flixcloud"]);
+const UNSUPPORTED_PROVIDERS = new Set<string>();
 
-/** Accept every server the backend returns. Only truly broken providers
- *  (flixcloud) are filtered. Deduplicates by display name so the UI never
- *  shows the same provider twice. */
+/** Accept every server the backend returns. Deduplicates by display name so
+ *  the UI never shows the same provider twice. */
 /** Language-based track availability: returns episode counts per language
  *  for an anime (e.g. { sub: 26, dub: 26 }). Requires Android UA + referer. */
 export async function getLanguageTrack(animeId: number): Promise<{ sub: number; dub: number }> {
@@ -276,36 +275,28 @@ export async function getServers(animeId: number, episode: number, lang: "sub" |
     // not an error. The caller decides what to do with zero servers.
     return [];
   }
-  const collect = (skipUnsupported: boolean) => {
-    const seen = new Set<string>();
-    const servers: Server[] = [];
-    for (const server of payload) {
-      const providerName = String(server.provider || "").trim().toLowerCase();
-      const displayName = String(server.name || server.provider || "anikoto").trim().toLowerCase();
-      if (skipUnsupported && (UNSUPPORTED_PROVIDERS.has(providerName) || UNSUPPORTED_PROVIDERS.has(displayName))) continue;
-      const dedupeKey = displayName || providerName;
-      if (seen.has(dedupeKey)) continue;
-      seen.add(dedupeKey);
-      servers.push({
-        id: server.id || `${dedupeKey}:${lang}:${servers.length}`,
-        provider: providerName || dedupeKey,
-        label: String(server.name || server.provider || "ANIKOTO").toUpperCase(),
-        lang: (server.lang || lang) as "sub" | "dub",
-        sources: server.sources?.map(absoluteSource),
-        headers: server.headers,
-        subtitles: server.subtitles && absoluteSubtitles(server.subtitles),
-      });
-    }
-    return servers;
-  };
-  const servers = collect(true);
-  if (servers.length > 0) return servers;
-  // Last resort, not a fallback name: a filtered provider (flixcloud) that is
-  // the ONLY thing the backend lists — e.g. hentai embed-only titles — is
-  // kept instead of returning nothing. The website plays these (verified live,
-  // HTTP 200 embed pages); an honest backend-listed row beats a dead
-  // "no streaming" screen, and the player still rotates past it if it dies.
-  return collect(false);
+  // FlixCloud is a normal HLS provider now (type "hls", direct/proxy sources),
+  // so it is no longer filtered. Keep the loop tolerant of future hard-breaks.
+  const seen = new Set<string>();
+  const servers: Server[] = [];
+  for (const server of payload) {
+    const providerName = String(server.provider || "").trim().toLowerCase();
+    const displayName = String(server.name || server.provider || "anikoto").trim().toLowerCase();
+    if (UNSUPPORTED_PROVIDERS.has(providerName) || UNSUPPORTED_PROVIDERS.has(displayName)) continue;
+    const dedupeKey = displayName || providerName;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    servers.push({
+      id: server.id || `${dedupeKey}:${lang}:${servers.length}`,
+      provider: providerName || dedupeKey,
+      label: String(server.name || server.provider || "ANIKOTO").toUpperCase(),
+      lang: (server.lang || lang) as "sub" | "dub",
+      sources: server.sources?.map(absoluteSource),
+      headers: server.headers,
+      subtitles: server.subtitles && absoluteSubtitles(server.subtitles),
+    });
+  }
+  return servers;
 }
 
 export async function getStream(input: { animeId: number; episode: number; provider: string; lang: "sub" | "dub"; quality?: string; refresh?: boolean }): Promise<StreamResponse> {

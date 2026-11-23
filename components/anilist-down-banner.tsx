@@ -84,7 +84,7 @@ export function AniListDownBanner() {
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={dismiss} statusBarTranslucent>
       <Animated.View style={[styles.backdrop, { opacity }]}>
-        <Pressable style={styles.backdropPress} onPress={dismiss} />
+        <Pressable accessibilityRole="button" style={styles.backdropPress} onPress={dismiss} />
         <Animated.View style={[styles.card, { width: Math.min(SCREEN_W - 48, 380), transform: [{ scale }] }]}>
           <View style={styles.iconWrap}>
             <AppIcon name="cloud-offline-outline" size={28} color={nothing.red} />
@@ -95,7 +95,7 @@ export function AniListDownBanner() {
           </Text>
           <View style={styles.divider} />
           <Text style={styles.hint}>No action needed. This banner will clear itself once AniList responds.</Text>
-          <Pressable onPress={dismiss} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
+          <Pressable accessibilityRole="button" onPress={dismiss} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
             <Text style={styles.buttonText}>GOT IT</Text>
           </Pressable>
         </Animated.View>

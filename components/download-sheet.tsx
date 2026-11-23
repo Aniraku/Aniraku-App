@@ -6,7 +6,6 @@ import { estimateHlsSize, parseMediaPlaylist } from "@/lib/downloads-hls";
 import { anirakuProxyRequestHeaders, anirakuProxyUrl } from "@/lib/aniraku-api";
 import { downloadRequestHeaders, formatBytes, startMaximumQualityDownload } from "@/lib/downloads";
 import { useDownloadSettings } from "@/hooks/use-download-settings";
-import { originalStreamUrl } from "@/lib/hls-variants";
 import type { StreamSource } from "@/lib/types";
 import { AppIcon } from "@/components/app-icon";
 import { nothing } from "@/components/nothing-ui";
@@ -48,15 +47,17 @@ type DownloadSheetProps = {
 const ESTIMATE_TIMEOUT_MS = 8000;
 
 /**
- * Estimate one variant's size by fetching its media playlist straight from
- * the CDN (the same request the native service will make) and summing
+ * Estimate one variant's size by fetching its media playlist through the
+ * backend URL exactly as issued (proxy wrapper or token) and summing
  * EXTINF durations × bandwidth. `null` bytes = estimate unavailable;
  * `live: true` = no ENDLIST, so it can never be saved.
  */
-// PROXY-ONLY (operator decision): estimate fetches ride the Aniraku proxy —
-// direct device fetches are 403'd by the picky CDNs.
+// PROXY-ONLY (operator decision): estimate fetches ride the backend URL with
+// the browser identity. Never unwrap a backend wrapper first — the wrapper
+// carries the provider Referer/Origin/Cookie, and re-wrapping without them
+// makes the upstream answer "error code: 502".
 async function fetchViaProxy(url: string, headers: Record<string, string>, signal?: AbortSignal, method?: string): Promise<Response> {
-  const proxy = anirakuProxyUrl(originalStreamUrl(url), headers);
+  const proxy = anirakuProxyUrl(url, headers);
   return fetch(proxy, { method: method ?? "GET", headers: anirakuProxyRequestHeaders(), signal });
 }
 
@@ -187,7 +188,7 @@ export function DownloadSheet({ visible, onClose, animeId, episode, language, ti
 
   return (
     <Modal visible={visible && options.length > 0} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      <Pressable accessibilityRole="button" style={styles.backdrop} onPress={onClose}>
         <Animated.View style={[styles.sheet, { opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [36, 0] }) }] }]} accessibilityViewIsModal>
           <Text style={styles.kicker}>{`DOWNLOAD · EP ${episode} · ${language.toUpperCase()}`}</Text>
           <View style={styles.header}>
@@ -235,7 +236,7 @@ export function DownloadSheet({ visible, onClose, animeId, episode, language, ti
 const styles = StyleSheet.create({
   backdrop: { flex: 1, padding: 20, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.76)" },
   sheet: { gap: 0, padding: 4, borderRadius: 12, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
-  kicker: { fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase", color: nothing.red, paddingHorizontal: 14, paddingTop: 12 },
+  kicker: { fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase", color: nothing.muted, paddingHorizontal: 14, paddingTop: 12 },
   header: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12, gap: 5 },
   title: { color: nothing.white, fontSize: 16, fontWeight: "900", letterSpacing: -0.3, lineHeight: 21 },
   message: { color: nothing.muted, fontSize: 13, lineHeight: 19 },
@@ -244,11 +245,11 @@ const styles = StyleSheet.create({
   optionPressed: { backgroundColor: nothing.raised },
   optionDisabled: { opacity: 0.5 },
   optionLabel: { flex: 1, color: nothing.white, fontSize: 15, fontWeight: "800" },
-  optionSize: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
+  optionSize: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
   optionSizeAlert: { color: nothing.red },
   optionSizeActive: { color: nothing.white },
   currentDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: nothing.red },
   footer: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14, gap: 4 },
-  storageLine: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
-  wifiLine: { color: nothing.red, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
+  storageLine: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
+  wifiLine: { color: nothing.red, fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
 });

@@ -14,7 +14,7 @@ export function FilterChipGroup({ label, items, selected, onToggle }: { label: s
     <View style={styles.chips}>
       {filterItems.map((item) => {
         const active = selected === item.key;
-        return <Pressable key={item.key} onPress={() => onToggle(active ? null : item.key)} style={[styles.chip, active && styles.chipActive]}>
+        return <Pressable accessibilityRole="button" key={item.key} onPress={() => onToggle(active ? null : item.key)} style={[styles.chip, active && styles.chipActive]}>
           <Text style={[styles.chipText, active && styles.chipTextActive]}>{item.label}</Text>
         </Pressable>;
       })}
@@ -24,10 +24,10 @@ export function FilterChipGroup({ label, items, selected, onToggle }: { label: s
 
 const styles = StyleSheet.create({
   group: { gap: 6, minWidth: 120 },
-  groupLabel: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.4 },
+  groupLabel: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 0.4 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 5 },
   chip: { minHeight: 30, paddingHorizontal: 8, alignItems: "center", justifyContent: "center", borderRadius: 4, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
   chipActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.1)" },
-  chipText: { color: nothing.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.2, textTransform: "uppercase" },
+  chipText: { color: nothing.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.2, textTransform: "uppercase" },
   chipTextActive: { color: nothing.red },
 });

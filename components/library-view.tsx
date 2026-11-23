@@ -373,7 +373,7 @@ export function LibraryView({ variant = "tab" }: LibraryViewProps) {
               value={search}
               onChangeText={setSearch}
               placeholder={tab === "history" ? "Search history…" : "Search saved anime…"}
-              placeholderTextColor={nothing.dim}
+              placeholderTextColor={nothing.placeholder}
               style={styles.searchInput}
               returnKeyType="search"
               autoCapitalize="none"
@@ -494,19 +494,19 @@ const styles = StyleSheet.create({
   searchBox: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, minHeight: 40, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
   searchInput: { flex: 1, minHeight: 38, color: nothing.white, fontSize: 13 },
   offlineBtn: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 40, paddingHorizontal: 12, borderRadius: 6, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
-  offlineText: { color: nothing.white, fontSize: 10, fontWeight: "900", letterSpacing: 0.4 },
+  offlineText: { color: nothing.white, fontSize: 11, fontWeight: "900", letterSpacing: 0.4 },
   chipRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   chip: { minHeight: 30, paddingHorizontal: 10, alignItems: "center", justifyContent: "center", borderRadius: 4, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
   iconChip: { paddingHorizontal: 8, minWidth: 34 },
   chipActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.1)" },
-  chipText: { color: nothing.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.2, textTransform: "uppercase" },
+  chipText: { color: nothing.muted, fontSize: 11, fontWeight: "800", letterSpacing: 0.2, textTransform: "uppercase" },
   chipTextActive: { color: nothing.red },
   statusChipRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, marginHorizontal: 16, marginBottom: 9 },
   alertActions: { flexDirection: "row", gap: 7, marginHorizontal: 16, marginBottom: 9 },
   alertAction: { flex: 1, minHeight: 34, alignItems: "center", justifyContent: "center", borderRadius: 4, borderWidth: 1, borderColor: nothing.line },
   alertActionActive: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.09)" },
   alertActionDisabled: { opacity: 0.35 },
-  alertActionText: { color: nothing.white, fontWeight: "900", fontSize: 10, letterSpacing: 0.25 },
+  alertActionText: { color: nothing.white, fontWeight: "900", fontSize: 11, letterSpacing: 0.25 },
   alertActionTextActive: { color: nothing.red },
   content: { flex: 1 },
   list: { paddingHorizontal: 16, paddingBottom: 30, gap: 0, borderTopWidth: 1, borderTopColor: nothing.line },
@@ -517,7 +517,7 @@ const styles = StyleSheet.create({
   rowBody: { flex: 1, justifyContent: "center", gap: 5 },
   statusPressable: { alignSelf: "flex-start" },
   rowTitle: { color: nothing.white, fontWeight: "900", fontSize: 14, lineHeight: 18 },
-  rowMeta: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.35 },
+  rowMeta: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 0.35 },
   progressTrack: { height: 3, overflow: "hidden", borderRadius: 2, backgroundColor: nothing.line },
   progress: { height: "100%", backgroundColor: nothing.red },
   removeBtn: { width: 34, height: 34, borderRadius: 8, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
@@ -525,11 +525,11 @@ const styles = StyleSheet.create({
   gridImage: { width: "100%", aspectRatio: 2 / 3, borderRadius: 8, overflow: "hidden", backgroundColor: nothing.raised, alignItems: "center", justifyContent: "center" },
   gridLetter: { color: nothing.dim, fontSize: 34, fontWeight: "900" },
   gridBadge: { position: "absolute", top: 6, right: 6, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4, backgroundColor: "rgba(9,9,9,0.82)", borderWidth: 1, borderColor: nothing.line },
-  gridBadgeText: { color: nothing.green, fontFamily: nothing.mono, fontSize: 10, fontWeight: "900" },
+  gridBadgeText: { color: nothing.green, fontFamily: nothing.mono, fontSize: 11, fontWeight: "900" },
   gridStatusBadge: { position: "absolute", top: 6, left: 6, maxWidth: "68%", paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4, backgroundColor: "rgba(9,9,9,0.82)", borderWidth: 1, borderColor: nothing.line },
-  gridStatusBadgeText: { fontFamily: nothing.mono, fontSize: 9, fontWeight: "900", letterSpacing: 0.3, textTransform: "uppercase" },
+  gridStatusBadgeText: { fontFamily: nothing.mono, fontSize: 11, fontWeight: "900", letterSpacing: 0.3, textTransform: "uppercase" },
   gridTitle: { color: nothing.white, fontSize: 13, fontWeight: "800", lineHeight: 17 },
-  gridMeta: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.35 },
+  gridMeta: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 0.35 },
   alert: { minHeight: 72, paddingVertical: 12, gap: 6, borderBottomWidth: 1, borderBottomColor: nothing.line },
   alertText: { color: nothing.white, fontSize: 13, lineHeight: 19 },
   unread: { width: 7, height: 7, borderRadius: 4, backgroundColor: nothing.red, position: "absolute", top: 13, right: 13 },

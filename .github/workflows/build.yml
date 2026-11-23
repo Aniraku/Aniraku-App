@@ -9,7 +9,7 @@ on:
       tag:
         description: "Release tag to build (must match the version in app.config.ts)"
         required: false
-        default: "v5.8.0"
+        default: "v5.9.3"
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -180,26 +180,24 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          name: Aniraku V5.9.2
+          name: Aniraku V5.9.3
           draft: false
           prerelease: false
           body: |
-            ## V5.9.2 — Token-link playback, downloads and subtitles restored
+            ## V5.9.3 — Download 502 fixed, FlixCloud as HLS, fewer launch popups
 
-            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.8.0–v5.9.1.0 — same signing key, no uninstall needed.**
+            Three builds for full coverage (Android 9+). The universal APK contains all architectures. **Installs directly over v5.9.2.0 — same signing key, no uninstall needed.**
 
-            - `aniraku-v5.9.2.0-arm64.apk` — modern (64-bit) devices
-            - `aniraku-v5.9.2.0-arm32.apk` — older / budget (32-bit) devices
-            - `aniraku-v5.9.2.0-universal.apk` — every device
+            - `aniraku-v5.9.3-arm64.apk` — modern (64-bit) devices
+            - `aniraku-v5.9.3-arm32.apk` — older / budget (32-bit) devices
+            - `aniraku-v5.9.3-universal.apk` — every device
 
             ### Fixed
-            - **Token-link playback** — the backend now mints relative `/api/v1/proxy?k=…` links and strips provider headers. The app roots every relative link at `api.aniraku.tech` before ExoPlayer, HLS parsing, subtitles, or downloads see it.
-            - **Downloads save again** — the download builder requires an absolute `https://` playlist; token links are now absolute at the API boundary, so new HLS bundles download and existing saved bundles open.
-            - **Subtitles load without provider Referer/UA** — subtitles stay proxy-wrapped by the app; the backend proxy supplies the browser identity now that `/servers` and `/stream` no longer return provider headers.
-            - **Saved DUB episodes open offline** — the Downloads hub now passes the saved language, and the watch screen falls back to the other saved track for the same episode instead of mounting nothing.
+            - **Downloads stop failing with `Source returned 502`** — after the token-link migration, picky CDNs (anv, animex, FlixCloud…) answered `error code: 502` on every segment because the app stripped the provider Referer/Origin/Cookie. The download builder now keeps the backend-issued `?url=…&headers=…`/`?k=…` playlist URL as-is so provider identity rides with every segment — verified live (segment fetches return 200).
+            - **FlixCloud is treated like every other provider** — the hardcoded unsupported filter is gone; its HLS servers appear beside anikoto/animex/anv and download normally (verified live: Yokan/Monaka masters, variants and segments return 200).
 
-            ### Notice
-            - **Sign-in on builds older than v5.8.0 is being retired.** Your account is NOT affected — nothing is deleted. Update to this release and sign back in.
+            ### Changed
+            - **Fewer launch popups** — the 3-slide first-run onboarding and the timed Patreon supporter takeover modal are removed (Support is a Settings row; consent gate stays, it's legal). The update prompt is now a slim, non-blocking banner with the full check/install still in Settings. Announcements are a compact bar dismissed once per announcement id (persisted), instead of a full-screen modal every app open.
 
             Found a bug or a missing anime? Mail **sho.islam0311@proton.me** — it directly shapes the next release.
           files: ./artifacts/*.apk

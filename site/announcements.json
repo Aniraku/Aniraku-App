@@ -1,7 +1,27 @@
 {
-  "version": 9,
-  "updated": "2026-11-16",
+  "version": 10,
+  "updated": "2026-11-23",
   "announcements": [
+    {
+      "id": "v5-9-3-fewer-popups",
+      "tag": "Fewer launch popups",
+      "title": "V5.9.3 — fewer popups, downloads fixed, FlixCloud as HLS",
+      "banner": "Tired of the launch spam? It's gone — the onboarding tutorial and the supporter takeover modal are out, the update prompt is a slim non-blocking banner, and announcements arrive as a compact bar you can dismiss. Downloads work again after the backend's token-link change, and FlixCloud shows up as a normal provider like the rest.",
+      "body": [
+        "- **Downloads: the `Source returned 502` fix** — after the token-link migration, picky CDNs (anv, animex, FlixCloud…) answered `error code: 502` on every segment because the app stripped the provider headers. The download builder now talks to the backend through the same token links the backend issues, so provider identity rides with every segment again. New HLS bundles save, and existing saved bundles open.",
+        "- **Fewer launch popups** — new users see only the legal consent gate; Support Aniraku is now a Settings row; the update prompt is a slim banner (install it straight from Settings); announcements are a compact bar dismissed once per announcement.",
+        "- **FlixCloud is back as a normal provider** — it shows up in the server list beside anikoto/animex/anv and plays and saves like any other.",
+        "- **Announcement module is quiet** — one compact bar per announcement, never a modal on every app open.",
+        "\nInstall straight over v5.9.2.0. Your account, library, history, and downloaded files are untouched.\n\nBugs or missing anime? Mail sho.islam0311@proton.me — it directly shapes the next release."
+      ],
+      "date": "2026-11-23",
+      "ctaLabel": "View updates",
+      "ctaWeb": "https://aniraku.tech/",
+      "email": "sho.islam0311@proton.me",
+      "emailLabel": "Mail me anything — seriously",
+      "pinned": true,
+      "active": true
+    },
     {
       "id": "v5-9-2-token-links",
       "tag": "Update available",

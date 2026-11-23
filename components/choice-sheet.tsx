@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { AppIcon } from "@/components/app-icon";
@@ -51,6 +51,9 @@ export function ChoiceSheetProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<ChoiceSheetConfig | null>(null);
   const [visible, setVisible] = useState(false);
   const enter = useRef(new Animated.Value(0)).current;
+  // Exit animation state: true while the sheet is animating out, so a sheet
+  // opened mid-exit can supersede the dismissal before it lands.
+  const exiting = useRef(false);
 
   useEffect(() => {
     listener = (next) => {
@@ -69,16 +72,27 @@ export function ChoiceSheetProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!config) return;
+    exiting.current = false; // a freshly opened sheet supersedes any exit in flight
     enter.setValue(0);
     Animated.timing(enter, { toValue: 1, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
   }, [config, enter]);
 
-  const close = () => setVisible(false);
+  // Exit along the entry path (slide down + fade), faster than the enter;
+  // the OS backdrop fade rides the Modal's own animationType.
+  const close = () => {
+    if (exiting.current) return;
+    exiting.current = true;
+    Animated.timing(enter, { toValue: 0, duration: 120, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => {
+      if (!exiting.current) return; // a chained sheet took over — keep it up
+      exiting.current = false;
+      setVisible(false);
+    });
+  };
   const choose = (option: ChoiceOption) => {
     void Haptics.selectionAsync();
-    // Close first so the sheet fades out, then run the action. This lets an
-    // action open ANOTHER sheet cleanly (Save → status picker) in one batch.
-    setVisible(false);
+    // Run the action immediately so it can open ANOTHER sheet cleanly
+    // (Save → status picker); that new sheet supersedes this exit in flight.
+    exiting.current = false;
     option.onPress?.();
   };
 
@@ -86,7 +100,7 @@ export function ChoiceSheetProvider({ children }: { children: ReactNode }) {
     <>
       {children}
       <Modal transparent visible={visible} animationType="fade" onRequestClose={close}>
-        <Pressable style={styles.backdrop} onPress={close}>
+        <Pressable accessibilityRole="button" style={styles.backdrop} onPress={close}>
           <Animated.View style={[styles.sheet, { opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [36, 0] }) }] }]} accessibilityViewIsModal>
             {config?.kicker ? <Text style={styles.kicker}>{config.kicker}</Text> : null}
             <View style={styles.header}>
@@ -129,7 +143,7 @@ export function ChoiceSheetProvider({ children }: { children: ReactNode }) {
 const styles = StyleSheet.create({
   backdrop: { flex: 1, padding: 20, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.76)" },
   sheet: { gap: 0, padding: 4, borderRadius: 12, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
-  kicker: { fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase", color: nothing.red, paddingHorizontal: 14, paddingTop: 12 },
+  kicker: { fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase", color: nothing.muted, paddingHorizontal: 14, paddingTop: 12 },
   header: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12, gap: 5 },
   title: { color: nothing.white, fontSize: 16, fontWeight: "900", letterSpacing: -0.3, lineHeight: 21 },
   message: { color: nothing.muted, fontSize: 13, lineHeight: 19 },
@@ -175,9 +189,11 @@ export function ThemedDialogProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<ThemedDialogConfig | null>(null);
   const [visible, setVisible] = useState(false);
   const dialogEnter = useRef(new Animated.Value(0)).current;
+  const exiting = useRef(false);
 
   useEffect(() => {
     if (!config) return;
+    exiting.current = false; // a newly opened dialog supersedes any exit in flight
     dialogEnter.setValue(0);
     Animated.timing(dialogEnter, { toValue: 1, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
   }, [config, dialogEnter]);
@@ -197,28 +213,37 @@ export function ThemedDialogProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const cancel = () => {
-    setVisible(false);
-    config?.onCancel?.();
+  // Scale/fade out along the entry path (120ms — faster than the 150ms enter),
+  // then unmount. The callback runs immediately; a dialog it opens supersedes
+  // this exit before it lands.
+  const dismiss = (after?: () => void) => {
+    if (exiting.current) return;
+    exiting.current = true;
+    Animated.timing(dialogEnter, { toValue: 0, duration: 120, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => {
+      if (!exiting.current) return;
+      exiting.current = false;
+      setVisible(false);
+    });
+    after?.();
   };
+  const cancel = () => dismiss(() => config?.onCancel?.());
   const confirm = () => {
     void Haptics.selectionAsync();
-    setVisible(false);
-    config?.onConfirm();
+    dismiss(() => config?.onConfirm());
   };
 
   return (
     <>
       {children}
       <Modal transparent visible={visible} animationType="fade" onRequestClose={cancel}>
-        <Pressable style={dialogStyles.backdrop} onPress={cancel}>
+        <Pressable accessibilityRole="button" style={dialogStyles.backdrop} onPress={cancel}>
           <Animated.View style={[dialogStyles.card, { opacity: dialogEnter, transform: [{ scale: dialogEnter.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }] }]} accessibilityViewIsModal>
-            {config?.kicker ? <Text style={dialogStyles.kicker}>{config.kicker}</Text> : null}
+            {config?.kicker ? <Text style={[dialogStyles.kicker, config.destructive && dialogStyles.kickerAlert]}>{config.kicker}</Text> : null}
             <Text style={dialogStyles.title}>{config?.title}</Text>
             {config?.message ? <Text style={dialogStyles.message}>{config.message}</Text> : null}
             <View style={dialogStyles.actions}>
               <Pressable accessibilityRole="button" onPress={cancel} style={({ pressed }) => [dialogStyles.button, pressed && dialogStyles.pressed]}>
-                <Text style={dialogStyles.cancelLabel}>{config?.cancelLabel ?? "CANCEL"}</Text>
+                <Text style={dialogStyles.cancelLabel}>{config?.cancelLabel ?? "Cancel"}</Text>
               </Pressable>
               <Pressable accessibilityRole="button" onPress={confirm} style={({ pressed }) => [dialogStyles.button, pressed && dialogStyles.pressed]}>
                 <Text style={[dialogStyles.confirmLabel, config?.destructive && dialogStyles.destructiveLabel]}>{config?.confirmLabel}</Text>
@@ -259,12 +284,26 @@ export function showThemedToast(config: ThemedToastConfig) {
 export function ThemedToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<ThemedToastConfig | null>(null);
   const appear = useRef(new Animated.Value(0)).current;
+  const exiting = useRef(false);
 
   useEffect(() => {
     if (!toast) return;
+    exiting.current = false; // a new banner supersedes a dismissal in flight
     appear.setValue(0);
     Animated.timing(appear, { toValue: 1, duration: 150, useNativeDriver: true }).start();
   }, [toast, appear]);
+
+  /** Fade the banner out along its entry axis, then clear it. */
+  const dismissToast = useCallback((after?: () => void) => {
+    if (exiting.current) return;
+    exiting.current = true;
+    Animated.timing(appear, { toValue: 0, duration: 100, useNativeDriver: true }).start(() => {
+      if (!exiting.current) return;
+      exiting.current = false;
+      setToast(null);
+    });
+    after?.();
+  }, [appear]);
 
   useEffect(() => {
     toastListener = setToast;
@@ -280,9 +319,9 @@ export function ThemedToastProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Error toasts persist (they carry a Retry); notices clear themselves.
     if (!toast || toast.tone !== "info") return;
-    const timer = setTimeout(() => setToast(null), 4000);
+    const timer = setTimeout(() => dismissToast(), 4000);
     return () => clearTimeout(timer);
-  }, [toast]);
+  }, [toast, dismissToast]);
 
   return (
     <>
@@ -295,15 +334,14 @@ export function ThemedToastProvider({ children }: { children: ReactNode }) {
               accessibilityRole="button"
               accessibilityLabel={toast.actionLabel}
               onPress={() => {
-                setToast(null);
-                toast.onAction?.();
+                dismissToast(() => toast.onAction?.());
               }}
               style={({ pressed }) => [toastStyles.action, pressed && toastStyles.actionPressed]}
             >
               <Text style={toastStyles.actionLabel}>{toast.actionLabel}</Text>
             </Pressable>
           ) : (
-            <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" onPress={() => setToast(null)} style={({ pressed }) => [toastStyles.action, pressed && toastStyles.actionPressed]} hitSlop={17}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" onPress={() => dismissToast()} style={({ pressed }) => [toastStyles.action, pressed && toastStyles.actionPressed]} hitSlop={17}>
               <AppIcon name="close" size={14} color={nothing.muted} />
             </Pressable>
           )}
@@ -316,7 +354,8 @@ export function ThemedToastProvider({ children }: { children: ReactNode }) {
 const dialogStyles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: "center", padding: 32, backgroundColor: "rgba(0,0,0,0.76)" },
   card: { borderRadius: 12, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface, padding: 18, gap: 8 },
-  kicker: { fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase", color: nothing.red },
+  kicker: { fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase", color: nothing.muted },
+  kickerAlert: { color: nothing.red },
   title: { color: nothing.white, fontSize: 16, fontWeight: "900", letterSpacing: -0.3, lineHeight: 21 },
   message: { color: nothing.muted, fontSize: 13, lineHeight: 19 },
   actions: { flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 10 },

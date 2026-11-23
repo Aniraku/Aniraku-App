@@ -15,7 +15,7 @@ export function FirstRunImportPrompt() {
         {firstRun.importError ? (
           <Text style={styles.error}>
             {firstRun.importError instanceof Error
-              ? firstRun.importError.message.toUpperCase()
+              ? firstRun.importError.message
               : "IMPORT COULD NOT COMPLETE."}
           </Text>
         ) : null}
@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
   copy: { gap: 4 },
   title: { color: nothing.white, fontSize: 14, fontWeight: "900" },
   detail: { color: nothing.muted, fontSize: 12, lineHeight: 17 },
-  error: { color: nothing.red, fontSize: 10, fontWeight: "800" },
+  error: { color: nothing.red, fontSize: 11, fontWeight: "800" },
   actions: { flexDirection: "row", gap: 8 },
   primary: {
     minHeight: 34,
@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
     backgroundColor: nothing.white,
   },
   disabled: { opacity: 0.5 },
-  primaryText: { color: nothing.black, fontSize: 10, fontWeight: "900" },
+  primaryText: { color: nothing.black, fontSize: 11, fontWeight: "900" },
   skip: {
     minHeight: 34,
     paddingHorizontal: 14,
@@ -71,5 +71,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: nothing.line,
   },
-  skipText: { color: nothing.white, fontSize: 10, fontWeight: "800" },
+  skipText: { color: nothing.white, fontSize: 11, fontWeight: "800" },
 });

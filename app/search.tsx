@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, router } from "expo-router";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
@@ -11,39 +10,13 @@ import { EMPTY_FILTERS, QUICK_GENRES, coerceFilters, countActiveFilters, filterS
 import { type Anime } from "@/lib/types";
 import { ErrorState, LoadingState, EmptyState } from "@/components/async-state";
 import { AppIcon } from "@/components/app-icon";
-import { DotLabel, nothing } from "@/components/nothing-ui";
+import { nothing } from "@/components/nothing-ui";
 import { NativeScreen } from "@/components/screen";
 import { SearchFilterSheet } from "@/components/search-filter-sheet";
 import { SearchResultRow } from "@/components/search-result-row";
 import { showThemedDialog } from "@/components/choice-sheet";
-
-type HistoryEntry = { term: string; timestamp: number };
-const STORAGE_KEY = "aniraku.search.recent";
-const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-
-function relativeTime(ts: number): string {
-  const diff = Date.now() - ts;
-  if (diff < 60_000) return "Just now";
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-  return `${Math.floor(diff / 86_400_000)}d ago`;
-}
-
-function pruneOldEntries(entries: HistoryEntry[]): HistoryEntry[] {
-  const cutoff = Date.now() - MAX_AGE_MS;
-  return entries.filter((e) => e.timestamp > cutoff);
-}
-
-function upgradeLegacyEntries(raw: unknown): HistoryEntry[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.map((item) => {
-    if (typeof item === "string") return { term: item, timestamp: Date.now() };
-    if (item && typeof item === "object" && "term" in item && "timestamp" in item) {
-      return item as HistoryEntry;
-    }
-    return null;
-  }).filter((e): e is HistoryEntry => e !== null);
-}
+import { useRecentSearches } from "@/hooks/use-search-history";
+import { relativeTime } from "@/lib/search-history";
 
 export default function SearchScreen() {
   const params = useLocalSearchParams<{ genre?: string; sort?: string | string[]; status?: string; format?: string; title?: string }>();
@@ -63,26 +36,10 @@ export default function SearchScreen() {
   const [query, setQuery] = useState("");
   const [retryAt, setRetryAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
-  const [recent, setRecent] = useState<HistoryEntry[]>([]);
+  const { recent, record: recordRecent, remove: removeRecent, clear: clearRecent } = useRecentSearches();
   const [filters, setFilters] = useState<SearchFilters>(() => coerceFilters({ sort: sortFilter?.[0], status: statusFilter, format: formatFilter }));
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-
-  useEffect(() => {
-    void AsyncStorage.getItem(STORAGE_KEY).then((stored) => {
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          const entries = upgradeLegacyEntries(parsed);
-          const pruned = pruneOldEntries(entries);
-          setRecent(pruned);
-          if (pruned.length !== entries.length) {
-            void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(pruned)).catch(() => {});
-          }
-        } catch { /* ignore malformed */ }
-      }
-    }).catch(() => {});
-  }, []);
 
   useEffect(() => {
     // Word-boundary commit: the query fires when a word/sentence unit finishes
@@ -165,15 +122,8 @@ export default function SearchScreen() {
 
   useEffect(() => {
     if (!results.isSuccess || query.length < 2) return;
-    setRecent((current) => {
-      const now = Date.now();
-      const filtered = current.filter((item) => item.term.toLowerCase() !== query.toLowerCase());
-      const next = [{ term: query, timestamp: now }, ...filtered].slice(0, 6);
-      const pruned = pruneOldEntries(next);
-      void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(pruned)).catch(() => {});
-      return pruned;
-    });
-  }, [query, results.isSuccess]);
+    recordRecent(query);
+  }, [query, results.isSuccess, recordRecent]);
 
   const deleteHistoryItem = useCallback((term: string) => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -183,13 +133,7 @@ export default function SearchScreen() {
       message: `"${term}" will leave your search history.`,
       confirmLabel: "DELETE",
       destructive: true,
-      onConfirm: () => {
-        setRecent((current) => {
-          const next = current.filter((e) => e.term.toLowerCase() !== term.toLowerCase());
-          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
-          return next;
-        });
-      },
+      onConfirm: () => removeRecent(term),
     });
   }, []);
 
@@ -217,14 +161,15 @@ export default function SearchScreen() {
       </Pressable>
       <View style={styles.searchInputWrap}>
         <AppIcon name="magnify" size={18} color={nothing.muted} />
-        <TextInput accessibilityRole="search" accessibilityLabel="Search anime" autoFocus={!isCategoryMode} value={input} onChangeText={setInput} onSubmitEditing={() => setQuery(normalizedInput)} placeholder={hasCategory ? `Search in ${categoryLabel}...` : "Search anime..."} placeholderTextColor={nothing.dim} style={styles.input} returnKeyType="search" />
-        {hasCategory ? <Pressable accessibilityRole="button" accessibilityLabel={`Clear ${categoryLabel} category`} onPress={() => router.back()} style={styles.genreClear}><Text style={styles.genreClearText}>{categoryLabel.toUpperCase()}</Text><AppIcon name="close" size={14} color={nothing.red} /></Pressable> : null}
+        <TextInput accessibilityRole="search" accessibilityLabel="Search anime" autoFocus={!isCategoryMode} value={input} onChangeText={setInput} onSubmitEditing={() => setQuery(normalizedInput)} placeholder={hasCategory ? `Search in ${categoryLabel}...` : "Search anime..."} placeholderTextColor={nothing.placeholder} style={styles.input} returnKeyType="search" />
+        {hasCategory ? <Pressable accessibilityRole="button" accessibilityLabel={`Clear ${categoryLabel} category`} onPress={() => router.back()} style={styles.genreClear}><Text style={styles.genreClearText}>{categoryLabel}</Text><AppIcon name="close" size={14} color={nothing.muted} /></Pressable> : null}
       </View>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={activeFilterCount ? `Filters, ${activeFilterCount} active` : "Open filters"}
         onPress={() => setFiltersVisible(true)}
         style={({ pressed }) => [styles.filterBtn, pressed && styles.pressed]}
+        hitSlop={4}
       >
         <AppIcon name="tune-variant" size={17} color={activeFilterCount ? nothing.red : nothing.muted} />
         {activeFilterCount ? <View style={styles.filterBadge}><Text style={styles.filterBadgeText}>{activeFilterCount}</Text></View> : null}
@@ -237,7 +182,7 @@ export default function SearchScreen() {
           <View style={styles.historySection}>
             <View style={styles.historyHead}>
               <Text style={styles.historyLabel}>Recent Searches</Text>
-              <Pressable onPress={() => { setRecent([]); void AsyncStorage.removeItem(STORAGE_KEY); }}>
+              <Pressable accessibilityRole="button" hitSlop={8} onPress={() => clearRecent()}>
                 <Text style={styles.clearBtn}>Clear</Text>
               </Pressable>
             </View>
@@ -267,14 +212,14 @@ export default function SearchScreen() {
     ) : waitingForInput || results.isPending ? (
       <LoadingState label={isCategoryMode ? `Loading ${categoryLabel} anime` : hasQuery ? `Searching for "${normalizedInput}"` : "Loading browse results"} />
     ) : results.isError && media.length === 0 ? (
-      <ErrorState message={results.error?.message ?? "Search is unavailable."} onRetry={retrySearch} retryDisabled={retryIsBlocked} retryLabel={retryIsBlocked ? `TRY AGAIN IN ${retrySeconds}S` : "TRY AGAIN"} />
+      <ErrorState message={results.error?.message ?? "Search is unavailable."} onRetry={retrySearch} retryDisabled={retryIsBlocked} retryLabel={retryIsBlocked ? `Try again in ${retrySeconds}s` : "Try again"} />
     ) : media.length === 0 ? (
       <View style={styles.emptyWrap}>
         <EmptyState
           label={isCategoryMode ? `No ${categoryLabel} anime found.` : hasQuery ? `No titles found for "${query}".` : "No titles match these filters."}
           action={
             activeFilterCount
-              ? { label: "CLEAR FILTERS", onPress: () => setFilters({ ...EMPTY_FILTERS }) }
+              ? { label: "Clear filters", onPress: () => setFilters({ ...EMPTY_FILTERS }) }
               : !retryIsBlocked
                 ? { label: "Retry", onPress: retrySearch }
                 : undefined
@@ -294,9 +239,10 @@ export default function SearchScreen() {
     ) : (
       <View style={styles.resultsWrap}>
         <View style={styles.resultsHead}>
-          <DotLabel tone="live">{isCategoryMode ? categoryLabel?.toUpperCase() : "TOP SEARCH"}</DotLabel>
+          <Text style={styles.resultsTitle}>{isCategoryMode ? categoryLabel : "Results"}</Text>
         </View>
         <FlatList
+          keyboardShouldPersistTaps="handled"
           data={media}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderResult}
@@ -308,7 +254,7 @@ export default function SearchScreen() {
           ListFooterComponent={
             results.hasNextPage ? (
               <Pressable accessibilityRole="button" accessibilityLabel="Load more results" onPress={loadMore} style={({ pressed }) => [styles.loadMore, pressed && styles.pressed]}>
-                <Text style={styles.loadMoreText}>{results.isFetchingNextPage ? "LOADING…" : "LOAD MORE"}</Text>
+                <Text style={styles.loadMoreText}>{results.isFetchingNextPage ? "Loading…" : "Load more"}</Text>
               </Pressable>
             ) : null
           }
@@ -327,9 +273,10 @@ const styles = StyleSheet.create({
   input: { flex: 1, minHeight: 44, color: nothing.white, fontSize: 15 },
   filterBtn: { width: 42, height: 42, borderRadius: 8, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface, alignItems: "center", justifyContent: "center" },
   filterBadge: { position: "absolute", top: 3, right: 3, minWidth: 15, height: 15, paddingHorizontal: 3, borderRadius: 8, backgroundColor: nothing.red, alignItems: "center", justifyContent: "center" },
-  filterBadgeText: { color: nothing.white, fontSize: 9, fontWeight: "900" },
-  genreClear: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: "rgba(255,77,77,0.12)" },
-  genreClearText: { color: nothing.red, fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
+  filterBadgeText: { color: nothing.white, fontSize: 11, fontWeight: "900" },
+  genreClear: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 32, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: nothing.line },
+  genreClearText: { color: nothing.white, fontSize: 12, fontWeight: "700" },
+  resultsTitle: { color: nothing.muted, fontSize: 12.5, fontWeight: "700" },
 
   idleContent: { flex: 1, paddingHorizontal: 16, gap: 24 },
   historySection: { gap: 2 },
@@ -339,12 +286,12 @@ const styles = StyleSheet.create({
   historyRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: nothing.line },
   historyBody: { flex: 1, gap: 1 },
   historyTerm: { color: nothing.white, fontSize: 14, fontWeight: "700" },
-  historyTime: { color: nothing.dim, fontSize: 11, fontWeight: "600" },
+  historyTime: { color: nothing.muted, fontSize: 11, fontWeight: "600" },
 
   genreSection: { gap: 10 },
-  genreLabel: { color: nothing.muted, fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
+  genreLabel: { color: nothing.muted, fontSize: 12.5, fontWeight: "700" },
   genreGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  genreChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
+  genreChip: { minHeight: 44, justifyContent: "center", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface },
   genreChipText: { color: nothing.white, fontSize: 13, fontWeight: "700" },
 
   resultsWrap: { flex: 1 },

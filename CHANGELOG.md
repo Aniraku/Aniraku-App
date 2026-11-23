@@ -4,7 +4,16 @@
 
 This is the public record of meaningful native Android releases. For the currently installable build, open [GitHub Releases](https://github.com/Aniraku/Aniraku-App/releases/latest).
 
-## Unreleased
+## v5.9.3 (V5.9.3) — download 502 fixed, FlixCloud as HLS, fewer launch popups
+
+`FIX / POPUP-REDUCTION`
+
+### Fixed
+- **Downloads stop failing with `Source returned 502`**: the download builder no longer unwraps backend `?url=…&headers=…` / `?k=…` playlist links and re-wraps them with app headers. Provider identity (Referer/Origin/Cookie) rides inside the backend-issued URL; stripping it made the backend emit segment URLs without it, and picky CDNs answered `error code: 502`. Playlists are fetched exactly as issued, relative URIs still resolve against the real CDN base, and single-rendition HLS fallbacks keep the issued URL too.
+- **FlixCloud is treated like every other provider**: the hardcoded unsupported filter is gone, so its HLS servers appear beside anikoto/animex/anv and download normally instead of being classified as embed-only.
+
+### Changed
+- **Fewer launch interruptions**: removed the 3-slide first-run onboarding and the timed Patreon support modal — new users see only the legal consent gate, and Support stays reachable from Settings. The update prompt is now a slim non-blocking banner (full check/install remains in Settings), and announcements are a compact banner dismissed once per announcement id (persisted) instead of a full-screen modal on every app open.
 
 ## v5.9.2.0 (V5.9.2) — token-link playback, downloads and subtitles restored
 

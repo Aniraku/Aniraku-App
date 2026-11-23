@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, padding: 28, justifyContent: "center", backgroundColor: "rgba(0,0,0,0.86)" },
   card: { borderRadius: 12, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface, padding: 18, gap: 8 },
   mark: { marginBottom: 4 },
-  kicker: { color: nothing.red, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase" },
+  kicker: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase" },
   title: { color: nothing.white, fontSize: 16, fontWeight: "900", letterSpacing: -0.3 },
   body: { color: nothing.muted, fontSize: 13, lineHeight: 19 },
   links: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: nothing.line, marginVertical: 6 },

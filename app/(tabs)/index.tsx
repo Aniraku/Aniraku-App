@@ -92,7 +92,7 @@ function ContinueWatchingRail() {
         <View style={styles.continueEmpty}>
           <Text style={styles.continueEmptyTitle}>Nothing here yet</Text>
           <Text style={styles.continueEmptyText}>Start watching to see progress here.</Text>
-          <Pressable onPress={() => router.push("/catalog" as never)} style={({ pressed }) => [styles.browseBtn, pressed && styles.pressed]}>
+          <Pressable accessibilityRole="button" onPress={() => router.push("/catalog" as never)} style={({ pressed }) => [styles.browseBtn, pressed && styles.pressed]}>
             <Text style={styles.browseBtnText}>Browse anime</Text>
           </Pressable>
         </View>
@@ -106,7 +106,7 @@ function ContinueWatchingRail() {
     <View style={styles.section}>
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>Continue Watching</Text>
-        <Pressable onPress={() => router.push("/library" as never)}><Text style={styles.seeAll}>See all</Text></Pressable>
+        <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.push("/library" as never)}><Text style={styles.seeAll}>See all</Text></Pressable>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.continueList}>
         {recent.map((entry) => <ContinueCard key={`${entry.anime_id}:${entry.episode_number}`} entry={entry} onRemove={() => confirmRemove(entry)} />)}
@@ -159,14 +159,13 @@ function TrendingGrid({ items }: { items: { id: number; coverImage?: { large?: s
     <View style={styles.section}>
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>Trending Now</Text>
-        <Pressable onPress={() => router.push({ pathname: "/search", params: { sort: "TRENDING_DESC", title: "Trending Now" } } as never)}><Text style={styles.seeAll}>See all</Text></Pressable>
+        <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.push({ pathname: "/search", params: { sort: "TRENDING_DESC", title: "Trending Now" } } as never)}><Text style={styles.seeAll}>See all</Text></Pressable>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trendingList}>
-        {items.slice(0, 10).map((item, index) => (
+        {items.slice(0, 10).map((item) => (
           <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`${animeTitle(item as any)} — open details`} onPress={() => { hapticLight(); prefetch(item.id); router.push((`/anime/${item.id}`) as never); }} onLongPress={() => openQuickActions(item)} delayLongPress={350} style={({ pressed }) => [styles.trendingCard, pressed && styles.pressed]}>
             <View style={styles.trendingCardImage}>
               <Image source={{ uri: getOptimizedImageUri(item.coverImage?.extraLarge || item.coverImage?.large || "", POSTER_W) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={180} cachePolicy="memory-disk" />
-              <View style={styles.trendingCardBadge}><Text style={styles.trendingCardBadgeText}>HD</Text></View>
             </View>
             <Text style={styles.trendingCardTitle} numberOfLines={1}>{animeTitle(item as any)}</Text>
           </Pressable>
@@ -225,7 +224,7 @@ export default function HomeScreen() {
     await Promise.all([home.refetch(), rails.refetch()]);
     setRefreshing(false);
   };
-  if (home.isPending) return <NativeScreen><InAppEpisodeAlertMonitor /><NativeHeader eyebrow="ANIRAKU" title="Home" action={<View style={styles.topActions}><SearchAction /><NotificationAction onPress={() => setNotifSheetVisible(true)} /></View>} /><ScrollView contentContainerStyle={styles.skeletonContainer} showsVerticalScrollIndicator={false}><SkeletonHero /><Text style={styles.skeletonRailLabel}>TRENDING NOW</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.skeletonRailRow}>{Array.from({ length: 6 }).map((_, i) => <SkeletonRail key={i} />)}</ScrollView><Text style={styles.skeletonRailLabel}>POPULAR RELEASES</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.skeletonRailRow}>{Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}</ScrollView></ScrollView><NotificationSheet visible={notifSheetVisible} onClose={() => setNotifSheetVisible(false)} /></NativeScreen>;
+  if (home.isPending) return <NativeScreen><InAppEpisodeAlertMonitor /><NativeHeader eyebrow="ANIRAKU" title="Home" action={<View style={styles.topActions}><SearchAction /><NotificationAction onPress={() => setNotifSheetVisible(true)} /></View>} /><ScrollView contentContainerStyle={styles.skeletonContainer} showsVerticalScrollIndicator={false}><SkeletonHero /><Text style={styles.skeletonRailLabel}>Trending now</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.skeletonRailRow}>{Array.from({ length: 6 }).map((_, i) => <SkeletonRail key={i} />)}</ScrollView><Text style={styles.skeletonRailLabel}>Popular releases</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.skeletonRailRow}>{Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}</ScrollView></ScrollView><NotificationSheet visible={notifSheetVisible} onClose={() => setNotifSheetVisible(false)} /></NativeScreen>;
 
   if (home.isError || !home.data) return <NativeScreen><InAppEpisodeAlertMonitor /><NativeHeader eyebrow="ANIRAKU" title="Home" action={<View style={styles.topActions}><SearchAction /><NotificationAction onPress={() => setNotifSheetVisible(true)} /></View>} /><ErrorState message={home.error?.message ?? "We could not load anime right now."} onRetry={() => void home.refetch()} /><NotificationSheet visible={notifSheetVisible} onClose={() => setNotifSheetVisible(false)} /></NativeScreen>;
 
@@ -246,14 +245,15 @@ export default function HomeScreen() {
             <Text style={styles.heroTitle} numberOfLines={2}>{animeTitle(hero)}</Text>
             <Text style={styles.heroMeta}>{titleFacts(hero.format, hero.episodes, hero.averageScore)}</Text>
             <View style={styles.heroActions}>
-              <Pressable style={({ pressed }) => [styles.heroPlayBtn, pressed && styles.pressed]} onPress={() => { hapticLight(); prefetch(hero.id); router.push((`/anime/${hero.id}`) as never); }}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`View ${animeTitle(hero)} series`} accessibilityHint="Opens series details" hitSlop={4} style={({ pressed }) => [styles.heroPlayBtn, pressed && styles.pressed]} onPress={() => { hapticLight(); prefetch(hero.id); router.push((`/anime/${hero.id}`) as never); }}>
                 <AppIcon name="play" size={16} color={nothing.black} />
-                <Text style={styles.heroPlayText}>Play</Text>
+                <Text style={styles.heroPlayText}>View</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={heroSaved ? `Remove ${animeTitle(hero)} from My List` : `Add ${animeTitle(hero)} to My List`}
                 disabled={bookmarks.toggle.isPending || bookmarks.add.isPending}
+                hitSlop={4}
                 style={({ pressed }) => [styles.heroListBtn, heroSaved && styles.heroListBtnSaved, pressed && styles.pressed]}
                 onPress={() => {
                   hapticLight();
@@ -272,11 +272,11 @@ export default function HomeScreen() {
       </Pressable> : null}
       <ContinueWatchingRail />
       <TrendingGrid items={home.data.trending.slice(1)} />
-      {rails.data?.ongoing?.length ? <AnimeRail label="02" title="Ongoing" items={rails.data.ongoing} seeAllParams={{ status: "RELEASING", sort: "POPULARITY_DESC", title: "Ongoing" }} /> : rails.isPending ? <RailPlaceholder title="Ongoing" /> : null}
-      {upcomingAnime.length ? <AnimeRail label="06" title="Coming soon" items={upcomingAnime} seeAllParams={{ status: "NOT_YET_RELEASED", sort: "START_DATE", season: upcomingSeason.season, year: String(upcomingSeason.year), title: "Coming Soon" }} /> : null}
-      {home.data.popular.length ? <AnimeRail label="03" title="Popular releases" items={home.data.popular} seeAllParams={{ sort: "POPULARITY_DESC", title: "Popular Releases" }} /> : null}
-      {rails.data?.topMovies?.length ? <AnimeRail label="04" title="Top movies" items={rails.data.topMovies} seeAllParams={{ format: "MOVIE", sort: "SCORE_DESC", title: "Top Movies" }} /> : rails.isPending ? <RailPlaceholder title="Top movies" /> : null}
-      {rails.data?.justFinished?.length ? <AnimeRail label="05" title="Just finished" items={rails.data.justFinished} seeAllParams={{ status: "FINISHED", sort: "END_DATE_DESC", title: "Just Finished" }} /> : rails.isPending ? <RailPlaceholder title="Just finished" /> : null}
+      {rails.data?.ongoing?.length ? <AnimeRail title="Ongoing" items={rails.data.ongoing} seeAllParams={{ status: "RELEASING", sort: "POPULARITY_DESC", title: "Ongoing" }} /> : rails.isPending ? <RailPlaceholder title="Ongoing" /> : null}
+      {upcomingAnime.length ? <AnimeRail title="Coming soon" items={upcomingAnime} seeAllParams={{ status: "NOT_YET_RELEASED", sort: "START_DATE", season: upcomingSeason.season, year: String(upcomingSeason.year), title: "Coming Soon" }} /> : null}
+      {home.data.popular.length ? <AnimeRail title="Popular releases" items={home.data.popular} seeAllParams={{ sort: "POPULARITY_DESC", title: "Popular Releases" }} /> : null}
+      {rails.data?.topMovies?.length ? <AnimeRail title="Top movies" items={rails.data.topMovies} seeAllParams={{ format: "MOVIE", sort: "SCORE_DESC", title: "Top Movies" }} /> : rails.isPending ? <RailPlaceholder title="Top movies" /> : null}
+      {rails.data?.justFinished?.length ? <AnimeRail title="Just finished" items={rails.data.justFinished} seeAllParams={{ status: "FINISHED", sort: "END_DATE_DESC", title: "Just Finished" }} /> : rails.isPending ? <RailPlaceholder title="Just finished" /> : null}
       
     </ScrollView>
     <NotificationSheet visible={notifSheetVisible} onClose={() => setNotifSheetVisible(false)} />
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
   topActions: { flexDirection: "row", gap: 8 },
   skeletonContainer: { gap: 18, paddingHorizontal: 18 },
   skeletonHeroRow: { flexDirection: "row", gap: 10 },
-  skeletonRailLabel: { color: nothing.muted, fontWeight: "800", fontSize: 10, letterSpacing: 0.8, paddingHorizontal: 4 },
+  skeletonRailLabel: { color: nothing.muted, fontWeight: "700", fontSize: 12, letterSpacing: 0.2, paddingHorizontal: 4 },
   skeletonRailRow: { gap: 10 },
 
   hero: { minHeight: 420, marginHorizontal: -18, overflow: "hidden", backgroundColor: nothing.raised },
@@ -297,14 +297,14 @@ const styles = StyleSheet.create({
   heroMask: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.25)" },
   heroContent: { flex: 1, justifyContent: "space-between" },
   heroTop: { zIndex: 1, padding: 16 },
-  heroFormat: { color: nothing.white, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
+  heroFormat: { color: nothing.white, fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
   heroBottom: { zIndex: 1, gap: 8, padding: 16, paddingTop: 80, backgroundColor: "rgba(9,9,9,0.72)" },
   heroTitle: { color: nothing.white, fontWeight: "900", fontSize: 32, letterSpacing: -1, lineHeight: 36 },
-  heroMeta: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+  heroMeta: { color: nothing.muted, fontFamily: nothing.mono, fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
   heroActions: { flexDirection: "row", gap: 10, marginTop: 4 },
-  heroPlayBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20, backgroundColor: nothing.red },
+  heroPlayBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 8, backgroundColor: nothing.red },
   heroPlayText: { color: nothing.black, fontSize: 13, fontWeight: "800" },
-  heroListBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: nothing.line, backgroundColor: "transparent" },
+  heroListBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 8, borderWidth: 1, borderColor: nothing.line, backgroundColor: "transparent" },
   heroListBtnSaved: { borderColor: nothing.red, backgroundColor: "rgba(255,77,77,0.12)" },
   heroListText: { color: nothing.white, fontSize: 13, fontWeight: "800" },
   heroListTextSaved: { color: nothing.red },
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
   section: { gap: 10 },
   sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   sectionTitle: { color: nothing.white, fontSize: 18, fontWeight: "900", letterSpacing: -0.4 },
-  seeAll: { color: nothing.red, fontSize: 12, fontWeight: "800" },
+  seeAll: { color: nothing.muted, fontSize: 12.5, fontWeight: "700" },
 
   continueList: { gap: 10, paddingRight: 4 },
   continueCard: { width: 160, gap: 6 },
@@ -325,28 +325,18 @@ const styles = StyleSheet.create({
   continueProgressFill: { height: "100%", backgroundColor: nothing.red },
   continueInfo: { gap: 2 },
   continueTitle: { color: nothing.white, fontSize: 13, fontWeight: "800", lineHeight: 16 },
-  continueMeta: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
+  continueMeta: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 11, fontWeight: "700", letterSpacing: 0.3 },
 
   continueEmpty: { alignItems: "flex-start", paddingVertical: 20, gap: 6 },
   continueEmptyTitle: { color: nothing.white, fontSize: 16, fontWeight: "900", letterSpacing: -0.4 },
   continueEmptyText: { color: nothing.muted, fontSize: 13, lineHeight: 18 },
-  browseBtn: { marginTop: 4, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 6, backgroundColor: nothing.red },
-  browseBtnText: { color: nothing.black, fontSize: 12, fontWeight: "800" },
+  browseBtn: { marginTop: 4, minHeight: 44, paddingHorizontal: 14, justifyContent: "center", borderRadius: 6, borderWidth: 1, borderColor: nothing.line },
+  browseBtnText: { color: nothing.white, fontSize: 12.5, fontWeight: "700" },
 
   trendingList: { gap: 10, paddingRight: 4 },
   trendingCard: { width: 120, gap: 6 },
   trendingCardImage: { width: "100%", aspectRatio: 3 / 4, borderRadius: 8, overflow: "hidden", backgroundColor: nothing.raised },
-  trendingCardBadge: { position: "absolute", top: 6, left: 6, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 3, backgroundColor: nothing.red },
-  trendingCardBadgeText: { color: nothing.white, fontSize: 8, fontWeight: "900", letterSpacing: 0.5 },
   trendingCardTitle: { color: nothing.white, fontSize: 12, fontWeight: "800", lineHeight: 15 },
-
-  trendingRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6 },
-  trendingThumb: { width: 44, height: 62, borderRadius: 6, overflow: "hidden", backgroundColor: nothing.raised },
-  trendingBody: { flex: 1, gap: 3 },
-  trendingTitle: { color: nothing.white, fontSize: 14, fontWeight: "800", lineHeight: 17 },
-  trendingMeta: { color: nothing.dim, fontFamily: nothing.mono, fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
-  trendingBadge: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 3, backgroundColor: nothing.red },
-  trendingBadgeText: { color: nothing.white, fontSize: 8, fontWeight: "900", letterSpacing: 0.5 },
 
   pressed: nothing.pressed,
 });

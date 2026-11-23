@@ -13,11 +13,13 @@ export function Toggle({ enabled, onToggle, label }: ToggleProps) {
   const thumbAnim = useRef(new Animated.Value(enabled ? 1 : 0)).current;
 
   useEffect(() => {
+    // Only translateX animates (colors swap instantly), so the thumb rides the
+    // native driver; tension/friction ≈ critically damped — no press-response overshoot.
     Animated.spring(thumbAnim, {
       toValue: enabled ? 1 : 0,
-      useNativeDriver: false,
-      tension: 120,
-      friction: 12,
+      useNativeDriver: true,
+      tension: 200,
+      friction: 26,
     }).start();
   }, [enabled, thumbAnim]);
 
@@ -56,7 +58,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
   },
-  trackOn: { borderColor: nothing.red, backgroundColor: nothing.red },
+  trackOn: { borderColor: nothing.white, backgroundColor: nothing.white },
   trackPressed: { opacity: 0.85 },
   thumb: {
     width: 20,

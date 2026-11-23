@@ -1,32 +1,36 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Dimensions, InteractionManager, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Animated, InteractionManager, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 
 import { AppIcon } from "@/components/app-icon";
 import { nothing } from "@/components/nothing-ui";
 import {
+  ANNOUNCEMENT_DISMISS_KEY,
   fetchAnnouncements,
   selectBannerAnnouncement,
   shouldShowAnnouncement,
   type Announcement,
 } from "@/lib/announcements";
 
-// Session-scoped dismissal: this Set lives for one app run (module state), so a
-// close hides the banner until the app is reopened — never persisted to disk.
+// Same-run guard so a dismissal hides the banner immediately, before the
+// AsyncStorage write settles.
 const dismissedThisSession = new Set<string>();
 
 /**
- * Remote-driven donation/announcement prompt. Reads site/announcements.json from
+ * Minimal, non-blocking announcement bar. Reads site/announcements.json from
  * GitHub (independent of the streaming backend) so announcements can be posted
- * and updated without a new Android release. It appears every time the app opens
- * and is dismissible for the current session only. Renders nothing offline.
+ * without a new Android release.
+ *
+ * Shown once per announcement id: closing it persists the dismissal, so the
+ * same announcement never re-opens on later launches. A new announcement id
+ * shows once more. Renders nothing offline.
  */
 export function AnnouncementBanner() {
   const router = useRouter();
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [visible, setVisible] = useState(false);
-  const scale = useRef(new Animated.Value(0.92)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
+  const enter = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     let cancelled = false;
@@ -35,10 +39,13 @@ export function AnnouncementBanner() {
     const interaction = InteractionManager.runAfterInteractions(() => {
       void (async () => {
         try {
-          const list = await fetchAnnouncements();
+          const [stored, list] = await Promise.all([
+            AsyncStorage.getItem(ANNOUNCEMENT_DISMISS_KEY).catch(() => null),
+            fetchAnnouncements(),
+          ]);
           const banner = selectBannerAnnouncement(list);
           if (!banner || cancelled) return;
-          const dismissedId = dismissedThisSession.has(banner.id) ? banner.id : null;
+          const dismissedId = dismissedThisSession.has(banner.id) ? banner.id : stored;
           if (shouldShowAnnouncement({ announcement: banner, dismissedId })) {
             setAnnouncement(banner);
             setVisible(true);
@@ -56,118 +63,87 @@ export function AnnouncementBanner() {
 
   useEffect(() => {
     if (!visible) return;
-    scale.setValue(0.92);
-    opacity.setValue(0);
-    Animated.parallel([
-      Animated.spring(scale, { toValue: 1, friction: 9, tension: 80, useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-    ]).start();
-  }, [visible, scale, opacity]);
+    enter.setValue(0);
+    Animated.timing(enter, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+  }, [visible, enter]);
 
-  const close = (remember: boolean) => {
-    if (remember && announcement) {
+  const dismiss = () => {
+    if (announcement) {
       dismissedThisSession.add(announcement.id);
+      void AsyncStorage.setItem(ANNOUNCEMENT_DISMISS_KEY, announcement.id).catch(() => {});
     }
-    Animated.parallel([
-      Animated.timing(scale, { toValue: 0.92, duration: 180, useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 0, duration: 180, useNativeDriver: true }),
-    ]).start(() => setVisible(false));
+    setVisible(false);
   };
 
-  const donate = () => {
-    const target = announcement?.ctaApp || "/support";
-    close(true);
-    router.push(target as never);
-  };
-
-  const email = () => {
-    if (!announcement?.email) return;
-    close(true);
-    void Linking.openURL(`mailto:${announcement.email}`).catch(() => {});
+  const open = () => {
+    if (!announcement) return;
+    dismiss();
+    if (announcement.ctaApp) {
+      router.push(announcement.ctaApp as never);
+    } else if (announcement.ctaWeb) {
+      void Linking.openURL(announcement.ctaWeb).catch(() => {});
+    }
   };
 
   if (!visible || !announcement) return null;
 
-  const { width: SCREEN_W } = Dimensions.get("window");
+  const hasTarget = Boolean(announcement.ctaApp || announcement.ctaWeb);
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={() => close(true)} statusBarTranslucent>
-      <Animated.View style={[styles.backdrop, { opacity }]}>
-        <Pressable style={styles.backdropPress} onPress={() => close(true)} />
-        <Animated.View style={[styles.card, { width: Math.min(SCREEN_W - 48, 380), transform: [{ scale }] }]}>
-          <View style={styles.iconWrap}>
-            <AppIcon name="heart-outline" size={26} color={nothing.red} />
+    <Animated.View
+      style={[
+        styles.banner,
+        { opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] },
+      ]}
+    >
+      <Pressable
+        accessibilityRole={hasTarget ? "button" : undefined}
+        disabled={!hasTarget}
+        onPress={open}
+        style={styles.body}
+      >
+        {!!announcement.tag && (
+          <View style={styles.tag}>
+            <Text style={styles.tagText} numberOfLines={1}>{announcement.tag}</Text>
           </View>
-          {!!announcement.tag && (
-            <View style={styles.tag}>
-              <Text style={styles.tagText}>{announcement.tag}</Text>
-            </View>
-          )}
-          <Text style={styles.title}>{announcement.title}</Text>
-          {!!announcement.banner && <Text style={styles.body}>{announcement.banner}</Text>}
-          {!!announcement.body?.length && (
-            <ScrollView style={styles.bodyScroll} contentContainerStyle={styles.bodyScrollContent} showsVerticalScrollIndicator={false}>
-              {announcement.body.map((paragraph, index) => (
-                <Text key={index} style={styles.body}>{paragraph}</Text>
-              ))}
-            </ScrollView>
-          )}
-          <View style={styles.divider} />
-          <Pressable onPress={donate} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
-            <Text style={styles.buttonText}>{(announcement.ctaLabel || "Donate now").toUpperCase()} →</Text>
-          </Pressable>
-          {!!announcement.email && (
-            <Pressable onPress={email} style={({ pressed }) => [styles.emailBtn, pressed && styles.pressed]}>
-              <Text style={styles.emailText}>{(announcement.emailLabel || "Email us").toUpperCase()} →</Text>
-            </Pressable>
-          )}
-          <Pressable onPress={() => close(true)} hitSlop={8} style={styles.later}>
-            <Text style={styles.laterText}>MAYBE LATER</Text>
-          </Pressable>
-        </Animated.View>
-      </Animated.View>
-    </Modal>
+        )}
+        <Text style={styles.title} numberOfLines={2}>{announcement.title}</Text>
+      </Pressable>
+      {hasTarget ? <AppIcon name="chevron-right" size={16} color={nothing.dim} /> : null}
+      <Pressable accessibilityRole="button" accessibilityLabel="Dismiss announcement" onPress={dismiss} hitSlop={10} style={styles.close}>
+        <AppIcon name="close" size={14} color={nothing.muted} />
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.72)",
-    justifyContent: "center",
+  banner: {
+    flexDirection: "row",
     alignItems: "center",
-    zIndex: 9999,
-  },
-  backdropPress: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  card: {
-    backgroundColor: "#1a1a18",
-    borderRadius: 8,
+    gap: 10,
+    paddingVertical: 10,
+    paddingLeft: 12,
+    paddingRight: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: "rgba(255,77,77,0.28)",
-    padding: 26,
-    gap: 12,
-    elevation: 16,
-    shadowColor: "#FF4D4D",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.16,
-    shadowRadius: 24,
+    backgroundColor: "#171715",
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
   },
-  iconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 8,
-    backgroundColor: "rgba(255,77,77,0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(255,77,77,0.2)",
+  body: {
+    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 10,
   },
   tag: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 4,
     backgroundColor: nothing.red,
   },
@@ -175,68 +151,19 @@ const styles = StyleSheet.create({
     color: nothing.black,
     fontSize: 10,
     fontWeight: "900",
-    letterSpacing: 1.2,
+    letterSpacing: 0.8,
   },
   title: {
+    flex: 1,
     color: nothing.white,
-    fontSize: 21,
-    fontWeight: "900",
-    letterSpacing: -0.5,
-    lineHeight: 25,
-  },
-  body: {
-    color: nothing.muted,
-    fontSize: 13.5,
-    lineHeight: 19,
-  },
-  // Body paragraphs scroll inside the card so a long announcement can never
-  // push the buttons off-screen on small devices.
-  bodyScroll: {
-    maxHeight: Math.min(Dimensions.get("window").height * 0.26, 220),
-  },
-  bodyScrollContent: {
-    gap: 8,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: nothing.line,
-    marginVertical: 2,
-  },
-  button: {
-    marginTop: 2,
-    paddingVertical: 14,
-    borderRadius: 8,
-    backgroundColor: nothing.white,
-    alignItems: "center",
-  },
-  buttonText: {
-    color: nothing.black,
-    fontSize: 12,
-    fontWeight: "900",
-    letterSpacing: 0.8,
-  },
-  emailBtn: {
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: nothing.line,
-    alignItems: "center",
-  },
-  emailText: {
-    color: nothing.green,
-    fontSize: 11,
-    fontWeight: "900",
-    letterSpacing: 0.8,
-  },
-  later: {
-    alignItems: "center",
-    paddingVertical: 6,
-  },
-  laterText: {
-    color: nothing.dim,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: "800",
-    letterSpacing: 1,
+    lineHeight: 17,
   },
-  pressed: nothing.pressedSubtle,
+  close: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

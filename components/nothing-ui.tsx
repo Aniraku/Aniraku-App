@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View, type GestureResponderEvent, type StyleProp, type ViewStyle } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type StyleProp, type ViewStyle } from "react-native";
 import * as Haptics from "expo-haptics";
 import { AppIcon } from "@/components/app-icon";
 import { useTheme, lightColors, darkColors } from "@/providers/theme-provider";
@@ -11,7 +11,10 @@ export const nothing = {
   line: "#343434",
   white: "#F6F6F2",
   muted: "#A2A2A0",
-  dim: "#666664",
+  /** De-emphasized text — still above 4.5:1 on the dark surface. */
+  dim: "#8A8A88",
+  /** Placeholder grey — 4.5:1 on the dark surface, the house contrast floor. */
+  placeholder: "#7E7E7C",
   red: "#FF4D4D",
   green: "#96D37B",
   font: "SpaceGrotesk-Regular",
@@ -28,6 +31,8 @@ export const nothing = {
   trackingNormal: 0.3 as const,
   /** Wide tracking for uppercase kickers, eyebrow labels, and small caps. */
   trackingWide: 0.6 as const,
+  /** Fixed utility text scale — the only small sizes; screens never mint half-steps. */
+  type: { utility: 11.5, status: 12.5, link: 13.5, body: 14.5 },
 } as const;
 
 export function useThemeColors() {
@@ -72,17 +77,23 @@ export function NothingButton({
   onPress,
   variant = "primary",
   disabled = false,
+  sentence = false,
+  loading = false,
 }: {
   label: string;
   onPress: (event: GestureResponderEvent) => void;
   variant?: "primary" | "outline" | "danger";
   disabled?: boolean;
+  /** Sentence-case label for form-heavy surfaces (auth, sheets). Default keeps the app-wide uppercase style. */
+  sentence?: boolean;
+  /** Inline spinner; the button disables itself while loading. */
+  loading?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      disabled={disabled}
+      disabled={disabled || loading}
       onPress={(event) => {
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress(event);
@@ -92,22 +103,23 @@ export function NothingButton({
         variant === "primary" && styles.primaryButton,
         variant === "outline" && styles.outlineButton,
         variant === "danger" && styles.dangerButton,
-        disabled && styles.disabledButton,
+        (disabled || loading) && styles.disabledButton,
         pressed && styles.pressed,
       ]}
     >
-      <Text style={[styles.buttonText, variant === "primary" ? styles.primaryButtonText : styles.outlineButtonText]}>{label}</Text>
+      {loading ? <ActivityIndicator size="small" color={variant === "primary" ? nothing.black : nothing.white} style={styles.buttonSpinner} /> : null}
+      <Text style={[styles.buttonText, variant === "primary" ? styles.primaryButtonText : styles.outlineButtonText, sentence && styles.sentenceButtonText]}>{label}</Text>
     </Pressable>
   );
 }
 
-export function Signal({ label, tone = "live", color: colorOverride }: { label: string; tone?: "live" | "signal" | "muted"; color?: string }) {
-  const color = colorOverride ?? (tone === "signal" || tone === "live" ? nothing.red : nothing.muted);
+export function Signal({ label, tone = "live", color: colorOverride }: { label: string; tone?: "live" | "signal" | "muted" | "positive"; color?: string }) {
+  const color = colorOverride ?? (tone === "positive" ? nothing.green : tone === "muted" ? nothing.muted : nothing.red);
   return <View style={styles.signalRow}><View style={[styles.signalDot, { backgroundColor: color }]} /><Text style={[styles.signalText, { color }]}>{label}</Text></View>;
 }
 
 const styles = StyleSheet.create({
-  dotLabel: { fontFamily: nothing.mono, fontSize: 10, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase" },
+  dotLabel: { fontFamily: nothing.mono, fontSize: nothing.type.utility, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase" },
   downloadLabel: { flexDirection: "row", alignItems: "center", gap: 5 },
   mark: { alignItems: "center", justifyContent: "center", borderWidth: 1, overflow: "hidden" },
   markOrbit: { width: "56%", height: "56%", borderWidth: 2, borderRadius: 99, opacity: 0.9 },
@@ -120,9 +132,11 @@ const styles = StyleSheet.create({
   disabledButton: { opacity: 0.45 },
   pressed: nothing.pressed,
   buttonText: { fontSize: 13, fontWeight: "900", letterSpacing: 0.25, textTransform: "uppercase" },
+  sentenceButtonText: { textTransform: "none", fontSize: nothing.type.body, fontWeight: "700", letterSpacing: 0.1 },
+  buttonSpinner: { marginRight: 9 },
   primaryButtonText: { color: nothing.black },
   outlineButtonText: { color: nothing.white },
   signalRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   signalDot: { width: 7, height: 7, borderRadius: 4 },
-  signalText: { fontSize: 10, fontWeight: "700", letterSpacing: 1 },
+  signalText: { fontSize: nothing.type.status, fontWeight: "600", letterSpacing: 0.2, lineHeight: 18 },
 });

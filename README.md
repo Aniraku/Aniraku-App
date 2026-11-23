@@ -24,14 +24,14 @@
   &nbsp;
   <a href="https://aniraku.github.io/Aniraku-App/">App Site</a>
   &nbsp;
-  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.9.2.0">V5.9.2 Notes</a>
+  <a href="https://github.com/Aniraku/Aniraku-App/releases/tag/v5.9.3">V5.9.3 Notes</a>
   &nbsp;
   <a href="./SUPPORT.md">SUPPORT ANIRAKU</a>
 </div>
 <br>
 
 > [!IMPORTANT]
-> **v5.9.2 is the current release** — compatibility fix for the backend's token-link proxy: playback, HLS quality parsing, downloads, saved episodes (including DUB), and subtitles now resolve opaque `/api/v1/proxy?k=…` links against `Backend`. Subtitles keep riding the proxy even though the API no longer returns provider Referer/UA headers. Installs directly over v5.8.0–v5.9.1.0.
+> **v5.9.3 is the current release** — fixes the `Source returned 502` download failures after the token-link migration and treats FlixCloud as a normal HLS provider (like anikoto/animex/anv); launch popups are reduced — onboarding and the PAT-reon takeover modal are gone, the update prompt is a slim non-blocking banner, and announcements arrive once per announcement instead of every app open. Installs directly over v5.9.2.0.
 
 > [!CAUTION]
 >If it has saved you time, a small donation keeps it up. And the library keeps growing — **missing an anime?** Email [`sho.islam0311@proton.me`](mailto:sho.islam0311@proton.me) and it'll get added.

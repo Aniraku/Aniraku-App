@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Linking from "expo-linking";
 import { router, useLocalSearchParams } from "expo-router";
-import { ActivityIndicator, Animated, AppState, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Animated, AppState, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useAnirakuAuth } from "@/providers/auth-provider";
 import { supabase } from "@/lib/supabase";
 import type { EmailOtpType } from "@supabase/supabase-js";
@@ -9,10 +9,22 @@ import { readCallbackValue, signUpVerificationNotice, verificationResentNotice }
 import { emailProblemOrTypo } from "@/lib/auth-validation";
 import { APP_CONFIG } from "@/lib/app-config";
 import { AnirakuMark, DotLabel, NothingButton, NothingCard, nothing, Signal } from "@/components/nothing-ui";
+import { AppIcon } from "@/components/app-icon";
 import { NativeScreen } from "@/components/screen";
 
 type Mode = "signIn" | "signUp" | "forgot" | "recovery";
+
+/** One copy source per mode — heading, lead, action and busy label stay in step. */
+const MODE_COPY: Record<Mode, { heading: string; lead: string; action: string; busy: string }> = {
+  signIn: { heading: "Sign in", lead: "Your favorites, progress and preferences — on every device.", action: "Sign in", busy: "Signing in…" },
+  signUp: { heading: "Create account", lead: "One account for your library, watchlist and alerts.", action: "Create account", busy: "Creating account…" },
+  forgot: { heading: "Recover access", lead: "We'll email you a link to set a new password.", action: "Send recovery link", busy: "Sending…" },
+  recovery: { heading: "New password", lead: "Set a new password for your account.", action: "Update password", busy: "Updating password…" },
+};
 type VerificationPending = { email: string; detail: string } | null;
+type EmailCheck = { state: "checking" | "ok" | "invalid" | "exists" | "no-mx" | "no-mailbox"; hint: string; suggestion?: string } | null;
+type UsernameState = "idle" | "checking" | "available" | "taken";
+type FocusedField = "username" | "email" | "password" | null;
 
 export default function AuthScreen() {
   const params = useLocalSearchParams<{ mode?: string; code?: string; token_hash?: string; type?: string }>();
@@ -26,6 +38,10 @@ export default function AuthScreen() {
   const [verificationPending, setVerificationPending] = useState<VerificationPending>(null);
   const [resendingVerification, setResendingVerification] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [focusedField, setFocusedField] = useState<FocusedField>(null);
+  const emailInputRef = useRef<TextInput | null>(null);
+  const passwordInputRef = useRef<TextInput | null>(null);
   // "Check your mail" confirmation — the last look at the address before the
   // verification mail (and the account) exists.
   const [confirmingEmail, setConfirmingEmail] = useState(false);
@@ -38,7 +54,8 @@ export default function AuthScreen() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [usernameState, setUsernameState] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const signUpInFlight = useRef(false);
+  const [usernameState, setUsernameState] = useState<UsernameState>("idle");
   const callbackQuery = useMemo(() => incomingUrl ? Linking.parse(incomingUrl).queryParams : undefined, [incomingUrl]);
   const callbackMode = readCallbackValue(params.mode || callbackQuery?.mode);
   const code = readCallbackValue(params.code || callbackQuery?.code);
@@ -82,7 +99,7 @@ export default function AuthScreen() {
   const cooldownActive = resendCooldown > 0;
   // PUBLIC verify-email API (api.aniraku.tech edge function): warns before
   // submit when the email is malformed for delivery or already registered.
-  const [emailCheck, setEmailCheck] = useState<{ state: "checking" | "ok" | "invalid" | "exists" | "no-mx" | "no-mailbox"; hint: string } | null>(null);
+  const [emailCheck, setEmailCheck] = useState<EmailCheck>(null);
   useEffect(() => {
     if (mode !== "signUp" || email.length < 6 || !email.includes("@") || emailProblemOrTypo(email)) { setEmailCheck(null); return; }
     const timer = setTimeout(() => {
@@ -96,11 +113,11 @@ export default function AuthScreen() {
           });
           if (!res.ok) { setEmailCheck(null); return; }
           const data = await res.json();
-          if (data.exists) setEmailCheck({ state: "exists", hint: "This email is already registered — switch to SIGN IN." });
+          if (data.exists) setEmailCheck({ state: "exists", hint: "This email is already registered." });
           else if (data.valid === false && data.reason === "format") setEmailCheck({ state: "invalid", hint: "That email address doesn't look right." });
           else if (data.valid === false) setEmailCheck({ state: "no-mx", hint: "This email domain can't receive mail — check for typos." });
           else if (data.deliverable === false) setEmailCheck({ state: "no-mailbox", hint: "This mailbox doesn't exist — the address can't receive mail. Check for typos." });
-          else if (data.suggestion) setEmailCheck({ state: "invalid", hint: `Did you mean ${data.suggestion}?` });
+          else if (data.suggestion) setEmailCheck({ state: "invalid", hint: "Did you mean", suggestion: String(data.suggestion) });
           else setEmailCheck({ state: "ok", hint: "" });
         } catch { setEmailCheck(null); }
       })();
@@ -133,31 +150,52 @@ export default function AuthScreen() {
     return () => clearInterval(timer);
   }, [cooldownActive]);
 
+  /** Switch modes without dragging the previous mode's status along. */
+  const switchMode = (next: Mode) => {
+    setError(null);
+    setMessage(null);
+    setShowPassword(false);
+    setMode(next);
+  };
+
   /** The actual account creation — runs only after the user confirms their
    *  email address in the check-your-mail dialog. */
   const finishSignUp = async () => {
+    if (signUpInFlight.current) return;
+    signUpInFlight.current = true;
     setBusy(true); setError(null); setMessage(null);
     try {
-      await auth.signUp(email, password, username);
+      const signupEmail = email.trim();
+      const signupUsername = username.trim().toLowerCase();
+      await auth.signUp(signupEmail, password, signupUsername);
       setMode("signIn"); setPassword(""); setMessage(null);
-      setVerificationPending({ email: email.trim(), detail: signUpVerificationNotice(email) });
+      setVerificationPending({ email: signupEmail, detail: signUpVerificationNotice(signupEmail) });
     } catch (submitError) { setError(submitError instanceof Error ? submitError.message : "Authentication could not be completed."); }
-    finally { setBusy(false); }
+    finally { signUpInFlight.current = false; setBusy(false); }
   };
 
   const submit = async () => {
+    if (busy) return;
     setError(null); setMessage(null);
     try {
-      if (mode === "signIn") { setBusy(true); await auth.signIn(email, password); router.replace("/(tabs)" as never); return; }
+      if (mode === "signIn") {
+        const signInEmail = email.trim();
+        if (!signInEmail) throw new Error("Enter your email address.");
+        if (!password) throw new Error("Enter your password.");
+        setBusy(true); await auth.signIn(signInEmail, password); router.replace("/(tabs)" as never); return;
+      }
       if (mode === "signUp") {
+        if (usernameState === "checking") throw new Error("Checking username availability…");
         const emailProblem = emailProblemOrTypo(email);
         if (emailProblem) throw new Error(emailProblem);
-        if (emailCheck?.state === "exists") throw new Error("This email is already registered — switch to SIGN IN.");
+        if (emailCheck?.state === "exists") throw new Error("This email is already registered. Switch to sign in instead.");
         if (emailCheck?.state === "no-mx") throw new Error("This email domain can't receive mail — double-check the address.");
         // Mailbox-level verdict (verify-email edge function + a configured
         // verification provider): a confirmed missing mailbox would burn a
         // Supabase confirmation email for nothing — block before submit.
         if (emailCheck?.state === "no-mailbox") throw new Error("This mailbox doesn't exist — the address can't receive the verification email. Double-check it.");
+        if (!username.trim()) throw new Error("Choose a username.");
+        if (!password) throw new Error("Create a password.");
         if (!acceptedTerms) throw new Error("Accept the Terms and Privacy policy to continue.");
         if (!/^[a-z0-9_]{3,20}$/.test(username.trim().toLowerCase())) throw new Error("Use 3–20 lowercase letters, numbers, or underscores for your username.");
         if (usernameState === "taken") throw new Error("That username is already in use.");
@@ -166,7 +204,8 @@ export default function AuthScreen() {
         setConfirmingEmail(true);
         return;
       }
-      if (mode === "forgot") { const emailProblem = emailProblemOrTypo(email); if (emailProblem) throw new Error(emailProblem); setBusy(true); await auth.sendRecovery(email); setMessage("A password-reset link has been sent if this email belongs to an account."); return; }
+      if (mode === "forgot") { const emailProblem = emailProblemOrTypo(email); if (emailProblem) throw new Error(emailProblem); setBusy(true); await auth.sendRecovery(email.trim()); setMessage("A password-reset link has been sent if this email belongs to an account."); return; }
+      if (!password) throw new Error("Enter a new password.");
       setBusy(true); await auth.updatePassword(password); setMessage("Password updated. You can continue to Aniraku."); setTimeout(() => router.replace("/(tabs)" as never), 600);
     } catch (submitError) { setError(submitError instanceof Error ? submitError.message : "Authentication could not be completed."); }
     finally { setBusy(false); }
@@ -182,26 +221,282 @@ export default function AuthScreen() {
       setError(resendError instanceof Error ? resendError.message : "Verification email could not be resent. Try again shortly.");
     } finally { setResendingVerification(false); }
   };
-  const heading = mode === "signUp" ? "Create account" : mode === "forgot" ? "Recover access" : mode === "recovery" ? "New password" : "Sign in";
-  const action = mode === "signUp" ? "Create account" : mode === "forgot" ? "Send recovery link" : mode === "recovery" ? "Update password" : "Sign in";
-  const verificationView = verificationPending ? <NothingCard style={styles.verificationCard}><View style={styles.verificationMark}><AnirakuMark size={46} inverted /></View><DotLabel tone="muted">Email confirmation</DotLabel><Text style={styles.verificationTitle}>CONFIRM YOUR EMAIL</Text><Text style={styles.verificationLead}>{verificationPending.detail}</Text><View style={styles.steps}><Text style={styles.step}>01  OPEN THE EMAIL FROM ANIRAKU</Text><Text style={styles.step}>02  TAP CONFIRM EMAIL ADDRESS</Text><Text style={styles.step}>03  RETURN HERE TO SIGN IN</Text></View><Signal label="IF NEEDED, CHECK SPAM OR JUNK" tone="muted" />{error ? <Signal label={error} tone="signal" /> : null}<NothingButton label={resendingVerification ? "SENDING…" : resendCooldown > 0 ? `RESEND IN ${resendCooldown}s` : "SEND ANOTHER EMAIL"} onPress={() => void resendVerification()} disabled={resendingVerification || resendCooldown > 0} /><NothingButton label="BACK TO SIGN IN" onPress={() => { setVerificationPending(null); setMessage("Once your email is confirmed, you can sign in."); }} variant="outline" /><Pressable onPress={() => { setVerificationPending(null); setMode("signUp"); }}><Text style={styles.changeEmail}>USE A DIFFERENT EMAIL</Text></Pressable></NothingCard> : null;
-  return <NativeScreen scroll={false} style={styles.fill}><KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.fill}><View style={styles.top}><Pressable onPress={() => router.back()} accessibilityRole="button"><Text style={styles.close}>CLOSE</Text></Pressable><DotLabel>Aniraku ID / account</DotLabel></View><View style={styles.body}><Text style={styles.heading}>{verificationPending ? "Almost there" : heading}</Text><Text style={styles.lead}>{verificationPending ? "Confirm the email we sent to finish creating your account. You can sign in once it is confirmed." : mode === "signUp" ? "Create your Aniraku account. We will send a confirmation email before you sign in." : "Sign in with an email address that has already been confirmed."}</Text>{verificationView || <><NothingCard style={styles.form}>{mode === "signUp" ? <><TextInput value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="Username" placeholderTextColor={nothing.dim} style={styles.input} /><Text style={[styles.usernameState, usernameState === "taken" && styles.taken, usernameState === "available" && styles.available]}>{usernameState === "checking" ? "CHECKING USERNAME" : usernameState === "taken" ? "USERNAME TAKEN" : usernameState === "available" ? "USERNAME AVAILABLE" : "3–20 lowercase letters, numbers, underscores"}</Text></> : null}{mode !== "recovery" ? <TextInput value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" placeholder="Email" placeholderTextColor={nothing.dim} style={styles.input} /> : null}{mode === "signUp" && emailCheck && emailCheck.hint ? <Text style={[styles.usernameState, (emailCheck.state === "exists" || emailCheck.state === "no-mailbox") && styles.taken, emailCheck.state === "ok" && styles.available]}>{emailCheck.hint.toUpperCase()}</Text> : null}{mode !== "forgot" ? <TextInput value={password} onChangeText={setPassword} secureTextEntry placeholder={mode === "recovery" ? "New password" : "Password"} placeholderTextColor={nothing.dim} style={styles.input} /> : null}{mode === "signUp" ? <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: acceptedTerms }} accessibilityLabel="Accept the Terms and Privacy policy" accessibilityHint="Toggles agreement; the Terms open via the link" onPress={() => setAcceptedTerms((value) => !value)} style={({ pressed }) => [styles.termsRow, pressed && styles.termsRowPressed]}><View style={[styles.termsBox, acceptedTerms && styles.termsBoxChecked]}>{acceptedTerms ? <View style={styles.termsBoxFill} /> : null}</View><Text style={styles.termsText}>I agree to the <Pressable onPress={(event) => { event.stopPropagation(); router.push("/legal" as never); }} accessibilityRole="link" hitSlop={8}><Text style={styles.termsLink}>Terms and Privacy policy</Text></Pressable>.</Text></Pressable> : null}{error ? <Signal label={error} tone="signal" /> : null}{message ? <Signal label={message} tone="live" /> : null}{busy ? <ActivityIndicator color={nothing.white} /> : <NothingButton label={action} onPress={() => void submit()} disabled={mode === "signUp" && usernameState === "checking"} />}</NothingCard><View style={styles.switches}>{mode === "signIn" ? <><Pressable onPress={() => setMode("forgot")}><Text style={styles.link}>Forgot password?</Text></Pressable><Pressable onPress={() => setMode("signUp")}><Text style={styles.link}>Create account</Text></Pressable></> : <Pressable onPress={() => setMode("signIn")}><Text style={styles.link}>Back to sign in</Text></Pressable>}</View></>}</View></KeyboardAvoidingView>{/* ── "Check your mail" — last look at the address before the account exists ── */}
+  const copy = MODE_COPY[mode];
+  const heading = verificationPending ? "Check your email" : copy.heading;
+  const lead = verificationPending ? verificationPending.detail : copy.lead;
+  const action = copy.action;
+  const busyAction = copy.busy;
+
+  const usernameField = mode === "signUp" ? (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>Username</Text>
+      <TextInput
+        value={username}
+        onChangeText={setUsername}
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="username"
+        textContentType="username"
+        placeholder="e.g. kira_watches"
+        placeholderTextColor={nothing.placeholder}
+        onFocus={() => setFocusedField("username")}
+        onBlur={() => setFocusedField(null)}
+        onSubmitEditing={() => emailInputRef.current?.focus()}
+        returnKeyType="next"
+        accessibilityLabel="Username"
+        style={[styles.input, focusedField === "username" && styles.inputFocused]}
+      />
+      <Signal
+        label={usernameState === "checking" ? "Checking availability…" : usernameState === "taken" ? "That username is taken." : usernameState === "available" ? "That username is available." : "3–20 lowercase letters, numbers, or underscores."}
+        tone={usernameState === "taken" ? "signal" : usernameState === "available" ? "positive" : "muted"}
+      />
+    </View>
+  ) : null;
+
+  const emailField = mode !== "recovery" ? (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>Email</Text>
+      <TextInput
+        ref={emailInputRef}
+        value={email}
+        onChangeText={setEmail}
+        autoCapitalize="none"
+        autoCorrect={false}
+        spellCheck={false}
+        keyboardType="email-address"
+        autoComplete="email"
+        textContentType="emailAddress"
+        placeholder="you@example.com"
+        placeholderTextColor={nothing.placeholder}
+        onFocus={() => setFocusedField("email")}
+        onBlur={() => setFocusedField(null)}
+        onSubmitEditing={() => { if (mode === "forgot") void submit(); else passwordInputRef.current?.focus(); }}
+        returnKeyType={mode === "forgot" ? "send" : "next"}
+        accessibilityLabel="Email address"
+        style={[styles.input, focusedField === "email" && styles.inputFocused]}
+      />
+      {emailCheck && emailCheck.state !== "ok" && emailCheck.state !== "checking" ? (
+        emailCheck.state === "exists" ? (
+          <View style={styles.hintRow}>
+            <Signal label="This email is already registered." tone="signal" />
+            <Pressable accessibilityRole="button" onPress={() => switchMode("signIn")} hitSlop={6} style={({ pressed }) => [styles.hintAction, pressed && styles.pressedSubtle]}>
+              <Text style={styles.hintActionText}>Sign in instead</Text>
+            </Pressable>
+          </View>
+        ) : emailCheck.suggestion ? (
+          <View style={styles.suggestionRow}>
+            <Text style={styles.statusMutedText}>Did you mean </Text>
+            <Pressable accessibilityRole="button" onPress={() => { if (emailCheck.suggestion) setEmail(emailCheck.suggestion); }} hitSlop={4}>
+              <Text style={styles.suggestionLink}>{emailCheck.suggestion}</Text>
+            </Pressable>
+            <Text style={styles.statusMutedText}>?</Text>
+          </View>
+        ) : (
+          <Signal label={emailCheck.hint} tone="signal" />
+        )
+      ) : null}
+    </View>
+  ) : null;
+
+  const passwordField = mode !== "forgot" ? (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{mode === "recovery" ? "New password" : "Password"}</Text>
+      <View style={[styles.inputRow, focusedField === "password" && styles.inputFocused]}>
+        <TextInput
+          ref={passwordInputRef}
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry={!showPassword}
+          autoCapitalize="none"
+          autoComplete={mode === "signUp" ? "new-password" : "password"}
+          textContentType={mode === "signUp" ? "newPassword" : "password"}
+          placeholder="••••••••"
+          placeholderTextColor={nothing.placeholder}
+          onFocus={() => setFocusedField("password")}
+          onBlur={() => setFocusedField(null)}
+          onSubmitEditing={() => void submit()}
+          returnKeyType={mode === "recovery" ? "done" : "go"}
+          accessibilityLabel={mode === "recovery" ? "New password" : "Password"}
+          style={styles.input}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+          onPress={() => setShowPassword((value) => !value)}
+          hitSlop={6}
+          style={({ pressed }) => [styles.eyeButton, pressed && styles.pressedSubtle]}
+        >
+          <AppIcon name={showPassword ? "eye-off-outline" : "eye-outline"} size={18} color={nothing.muted} />
+        </Pressable>
+      </View>
+    </View>
+  ) : null;
+
+  const termsField = mode === "signUp" ? (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: acceptedTerms }}
+      accessibilityLabel="Accept the Terms and Privacy policy"
+      accessibilityHint="Toggles agreement; the Terms open via the link"
+      onPress={() => setAcceptedTerms((value) => !value)}
+      style={({ pressed }) => [styles.termsRow, pressed && styles.pressedSubtle]}
+    >
+      <View style={[styles.termsBox, acceptedTerms && styles.termsBoxChecked]}>
+        {acceptedTerms ? <AppIcon name="check" size={13} color={nothing.black} /> : null}
+      </View>
+      <Text style={styles.termsText}>
+        I agree to the{" "}
+        <Pressable onPress={(event) => { event.stopPropagation(); router.push("/legal" as never); }} accessibilityRole="link" hitSlop={8}>
+          <Text style={styles.termsLink}>Terms and Privacy policy</Text>
+        </Pressable>
+        .
+      </Text>
+    </Pressable>
+  ) : null;
+
+  const verificationView = verificationPending ? (
+    <NothingCard style={styles.verificationCard}>
+      <View style={styles.addressBox}>
+        <Text selectable style={styles.addressText}>{verificationPending.email}</Text>
+      </View>
+      <View style={styles.steps}>
+        <Text style={styles.step}>Open the email from Aniraku.</Text>
+        <Text style={styles.step}>Tap “Confirm email address”.</Text>
+        <Text style={styles.step}>Return here to sign in.</Text>
+      </View>
+      {error ? <Signal label={error} tone="signal" /> : null}
+      <NothingButton
+        sentence
+        label={resendingVerification ? "Sending…" : resendCooldown > 0 ? `Resend available in ${resendCooldown}s` : "Send another email"}
+        onPress={() => void resendVerification()}
+        disabled={resendingVerification || resendCooldown > 0}
+      />
+      <NothingButton sentence label="Back to sign in" variant="outline" onPress={() => { setVerificationPending(null); setMessage("Once your email is confirmed, you can sign in."); }} />
+      <Pressable accessibilityRole="button" onPress={() => { setVerificationPending(null); setError(null); setMode("signUp"); }} style={({ pressed }) => [styles.changeEmail, pressed && styles.pressedSubtle]}>
+        <Text style={styles.changeEmailText}>Use a different email</Text>
+      </Pressable>
+    </NothingCard>
+  ) : null;
+
+  return (
+    <NativeScreen scroll={false} style={styles.fill}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.fill}>
+        <View style={styles.top}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => router.back()} hitSlop={4} style={({ pressed }) => [styles.iconButton, pressed && styles.pressedSubtle]}>
+            <AppIcon name="close" size={16} color={nothing.white} />
+          </Pressable>
+          <DotLabel>Aniraku ID</DotLabel>
+        </View>
+        <ScrollView
+          style={styles.fill}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.column}>
+            <AnirakuMark size={30} inverted />
+            <Text style={styles.heading}>{heading}</Text>
+            <Text style={styles.lead}>{lead}</Text>
+            {verificationView || (
+              <>
+                <NothingCard style={styles.form}>
+                  {usernameField}
+                  {emailField}
+                  {passwordField}
+                  {termsField}
+                  {error ? <Signal label={error} tone="signal" /> : null}
+                  {message ? <Signal label={message} tone="positive" /> : null}
+                  <NothingButton sentence label={busy ? busyAction : action} onPress={() => void submit()} disabled={mode === "signUp" && usernameState === "checking"} loading={busy} />
+                </NothingCard>
+                <View style={styles.switches}>
+                  {mode === "signIn" ? (
+                    <>
+                      <Pressable accessibilityRole="button" onPress={() => switchMode("forgot")} style={({ pressed }) => [styles.switchLink, pressed && styles.pressedSubtle]}>
+                        <Text style={styles.switchLinkMuted}>Forgot password?</Text>
+                      </Pressable>
+                      <Pressable accessibilityRole="button" onPress={() => switchMode("signUp")} style={({ pressed }) => [styles.switchLink, pressed && styles.pressedSubtle]}>
+                        <Text style={styles.switchLinkStrong}>Create account</Text>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <Pressable accessibilityRole="button" onPress={() => switchMode("signIn")} style={({ pressed }) => [styles.switchLink, pressed && styles.pressedSubtle]}>
+                      <Text style={styles.switchLinkMuted}>Back to sign in</Text>
+                    </Pressable>
+                  )}
+                </View>
+              </>
+            )}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+      {/* ── "Check your mail" — last look at the address before the account exists ── */}
       <Modal visible={confirmingEmail} transparent animationType="fade" onRequestClose={() => setConfirmingEmail(false)}>
         <Pressable accessibilityRole="button" accessibilityLabel="Dismiss email confirmation" style={styles.confirmBackdrop} onPress={() => setConfirmingEmail(false)}>
-          <Animated.View accessibilityViewIsModal style={[styles.confirmCard, { opacity: confirmEnter, transform: [{ translateY: confirmEnter.interpolate({ inputRange: [0, 1], outputRange: [28, 0] }) }] }]}>
-            <DotLabel tone="live">CHECK YOUR MAIL</DotLabel>
+          <Animated.View accessibilityViewIsModal style={[styles.confirmCard, { opacity: confirmEnter, transform: [{ translateY: confirmEnter.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }] }]}>
+            <DotLabel tone="muted">Check your mail</DotLabel>
             <Text style={styles.confirmTitle}>Is this email correct?</Text>
-            <View style={styles.confirmEmailBox}><Text selectable style={styles.confirmEmail}>{email.trim()}</Text></View>
-            <Text style={styles.confirmCopy}>The verification link goes to exactly this address. Aniraku cannot see typos — the mail goes wherever this says.</Text>
-            <View style={styles.confirmWarn}>
-              <Text style={styles.confirmWarnText}>WRONG ADDRESS = THE MAIL NEVER ARRIVES. THE ACCOUNT STAYS UNCONFIRMED AND YOU CANNOT SIGN IN.</Text>
+            <View style={styles.addressBox}>
+              <Text selectable style={styles.addressText}>{email.trim()}</Text>
             </View>
-            <NothingButton label="CORRECT — SEND IT" onPress={() => { setConfirmingEmail(false); void finishSignUp(); }} />
-            <NothingButton label="LET ME FIX IT" variant="outline" onPress={() => setConfirmingEmail(false)} />
+            <Text style={styles.confirmCopy}>The verification link goes to exactly this address — the mail goes wherever this says.</Text>
+            <View style={styles.confirmWarn}>
+              <View style={[styles.statusDot, { backgroundColor: nothing.red, marginTop: 5 }]} />
+              <Text style={styles.confirmWarnText}>A typo means the mail never arrives and the account can’t be used.</Text>
+            </View>
+            <NothingButton sentence label="Correct — send it" onPress={() => { setConfirmingEmail(false); void finishSignUp(); }} />
+            <NothingButton sentence label="Let me fix it" variant="outline" onPress={() => setConfirmingEmail(false)} />
           </Animated.View>
         </Pressable>
       </Modal>
-    </NativeScreen>;
+    </NativeScreen>
+  );
 }
 
-const styles = StyleSheet.create({ fill: { flex: 1 }, top: { minHeight: 70, paddingHorizontal: 20, alignItems: "flex-start", justifyContent: "center", gap: 10 }, close: { color: nothing.muted, fontWeight: "800", fontSize: 11, letterSpacing: 1 }, body: { flex: 1, justifyContent: "center", paddingHorizontal: 20, gap: 18 }, heading: { color: nothing.white, fontSize: 34, fontWeight: "900", letterSpacing: -1 }, lead: { color: nothing.muted, fontSize: 14, lineHeight: 21 }, form: { padding: 16, gap: 12 }, input: { minHeight: 52, color: nothing.white, borderBottomWidth: 1, borderBottomColor: nothing.line, fontSize: 16 }, usernameState: { color: nothing.dim, fontSize: 10, letterSpacing: 0.5 }, available: { color: nothing.green }, taken: { color: nothing.red }, switches: { flexDirection: "row", justifyContent: "space-between" }, link: { color: nothing.white, fontWeight: "700", fontSize: 11, letterSpacing: 0.6 }, verificationCard: { padding: 20, gap: 15, borderColor: "rgba(255,77,77,0.45)" }, verificationMark: { alignItems: "flex-start" }, verificationTitle: { color: nothing.white, fontSize: 20, fontWeight: "900", letterSpacing: 0.4 }, verificationLead: { color: nothing.muted, fontSize: 14, lineHeight: 21 }, steps: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: nothing.line, paddingVertical: 12, gap: 8 }, step: { color: nothing.white, fontSize: 10, fontWeight: "700", letterSpacing: 0.35 }, changeEmail: { color: nothing.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.7, textAlign: "center" }, termsRow: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 4, borderRadius: 8 }, termsRowPressed: { backgroundColor: nothing.raised }, termsBox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: nothing.line, alignItems: "center", justifyContent: "center" }, termsBoxChecked: { borderColor: nothing.red }, termsBoxFill: { width: 10, height: 10, borderRadius: 2.5, backgroundColor: nothing.red }, termsText: { flex: 1, color: nothing.muted, fontSize: 12, lineHeight: 17, letterSpacing: 0.2 }, termsLink: { color: nothing.white, fontWeight: "800", textDecorationLine: "underline" }, confirmBackdrop: { flex: 1, padding: 24, justifyContent: "center", backgroundColor: "rgba(0,0,0,0.78)" }, confirmCard: { gap: 13, padding: 18, borderRadius: 12, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface }, confirmTitle: { color: nothing.white, fontSize: 19, fontWeight: "900", letterSpacing: -0.3 }, confirmEmailBox: { paddingHorizontal: 14, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: "rgba(255,77,77,0.4)", backgroundColor: nothing.raised }, confirmEmail: { color: nothing.white, fontFamily: nothing.mono, fontSize: 13.5, fontWeight: "700" }, confirmCopy: { color: nothing.muted, fontSize: 12.5, lineHeight: 18 }, confirmWarn: { borderLeftWidth: 2, borderLeftColor: nothing.red, paddingLeft: 10, paddingVertical: 2 }, confirmWarnText: { color: nothing.red, fontSize: 10.5, fontWeight: "800", letterSpacing: 0.4, lineHeight: 15 }, });
+const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  top: { minHeight: 56, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 4 },
+  iconButton: { width: 42, height: 42, borderRadius: 8, borderWidth: 1, borderColor: nothing.line, alignItems: "center", justifyContent: "center" },
+  scrollContent: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 20, paddingVertical: 28 },
+  column: { width: "100%", maxWidth: 440, alignSelf: "center" },
+  heading: { marginTop: 14, color: nothing.white, fontSize: 28, fontWeight: "900", letterSpacing: -0.9 },
+  lead: { marginTop: 8, color: nothing.muted, fontSize: nothing.type.body, lineHeight: 21, fontFamily: nothing.font },
+  form: { marginTop: 24, padding: 18, gap: 16 },
+  field: { gap: 8 },
+  fieldLabel: { color: nothing.muted, fontSize: 13, fontWeight: "600", fontFamily: nothing.font },
+  inputRow: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: nothing.line },
+  inputFocused: { borderBottomColor: nothing.white },
+  input: { flex: 1, minHeight: 52, color: nothing.white, fontSize: 16, fontFamily: nothing.font, paddingVertical: 10 },
+  eyeButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", marginRight: 2 },
+  statusDot: { width: 7, height: 7, borderRadius: 4, marginTop: 5 },
+  hintRow: { flexDirection: "row", alignItems: "flex-start", flexWrap: "wrap", gap: 8 },
+  hintAction: { marginTop: 5 },
+  hintActionText: { color: nothing.white, fontSize: nothing.type.status, fontWeight: "700", textDecorationLine: "underline", fontFamily: nothing.font },
+  suggestionRow: { flexDirection: "row", alignItems: "flex-start", flexWrap: "wrap", gap: 3 },
+  statusMutedText: { color: nothing.muted, fontSize: nothing.type.status, lineHeight: 18, fontFamily: nothing.font },
+  suggestionLink: { color: nothing.white, fontSize: nothing.type.status, lineHeight: 18, fontWeight: "700", textDecorationLine: "underline", fontFamily: nothing.font },
+  termsRow: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 2 },
+  termsBox: { width: 22, height: 22, borderRadius: 5, borderWidth: 1.5, borderColor: nothing.line, alignItems: "center", justifyContent: "center" },
+  termsBoxChecked: { backgroundColor: nothing.white, borderColor: nothing.white },
+  termsText: { flex: 1, color: nothing.muted, fontSize: 13, lineHeight: 18, fontFamily: nothing.font },
+  termsLink: { color: nothing.white, fontWeight: "700", textDecorationLine: "underline" },
+  switches: { marginTop: 6, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  switchLink: { minHeight: 44, justifyContent: "center", paddingHorizontal: 2 },
+  switchLinkMuted: { color: nothing.muted, fontWeight: "600", fontSize: nothing.type.link, fontFamily: nothing.font },
+  switchLinkStrong: { color: nothing.white, fontWeight: "700", fontSize: nothing.type.link, fontFamily: nothing.font },
+  verificationCard: { marginTop: 24, padding: 18, gap: 16 },
+  addressBox: { borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.raised, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12 },
+  addressText: { color: nothing.white, fontFamily: nothing.mono, fontSize: 13.5, fontWeight: "700" },
+  steps: { gap: 6 },
+  step: { color: nothing.muted, fontSize: 13, lineHeight: 19, fontFamily: nothing.font },
+  changeEmail: { minHeight: 44, alignItems: "center", justifyContent: "center" },
+  changeEmailText: { color: nothing.muted, fontSize: 13, fontWeight: "600", textDecorationLine: "underline", fontFamily: nothing.font },
+  confirmBackdrop: { flex: 1, padding: 24, justifyContent: "center", backgroundColor: "rgba(0,0,0,0.78)" },
+  confirmCard: { gap: 14, padding: 20, borderRadius: 8, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface, width: "100%", maxWidth: 400, alignSelf: "center" },
+  confirmTitle: { color: nothing.white, fontSize: 19, fontWeight: "800", letterSpacing: -0.3 },
+  confirmCopy: { color: nothing.muted, fontSize: 13, lineHeight: 19, fontFamily: nothing.font },
+  confirmWarn: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  confirmWarnText: { flex: 1, color: nothing.red, fontSize: 12.5, lineHeight: 18, fontWeight: "600", fontFamily: nothing.font },
+  pressed: nothing.pressed,
+  pressedSubtle: nothing.pressedSubtle,
+});

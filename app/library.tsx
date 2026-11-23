@@ -35,7 +35,7 @@ export default function LibraryScreen() {
           <AnirakuMark size={36} />
         </View>
         <View style={styles.guestAlert}>
-          <Signal label="ACCOUNT SIGNAL" tone="live" />
+          <Signal label="Account signal" tone="positive" />
           <Text style={styles.guestAlertTitle}>Your anime alerts,<br />kept in one place.</Text>
           <Text style={styles.guestAlertCopy}>Episode, comment, and library activity alerts appear here after you sign in.</Text>
           <NothingButton label="SIGN IN TO SYNC ALERTS" onPress={() => router.push("/auth" as never)} />

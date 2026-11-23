@@ -30,8 +30,8 @@ export function AvatarPickerSheet({ visible, currentUrl, onClose, onPick }: {
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
+      <Pressable accessibilityRole="button" style={styles.backdrop} onPress={onClose}>
+        <Pressable accessibilityRole="button" style={styles.sheet} onPress={() => {}}>
           <Text style={styles.kicker}>PROFILE · AVATAR</Text>
           <Text style={styles.title}>Pick your avatar</Text>
           <Text style={styles.message}>Same set as the Aniraku website — choose once, everywhere.</Text>
@@ -54,7 +54,7 @@ export function AvatarPickerSheet({ visible, currentUrl, onClose, onPick }: {
           <Pressable accessibilityRole="button" accessibilityLabel="Save avatar" onPress={save} disabled={!pendingUrl || saving} style={[styles.save, (!pendingUrl || saving) && styles.saveDisabled]}>
             <Text style={styles.saveText}>{saving ? "SAVING…" : "SAVE AVATAR"}</Text>
           </Pressable>
-          <Pressable onPress={onClose} hitSlop={8} style={styles.later}>
+          <Pressable accessibilityRole="button" onPress={onClose} hitSlop={8} style={styles.later}>
             <Text style={styles.laterText}>CANCEL</Text>
           </Pressable>
         </Pressable>
@@ -66,7 +66,7 @@ export function AvatarPickerSheet({ visible, currentUrl, onClose, onPick }: {
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.86)", alignItems: "center", justifyContent: "center", padding: 20 },
   sheet: { width: "100%", maxWidth: 420, borderRadius: 12, borderWidth: 1, borderColor: nothing.line, backgroundColor: nothing.surface, padding: 18, gap: 8 },
-  kicker: { color: nothing.red, fontSize: 10, fontWeight: "800", letterSpacing: 1, fontFamily: nothing.mono },
+  kicker: { color: nothing.muted, fontSize: 11, fontWeight: "800", letterSpacing: 1, fontFamily: nothing.mono },
   title: { color: nothing.white, fontSize: 17, fontWeight: "900", letterSpacing: -0.3 },
   message: { color: nothing.muted, fontSize: 12.5, lineHeight: 18 },
   grid: { maxHeight: 320 },
@@ -80,5 +80,5 @@ const styles = StyleSheet.create({
   saveDisabled: { opacity: 0.5 },
   saveText: { color: nothing.black, fontWeight: "900", fontSize: 12, letterSpacing: 0.8 },
   later: { alignItems: "center", paddingVertical: 6 },
-  laterText: { color: nothing.dim, fontSize: 10, fontWeight: "800", letterSpacing: 1 },
+  laterText: { color: nothing.dim, fontSize: 11, fontWeight: "800", letterSpacing: 1 },
 });

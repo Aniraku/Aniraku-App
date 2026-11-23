@@ -146,14 +146,14 @@ const styles = StyleSheet.create({
 
   qrWrap: { alignItems: "center", gap: 8, paddingVertical: 2 },
   qr: { width: 176, height: 176, borderRadius: 8, backgroundColor: nothing.white, borderWidth: 1, borderColor: nothing.line },
-  qrCaption: { color: nothing.dim, fontFamily: "SpaceGrotesk-Medium", fontSize: 10, fontWeight: "800", letterSpacing: 0.8 },
+  qrCaption: { color: nothing.dim, fontFamily: "SpaceGrotesk-Medium", fontSize: 11, fontWeight: "800", letterSpacing: 0.8 },
 
   uidBox: { width: "100%", padding: 12, borderRadius: 8, backgroundColor: nothing.black, borderWidth: 1, borderColor: nothing.line },
-  uidLabel: { color: nothing.dim, fontFamily: "SpaceGrotesk-Medium", fontSize: 10, fontWeight: "800", letterSpacing: 0.8, marginBottom: 6 },
+  uidLabel: { color: nothing.dim, fontFamily: "SpaceGrotesk-Medium", fontSize: 11, fontWeight: "800", letterSpacing: 0.8, marginBottom: 6 },
   uidRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   uidValue: { color: nothing.white, fontFamily: "SpaceGrotesk-SemiBold", fontSize: 20, fontWeight: "900", letterSpacing: 1 },
   copyBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, backgroundColor: nothing.red },
-  copyBtnText: { color: nothing.black, fontFamily: "SpaceGrotesk-SemiBold", fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
+  copyBtnText: { color: nothing.black, fontFamily: "SpaceGrotesk-SemiBold", fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
   uidHint: { color: nothing.dim, fontFamily: "SpaceGrotesk-Regular", fontSize: 11, lineHeight: 16 },
 
   toast: { alignSelf: "center", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: nothing.surface, borderWidth: 1, borderColor: nothing.line },
